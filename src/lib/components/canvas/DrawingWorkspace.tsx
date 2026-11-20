@@ -599,7 +599,7 @@ export function DrawingChrome() {
   }, [toolGroup, context?.hosts.tools]);
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
   function focusCad(section: CadFocusRequest['section']) {
-    if (section === 'nodes' || section === 'nodeArrange' || section === 'convert') {
+    if (section === 'nodes' || section === 'nodeArrange' || section === 'nodeReduce' || section === 'convert') {
       editor.complete(); editor.setCurrentTool('select'); setCadNodeEditing(editor, true);
     }
     context?.setPanel('cad'); closeMenus();
@@ -1118,6 +1118,7 @@ export function DrawingChrome() {
           <span className="drawing-unit" data-testid="drawing-node-selection-count">{nodeArrangeLabel('selection')} · {nodeCount}</span>
           <ToolButton icon="nodes" label={advancedLabel('nodeCoordinates')} onClick={() => focusCad('nodes')} testId="drawing-property-node-coordinates">{advancedLabel('nodeCoordinates')}</ToolButton>
           <ToolButton icon="arrange" label={nodeArrangeLabel('title')} onClick={() => focusCad('nodeArrange')} testId="drawing-property-node-arrange">{nodeArrangeLabel('title')}</ToolButton>
+          <ToolButton label={advancedLabel('reduceNodes')} disabled={!controls.canEditSelection} onClick={() => focusCad('nodeReduce')} testId="drawing-property-node-reduce">{advancedLabel('reduceNodes')}</ToolButton>
         </>}
       </div> : <>
       {settings && <CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />}

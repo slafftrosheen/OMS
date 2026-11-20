@@ -523,3 +523,93 @@ describe('native node marquee', () => {
     });
   }));
 });
+
+
+describe('native bounded node reduction', () => {
+  it('uses physical scale, remaps selected anchors and changes one record with native Undo/Redo', async () => harness(async h => {
+    const { editor, create, contour, cad, paint, snapshot } = h;
+    const { prepareNodeReduction, applyNodeReduction } = await import('../../src/lib/components/canvas/cad-node-reduction');
+    const { getSelectedCadNodes, setSelectedCadNodes } = await import('../../src/lib/components/canvas/cad-node-selection');
+    const group = create('group', {}, { x: 180, y: 125, rotation: .5, opacity: .45 }, {});
+    const source = create('cad-bezier', { contours: [contour([[0, 0], [100, .2], [200, 0], [240, 0]])] },
+      { parentId: group.id, x: 15, y: 25, rotation: -.35, opacity: .4 }, { omsObjectName: 'Badge shape', omsVectorPaint: paint });
+    editor.select(source.id);
+    editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: 3 } } });
+    editor.mark('node-reduction-fixture');
+    const options = { tolerance: .2, selectedOnly: true };
+    setSelectedCadNodes(editor, [3, 1, 0].map(nodeIndex => ({ contourIndex: 0, nodeIndex })));
+    const before = snapshot(), plan = prepareNodeReduction(editor, options);
+    assert.equal(plan.unit, 'mm');
+    assert.equal(plan.before, 4);
+    assert.equal(plan.removed, 1);
+    assert.ok(plan.error >= .2 * cad.cadMmPerPixel({ ...cad.DEFAULT_CAD_SETTINGS, scale: 3 }) && plan.error <= .2);
+    assert.deepEqual(snapshot(), before);
+    assert.equal(applyNodeReduction(editor, plan), true);
+    const applied = editor.getShape(source.id);
+    assert.deepEqual(applied, { ...source, props: { ...source.props, contours: plan.local } });
+    assert.deepEqual(getSelectedCadNodes(editor), [2, 0].map(nodeIndex => ({ shapeId: source.id, contourIndex: 0, nodeIndex })));
+    assert.deepEqual(editor.getShape(group.id), group);
+    const after = snapshot();
+    editor.undo(); assert.deepEqual(snapshot(), before);
+    editor.redo(); assert.deepEqual(snapshot(), after);
+  }));
+
+  it('shows a before/after preview and applies it through the node docker', async () => harness(async h => {
+    const { editor, create, contour, cad, tl } = h;
+    const React = await import('react'), { createRoot } = await import('react-dom/client');
+    const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
+    const { CadNodeReducePanel } = await import('../../src/lib/components/canvas/CadNodeReducePanel');
+    const { cadRevision } = await import('../../src/lib/components/canvas/cad-plans');
+    const { locale } = await import('svelte-i18n');
+    locale.set('en');
+    const source = create('cad-bezier', { contours: [contour([[0, 0], [20, 0], [40, 0]])] }, {}, {});
+    editor.select(source.id);
+    const host = editor.getContainer(), root = createRoot(host);
+    function Panel() {
+      const revision = tl.useValue('reduction test revision', () => cadRevision(editor), [editor]);
+      return <CadNodeReducePanel settings={cad.DEFAULT_CAD_SETTINGS} revision={revision} disabled={false} focusSequence={1} />;
+    }
+    try {
+      await React.act(async () => root.render(<EditorContext.Provider value={editor}><Panel /></EditorContext.Provider>));
+      const details = host.querySelector('details') as HTMLDetailsElement;
+      assert.equal(details.open, true);
+      assert.equal(document.activeElement, details.querySelector('summary'));
+      const form = details.querySelector('form')!;
+      await React.act(async () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+      const report = details.querySelector('[data-testid="drawing-node-reduction-review"]')!;
+      assert.ok(report);
+      assert.match(report.textContent!, /3 → 2/);
+      assert.match(report.textContent!, /≤ 0 mm/);
+      assert.equal(report.querySelectorAll('svg path').length, 2);
+      assert.equal(editor.getShape(source.id).props.contours[0].nodes.length, 3);
+      await React.act(async () => report.querySelector('button')!.click());
+      assert.equal(editor.getShape(source.id).props.contours[0].nodes.length, 2);
+      assert.equal(details.querySelector('[data-testid="drawing-node-reduction-review"]'), null);
+    } finally { await React.act(async () => root.unmount()); }
+  }));
+
+  it('blocks stale selections, forged geometry, clipped sources and read-only changes', async () => harness(async h => {
+    const { editor, create, contour, paint, snapshot } = h;
+    const { prepareNodeReduction, applyNodeReduction } = await import('../../src/lib/components/canvas/cad-node-reduction');
+    const { setSelectedCadNodes } = await import('../../src/lib/components/canvas/cad-node-selection');
+    const source = create('cad-bezier', { contours: [contour([[0, 0], [20, 0], [40, 0]])] }, {}, {});
+    editor.select(source.id);
+    editor.updatePage({ id: editor.getCurrentPageId(), meta: {} });
+    editor.mark('node-reduction-stale');
+    const options = { tolerance: .3, selectedOnly: false };
+    const before = snapshot(), plan = prepareNodeReduction(editor, options);
+    assert.equal(plan.unit, 'px');
+    assert.equal(plan.removed, 1);
+    assert.equal(applyNodeReduction(editor, { ...plan, local: source.props.contours }), false);
+    setSelectedCadNodes(editor, [{ contourIndex: 0, nodeIndex: 1 }]);
+    assert.equal(applyNodeReduction(editor, plan), false);
+    const valid = prepareNodeReduction(editor, options);
+    editor.updateInstanceState({ isReadonly: true });
+    assert.equal(applyNodeReduction(editor, valid), false);
+    assert.deepEqual(snapshot(), before);
+    editor.updateInstanceState({ isReadonly: false });
+    editor.updateShape({ id: source.id, type: source.type, meta: { omsVectorPaint: { ...paint,
+      clips: [{ contours: [contour([[0, 0], [40, 0], [20, 20]], true)], fillRule: 'evenodd' }] } } });
+    assert.throws(() => prepareNodeReduction(editor, options), /unsupported/);
+  }));
+});

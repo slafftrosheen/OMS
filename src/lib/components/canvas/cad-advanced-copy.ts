@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { get } from 'svelte/store';
-import { locale, t } from 'svelte-i18n';
+import { locale } from 'svelte-i18n';
 
 const en = {
   joinCurves: 'Join open curves', joinHelp: 'Select two open curves, or one compound containing exactly two open contours. Source order follows the selection. Preview the connection before replacing the sources.',
@@ -27,6 +27,17 @@ const en = {
   converted: 'Geometry converted to curves.', contour: 'Contour', node: 'Node', mode: 'Node type', corner: 'Corner', smooth: 'Smooth', symmetric: 'Symmetric',
   nodeHelp: 'X/Y are document coordinates. Handle ΔX/ΔY are offsets from the node in world axes; Y points up. Smooth and symmetric nodes align to the outgoing handle.',
   nodeCoordinates: 'Node coordinates', pickNodeHelp: 'Drag from empty canvas to select nodes in a rectangle. Hold Shift to add to the selection. Shift-click toggles individual anchors. Drag a selected anchor to move the selection. Zoom in to reveal nearby anchors on dense curves.',
+  reduceNodes: 'Reduce nodes',
+  reduceNodesHelp: 'Preview fewer nodes while preserving sharp corners, open endpoints and closed seams. The preview reports a verified upper bound for deviation.',
+  reduceTolerance: 'Maximum deviation',
+  reduceToleranceRange: 'Enter a tolerance from',
+  reduceSelected: 'Selected nodes only',
+  reduceSelectNodes: 'Select the nodes you want to reduce.',
+  reducePreview: 'Before and after node reduction',
+  reduceErrorBound: 'Verified deviation bound',
+  reduceLimited: 'The preview reached its work limit. It includes every merge verified so far.',
+  reduceNoChanges: 'No merges passed the tolerance and clearance checks.',
+  reduceClipped: 'Use an unclipped curve for node reduction.',
   segmentLength: 'Segment length', segmentAngle: 'Direction', updateSegment: 'Move segment end',
   segmentHelp: 'Keeps this node fixed and moves the next node. The adjoining segment follows its endpoint. Angles use document axes: 0° right, 90° up. One undo step.',
   splitPosition: 'Split position (%)', splitPositionHelp: 'Enter a value between 0 and 100, excluding endpoints. Straight segments split by length; Bézier curves split at parameter t, not distance. The curve stays unchanged and the new node is selected.',
@@ -127,6 +138,17 @@ const ru: Dictionary = {
   converted: 'Геометрия преобразована в кривые.', contour: 'Контур', node: 'Узел', mode: 'Тип узла', corner: 'Угловой', smooth: 'Сглаженный', symmetric: 'Симметричный',
   nodeHelp: 'X/Y — координаты документа. ΔX/ΔY направляющих — смещения от узла по осям документа; Y направлен вверх. Сглаженные и симметричные узлы выравниваются по исходящей направляющей.',
   nodeCoordinates: 'Координаты узла', pickNodeHelp: 'Начните перетаскивание с пустого места, чтобы выделить узлы рамкой. Shift добавляет узлы к выделению, а Shift+щелчок переключает отдельный узел. Перетащите выбранный узел, чтобы переместить всё выделение. Увеличьте масштаб, чтобы увидеть соседние узлы плотной кривой.',
+  reduceNodes: 'Уменьшить число узлов',
+  reduceNodesHelp: 'Просмотрите кривую с меньшим числом узлов. Острые углы, концы открытых контуров и точки начала замкнутых контуров сохраняются. В предпросмотре показана проверенная граница отклонения.',
+  reduceTolerance: 'Максимальное отклонение',
+  reduceToleranceRange: 'Введите допуск в диапазоне',
+  reduceSelected: 'Только выделенные узлы',
+  reduceSelectNodes: 'Выделите узлы, число которых нужно уменьшить.',
+  reducePreview: 'Кривая до и после уменьшения числа узлов',
+  reduceErrorBound: 'Проверенная граница отклонения',
+  reduceLimited: 'Достигнут предел расчёта. В предпросмотр включены все проверенные объединения.',
+  reduceNoChanges: 'Ни одно объединение не прошло проверки допуска и расстояния до соседних участков.',
+  reduceClipped: 'Для уменьшения числа узлов выберите кривую без обрезки.',
   segmentLength: 'Длина сегмента', segmentAngle: 'Направление', updateSegment: 'Переместить конец сегмента',
   segmentHelp: 'Текущий узел остаётся на месте, следующий перемещается вместе со своей направляющей. Смежный сегмент следует за ним. Углы по осям документа: 0° вправо, 90° вверх. Один шаг отмены.',
   splitPosition: 'Положение разделения (%)', splitPositionHelp: 'Значение между 0 и 100, без крайних точек. Прямой сегмент делится по длине, кривая Безье — по параметру t, а не по расстоянию. Форма сохраняется, новый узел выбирается автоматически.',
@@ -226,6 +248,17 @@ const lv: Dictionary = {
   converted: 'Ģeometrija pārveidota par līknēm.', contour: 'Kontūrs', node: 'Mezgls', mode: 'Mezgla veids', corner: 'Stūra', smooth: 'Gluds', symmetric: 'Simetrisks',
   nodeHelp: 'X/Y ir dokumenta koordinātas. Vadotņu ΔX/ΔY ir nobīdes no mezgla dokumenta asīs; Y ir vērsts uz augšu. Gludi un simetriski mezgli līdzinās izejošajai vadotnei.',
   nodeCoordinates: 'Mezgla koordinātas', pickNodeHelp: 'Velciet no tukšas vietas, lai atlasītu mezglus ar rāmi. Turiet Shift, lai papildinātu atlasi. Shift un klikšķis pārslēdz atsevišķu mezglu atlasi. Velciet atlasītu mezglu, lai pārvietotu visu atlasi. Pietuviniet, lai redzētu blīvas līknes tuvākos mezglus.',
+  reduceNodes: 'Samazināt mezglu skaitu',
+  reduceNodesHelp: 'Apskatiet līkni ar mazāku mezglu skaitu. Tiek saglabāti asi stūri, atvērtu kontūru galapunkti un slēgtu kontūru sākumpunkti. Priekšskatījumā redzama pārbaudītā novirzes robeža.',
+  reduceTolerance: 'Maksimālā novirze',
+  reduceToleranceRange: 'Ievadiet pielaidi diapazonā',
+  reduceSelected: 'Tikai atlasītie mezgli',
+  reduceSelectNodes: 'Atlasiet mezglus, kuru skaitu vēlaties samazināt.',
+  reducePreview: 'Līkne pirms un pēc mezglu skaita samazināšanas',
+  reduceErrorBound: 'Pārbaudītā novirzes robeža',
+  reduceLimited: 'Sasniegts aprēķinu limits. Priekšskatījumā ir visi līdz šim pārbaudītie apvienojumi.',
+  reduceNoChanges: 'Neviens apvienojums neizturēja pielaides un atstarpju pārbaudes.',
+  reduceClipped: 'Mezglu skaita samazināšanai atlasiet neapgrieztu līkni.',
   segmentLength: 'Segmenta garums', segmentAngle: 'Virziens', updateSegment: 'Pārvietot segmenta beigas',
   segmentHelp: 'Šis mezgls paliek vietā, nākamais mezgls tiek pārvietots. Blakus esošais segments seko tā galapunktam. Leņķi dokumenta asīs: 0° pa labi, 90° uz augšu. Viens atsaukšanas solis.',
   splitPosition: 'Dalījuma vieta (%)', splitPositionHelp: 'Ievadiet vērtību starp 0 un 100, neiekļaujot galapunktus. Taisni segmenti dalās pēc garuma; Bezjē līknes — pēc parametra t, nevis attāluma. Līknes forma saglabājas, un jaunais mezgls tiek atlasīts.',
@@ -301,12 +334,8 @@ const lv: Dictionary = {
   unrecognizedWarning: 'Rezultāta sagatavošanā radās brīdinājums. Pirms lietošanas pārbaudiet ģeometriju.',
 };
 export type CadAdvancedLabel = keyof typeof en;
-const subscribe = (notify: () => void) => {
-  const stopLocale = locale.subscribe(notify); const stopText = t.subscribe(notify);
-  return () => { stopLocale(); stopText(); };
-};
+const subscribe = (notify: () => void) => locale.subscribe(notify);
 export function useCadAdvancedText() {
-  useSyncExternalStore(subscribe, () => get(t), () => get(t));
   const language = useSyncExternalStore(subscribe, () => get(locale), () => 'en');
   const dictionary = language?.startsWith('ru') ? ru : language?.startsWith('lv') ? lv : en;
   return { label: (key: CadAdvancedLabel) => dictionary[key] };

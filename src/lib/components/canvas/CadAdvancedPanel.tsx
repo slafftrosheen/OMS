@@ -3,6 +3,7 @@ import {RectangleShapePanel} from './RectangleShapePanel';
 import {OutlinePenPanel} from './OutlinePenPanel';
 import {OutlineToObjectPanel} from './OutlineToObjectPanel';
 import {CadNodeArrangePanel} from './CadNodeArrangePanel';
+import {CadNodeReducePanel} from './CadNodeReducePanel';
 import {DrawingPreflightPanel} from './DrawingPreflightPanel';
 import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
 import {readDrawingFonts, uploadDrawingFont, MAX_DRAWING_FONT_BYTES, MAX_DRAWING_FONTS_BYTES, MAX_DRAWING_FONTS} from './drawing-fonts';
@@ -24,7 +25,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'preflight'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -90,6 +91,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <OutlineToObjectPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'outlineObject' ? focusRequest.sequence : undefined} />
     </div><div hidden={task !== 'edit'}>
     <CadNodeArrangePanel settings={settings} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeArrange' ? focusRequest.sequence : undefined} />
+    <CadNodeReducePanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeReduce' ? focusRequest.sequence : undefined} />
     <CornerControls settings={settings} revision={revision} disabled={disabled} focusSequence={cornerFocus || undefined} />
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} onCorner={() => setCornerFocus(value => value + 1)} />
