@@ -18,7 +18,8 @@ import {
   prepareVectorImport,
   vectorPaint,
 } from "./cad-vector";
-import { prepareVectorExport } from "./cad-vector-export";
+import { MAX_PDF_BLEED_MM, type prepareVectorExport } from "./cad-vector-export";
+import { drawingPageBounds } from "./drawing-pages";
 import { prepareCorners } from "./cad-corners";
 import { prepareNodeCorner, applyNodeCorner, type CadNodeCornerPlan } from './cad-node-corners';
 import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
@@ -348,29 +349,47 @@ export function VectorImport({ settings, revision, disabled }: Props) {
     </details>
   );
 }
-export function VectorExport({ settings, revision }: Props) {
+export function VectorExport({ settings, revision, focusSequence }: Props) {
   const editor = useEditor(),
     t = useVectorText(), work=useWork();
+  const section = useRef<HTMLDetailsElement>(null);
+  const consumedFocus = useRef<number>();
+  const hasSheet = useValue("PDF page size", () => !!drawingPageBounds(editor), [editor]);
   const [format, setFormat] = useState<"pdf" | "eps">("pdf"),
-    [scope, setScope] = useState<"selected" | "all">("selected"),
-    [message, setMessage] = useState(""),
+    [scope, setScope] = useState<"selected" | "all" | "page">("selected"),
+    [bleed, setBleed] = useState("0"),
     [ack, setAck] = useState(false);
+  useEffect(() => {
+    if (focusSequence === undefined || focusSequence === consumedFocus.current || !section.current) return;
+    consumedFocus.current = focusSequence;
+    setFormat("pdf");
+    setScope(drawingPageBounds(editor) ? "page" : "all");
+    section.current.open = true;
+    section.current.querySelector("summary")?.focus();
+    section.current.scrollIntoView?.({ block: "nearest" });
+  }, [editor, focusSequence]);
   const [review, setReview] = useState<{
     result: ReturnType<typeof prepareVectorExport>;
     key: string;
   }>();
-  const key = JSON.stringify([settings, format, scope]),
+  const bleedMm = bleed.trim() ? Number(bleed) : NaN;
+  const validBleed = Number.isFinite(bleedMm) && bleedMm >= 0 && bleedMm <= MAX_PDF_BLEED_MM;
+  const key = JSON.stringify([settings, format, scope, scope === "page" ? bleed : null]),
     stale =
       !!review && (review.key !== key || review.result.revision !== revision);
   return (
-    <details className="drawing-cad-section" open data-testid="vector-export">
+    <details className="drawing-cad-section" open ref={section} data-testid="vector-export">
       <summary>{t("export")}</summary>
       <p className="drawing-help">{t("exportHelp")}</p>
       <div className="drawing-cad-fields">
         <Field label={t("format")}>
           <select
             value={format}
-            onChange={(e) => setFormat(e.target.value as any)}
+            onChange={(e) => {
+              const next = e.target.value as typeof format;
+              setFormat(next);
+              if (next === "eps" && scope === "page") setScope("all");
+            }}
           >
             <option value="pdf">PDF</option>
             <option value="eps">EPS</option>
@@ -379,19 +398,26 @@ export function VectorExport({ settings, revision }: Props) {
         <Field label={t("scope")}>
           <select
             value={scope}
-            onChange={(e) => setScope(e.target.value as any)}
+            onChange={(e) => setScope(e.target.value as typeof scope)}
           >
             <option value="selected">{t("selected")}</option>
             <option value="all">{t("all")}</option>
+            {format === "pdf" && <option value="page" disabled={!hasSheet}>{t("pdfActivePage")}</option>}
           </select>
         </Field>
+        {scope === "page" && <Field label={t("pdfBleedMm")}>
+          <input type="number" value={bleed} min={0} max={MAX_PDF_BLEED_MM} step="any"
+            onChange={event => setBleed(event.target.value)} aria-invalid={!validBleed} />
+        </Field>}
+        {format === "pdf" && !hasSheet && <p className="drawing-help">{t("sheet-size")}</p>}
+        {scope === "page" && hasSheet && <p className="drawing-help">{t(validBleed ? "pdfBleedHelp" : "bleed-range")}</p>}
         <button
           type="button"
-          disabled={!settings || work.busy}
+          disabled={!settings || work.busy || scope === "page" && (!hasSheet || !validBleed)}
           onClick={()=>void work.run(async signal=>{
-            setMessage('');setAck(false);setReview(undefined);
+            setAck(false);setReview(undefined);
             if(!settings)return;
-            const result=await prepareVectorExportWithAssets(editor,settings,scope,format,signal);
+            const result=await prepareVectorExportWithAssets(editor,settings,scope === "page" ? { pageBleedMm: bleedMm } : scope,format,signal);
             setReview({result,key});
           })}
 
@@ -404,6 +430,9 @@ export function VectorExport({ settings, revision }: Props) {
           <p>
             {t("paths")}: {review.result.paths.length}
           </p>
+          {review.result.sheet && <p>{t("pdfTrimSize")} {review.result.sheet.widthMm} × {review.result.sheet.heightMm} mm
+            {" · "}{t("pdfBleedMm")} {review.result.sheet.bleedMm}</p>}
+          {!review.result.paths.length && <p role="status">{t("pdfNoArtwork")}</p>}
           {!!review.result.omitted.length && (
             <>
               <ul>
@@ -456,7 +485,6 @@ export function VectorExport({ settings, revision }: Props) {
         </div>
       )}
       <WorkStatus work={work}/>
-      {message && <p role="alert">{t(message)}</p>}
     </details>
   );
 }

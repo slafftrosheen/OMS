@@ -243,6 +243,28 @@ describe("clipped artwork, gradients and embedded raster exchange", () => {
     assert.equal(doc.paths[0].paint.gradient?.type, "linear");
     assert.ok(doc.paths[0].paint.clips?.length);
   });
+  it("renders artwork in the correct position across the trim and bleed boundary", async () => {
+    const red: VectorPath = {
+      contours: [rect(-10, -10, 40, 35), rect(7, 5, 8, 10)],
+      fillRule: "evenodd",
+      paint: { ...VECTOR_DEFAULT_PAINT, fill: "#ff0000", stroke: "none" },
+    };
+    const blue: VectorPath = {
+      contours: [rect(71, 10, 30, 10)],
+      fillRule: "nonzero",
+      paint: { ...VECTOR_DEFAULT_PAINT, fill: "#0000ff", stroke: "none" },
+    };
+    const pdf = serializeVectorDocument([red, blue], "pdf", {
+      widthMm: 25.4,
+      heightMm: 12.7,
+      bleedMm: 25.4 / 18,
+    });
+    const pixel = await pixels(pdf, "pdf");
+    assert.deepEqual(pixel(0, 0), [255, 0, 0]);
+    assert.deepEqual(pixel(12, 12), [255, 255, 255]);
+    assert.deepEqual(pixel(79, 16), [0, 0, 255]);
+    assert.deepEqual(pixel(45, 30), [255, 255, 255]);
+  });
   it("writes and reimports a transformed radial gradient without flattening its editable boundary", async () => {
     const path = structuredClone(gradient);
     path.paint.clips = undefined;

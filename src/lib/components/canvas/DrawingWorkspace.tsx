@@ -1034,6 +1034,7 @@ export function DrawingChrome() {
           </fieldset>
           <button type="button" disabled={busy || !exportPlans?.svg.ok} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !exportPlans?.png.ok} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
+          <button type="button" onClick={() => focusCad('publishPdf')}>{vectorLabel('publishPdf')}</button>
           <button type="button" onClick={() => focusCad('files')}>{vectorLabel('files')}</button>
           <button type="button" onClick={() => focusCad('preflight')}>{preflightLabel('title')}</button>
           {order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{

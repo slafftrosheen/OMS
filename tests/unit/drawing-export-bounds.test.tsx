@@ -416,6 +416,46 @@ describe('portable artwork export through native SVG and PNG APIs', () => {
 
 
 describe('production vector PDF and EPS', () => {
+  it('publishes the active sheet at trim size and only includes art reaching its bleed', async () => harness(async h => {
+    const { prepareVectorExport } = await import('../../src/lib/components/canvas/cad-vector-export');
+    const { prepareVectorExportWithAssets } = await import('../../src/lib/components/canvas/cad-vector-export-client');
+    const { addDrawingPage, saveDrawingPage } = await import('../../src/lib/components/canvas/drawing-pages');
+    const settings = { ...h.cad.DEFAULT_CAD_SETTINGS, scale: 4 / 3, originX: 350, originY: 490 };
+    h.cad.writeCadSettings(h.editor, settings);
+    const colored = (x: number, width: number, fill: string) =>
+      h.create([h.rectangle(0, 0, width, 12)], { fill, stroke: 'none' }, { x, y: 6 });
+    colored(10, 20, '#0000ff');
+    assert.throws(() => prepareVectorExport(h.editor, settings, { pageBleedMm: 0 }, 'pdf'), /sheet-size/);
+    assert.equal(addDrawingPage(h.editor, 'Sign face'), true);
+    const size = { widthMm: 25.4, heightMm: 12.7 };
+    assert.equal(saveDrawingPage(h.editor, 'Sign face', size), true);
+    assert.equal(h.cad.writeCadSettings(h.editor, settings), true);
+    colored(-10, 30, '#ff0000');
+    colored(73, 10, '#00ff00'); // Reaches bleed, but lies outside the trim.
+    const offPage = material(h, 1);
+    h.editor.select(offPage.id);
+    const scope = { pageBleedMm: 25.4 / 18 }; // Four PDF points.
+    const before = h.snapshot(), signal = new AbortController().signal;
+    assert.throws(() => prepareVectorExport(h.editor, settings, scope, 'eps'), /page-scope/);
+    assert.throws(() => prepareVectorExport(h.editor, settings, { pageBleedMm: 51 }, 'pdf'), /bleed-range/);
+    const trimmed = prepareVectorExport(h.editor, settings, { pageBleedMm: 0 }, 'pdf');
+    assert.equal(trimmed.paths.length, 1);
+    assert.match(trimmed.text, /\/MediaBox \[0 0 72 36\] \/TrimBox \[0 0 72 36\]/);
+    const fetchBefore = globalThis.fetch;
+    try {
+      globalThis.fetch = async () => { throw new Error('off-sheet assets must not be fetched'); };
+      const pdf = await prepareVectorExportWithAssets(h.editor, settings, scope, 'pdf', signal);
+      assert.deepEqual(pdf.sheet, { ...size, bleedMm: scope.pageBleedMm });
+      assert.deepEqual(pdf.paths.map((path: any) => path.paint.fill), ['#ff0000', '#00ff00']);
+      assert.deepEqual(pdf.omitted, []);
+      assert.match(pdf.text, /\/MediaBox \[0 0 80 44\] \/TrimBox \[4 4 76 40\] \/BleedBox \[0 0 80 44\]/);
+      assert.match(pdf.text, /^0 0 80 44 re W n$/m);
+      assert.deepEqual(h.snapshot(), before, 'publishing does not edit the saved drawing');
+    } finally { globalThis.fetch = fetchBefore; }
+    assert.equal(saveDrawingPage(h.editor, 'Oversize', { widthMm: 5080, heightMm: 297 }), true);
+    assert.throws(() => prepareVectorExport(h.editor, settings, scope, 'pdf', true), /page-limit/);
+  }));
+
   it('preserves frame and shape clips, the counter, inherited opacity and physical bounds', async () => harness(async h => {
     const { prepareVectorExport } = await import('../../src/lib/components/canvas/cad-vector-export');
     const { buildCadDxf } = await import('../../src/lib/components/canvas/cad-dxf');

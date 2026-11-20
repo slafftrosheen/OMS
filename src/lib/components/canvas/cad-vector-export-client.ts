@@ -4,13 +4,14 @@ import { cadRevision } from "./cad-plans";
 import {
   prepareVectorExport,
   serializeVectorDocument,
+  type VectorExportScope,
 } from "./cad-vector-export";
 import { encodePdfRaster } from "./cad-raster";
 /** Resolve original pixels only when exporting; saved documents keep references. */
 export async function prepareVectorExportWithAssets(
   editor: Editor,
   settings: CadSettings,
-  scope: "selected" | "all",
+  scope: VectorExportScope,
   format: "pdf" | "eps",
   signal: AbortSignal,
 ) {
@@ -62,7 +63,7 @@ export async function prepareVectorExportWithAssets(
   return {
     ...result,
     text: result.paths.length
-      ? serializeVectorDocument(result.paths, format)
+      ? serializeVectorDocument(result.paths, format, result.sheet)
       : "",
   };
 }

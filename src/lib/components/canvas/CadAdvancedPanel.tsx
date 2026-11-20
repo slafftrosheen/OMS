@@ -25,7 +25,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'publishPdf' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -104,7 +104,8 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && (focusRequest?.section === 'lettering' || focusRequest?.section === 'convert' && state.text)} newText={focusRequest?.section === 'lettering'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'files'}>
     <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
-    <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly} />
+    <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly}
+      focusSequence={task === 'files' && focusRequest?.section === 'publishPdf' ? focusRequest.sequence : undefined} />
     <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
     </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
     <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>

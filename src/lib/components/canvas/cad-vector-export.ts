@@ -26,7 +26,25 @@ import {
 } from "./cad-settings";
 import { cadRevision } from "./cad-plans";
 import { drawingObjectName } from "./drawing-operations";
+import { drawingPageBounds, readDrawingPageSize, type DrawingPageSize } from "./drawing-pages";
 import { rasterTileMatrices } from "./cad-raster-tiles";
+
+export const MAX_PDF_BLEED_MM = 50;
+export type VectorExportScope = "selected" | "all" | { pageBleedMm: number };
+type PdfSheet = DrawingPageSize & { bleedMm: number };
+const POINTS_PER_MM = 72 / 25.4;
+const MAX_PRINT_POINTS = 14400;
+
+function pdfSheetFrame({ widthMm, heightMm, bleedMm }: PdfSheet) {
+  if (!Number.isFinite(bleedMm) || bleedMm < 0 || bleedMm > MAX_PDF_BLEED_MM)
+    throw new Error("bleed-range");
+  const bleed = bleedMm * POINTS_PER_MM;
+  const w = (widthMm + 2 * bleedMm) * POINTS_PER_MM;
+  const h = (heightMm + 2 * bleedMm) * POINTS_PER_MM;
+  if (![widthMm, heightMm].every(value => Number.isFinite(value) && value > 0) ||
+      w > MAX_PRINT_POINTS || h > MAX_PRINT_POINTS) throw new Error("page-limit");
+  return { x: -bleed, y: -bleed, w, h };
+}
 
 const num = (n: number) => {
   if (!Number.isFinite(n) || Math.abs(n) > 1e8) throw new Error("geometry");
@@ -58,6 +76,7 @@ function paintedPathBounds(path: VectorPath) {
 export function serializeVectorDocument(
   input: VectorPath[],
   format: "pdf" | "eps",
+  sheet?: PdfSheet,
 ) {
   if (
     !input.length ||
@@ -65,22 +84,24 @@ export function serializeVectorDocument(
     input.some((p) => !validContours(p.contours) || !validVectorPaint(p.paint))
   )
     throw new Error("geometry");
+  if (sheet && format !== "pdf") throw new Error("page-scope");
+  const frame = sheet ? pdfSheetFrame(sheet) : undefined;
   const paths: VectorPath[] = [];
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
   for (const path of input) {
     const b = paintedPathBounds(path);
-    if (!b) continue;
+    if (!b || frame && !intersectsSheet(b, frame)) continue;
     paths.push(path);
     left = Math.min(left, b.left); top = Math.min(top, b.top);
     right = Math.max(right, b.right); bottom = Math.max(bottom, b.bottom);
   }
   if (!paths.length) throw new Error("geometry");
   if (paths.some(p => p.paint.raster?.external)) throw new Error("asset-fetch");
-  const bounds = { x: left, y: top, w: right - left, h: bottom - top };
-  const padding = 0.01, width = bounds.w + 2 * padding, height = bounds.h + 2 * padding;
-  if (width > 14400 || height > 14400) throw new Error("page-limit");
+  const bounds = frame ?? { x: left, y: top, w: right - left, h: bottom - top };
+  const padding = frame ? 0 : 0.01, width = bounds.w + 2 * padding, height = bounds.h + 2 * padding;
+  if (width > MAX_PRINT_POINTS || height > MAX_PRINT_POINTS) throw new Error("page-limit");
   const pdf = format === "pdf",
-    body: string[] = [],
+    body: string[] = frame ? ["q", `0 0 ${num(width)} ${num(height)} re W n`] : [],
     shadings: string[] = [],
     images: string[] = [],
     extraObjects: string[] = [];
@@ -263,6 +284,7 @@ export function serializeVectorDocument(
     }
     body.push(pdf ? "Q" : "grestore");
   }
+  if (frame) body.push("Q");
   const stream = body.join("\n") + "\n";
   if (stream.length + extraObjects.join("").length > 128 * 1024 * 1024)
     throw new Error("limit");
@@ -274,10 +296,13 @@ export function serializeVectorDocument(
         `/GS${i} << /Type /ExtGState /ca ${num(p.paint.fillOpacity)} /CA ${num(p.paint.strokeOpacity)} >>`,
     )
     .join(" ");
+  const boxes = frame
+    ? ` /TrimBox [${num(-frame.x)} ${num(-frame.y)} ${num(width + frame.x)} ${num(height + frame.y)}] /BleedBox [0 0 ${num(width)} ${num(height)}]`
+    : "";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(width)} ${num(height)}] /Resources << /ExtGState << ${states} >> /Shading << ${shadings.join(" ")} >> /XObject << ${images.join(" ")} >> >> /Contents 4 0 R >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(width)} ${num(height)}]${boxes} /Resources << /ExtGState << ${states} >> /Shading << ${shadings.join(" ")} >> /XObject << ${images.join(" ")} >> >> /Contents 4 0 R >>`,
     `<< /Length ${stream.length} >>\nstream\n${stream}endstream`,
     ...extraObjects,
   ];
@@ -297,20 +322,34 @@ export function serializeVectorDocument(
     `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
   );
 }
+
+function intersectsSheet(bounds: NonNullable<ReturnType<typeof paintedPathBounds>>, frame: ReturnType<typeof pdfSheetFrame>) {
+  return bounds.right > frame.x && bounds.bottom > frame.y &&
+    bounds.left < frame.x + frame.w && bounds.top < frame.y + frame.h;
+}
+
 export function prepareVectorExport(
   editor: Editor,
   settings: CadSettings,
-  scope: "selected" | "all",
+  scope: VectorExportScope,
   format: "pdf" | "eps",
   deferRaster = false,
 ) {
   if (!validateCadSettings(settings)) throw new Error("settings");
-  const selected = editor.getShapeAndDescendantIds([
-    ...editor.getSelectedShapeIds(),
-  ]);
+  let sheet: PdfSheet | undefined;
+  if (typeof scope === "object") {
+    if (format !== "pdf") throw new Error("page-scope");
+    const size = readDrawingPageSize(editor);
+    if (!size || !drawingPageBounds(editor)) throw new Error("sheet-size");
+    sheet = { ...size, bleedMm: scope.pageBleedMm };
+  }
+  const frame = sheet ? pdfSheetFrame(sheet) : undefined;
+  const selected = scope === "selected"
+    ? editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])
+    : null;
   const shapes = editor
     .getCurrentPageShapesSorted()
-    .filter((s) => scope === "all" || selected.has(s.id));
+    .filter((s) => !selected || selected.has(s.id));
   const factor = (cadMmPerPixel(settings) * 72) / 25.4,
     paths: VectorPath[] = [],
     omitted: string[] = [];
@@ -359,14 +398,17 @@ export function prepareVectorExport(
           (cadPaintHasStroke(paint) && paint.strokeOpacity !== 1))
       )
         throw new Error("opacity");
-      if (shape.type === "geo" && (shape.props as any).fill !== "none")
-        throw new Error("style");
       const path: VectorPath = {
         contours,
         paint,
         fillRule: (shape.props as any).fillRule ?? "evenodd",
       };
-      if (!validVectorPaint(paint) || !paintedPathBounds(path)) throw new Error("clipped");
+      if (!validVectorPaint(paint)) throw new Error("clipped");
+      const bounds = paintedPathBounds(path);
+      if (!bounds) throw new Error("clipped");
+      if (frame && !intersectsSheet(bounds, frame)) continue;
+      if (shape.type === "geo" && (shape.props as any).fill !== "none")
+        throw new Error("style");
       total += contours.reduce((n, c) => n + c.nodes.length, 0);
       if (total > 20000) throw new Error("limit");
       paths.push(path);
@@ -376,9 +418,10 @@ export function prepareVectorExport(
     }
   }
   return {
-    text: paths.length && !deferRaster ? serializeVectorDocument(paths, format) : "",
+    text: paths.length && !deferRaster ? serializeVectorDocument(paths, format, sheet) : "",
     paths,
     omitted,
+    sheet,
     revision: cadRevision(editor),
   };
 }
