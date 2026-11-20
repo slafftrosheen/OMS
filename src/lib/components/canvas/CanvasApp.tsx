@@ -15,6 +15,9 @@ import { installDrawingRotationPivot } from './drawing-rotation-pivot';
 import { cancelDrawingRotationPointer } from './drawing-pick-rotation';
 import { installDrawingPickGuideSnapping } from './drawing-pick-guide-snap';
 import { installDrawingPickClickToggle } from './drawing-pick-click-toggle';
+import { installDrawingPenInput } from './drawing-pen-input';
+import { CadFreehandTool, cancelCadFreehand } from './CadFreehandTool';
+import { CadFreehandOverlay } from './CadFreehandOverlay';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
 import {syncCreationFileDocuments} from './order-file-documents';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
@@ -29,6 +32,7 @@ import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Edito
 import '@tldraw/tldraw/tldraw.css';
 import './drawing-pick-skew.css';
 import './drawing-guides.css';
+import './drawing-pen.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
 import { MaterialSwatchShapeUtil } from './shapes/MaterialSwatchShape';
@@ -77,7 +81,7 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
-    OnTheCanvas: () => <><OrderFilePocketOverlays/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/></>,
+    OnTheCanvas: () => <><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
     SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
     Toolbar: null, StylePanel: null,
@@ -184,8 +188,9 @@ export function CanvasApp({
         installDrawingTextUtil(editor);
         cleanupCadTransformsRef.current?.();
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
+        const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
-        cleanupCadTransformsRef.current = () => { stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        cleanupCadTransformsRef.current = () => { stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
@@ -321,7 +326,7 @@ export function CanvasApp({
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
-                    tools={[CadPolylineTool, CadBezierTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
+                    tools={[CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}

@@ -25,6 +25,12 @@ import {usePickSkewText} from './pick-skew-copy';
 import {drawingRotationNotice, drawingRotationPreview} from './drawing-pick-rotation';
 import {useRotationPivotText} from './rotation-pivot-copy';
 import {drawingPickGuideSnap} from './drawing-pick-guide-snap';
+import {DrawingPenPanel} from './DrawingPenPanel';
+import {DrawingFreehandControls} from './DrawingFreehandControls';
+import {readCadFreehandOptions, setCadFreehandOptions} from './cad-freehand';
+import {cadFreehandNotice, cadFreehandPreview} from './CadFreehandTool';
+import {drawingPenDiagnostics} from './drawing-pen-input';
+import {enPen, usePenText} from './pen-copy';
 import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
 import {DRAWING_UI_REQUEST, isDrawingUiRequest} from './drawing-ui-requests';
@@ -55,7 +61,7 @@ import {
   DefaultFillStyle, DefaultFontStyle, DefaultHorizontalAlignStyle, DefaultSizeStyle, DefaultTextAlignStyle,
   DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId, exportToBlob,
   Box, getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
-  type EnumStyleProp, type TLShapeId, type TLTextShape,
+  type EnumStyleProp, type TLDefaultColorStyle, type TLShapeId, type TLTextShape,
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
@@ -88,7 +94,7 @@ const objectShortcuts: Readonly<Partial<Record<string, string>>> = {
 const objectActionByKey = new Map(Object.entries(objectShortcuts).map(([action, key]) => [key?.toLowerCase(), action]));
 
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
-type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | 'guides' | null;
+type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | 'guides' | 'pen' | null;
 interface WorkspaceContext {
   hosts: Partial<Record<Slot, HTMLElement>>;
   panel: Panel;
@@ -153,6 +159,8 @@ const iconPaths: Record<string, ReactNode> = {
   select: <path d="m5 3 14 10-7 1-3 7Z" />,
   hand: <><path d="M7 11V6a2 2 0 0 1 4 0v5-7a2 2 0 0 1 4 0v7-5a2 2 0 0 1 4 0v9c0 5-3 7-6 7s-5-2-7-5l-3-5c-1-2 1-3 3-1l3 3" /></>,
   draw: <><path d="m4 17 12-13 4 4L8 21H4Zm10-11 4 4M3 5c4-4 8 2 3 5s-5 4-2 5" /></>,
+  'cad-freehand': <><path d="m4 20 3-10 9-7 5 5-7 9-10 3Zm3-10 7 7M4 20l7-7" /><circle cx="12" cy="12" r="1.5" /></>,
+  pen: <><path d="m4 20 3-10 9-7 5 5-7 9-10 3ZM4 20l8-8M18 17v5m-3-2h6" /><circle cx="12" cy="12" r="1.5" /></>,
   line: <><path d="m4 20 16-16" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></>,
   'cad-polyline': <><path d="M4 19 9 5l10 7-6 7Z" /><rect x="2" y="17" width="4" height="4" /><rect x="7" y="3" width="4" height="4" /><rect x="17" y="10" width="4" height="4" /></>,
   'cad-bezier': <><path d="M4 18C5 3 19 21 20 6M4 18 6 7M18 17 20 6" /><rect x="2" y="16" width="4" height="4" /><rect x="18" y="4" width="4" height="4" /><circle cx="6" cy="7" r="1.5" /><circle cx="18" cy="17" r="1.5" /></>,
@@ -204,7 +212,7 @@ function ToolButton({ label, icon, active, disabled, onClick, children, testId }
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
 const toolGroups = [
   { id: 'select', tools: ['select'] }, { id: 'nodes', tools: ['nodes'] }, { id: 'hand', tools: ['hand'] },
-  { id: 'curves', tools: ['cad-polyline', 'cad-bezier', 'cad-arc-three', 'line', 'draw'] },
+  { id: 'curves', tools: ['cad-freehand', 'cad-polyline', 'cad-bezier', 'cad-arc-three', 'line', 'draw'] },
   { id: 'rectangle', tools: ['rectangle'] },
   { id: 'ellipse', tools: ['ellipse', 'cad-circle', 'cad-circle-three'] },
   { id: 'shapes', tools: ['pentagon', 'triangle', 'diamond', 'star'] },
@@ -212,7 +220,7 @@ const toolGroups = [
   { id: 'annotations', tools: ['arrow', 'highlight', 'eraser', 'frame'] },
 ];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
-const shortcut: Record<string, string> = { rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
+const shortcut: Record<string, string> = { 'cad-freehand': 'F5', rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
 
 function NumberField({ field, value, disabled, label }: { field: DrawingTransformField; value: number | undefined; disabled: boolean; label: string }) {
   const editor = useEditor();
@@ -445,6 +453,7 @@ export function DrawingChrome() {
   const guideLabel = useGuideText();
   const pickSkewLabel = usePickSkewText();
   const rotationLabel = useRotationPivotText();
+  const penLabel = usePenText();
   const skewLabel = useSkewText();
   const skewErrorText = (code: string) => skewLabel(Object.hasOwn(enSkew, code) ? code as keyof typeof enSkew : 'failed');
   const nodeArrangeLabel = useNodeArrangeText();
@@ -493,11 +502,22 @@ export function DrawingChrome() {
   const rotationNotice = useValue('Custom rotation notice', () => drawingRotationNotice(editor).get(), [editor]);
   const pickGuideSnap = useValue('Pick guideline target', () => drawingPickGuideSnap(editor).get(), [editor]);
   const rotationNoticeText = rotationNotice ? rotationLabel(rotationNotice) : '';
+  const freehandOptions = useValue('Next freehand stroke', () => readCadFreehandOptions(editor), [editor]);
+  const freehandStatus = useValue('Freehand gesture status', () => {
+    const preview = cadFreehandPreview(editor).get(); return preview ? preview.error ?? 'drawing' : null;
+  }, [editor]);
+  const freehandNotice = useValue('Freehand completion notice', () => cadFreehandNotice(editor).get(), [editor]);
+  const penNotice = useValue('Pen interruption notice', () => drawingPenDiagnostics(editor).get().notice, [editor]);
+  const penMessage = (code: string) => penLabel(Object.hasOwn(enPen, code) ? code as keyof typeof enPen : 'failed');
+  const freehandNoticeText = freehandNotice ? penMessage(freehandNotice) : '';
+  const penNoticeText = penNotice ? penMessage(penNotice) : '';
   const guideNoticeText = guideNotice ? guideLabel(guideNotice) : '';
   const skewNoticeText = skewNotice ? skewNotice === 'canceled' ? pickSkewLabel('canceled') : skewErrorText(skewNotice) : '';
   useEffect(() => { if (guideNoticeText) setNotice(guideNoticeText); }, [guideNoticeText]);
   useEffect(() => { if (skewNoticeText) setNotice(skewNoticeText); }, [skewNoticeText]);
   useEffect(() => { if (rotationNoticeText) setNotice(rotationNoticeText); }, [rotationNoticeText]);
+  useEffect(() => { if (freehandNoticeText) setNotice(freehandNoticeText); }, [freehandNoticeText]);
+  useEffect(() => { if (penNoticeText) setNotice(penNoticeText); }, [penNoticeText]);
   const [busy, setBusy] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [exportOptions, setExportOptions] = useState<DrawingExportOptions>({ scope: 'selected', scale: 1, background: false, padding: 24 });
@@ -512,7 +532,7 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !['hand', 'select', 'nodes'].includes(tool)) return;
     if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
@@ -816,7 +836,7 @@ export function DrawingChrome() {
         if (!nudgeCadSelection(editor, dx, dy, cad)) setNotice(cadLabel('failed'));
         return;
       }
-      const tool = ({ F5: 'draw', F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
+      const tool = ({ F5: 'cad-freehand', F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
       if (tool && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); event.stopPropagation(); chooseTool(tool); }
       else if (event.key === 'F3') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'zoom-out'); }
       else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit'); }
@@ -852,6 +872,10 @@ export function DrawingChrome() {
     ? styleFields.filter(field => ['fill', 'dash', 'size', 'spline', 'arrowheadStart', 'arrowheadEnd'].includes(field.id) && styles?.get(field.style)) : [];
 
   function styleChange(style: EnumStyleProp<string>, value: string) {
+    if (editor.getCurrentToolId() === 'cad-freehand' && style === DefaultColorStyle && style.values.includes(value)) {
+      if (!editor.getInstanceState().isReadonly && !cadFreehandPreview(editor).get()) setCadFreehandOptions(editor, { color: getDefaultColorTheme({ isDarkMode: false })[value as TLDefaultColorStyle].solid });
+      return;
+    }
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
     drawingTransaction(editor, () => {
       if (style === DefaultFontStyle && editor.isIn('select')) clearSelectedDrawingFontOverrides(editor);
@@ -959,8 +983,8 @@ export function DrawingChrome() {
     disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
     value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}
     disabled={field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection} />;
-  const panelModes = ['properties', 'text', 'arrange', 'measure', 'guides', 'snap', 'objects', 'cad'] as const;
-  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'guides' ? guideLabel('title') : mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
+  const panelModes = ['properties', 'text', 'pen', 'arrange', 'measure', 'guides', 'snap', 'objects', 'cad'] as const;
+  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'pen' ? penLabel('title') : mode === 'guides' ? guideLabel('title') : mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
   const groupLabel = (group: typeof toolGroups[number]) => group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
   const activeToolGroup = toolGroups.find(group => group.id === toolGroup);
 
@@ -1040,6 +1064,7 @@ export function DrawingChrome() {
           <button type="button" onClick={() => { setPanel('snap'); closeMenus(); }} data-testid="drawing-menu-snap-options">{snapLabel('open')}</button>
           <button type="button" aria-pressed={guides.visible} disabled={controls.readOnly || !guides.valid || drawingGuidesBusy(editor)} onClick={toggleGuides} data-testid="drawing-menu-guides-visible">{guides.visible ? '✓ ' : ''}{guideLabel('showGuides')}</button>
           <button type="button" onClick={openGuides} data-testid="drawing-menu-guides">{guideLabel('open')}</button>
+          <button type="button" onClick={() => { setPanel('pen'); closeMenus(); }} data-testid="drawing-menu-pen">{penLabel('title')}</button>
         </div></details>
       </nav>
     </>)}
@@ -1068,6 +1093,7 @@ export function DrawingChrome() {
         <NextDrawingFontPicker disabled={!controls.canStyle} onManage={focusFonts} />
         {['size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
       </fieldset>
+      : controls.tool === 'cad-freehand' ? <><DrawingFreehandControls compact /><ToolButton icon="pen" label={penLabel('title')} onClick={() => setPanel('pen')} testId="drawing-property-pen" /></>
       : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
       {settings && <CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />}
       <div className="drawing-property-pair">{transformField('x')}{transformField('y')}</div>
@@ -1115,6 +1141,7 @@ export function DrawingChrome() {
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
         {activePanel === 'guides' ? <DrawingGuidesPanel settings={settings} focusRequest={guidesFocusRequest} onDocument={() => focusCad('document')}
           renderAlignment={guide => <DrawingGuideAlignment key={guide?.id ?? 'none'} guide={guide}/>}/>
+        : activePanel === 'pen' ? <DrawingPenPanel onFreehand={() => chooseTool('cad-freehand')} />
         : activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
           <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
             {(['transform','align','repeat','radial'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
@@ -1160,7 +1187,8 @@ export function DrawingChrome() {
     </div>)}
     {portal('palette', <div className="drawing-swatches" role="toolbar" aria-label={label('palette')}>
       {DefaultColorStyle.values.map(value => <button key={value} type="button" title={`${label('palette')}: ${label(value)}`}
-        aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={color?.type === 'shared' && color.value === value} disabled={!controls.canStyle || !color}
+        aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={controls.tool === 'cad-freehand' ? freehandOptions.color.toLowerCase() === getDefaultColorTheme({ isDarkMode: false })[value].solid.toLowerCase() : color?.type === 'shared' && color.value === value}
+        disabled={controls.tool === 'cad-freehand' ? controls.readOnly || !!freehandStatus : !controls.canStyle || !color}
         onContextMenu={event => {
           event.preventDefault(); if (!captureToolkitControls(editor).canStyle || !editor.isIn('select')) return;
           drawingTransaction(editor, () => {
@@ -1170,10 +1198,10 @@ export function DrawingChrome() {
               if (patch) editor.updateShape(patch);
             }
           });
-        }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
+        }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: controls.tool === 'cad-freehand' ? getDefaultColorTheme({ isDarkMode: false })[value].solid : theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={rotationPreview ? rotationLabel(rotationPreview.kind === 'pivot' ? 'help' : 'rotate') : skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-freehand' ? penLabel('drawHelp') : rotationPreview ? rotationLabel(rotationPreview.kind === 'pivot' ? 'help' : 'rotate') : skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{freehandStatus ? freehandStatus === 'drawing' ? penLabel('drawHelp') : penMessage(freehandStatus) : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>

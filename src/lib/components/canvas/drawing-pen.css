@@ -1,0 +1,34 @@
+.drawing-pen-panel { display: grid; gap: 12px; min-width: 0; }
+.drawing-pen-panel fieldset { margin: 0; }
+.drawing-pen-panel h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.drawing-pen-panel .drawing-help { margin: 0; overflow-wrap: anywhere; }
+.drawing-pen-panel details > .drawing-help { margin-block: 8px; }
+.drawing-pen-panel a { color: var(--brand); text-underline-offset: 3px; }
+.drawing-pen-test-section { display: grid; gap: 8px; }
+.drawing-pen-test { display: block; width: 100%; height: 112px; border: 1px solid var(--border); background: var(--bg-0); touch-action: none; cursor: crosshair; }
+.drawing-pen-test-grid { fill: none; stroke: var(--border); stroke-dasharray: 3 4; }
+.drawing-pen-test-dot { fill: var(--brand); fill-opacity: .7; }
+.drawing-pen-test-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.drawing-pen-pressure-readout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; font-size: 12px; }
+.drawing-pen-pressure-readout meter { grid-column: 1 / -1; width: 100%; height: 12px; accent-color: var(--brand); }
+.drawing-pen-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; margin: 0; font-size: 12px; }
+.drawing-pen-metrics dt { color: var(--ink-secondary); }
+.drawing-pen-metrics dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }
+.drawing-freehand-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.drawing-freehand-controls legend { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.drawing-freehand-controls label { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; }
+.drawing-freehand-controls label > span { color: var(--ink-secondary); }
+.drawing-freehand-controls input, .drawing-freehand-controls select { min-height: 28px; max-width: 100%; color: var(--ink-primary); background: var(--bg-0); border: 1px solid var(--border); border-radius: 2px; }
+.drawing-freehand-controls input[type="range"] { padding: 0; accent-color: var(--brand); }
+.drawing-freehand-controls input[type="color"] { width: 42px; padding: 2px; }
+.drawing-freehand-controls .drawing-cad-check { flex-direction: row; align-items: center; grid-column: 1 / -1; }
+.drawing-freehand-controls .drawing-help { grid-column: 1 / -1; }
+.drawing-freehand-controls.is-compact { display: flex; flex: none; align-items: center; flex-wrap: nowrap; }
+.drawing-freehand-controls.is-compact > label { flex: none; }
+.drawing-freehand-controls.is-compact > label:not(.drawing-cad-check) > span { white-space: nowrap; }
+.drawing-freehand-controls.is-compact select { max-width: 176px; }
+.drawing-freehand-controls.is-compact .drawing-freehand-width { width: 84px; }
+.drawing-freehand-controls.is-compact .drawing-freehand-smoothing { width: 120px; }
+.drawing-freehand-controls.is-compact .drawing-cad-check { max-width: 168px; }
+.drawing-freehand-controls.is-compact .drawing-cad-check input { min-height: 20px; }
+.drawing-freehand-controls.is-compact .drawing-help { max-width: 220px; margin: 0; font-size: 11px; line-height: 14px; }

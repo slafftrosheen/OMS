@@ -404,6 +404,78 @@ These scenarios are discoverable but were not executed in a live browser in this
 
 Behavior references: [CorelDRAW Pick and Freehand Pick tools](https://www.coreldraw.com/en/learn/tutorials/pick-freehand-tools-coreldraw/), [CorelDRAW guideline snapping](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Mac/CorelDRAW-en/CorelDRAW-Set-up-guidelines.html), and [CorelDRAW constrained rotation](https://product.corel.com/help/CorelDRAW/540111186/Documentation-Windows/CorelDRAW-en/CorelDRAW-Constrain-objects.html).
 
+## Pen input and editable Freehand — 20 November 2026
+
+Idea boards and order canvases now share a pen input layer, a **Pen & freehand** docker, and a new **Freehand (F5)** tool. The tool is first in the Curves flyout. The previous native drawing tool remains available as **Sketch (D)**. The docker is available from the right rail, View menu, and Freehand property bar. All new controls and guidance have English, Russian and Latvian copy.
+
+### Editable curves and pressure ink
+
+Freehand has two output modes:
+
+| Mode | Saved result | Typical use |
+| --- | --- | --- |
+| Curve | An open or closed `cad-bezier` centerline with an ordinary outline | Draw a path, then refine its nodes with F10 |
+| Pressure ink | Closed, filled `cad-bezier` contours describing the round nib's footprint | Preserve a pressure-varying stroke as editable production geometry |
+
+The property bar and docker share next-stroke controls for mode, physical width, smoothing, color, automatic closure near the starting point, and pressure. Width uses the current document unit and scale; without document settings it is shown in canvas pixels. Pressure ink width is the maximum nib diameter at full pressure. Mouse input uses constant full width. Curve mode retains a constant outline width. These settings do not edit the previously selected artwork or create an Undo entry. The color palette sets the next Freehand stroke's color.
+
+Smoothing reduces small positional variations and retains significant pressure changes. Curve smoothing uses cubic handles; ink creates the union of the round nib sweeps, including holes and self-crossings. Automatic closure uses an eight-screen-pixel target, adjusted for zoom. The same bounded geometry builder produces the live preview and the final shape. No temporary drawing records are created while the pointer is down. Release saves one shape and leaves Freehand active for another stroke; each completed stroke takes one Undo. F10 opens the existing node editing workflow for the selected result.
+
+The saved result uses the existing curve schema, so node editing, shaping, save/reload and vector export consume it without a second conversion step. Regressions independently parse DXF output at document scale and exercise pressure-silhouette PDF export. This does not convert historical native Sketch or Highlight objects into CAD curves; their existing conversion/export limitations remain.
+
+Escape, pointer cancellation, lost capture, blur, form focus, tool exit and changed drawing/view settings discard an unfinished Freehand preview. Changes to the page, current-page artwork, selection, camera, viewport, opacity, stroke settings or read-only state also invalidate it before release. Completed artwork, unrelated external edits, and an existing Redo are preserved. Work is bounded to 4,096 input samples, 512 retained ink centers and 4,096 output nodes, with additional simplification/sweep budgets. Excessively complex strokes are refused with guidance to shorten the stroke or increase smoothing.
+
+### Pen preferences and event handling
+
+The input layer uses standard browser Pointer Events and public editor APIs. It accepts normalized pressure, same-position pressure changes, and coalesced pen samples when the browser exposes them. Ordinary pointer events remain the fallback when extra samples are unavailable. Preferences include:
+
+- **Pen and mouse** or explicit **Pen only**. Auto mode allows normal mouse work after using a pen.
+- Pressure on/off, with **Light touch**, **Linear**, and **Firm touch** response curves.
+- A side button mapped by the driver to right mouse: ordinary context menu, pan while held, or erase while held. Middle mouse mapping pans. Standard eraser-end events are handled for devices that actually provide them.
+
+During an active pen gesture, secondary pointer streams and touch input are excluded from the same workspace. Forms, text fields, media controls, custom guide/transform controls and native selection handles keep their normal interaction ownership. Native Pick and other CAD tools keep their native pointer handling; continuous Sketch/Highlight/Freehand pen strokes and mapped momentary actions use the bridge.
+
+Momentary erasing filters entire candidate roots, including locked descendants and protected OMS forms, before native deletion expands groups. It also rechecks protection before release. Interruption discards the pending eraser hit list without rolling back an unrelated edit. The previous drawing tool is restored after a momentary eraser action. Interrupted native Sketch/Highlight ink is retained, with an explicit notice that Undo removes it; its native incremental writes have different cancellation behavior from preview-only Freehand. If the drawing becomes read-only during native ink, the existing partial shape is preserved without a completion write or permission bypass, and the tool, pointer and capture states exit cleanly.
+
+Pen preferences are browser-local and are not stored in shared drawing records. If browser storage is unavailable, preferences still work for the session and the panel reports that limitation. Stroke options are editor-local next-stroke state. Neither preference category changes document history.
+
+### Huion Inspiroy 2 setup and diagnostics
+
+On Windows, enable **Windows Ink** in the Huion driver and use normal pen operation rather than the driver's Mouse Mode. Then open **Pen & freehand → Test the pen** and draw with light and firm pressure. The independent test pad displays received and mapped pressure, the observed contact range, tilt, rotation, button bits, and extra-sample availability. It writes no artwork and remains available in a read-only drawing. Two open editors keep separate diagnostic state and accessible meter IDs.
+
+Assign a pen side button to **Right mouse button** in the driver, then choose the intended action in OMS. Tablet keys can be mapped in the Huion driver to F5 Freehand, F10 nodes, V Pick, H Pan, E Eraser and Ctrl+Z Undo. Browser code cannot directly configure the tablet's firmware, identify an Inspiroy model, or guarantee that a driver forwards pressure. The diagnostic pad makes the received data inspectable.
+
+Huion lists 8,192 hardware pressure levels for Inspiroy 2; browser Pointer Events expose normalized pressure and do not promise that many distinct levels. Inspiroy 2 M/L support tilt; Inspiroy 2 S does not. This pass displays tilt for diagnosis but uses a round, pressure-driven nib. Tilt-driven calligraphy, bearing/rotation-sensitive brush shapes and brush libraries remain outside this implementation. PW110 is not assumed to have a rear eraser.
+
+Coalesced-event availability depends on the browser and a secure context. Plain HTTP deployments can still use ordinary pen events; HTTPS is needed for browsers to expose secure-context-only sampling features. No predicted samples are saved as geometry.
+
+### Validation and acceptance
+
+| Check | Result |
+| --- | --- |
+| CAD, drawing, canvas-control/workbench/draft and draft-intake regressions | **1,076 passed, 0 failed** across 76 distinct files |
+| Actual editor/React/DOM cases included in that total | **211 passed**, including 65 new cases: 34 pen input, 26 Freehand controller and 5 panel cases |
+| New geometry/native-store/export cases included in that total | **22 passed**, including independently parsed DXF, PDF, pressure silhouette topology and history |
+| Application Svelte/TypeScript check | **0 errors**; 13 existing warnings in five unrelated Svelte files |
+| ESLint on all 16 changed/new TS/TSX files | **Passed**, no warnings |
+| Production build | **Passed**, with existing Svelte/bundler warnings |
+| Static scan of all changed workspace UI | **Passed** |
+| Browser test discovery | **53 scenarios** across five files, including 10 new Pen/Freehand scenarios; discovery is not execution |
+
+The complete regression set ran in 16 bounded sequential batches, with native DOM files isolated in their own processes. After the final interruption and input-focus fixes, all three affected native input/controller/panel suites were rerun against the final code. Counts above include each case once. The final regressions explicitly cover pointer/button/capture cleanup after tool switches and cancellation; native Hand panning; menu and read-only interruptions; whole-group eraser protection; a real Freehand → eraser → Freehand button chord; and beginning the first stroke immediately after an uncommitted width input blurs. The width used by that first preview and saved shape is the committed field value, with one Undo.
+
+Browser acceptance scenarios cover both hosts, including synthetic DOM pen events. Those events do not substitute for a physical tablet test.
+
+Run the focused browser scenarios in an environment that can reach the fixture:
+
+```sh
+npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts drawing-pen-freehand.spec.ts
+```
+
+The connected browser could not access this local fixture in the current session, so no live browser, visual layout, production persistence, physical Huion or cutter validation is claimed. The application build and a Git update do not replace the running production bundle.
+
+References: [W3C Pointer Events Level 3](https://www.w3.org/TR/pointerevents3/), [Huion pen settings and Windows Ink](https://www.huion.com/manual/inspiroy-2/735), [Inspiroy 2 product specifications](https://www.huion.com/products/inspiroy-2-s), and [CorelDRAW drawing lines and Freehand smoothing](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Windows/CorelDRAW-en/CorelDRAW-Lines.html).
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.
