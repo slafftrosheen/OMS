@@ -1,5 +1,5 @@
 import {getSelectedCadNodes,setSelectedCadNodes} from './cad-node-selection';
-import { type Editor, type TLShape } from '@tldraw/tldraw';
+import { getDefaultColorTheme, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { cadMmPerPixel, cadPointToCanvas, canvasPointToCad, validateCadSettings, type CadSettings } from './cad-settings';
 import { resolveCadDraftPoint } from './cad-polyline-draft';
@@ -13,9 +13,14 @@ import {
   type CadContour,
   type CadBezierNode
 } from './cad-curves';
-import { assertCadEditable, applyCadPlan, makeCadPlan, CadOperationError } from './cad-plans';
+import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
+import { VECTOR_DEFAULT_PAINT, validVectorPaint, type VectorPaint } from './cad-paint';
+import { paintMetadata } from './cad-vector';
+import { cadShapePaint } from './cad-shape-appearance';
+import { retainTraceSourceGroups } from './cad-trace-output';
+import type { CadBezierShape } from './shapes/CadBezierShape';
 
-export function shapeCadContours(editor: Editor, shape: TLShape, toleranceCanvas = 0.01): CadContour[] {
+function shapeCadLocalContours(editor: Editor, shape: TLShape, toleranceCanvas = 0.01, preserveNativeTraversal = false): CadContour[] {
   const p = shape.props as Record<string, any>;
   let contours: CadContour[];
   if (shape.type === 'cad-bezier') contours = p.contours;
@@ -33,7 +38,11 @@ export function shapeCadContours(editor: Editor, shape: TLShape, toleranceCanvas
     const w = shape.type === 'cad-ellipse' ? p.w : Math.max(1, p.w),
       h = shape.type === 'cad-ellipse' ? p.h : Math.max(1, p.h) + (p.growY ?? 0);
     const step = Math.min(Math.PI / 2, Math.pow((toleranceCanvas / Math.max(w, h)) * 10000, 1 / 6));
-    contours = [arcContour(w / 2, h / 2, w / 2, h / 2, 0, Math.PI * 2, step)];
+    // CAD ellipse SVG starts at the left and runs counterclockwise. Preserve
+    // that seam/direction for conversion so dash offset keeps its visible phase.
+    // The public geometry extractor retains its established traversal for other operations.
+    const sourceSeam = preserveNativeTraversal && shape.type === 'cad-ellipse';
+    contours = [arcContour(w / 2, h / 2, w / 2, h / 2, sourceSeam ? Math.PI : 0, (sourceSeam ? -1 : 1) * Math.PI * 2, step)];
   } else if (shape.type === 'cad-arc') {
     const step = Math.min(Math.PI / 2, Math.pow((toleranceCanvas / p.radius) * 10000, 1 / 6));
     contours = [
@@ -58,6 +67,10 @@ export function shapeCadContours(editor: Editor, shape: TLShape, toleranceCanvas
     contours = [{ closed: true, nodes: (geometry.children?.[0] ?? geometry).vertices.map(nodeAt) }];
   } else throw new CadOperationError('unsupported');
   if (!validContours(contours)) throw new CadOperationError('geometry');
+  return contours;
+}
+export function shapeCadContours(editor: Editor, shape: TLShape, toleranceCanvas = 0.01): CadContour[] {
+  const contours = shapeCadLocalContours(editor, shape, toleranceCanvas);
   const matrix = editor.getShapePageTransform(shape);
   return mapContours(contours, (point) => matrix.applyToPoint(point));
 }
@@ -260,38 +273,111 @@ export function setCadContourStart(editor: Editor, ci: number, ni: number): bool
     contour.nodes = [...contour.nodes.slice(ni), ...contour.nodes.slice(0, ni)];
   });
 }
-export function convertSelectionToCurves(editor: Editor, settings: CadSettings): boolean {
-  try {
-    const shapes = cadSelectedShapes(editor),
-      ids = shapes.map((s) => s.id),
-      sourceContours = shapes.map((s) => shapeCadContours(editor, s, 0.005 / cadMmPerPixel(settings))),
-      contours = sourceContours.flat();
-    if (shapes.some((s) => editor.getBindingsInvolvingShape(s.id).length)) return false;
-    return applyCadPlan(
-      editor,
-      makeCadPlan(editor, settings, contours, {
-        sourceIds: ids,
-        removeIds: ids,
-        name: 'CAD curves',
-        // Winding-based font regions must not become an even-odd compound when
-        // converting a selected group. Keep those source regions separate.
-        shapes: shapes.some((s) => (s.props as any).fillRule === 'nonzero' || s.meta.omsVectorPaint)
-          ? shapes.map((shape, i) => ({
-              type: 'cad-bezier' as const,
-              x: 0,
-              y: 0,
-              props: {
-                contours: sourceContours[i],
-                color: (shape.props as any).color ?? 'black',
-                fillRule: (shape.props as any).fillRule ?? 'evenodd'
-              },
-              meta: { ...shape.meta }
-            }))
-          : undefined,
-        warnings: ['curves-approximated']
-      })
-    );
-  } catch {
-    return false;
+export type CadCurveConversionIssue = 'selection' | 'readonly' | 'locked' | 'bound' | 'unsupported' |
+  'conversion-native-style' | 'conversion-native-label';
+const convertibleGeo = new Set(['rectangle', 'triangle', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'trapezoid', 'rhombus', 'ellipse']);
+
+function curveConversionSources(editor: Editor) {
+  const selected = [...editor.getSelectedShapeIds()];
+  assertCadEditable(editor, selected);
+  const records = [...editor.getShapeAndDescendantIds(selected)].map(id => editor.getShape(id));
+  if (!records.length || records.some(shape => !shape)) throw new CadOperationError('selection');
+  if (records.some(shape => editor.getBindingsInvolvingShape(shape!.id).length)) throw new CadOperationError('bound');
+  const shapes = records.filter((shape): shape is TLShape => !!shape && shape.type !== 'group');
+  if (!shapes.length || shapes.length > 200) throw new CadOperationError('selection');
+  for (const shape of shapes) {
+    // An existing curve is already the target type. Do not rewrite its paint,
+    // compound topology, clips or metadata just because it is selected too.
+    if (shape.type === 'cad-bezier') continue;
+    const p = shape.props as Record<string, any>, paint = shape.meta.omsVectorPaint;
+    if (editor.getShapeMask(shape.id) || (paint as any)?.clips?.length || (paint as any)?.gradient || (paint as any)?.raster ||
+        paint !== undefined && !validVectorPaint(paint)) throw new CadOperationError('unsupported');
+    if (shape.type === 'geo' && p.text?.trim()) throw new CadOperationError('conversion-native-label');
+    if (shape.type === 'geo' || shape.type === 'line') {
+      if (shape.type === 'geo' && !convertibleGeo.has(p.geo) || shape.type === 'line' && p.spline !== 'line') throw new CadOperationError('unsupported');
+      // Native dashed strokes fit a different dash pattern on each edge, and
+      // hand-drawn/pattern styles use generated artwork. Refuse those intact.
+      if (p.dash !== 'solid' || shape.type === 'geo' && !['none', 'solid', 'semi', 'fill'].includes(p.fill))
+        throw new CadOperationError('conversion-native-style');
+    } else if (!['cad-path', 'cad-ellipse', 'cad-arc'].includes(shape.type)) throw new CadOperationError('unsupported');
   }
+  return { selected, shapes };
+}
+/** Pure preflight for the existing conversion controls. No source is changed. */
+export function getCadCurveConversionIssue(editor: Editor): CadCurveConversionIssue | null {
+  try { curveConversionSources(editor); return null; }
+  catch (error) {
+    return error instanceof CadOperationError && ['selection', 'readonly', 'locked', 'bound', 'unsupported', 'conversion-native-style', 'conversion-native-label'].includes(error.code)
+      ? error.code as CadCurveConversionIssue : 'unsupported';
+  }
+}
+
+function convertedCurvePaint(editor: Editor, shape: TLShape): VectorPaint {
+  if (shape.type !== 'geo' && shape.type !== 'line') {
+    const paint = cadShapePaint(shape);
+    // Legacy analytic CAD shapes without explicit paint take their stroke from
+    // the active native theme in CadShapes. Capture the visible color now.
+    if (!validVectorPaint(shape.meta.omsVectorPaint))
+      paint.stroke = getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() })[(shape.props as any).color].solid;
+    return paint;
+  }
+  const p = shape.props as any, theme = getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() }), color = theme[p.color];
+  // tldraw 2.4.6's native STROKE_SIZES are not exposed by its public barrel.
+  // Match GeoShapeBody/LineShapeUtil, including their stored scale. Its native
+  // SVG container gives both solid styles round caps and joins.
+  const size = ({ s: 2, m: 3.5, l: 5, xl: 10 } as Record<string, number>)[p.size];
+  if (!color || !size || !Number.isFinite(p.scale) || p.scale <= 0) throw new CadOperationError('unsupported');
+  return { ...VECTOR_DEFAULT_PAINT, dash: [], stroke: color.solid, strokeWidth: size * p.scale, lineCap: 'round', lineJoin: 'round',
+    fill: shape.type === 'line' || p.fill === 'none' ? 'none' : p.fill === 'solid' ? color.semi : p.fill === 'semi' ? theme.solid : color.fill };
+}
+
+/** Replace only geometry that needs conversion. Keep object identity, local
+ * coordinates, ancestry, sibling order and opacity, so Ctrl+Q does not repaint
+ * or regroup a drawing. Existing curves are a genuine document/history no-op. */
+export function convertSelectionToCurves(editor: Editor, settings: CadSettings): boolean {
+  const finishes: Array<(committed: boolean) => void> = [];
+  let committed = false;
+  try {
+    if (!validateCadSettings(settings)) return false;
+    const { selected, shapes } = curveConversionSources(editor), targets = shapes.filter(shape => shape.type !== 'cad-bezier');
+    if (!targets.length) return true;
+    const revision = cadRevision(editor);
+    editor.complete(); editor.setCurrentTool('select');
+    if (revision !== cadRevision(editor) || getCadCurveConversionIssue(editor)) return false;
+    const replacements: CadBezierShape[] = targets.map(shape => {
+      const paint = convertedCurvePaint(editor, shape);
+      if (!validVectorPaint(paint)) throw new CadOperationError('geometry');
+      return { ...shape, type: 'cad-bezier', props: {
+        contours: shapeCadLocalContours(editor, shape, .005 / cadMmPerPixel(settings), true),
+        color: (shape.props as any).color ?? 'black', fillRule: (shape.props as any).fillRule ?? 'evenodd',
+      }, meta: { ...structuredClone(shape.meta), omsVectorPaint: paintMetadata(paint) } } as CadBezierShape;
+    });
+    if (!validContours(replacements.flatMap(shape => shape.props.contours))) return false;
+    if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length +
+        JSON.stringify(replacements).length - JSON.stringify(targets).length > 1_900_000) return false;
+    for (const parent of new Set(targets.map(shape => shape.parentId))) finishes.push(retainTraceSourceGroups(editor, parent));
+    committed = drawingTransaction(editor, () => {
+      const replace = () => {
+        // Store atomic defers native group cleanup across removal/recreation;
+        // ordinary history batching alone does not. Same IDs preserve links and
+        // selected group roots. Bound sources were refused before any deletion.
+        editor.deleteShapes(targets.map(shape => shape.id));
+        if (targets.some(shape => editor.getShape(shape.id))) throw new CadOperationError('failed');
+        for (const shape of replacements) editor.createShape(shape);
+        editor.setSelectedShapes(selected as TLShapeId[]);
+      };
+      const store = editor.store as unknown as { atomic?: (change: () => void) => void } | undefined;
+      if (store?.atomic) store.atomic(replace); else replace();
+      for (const expected of replacements) {
+        const actual = editor.getShape(expected.id);
+        if (!actual || ['type', 'parentId', 'index', 'x', 'y', 'rotation', 'opacity', 'isLocked', 'meta'].some(key =>
+          JSON.stringify((actual as any)[key]) !== JSON.stringify((expected as any)[key])) ||
+          Object.entries(expected.props).some(([key, value]) => JSON.stringify((actual.props as any)[key]) !== JSON.stringify(value)))
+          throw new CadOperationError('failed');
+      }
+      if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000) throw new CadOperationError('save-limit');
+    });
+    return committed;
+  } catch { return false; }
+  finally { for (const finish of finishes.reverse()) finish(committed); }
 }

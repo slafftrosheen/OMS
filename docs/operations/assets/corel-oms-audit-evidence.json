@@ -1,0 +1,452 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-11-20",
+  "repository": "slafftrosheen/OMS",
+  "base_commit": "33a6ad1d3d6ec42bd3d0e4612b94e6c7d628b194",
+  "report": "docs/operations/corel-in-oms-audit-2026-11-20.md",
+  "comparison_baseline": "CorelDRAW 2026 for Windows; September 2026 update; official documentation comparison, no installed side-by-side benchmark",
+  "excluded_products": [
+    "Corel PHOTO-PAINT",
+    "CorelDRAW Technical Suite",
+    "CorelDRAW Web"
+  ],
+  "validation": {
+    "targeted_unit_regression": {
+      "files": 94,
+      "batches": 23,
+      "passed": 1350,
+      "failed": 0,
+      "native_editor_react_dom_subset": 325,
+      "commands": [
+        "python3 /tmp/oms-corel-polish-regressions.py"
+      ],
+      "files_tested": [
+        "tests/unit/cad-advanced.test.ts",
+        "tests/unit/cad-analytic-appearance.test.ts",
+        "tests/unit/cad-arc-text.test.ts",
+        "tests/unit/cad-artwork-exchange.test.ts",
+        "tests/unit/cad-bezier-intersections.test.ts",
+        "tests/unit/cad-calligraphy.test.ts",
+        "tests/unit/cad-compound.test.ts",
+        "tests/unit/cad-construction-measurements.test.ts",
+        "tests/unit/cad-construction-snaps.test.ts",
+        "tests/unit/cad-cubic-construction.test.ts",
+        "tests/unit/cad-cubic-ellipse-intersections.test.ts",
+        "tests/unit/cad-cubic-intersections.test.ts",
+        "tests/unit/cad-direct-fill.test.ts",
+        "tests/unit/cad-drawing.test.ts",
+        "tests/unit/cad-dxf-compatibility.test.ts",
+        "tests/unit/cad-dxf-expanded.test.ts",
+        "tests/unit/cad-dxf-spline.test.ts",
+        "tests/unit/cad-ellipse-segments.test.ts",
+        "tests/unit/cad-external-import.test.ts",
+        "tests/unit/cad-freehand-continuation.test.ts",
+        "tests/unit/cad-freehand.test.ts",
+        "tests/unit/cad-guide-snapping.test.ts",
+        "tests/unit/cad-guide-text.test.ts",
+        "tests/unit/cad-intersections.test.ts",
+        "tests/unit/cad-join.test.ts",
+        "tests/unit/cad-node-arrange.test.ts",
+        "tests/unit/cad-node-corners.test.ts",
+        "tests/unit/cad-node-editing.test.ts",
+        "tests/unit/cad-parametric-shapes.test.ts",
+        "tests/unit/cad-pdf-appearance.test.ts",
+        "tests/unit/cad-pointer-records.test.ts",
+        "tests/unit/cad-precision-entry.test.ts",
+        "tests/unit/cad-production-roundtrip.test.ts",
+        "tests/unit/cad-raster-assets.test.ts",
+        "tests/unit/cad-rectangle-shapes.test.ts",
+        "tests/unit/cad-snap.test.ts",
+        "tests/unit/cad-spline-external.test.ts",
+        "tests/unit/cad-spline-math.test.ts",
+        "tests/unit/cad-trace-background.test.ts",
+        "tests/unit/cad-trace-centerline-fit.test.ts",
+        "tests/unit/cad-trace-centerline.test.ts",
+        "tests/unit/cad-trace-client.test.ts",
+        "tests/unit/cad-trace-fit.test.ts",
+        "tests/unit/cad-trace-precision.test.ts",
+        "tests/unit/cad-trace-raster.test.ts",
+        "tests/unit/cad-trace-topology.test.ts",
+        "tests/unit/cad-vector-endpoint.test.ts",
+        "tests/unit/cad-vector-exchange.test.ts",
+        "tests/unit/canvas-controls.test.ts",
+        "tests/unit/canvas-draft-snapshot.test.ts",
+        "tests/unit/canvas-workbench.test.ts",
+        "tests/unit/draft-production-endpoint.test.ts",
+        "tests/unit/draft-production-intake.test.ts",
+        "tests/unit/drawing-appearance.test.ts",
+        "tests/unit/drawing-arrange.test.ts",
+        "tests/unit/drawing-commands.test.ts",
+        "tests/unit/drawing-find-replace.test.ts",
+        "tests/unit/drawing-fonts.test.ts",
+        "tests/unit/drawing-guide-alignment.test.ts",
+        "tests/unit/drawing-guides.test.ts",
+        "tests/unit/drawing-object-order.test.ts",
+        "tests/unit/drawing-object-tree.test.ts",
+        "tests/unit/drawing-operations.test.ts",
+        "tests/unit/drawing-outline-object.test.ts",
+        "tests/unit/drawing-outline.test.ts",
+        "tests/unit/drawing-palette.test.ts",
+        "tests/unit/drawing-preflight.test.ts",
+        "tests/unit/drawing-radial.test.ts",
+        "tests/unit/drawing-select-same.test.ts",
+        "tests/unit/drawing-skew-native.test.ts",
+        "tests/unit/drawing-skew.test.ts",
+        "tests/unit/drawing-solid-fill.test.ts",
+        "tests/unit/drawing-text-spacing.test.ts",
+        "tests/unit/drawing-text-style.test.ts",
+        "tests/unit/drawing-transform.test.ts",
+        "tests/unit/oms-r35-order-persistence.test.ts",
+        "tests/unit/cad-centerline-hit.test.tsx",
+        "tests/unit/cad-convert-curves.test.tsx",
+        "tests/unit/cad-freehand-tool.test.tsx",
+        "tests/unit/cad-trace-centerline-output.test.tsx",
+        "tests/unit/cad-trace-output.test.tsx",
+        "tests/unit/drawing-context-menu.test.tsx",
+        "tests/unit/drawing-export-bounds.test.tsx",
+        "tests/unit/drawing-guide-drag.test.tsx",
+        "tests/unit/drawing-guides-panel.test.tsx",
+        "tests/unit/drawing-panel-session.test.tsx",
+        "tests/unit/drawing-pen-input.test.tsx",
+        "tests/unit/drawing-pen-panel.test.tsx",
+        "tests/unit/drawing-pick-click-toggle.test.tsx",
+        "tests/unit/drawing-pick-guide-snap.test.ts",
+        "tests/unit/drawing-pick-integration.test.tsx",
+        "tests/unit/drawing-pick-skew.test.tsx",
+        "tests/unit/drawing-raster-trace.test.tsx",
+        "tests/unit/drawing-rotation-pivot.test.tsx"
+      ],
+      "runner_strategy": "Plain TypeScript suites in batches of up to16; TSX/native DOM suites and drawing-pick-guide-snap isolated; NODE_OPTIONS=--max-old-space-size=4096.",
+      "command_template": "node packages/vitest/bin.js <files_tested batch>"
+    },
+    "post_type_correction_rechecks": {
+      "passed": 55,
+      "failed": 0,
+      "included_in_total_not_additional": true,
+      "files": [
+        "tests/unit/cad-advanced.test.ts",
+        "tests/unit/canvas-draft-snapshot.test.ts",
+        "tests/unit/oms-r35-order-persistence.test.ts",
+        "tests/unit/drawing-export-bounds.test.tsx",
+        "tests/unit/drawing-panel-session.test.tsx"
+      ]
+    },
+    "svelte_check": {
+      "command": "npm run check",
+      "errors": 0,
+      "warnings": 13,
+      "baseline_warning_files": 5,
+      "unchanged_from_baseline": true,
+      "warning_sources": [
+        "src/lib/assistant/AssistantChat.svelte",
+        "src/lib/notifications/TelegramAdminSettings.svelte",
+        "src/lib/order/OrderFlowAssistant.svelte",
+        "src/lib/order/OrderReadinessAssistant.svelte",
+        "src/lib/order/RevisionIntelligence.svelte"
+      ]
+    },
+    "eslint": {
+      "changed_ts_tsx_files": 17,
+      "errors": 0,
+      "warnings": 0
+    },
+    "production_build": {
+      "exit_code": 0,
+      "adapter": "node",
+      "production_deployment": false
+    },
+    "static_ui_detector": {
+      "exit_code": 0,
+      "primary_findings": 0,
+      "advisories": 0,
+      "source_files": 243,
+      "markup_files": 66,
+      "source_unchanged_during_scan": true,
+      "browser_validation": false
+    },
+    "playwright": {
+      "discovered": 61,
+      "files": 6,
+      "executed": false,
+      "note": "Discovery only; corrected stale rename/repeat and invalid-export-option expectations."
+    }
+  },
+  "fixed_reproductions": [
+    {
+      "id": "geometry-conversion-context",
+      "before": {
+        "effective_stroke_alpha": 0.16,
+        "after_command_alpha": 0.8,
+        "parent_changed_to_page": true
+      },
+      "after": "Existing Bezier is a document/history no-op; other supported sources retain identity, local coordinates, parent, stack, opacity and paint.",
+      "test": "tests/unit/cad-convert-curves.test.tsx"
+    },
+    {
+      "id": "paint-export-clipping",
+      "before": {
+        "centerline_length_px": 100,
+        "stroke_width_px": 100,
+        "padding_px": 24,
+        "svg_width_px": 148,
+        "svg_height_px": 48,
+        "clipped_px_per_edge": 26
+      },
+      "after": "Export-only painted bounds include caps/joins, curve extrema and clips.",
+      "test": "tests/unit/drawing-export-bounds.test.tsx"
+    },
+    {
+      "id": "svg-private-raster-reference",
+      "before": "Generated SVG contained unresolved private API image href.",
+      "after": "Validated originals hydrated in detached SVG; actual SVG and PNG pixels verified independently.",
+      "test": "tests/unit/drawing-export-bounds.test.tsx"
+    },
+    {
+      "id": "svg-mime",
+      "before": "text/plain rejected for .svg by actual order server validation",
+      "after": "image/svg+xml accepted by actual normalizer/signature validator",
+      "test": "tests/unit/drawing-export-bounds.test.tsx"
+    },
+    {
+      "id": "svg-physical-scale",
+      "before": {
+        "canvas_width_px": 100,
+        "document_scale": 10,
+        "svg_width_mm": 26.458333333333332,
+        "pdf_dxf_width_mm": 264.5833333333333
+      },
+      "after": "Calibrated SVG root dimensions use mm; unchanged viewBox; legacy SVG and PNG keep pixels.",
+      "test": "tests/unit/drawing-export-bounds.test.tsx"
+    },
+    {
+      "id": "docker-continuity",
+      "before": "Switching dockers unmounted local operation drafts/reviews.",
+      "after": "Lazy retained sessions with page/editor keys and existing stale guards. Pen diagnostics intentionally unmount when actually hidden.",
+      "test": "tests/unit/drawing-panel-session.test.tsx"
+    },
+    {
+      "id": "order-save-transient-draft",
+      "before": "Raw explicit Order Save retained pointer-only third polyline point and unconfirmed CAD placeholders.",
+      "after": "Native session plus committed-only document capture, matching existing debounced checkpoint.",
+      "test": "tests/unit/canvas-draft-snapshot.test.ts"
+    }
+  ],
+  "remaining_native_reproductions": [
+    {
+      "kind": "TEXT_OUTLINE_DEFECT",
+      "status": "open defect; expected incorrect behavior reproduced",
+      "observation": {
+        "sourceParent": "group",
+        "resultParent": "page",
+        "page": "page",
+        "sourceOpacity": 0.4,
+        "parentOpacity": 0.5,
+        "resultOpacity": 1,
+        "sourceEffectiveAlpha": 0.2,
+        "resultEffectiveAlpha": 1,
+        "sourceStack": "a1",
+        "resultStack": "a4",
+        "resultPaint": {
+          "fill": "none",
+          "stroke": "#e03131",
+          "strokeWidth": 1,
+          "fillOpacity": 1,
+          "strokeOpacity": 1,
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 10,
+          "dash": [],
+          "dashOffset": 0
+        },
+        "hasSavedSourceText": true,
+        "sourceRemoved": true,
+        "undoExact": true,
+        "redoExact": true,
+        "metrics": "synthetic text layout; real bundled font outlines and native Store/history"
+      }
+    },
+    {
+      "kind": "COMPOUND_JOIN_DEFECT",
+      "status": "open defect; expected incorrect behavior reproduced",
+      "observation": {
+        "operation": "combine",
+        "sourceParent": "group",
+        "sourceOpacities": [
+          0.4,
+          0.6
+        ],
+        "groupOpacity": 0.5,
+        "outputs": [
+          {
+            "parent": "page",
+            "opacity": 1,
+            "paint": {
+              "fill": "#cc2200",
+              "stroke": "#112233",
+              "strokeWidth": 7,
+              "fillOpacity": 0.3,
+              "strokeOpacity": 0.8,
+              "lineCap": "round",
+              "lineJoin": "bevel",
+              "miterLimit": 10,
+              "dash": [
+                3,
+                5
+              ],
+              "dashOffset": 1
+            }
+          }
+        ],
+        "undoExact": true,
+        "redoExact": true
+      }
+    },
+    {
+      "kind": "COMPOUND_JOIN_DEFECT",
+      "status": "open defect; expected incorrect behavior reproduced",
+      "observation": {
+        "operation": "breakApart",
+        "sourceParent": "group",
+        "sourceOpacities": [
+          0.4,
+          0.6
+        ],
+        "groupOpacity": 0.5,
+        "outputs": [
+          {
+            "parent": "page",
+            "opacity": 1,
+            "paint": {
+              "fill": "#cc2200",
+              "stroke": "#112233",
+              "strokeWidth": 7,
+              "fillOpacity": 0.3,
+              "strokeOpacity": 0.8,
+              "lineCap": "round",
+              "lineJoin": "bevel",
+              "miterLimit": 10,
+              "dash": [
+                3,
+                5
+              ],
+              "dashOffset": 1
+            }
+          },
+          {
+            "parent": "page",
+            "opacity": 1,
+            "paint": {
+              "fill": "#cc2200",
+              "stroke": "#112233",
+              "strokeWidth": 7,
+              "fillOpacity": 0.3,
+              "strokeOpacity": 0.8,
+              "lineCap": "round",
+              "lineJoin": "bevel",
+              "miterLimit": 10,
+              "dash": [
+                3,
+                5
+              ],
+              "dashOffset": 1
+            }
+          }
+        ],
+        "undoExact": true,
+        "redoExact": true
+      }
+    },
+    {
+      "kind": "COMPOUND_JOIN_DEFECT",
+      "status": "open defect; expected incorrect behavior reproduced",
+      "observation": {
+        "operation": "join",
+        "sourceParent": "group",
+        "sourceOpacities": [
+          0.4,
+          0.6
+        ],
+        "groupOpacity": 0.5,
+        "outputs": [
+          {
+            "parent": "page",
+            "opacity": 1,
+            "paint": {
+              "fill": "#cc2200",
+              "stroke": "#112233",
+              "strokeWidth": 7,
+              "fillOpacity": 0.3,
+              "strokeOpacity": 0.8,
+              "lineCap": "round",
+              "lineJoin": "bevel",
+              "miterLimit": 10,
+              "dash": [
+                3,
+                5
+              ],
+              "dashOffset": 1
+            }
+          }
+        ],
+        "undoExact": true,
+        "redoExact": true
+      }
+    }
+  ],
+  "remaining_source_limits": {
+    "interactive_bezier_handles_max_nodes": 128,
+    "bezier_max_nodes": 4096,
+    "bezier_max_contours": 512,
+    "boolean_output": "flattened Clipper polygon nodes with zero curve handles",
+    "snapshot_api_max_serialized_characters": 2000000,
+    "production_attachment_max_bytes": 26214400,
+    "export_originals_aggregate_max_bytes": 67108864
+  },
+  "ux_assessment": {
+    "assessment_a": "isolated source-only review before polish",
+    "nielsen_provisional_score": 22,
+    "scored_maximum": 36,
+    "unscored": "aesthetic/minimalist visual quality",
+    "assessment_b": "independent detector/source review",
+    "score_is_corel_parity_percentage": false,
+    "score_recomputed_after_polish": false
+  },
+  "unverified": [
+    "Current browser rendering and complete interactive flows",
+    "Physical Huion S/M/L, driver behavior, calibration and latency",
+    "Installed Corel side-by-side quality/speed benchmark",
+    "Large production-document performance",
+    "Actual production deployment and external endpoints"
+  ],
+  "changed_source_sha256": {
+    "src/lib/components/canvas/CadAdvancedPanel.tsx": "4f516761e8fb6ca70fad89b4ad39b07dea0db2c1deb0fd5a8c17d52067f224ea",
+    "src/lib/components/canvas/DrawingPanelSession.tsx": "17b05178874759190d292a3e3c75cda00ba36288a48478ba1afaa05ba195bcae",
+    "src/lib/components/canvas/DrawingWorkspace.tsx": "85c4b65b25dbeb9e10aff806b93d4bcd00a54033d69372c32ae7ffa3391f7db2",
+    "src/lib/components/canvas/ProductionSaveButton.tsx": "61dd2f0b34ed90da0c421be1098af64aa11f34f7de966887ec5dd3e1b59442d3",
+    "src/lib/components/canvas/cad-advanced-copy.ts": "c0693b18ff632f24f09b55ce11a0b67fd38f7bd17499508505df7fa1bfef07b6",
+    "src/lib/components/canvas/cad-editing.ts": "30978a6a7f3ccc01ea4f4924a4266c9ad129eab9c5bbe5a01dc37c56b210810e",
+    "src/lib/components/canvas/capture-order-canvas-snapshot.ts": "37142d5a71f63e33a63601e5681a7a89b6eb05b70fe234a9e606e540f034f415",
+    "src/lib/components/canvas/drawing-artwork-export.ts": "8f92ebd933e7c41c3778d93b14260e592020b6961d4123b6c7f9ee0cb917eae4",
+    "src/lib/components/canvas/drawing-copy.ts": "b8a39b5a4a934814ad28f88a224243e7651e06ba3a6e79628fc9be9fcf7d4e84",
+    "src/lib/components/canvas/drawing-operations.ts": "599f2a2b0b56c0367f31e78c6d7c092ac543d3f77161ea09618eef12afc8e7f3",
+    "src/routes/orders/[id]/edit/+page.svelte": "1955ffd40af10d815f024eb592e701331fdd3d2b83445f010a128829c1bb03ec",
+    "tests/e2e/drawing-workspace.spec.ts": "563e0e3a97860921988d3d1769d8234341db5bb78b2650c2d6f46baac3f56cc9",
+    "tests/unit/cad-advanced.test.ts": "a5bac151603fe1974e661620b35c156ee02f4414ca26c64a6edbbd75b32191d4",
+    "tests/unit/cad-convert-curves.test.tsx": "6084ea8a6d973bdac348825ba4a33de2dd89598cec017e03147f0bc1db8af34c",
+    "tests/unit/canvas-draft-snapshot.test.ts": "f81790ff3958a4e2d4287c549b7985aff3fc10ba2846487c330d5175418bec59",
+    "tests/unit/drawing-export-bounds.test.tsx": "742e913e85aac85234a521bd9631527b0dca2a65c228a85dd6476d6e4c1967a7",
+    "tests/unit/drawing-panel-session.test.tsx": "6a2a57ec3e0bad034be244fc496d77dfb70a9c8f35ec64a7f6ed196163de8af2",
+    "tests/unit/oms-r35-order-persistence.test.ts": "cec7df261a247e2ddcca1b756a010332379d9e1f9cf7be53a7c6a0282b161b32"
+  },
+  "scratch_log_sha256": {
+    "oms-corel-polish-regressions-run.log": "2b1a2eee0cc858370dc2c7a13b51aaee23e6ce4c46546cf09e9869a6e8002e01",
+    "oms-corel-polish-final-types-regression.log": "e9bb7415c29813da938c13e81c55ec46b0732ee52c5cfea081bf5fc394ddfc2c",
+    "oms-corel-polish-final-export-regression.log": "84f8e8df3ea0812fe0805aa07489bce4ab1208603e3f7bc20a63791c3d9d7d73",
+    "oms-corel-polish-final-panel-regression.log": "7360c88ce4dbdb171fd556e59f8d63f59e30b8fe3d899a32060fab402240b490",
+    "oms-corel-polish-final-eslint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "oms-corel-polish-build.log": "e8b9f430a2ad46291057de5a2d3a3ed7cb289692a7782122e40e91a9de9f02ff",
+    "oms-corel-polish-e2e-discovery.txt": "69cb08e15cf53c2829e0982e8f7b97b941b11bc1825956ce5d7f3927d359ffa3",
+    "oms-corel-polish-detector.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "oms-corel-polish-final-check.log": "6a17d99816e8a75cc12876f104410297b3ed6951e6533da9dbff062c6b5a0f85"
+  }
+}

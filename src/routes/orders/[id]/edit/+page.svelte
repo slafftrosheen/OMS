@@ -756,9 +756,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         // out-of-date snapshot during rapid edits.
         let snapshot = canvasSnapshot;
         if (editorRef?.store) {
-          const { getSnapshot } = await import('@tldraw/tldraw');
+          const { captureOrderCanvasSnapshot } = await import('$lib/components/canvas/capture-order-canvas-snapshot');
           if (!scope.isCurrent() || !editorRef?.store) return false;
-          snapshot = getSnapshot(editorRef.store);
+          snapshot = captureOrderCanvasSnapshot(editorRef);
         }
         if (!snapshot || typeof snapshot !== 'object') {
           throw new Error('Canvas is not ready to save. Wait for the editor and retry.');

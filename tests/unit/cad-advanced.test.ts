@@ -9,13 +9,11 @@ import {
   cadPointToCanvas
 } from '../../src/lib/components/canvas/cad-settings';
 import {
-  arcContour,
   cubicAt,
   cubicPoints,
   curveBounds,
   flattenContours,
   nodeAt,
-  validContours,
   type CadContour
 } from '../../src/lib/components/canvas/cad-curves';
 import {
@@ -31,7 +29,6 @@ import { prepareCadText, readCadFont, glyphRunContours } from '../../src/lib/com
 import { prepareCadImport, splineContour } from '../../src/lib/components/canvas/cad-import';
 import { buildCadDxf, serializeCadDxf } from '../../src/lib/components/canvas/cad-dxf';
 import { CadBezierTool } from '../../src/lib/components/canvas/CadBezierTool';
-import { getCadSelectionPageBounds } from '../../src/lib/components/canvas/cad-bounds';
 const near = (a: number, b: number, t = 1e-7) => assert.ok(Math.abs(a - b) < t, `${a} != ${b}`);
 const rect = (x: number, y: number, w: number, h: number): CadContour => ({
   closed: true,
@@ -203,8 +200,11 @@ describe('CAD region shaping', () => {
     f.editor.createShape({ id: 'shape:group', type: 'group', props: {} });
     f.editor.updateShape({ id, parentId: 'shape:group' });
     f.editor.setSelectedShapes(['shape:group']);
+    const beforeConvert = structuredClone([...f.shapes.values()]);
     assert.equal(convertSelectionToCurves(f.editor, settings), true);
-    assert.equal(f.only().props.fillRule, 'nonzero');
+    assert.deepEqual([...f.shapes.values()], beforeConvert, 'already-converted group is a true no-op');
+    assert.deepEqual(f.editor.getSelectedShapeIds(), ['shape:group']);
+    assert.equal(f.editor.getShape(id).props.fillRule, 'nonzero');
     const after = prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset', offset: 0.01 });
     assert.equal(after.contours.length, 1);
     near(area(after.contours), area(plan.contours));

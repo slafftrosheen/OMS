@@ -78,7 +78,8 @@ describe('OMS-R35: form/Canvas revision chain', () => {
     expect(editor).toContain('const sentFingerprint = formFingerprint();');
     expect(editor).toContain('savedFormFingerprint = sentFingerprint;');
     expect(editor).toContain('if (formDirty || canvasDirty)');
-    expect(editor).toContain('getSnapshot(editorRef.store)');
+    expect(editor).toContain('snapshot = captureOrderCanvasSnapshot(editorRef)');
+    expect(editor).not.toContain('snapshot = getSnapshot(editorRef.store)');
     expect(editor).toContain('Save again before confirming');
     expect(editor).toContain('const saved=await saveDraft();');
     expect(editor).toContain("if (!saved) throw new Error($t('orderWorkspace.confirmSaveFirst'))");

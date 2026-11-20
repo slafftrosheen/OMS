@@ -1,5 +1,8 @@
-import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
+import { Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
+import { getCadShapePageBounds } from './cad-bounds';
+import { curveBounds, mapContours } from './cad-curves';
+import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadShapePaint } from './cad-shape-appearance';
 
 const NAME_KEY = 'omsObjectName';
 const ORDER_FORMS = new Set(['order-details', 'order-address', 'profile-7st']);
@@ -171,6 +174,43 @@ export interface DrawingExportPlan {
   bounds: { x: number; y: number; w: number; h: number };
   nativeScale: number;
 }
+
+/** Export frames include CAD paint, while native bounds remain geometric for
+ * dimensions and snaps. Padding is additional user whitespace, not a hidden
+ * allowance for a pen that might be much wider than the default padding. */
+function drawingExportBounds(editor: Editor, shape: TLShape): Box | undefined {
+  if (!CAD_APPEARANCE_TYPES.has(shape.type)) return editor.getShapeMaskedPageBounds(shape.id);
+  let bounds: Box | undefined;
+  try { cadAppearanceGeometry(shape); bounds = getCadShapePageBounds(editor, shape); }
+  catch { bounds = editor.getShapePageBounds(shape); }
+  if (!bounds) return;
+  bounds = bounds.clone();
+  const paint = cadShapePaint(shape);
+  if (paint.stroke !== 'none' && paint.strokeOpacity > 0 && paint.strokeWidth > 0) {
+    const props = shape.props as any;
+    const joins = shape.type === 'cad-bezier' ? props.contours.some((c: any) => c.closed || c.nodes.length > 2)
+      : shape.type === 'cad-path' && (props.closed || props.points.length > 2);
+    // A disk bounds round/bevel joins. Square caps can project sqrt(2) radii
+    // onto an axis; miter joins are conservatively bounded by their limit.
+    const reach = Math.max(paint.lineCap === 'square' ? Math.SQRT2 : 1,
+      joins && paint.lineJoin === 'miter' ? paint.miterLimit : 1) * paint.strokeWidth / 2;
+    bounds.expandBy(reach);
+  }
+  const intersect = (clip: { x: number; y: number; w: number; h: number }) => {
+    const x = Math.max(bounds!.x, clip.x), y = Math.max(bounds!.y, clip.y);
+    const right = Math.min(bounds!.maxX, clip.x + clip.w), bottom = Math.min(bounds!.maxY, clip.y + clip.h);
+    if (right < x || bottom < y) return false;
+    bounds = new Box(x, y, right - x, bottom - y); return true;
+  };
+  const matrix = editor.getShapePageTransform(shape);
+  for (const clip of paint.clips ?? []) {
+    if (!intersect(curveBounds(mapContours(clip.contours, point => matrix.applyToPoint(point))))) return;
+  }
+  const mask = editor.getShapeMask(shape.id);
+  if (mask && (!mask.length || !intersect(Box.FromPoints(mask)))) return;
+  return bounds;
+}
+
 export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options: DrawingExportOptions): Result<DrawingExportPlan> {
   if (!['selected', 'all'].includes(options.scope) || ![1, 2, 4].includes(options.scale) || typeof options.background !== 'boolean' ||
       !Number.isFinite(options.padding) || options.padding < 0 || options.padding > 1000) return { ok: false, error: 'invalidOptions' };
@@ -182,7 +222,7 @@ export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options
     const shape = editor.getShape(id);
     if (!shape) continue;
     if (!ARTWORK_TYPES.has(shape.type)) { if (shape.type !== 'group') omitted++; continue; }
-    const bounds = editor.getShapeMaskedPageBounds(id);
+    const bounds = drawingExportBounds(editor, shape);
     if (!bounds) continue;
     ids.push(id); minX = Math.min(minX, bounds.x); minY = Math.min(minY, bounds.y);
     maxX = Math.max(maxX, bounds.x + bounds.w); maxY = Math.max(maxY, bounds.y + bounds.h);

@@ -1,8 +1,9 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { createTLStore, defaultShapeUtils, getIndices, PageRecordType } from '@tldraw/tldraw';
+import { CameraRecordType, InstancePageStateRecordType, TLINSTANCE_ID, createTLStore, defaultShapeUtils, getIndices, getSnapshot, PageRecordType, type TLShapeId } from '@tldraw/tldraw';
 import { fixture } from '../helpers/cad-editor';
 import { captureCanvasDocument, registerCanvasDraft } from '../../src/lib/components/canvas/canvas-document';
+import { captureOrderCanvasSnapshot } from '../../src/lib/components/canvas/capture-order-canvas-snapshot';
 import { CadPolylineTool } from '../../src/lib/components/canvas/CadPolylineTool';
 import { CadBezierTool } from '../../src/lib/components/canvas/CadBezierTool';
 import { CadCircleTool, CadDimensionTool } from '../../src/lib/components/canvas/CadTwoPointTool';
@@ -74,4 +75,46 @@ describe('CAD drafts at the persistence boundary', () => {
     f.state.isReadonly = true; f.tool.onKeyDown({ key: 'Backspace' });
     assert.equal(f.state.tool, 'select'); assert.equal(f.shapes.size, 0); assert.equal(f.saved().length, 0);
   });
+
+  function orderStore(f: ReturnType<typeof setup>) {
+    const store = createTLStore({ shapeUtils }), pageId = f.editor.getCurrentPageId();
+    store.loadStoreSnapshot(f.editor.store.getStoreSnapshot());
+    store.put([store.schema.types.instance.create({ id: TLINSTANCE_ID, currentPageId: pageId, exportBackground: true, isGridMode: true }),
+      CameraRecordType.create({ id: CameraRecordType.createId(pageId), x: 17, y: -23, z: 2 }),
+      InstancePageStateRecordType.create({ id: InstancePageStateRecordType.createId(pageId), pageId, selectedShapeIds: [...f.shapes.keys()] as any })]);
+    f.editor.store = store;
+    return store;
+  }
+
+  it('Order Save captures current committed vertices while preserving the native camera/session and the live gesture', () => {
+    const f = setup(CadPolylineTool); f.click(10, 20); f.click(110, 20); f.move(140, 80);
+    const store = orderStore(f), raw = getSnapshot(store), marks = f.marks.length;
+    const shapeId = [...f.shapes.keys()][0] as TLShapeId, rawShape = raw.document.store[shapeId] as any;
+    assert.equal(rawShape.props.points.length, 3, 'the previous raw Order save retained the pointer-only endpoint');
+    const before = JSON.stringify(store.getStoreSnapshot()), snapshot = captureOrderCanvasSnapshot(f.editor);
+    const savedShape = snapshot.document.store[shapeId] as any;
+    assert.deepEqual(savedShape.props.points, [{ x: 0, y: 0 }, { x: 100, y: 0 }]);
+    assert.deepEqual(snapshot.session, raw.session);
+    assert.deepEqual(snapshot.session.pageStates[0].camera, { x: 17, y: -23, z: 2 });
+    assert.equal(snapshot.session.isGridMode, true); assert.equal(snapshot.session.exportBackground, true);
+    const restored = createTLStore({ shapeUtils }); restored.loadStoreSnapshot(JSON.parse(JSON.stringify(snapshot.document)));
+    assert.deepEqual((restored.get(shapeId) as any).props.points, savedShape.props.points);
+    assert.equal(JSON.stringify(store.getStoreSnapshot()), before); assert.equal(f.marks.length, marks); assert.equal(f.state.tool, 'cad-polyline');
+  });
+
+  for (const Tool of [CadPolylineTool, CadBezierTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]) {
+    it(`Order Save omits an unconfirmed ${Tool.id} shape instead of persisting a canceled preview`, () => {
+      const f = setup(Tool); f.click(10, 20);
+      if (Tool === CadArcThreePointTool || Tool === CadCircleThreePointTool) f.click(110, 20);
+      if (Tool !== CadPolylineTool && Tool !== CadBezierTool) f.move(110, 120);
+      const store = orderStore(f), raw = getSnapshot(store), shapeId = [...f.shapes.keys()][0] as TLShapeId, marks = f.marks.length;
+      assert.ok(raw.document.store[shapeId], 'the previous raw save included an unconfirmed preview');
+      const snapshot = captureOrderCanvasSnapshot(f.editor);
+      assert.equal(snapshot.document.store[shapeId], undefined);
+      assert.deepEqual(snapshot.session, raw.session);
+      const restored = createTLStore({ shapeUtils }); restored.loadStoreSnapshot(JSON.parse(JSON.stringify(snapshot.document)));
+      assert.equal(restored.get(shapeId), undefined); assert.ok(store.get(shapeId), 'the live draft is neither deleted nor completed by Save');
+      assert.equal(f.marks.length, marks); assert.equal(f.state.tool, Tool.id);
+    });
+  }
 });

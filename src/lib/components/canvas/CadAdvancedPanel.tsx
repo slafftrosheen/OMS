@@ -15,7 +15,7 @@ import { useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
 import { unitMm, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
-import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind, setCadStraightSegment } from './cad-editing';
+import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, getCadCurveConversionIssue, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind, setCadStraightSegment } from './cad-editing';
 import { getSelectedCadNode, selectCadNode, setCadNodeEditing } from './cad-node-selection';
 import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-join';
 import { applyCadCompound } from './cad-compound';
@@ -159,7 +159,7 @@ function CurveNodes({ settings, disabled, focus, sequence, onCorner }: SharedPro
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const selected = useValue('advanced curve nodes', () => settings ? getCadCurveSelection(editor, settings) : null, [editor, settings]);
-  const selectedType = useValue('advanced curve conversion type', () => editor.getOnlySelectedShape()?.type, [editor]);
+  const conversionIssue = useValue('advanced curve conversion availability', () => getCadCurveConversionIssue(editor), [editor]);
   const activeNode = useValue('CAD node inspection', () => getSelectedCadNode(editor), [editor]);
   const contourIndex = activeNode?.contourIndex ?? 0, nodeIndex = activeNode?.nodeIndex ?? 0;
   const setNodeIndex = (index: number) => selectCadNode(editor, contourIndex, index);
@@ -202,13 +202,17 @@ function CurveNodes({ settings, disabled, focus, sequence, onCorner }: SharedPro
   function inputEnter(event: React.KeyboardEvent, apply: () => void) {
     if (event.key === 'Enter' && (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); apply(); }
   }
-  const canConvert = !selected && selectedType !== 'text';
+  const canConvert = !selected && !conversionIssue;
+  const conversionHelp: CadAdvancedLabel | null = conversionIssue === 'conversion-native-style' ? 'convertNativeStyle'
+    : conversionIssue === 'conversion-native-label' ? 'convertNativeLabel'
+    : conversionIssue === 'bound' ? 'bound' : conversionIssue === 'locked' || conversionIssue === 'readonly' ? 'blocked' : null;
   return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-nodes" onFocusCapture={() => setCadNodeEditing(editor, true)}>
     <summary>{label('nodes')}</summary>
     {!selected || !contour || !node ? <>
       <p className="drawing-help">{label('noCurve')}</p>
       <p className="drawing-help">{label('convertHelp')}</p>
-      <button type="button" disabled={disabled || !settings || !canConvert} onClick={() => { if (settings && canChange(editor)) result(convertSelectionToCurves(editor, settings), 'converted'); }}>{label('convert')}</button>
+      {conversionHelp && <p id={errorId} className="drawing-help is-error" role="status">{label(conversionHelp)}</p>}
+      <button type="button" aria-describedby={conversionHelp ? errorId : undefined} disabled={disabled || !settings || !canConvert} onClick={() => { if (settings && canChange(editor)) result(convertSelectionToCurves(editor, settings), 'converted'); }}>{label('convert')}</button>
     </> : <form onSubmit={event => {
       event.preventDefault(); if (!valid || !settings || disabled || !canChange(editor)) return;
       const next = { ...Object.fromEntries(nodeFields.map(key => [key, number(values[key])])), mode } as CadBezierNode;

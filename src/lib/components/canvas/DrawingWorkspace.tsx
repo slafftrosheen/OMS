@@ -12,6 +12,7 @@ import {useSelectSameText} from './select-same-copy';
 import {useParametricShapeText} from './parametric-shape-copy';
 import {useRectangleShapeText} from './rectangle-shape-copy';
 import {DrawingObjectsPanel} from './DrawingObjectsPanel';
+import {DrawingPanelSession} from './DrawingPanelSession';
 import {DrawingTransformPanel} from './DrawingTransformPanel';
 import {DrawingGuidesPanel} from './DrawingGuidesPanel';
 import {DrawingGuideAlignment} from './DrawingGuideAlignment';
@@ -59,14 +60,15 @@ import { createPortal } from 'react-dom';
 import {
   ArrowShapeArrowheadEndStyle, ArrowShapeArrowheadStartStyle, DefaultColorStyle, DefaultDashStyle,
   DefaultFillStyle, DefaultFontStyle, DefaultHorizontalAlignStyle, DefaultSizeStyle, DefaultTextAlignStyle,
-  DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId, exportToBlob,
-  Box, getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
+  DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId,
+  getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
   type EnumStyleProp, type TLDefaultColorStyle, type TLShapeId, type TLTextShape,
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
-import { drawingPngSize, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { exportDrawingArtwork } from './drawing-artwork-export';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
 import { applyArrangePlan, arrangementRoots, prepareArrangePlan, type ArrangeOptions } from './drawing-arrange';
 import { CadPanel } from './CadPanel';
@@ -488,7 +490,7 @@ export function DrawingChrome() {
   const isDarkMode = useIsDarkMode();
   const styles = useRelevantStyles();
   const controls = useValue('drawing controls', () => captureToolkitControls(editor, editor.getStyleForNextShape(GeoShapeGeoStyle)), [editor]);
-  const state = useValue('drawing display', () => ({ shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(), selectedShapes: editor.getSelectedShapes(),
+  const state = useValue('drawing display', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(), selectedShapes: editor.getSelectedShapes(),
     zoom: editor.getZoomLevel(), grid: editor.getInstanceState().isGridMode, snap: editor.user.getIsSnapMode(),
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
   const [notice, setNotice] = useState('');
@@ -524,10 +526,18 @@ export function DrawingChrome() {
   const [busy, setBusy] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [exportOptions, setExportOptions] = useState<DrawingExportOptions>({ scope: 'selected', scale: 1, background: false, padding: 24 });
+  const exportPlans = useValue('drawing export eligibility', () => openMenu === 'file' ? {
+    svg: planDrawingExport(editor, 'svg', exportOptions),
+    png: planDrawingExport(editor, 'png', exportOptions),
+  } : null, [editor, openMenu, exportOptions]);
   const [exportError, setExportError] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const exportLifetime = useRef<AbortController>();
+  useEffect(() => {
+    alive.current = true; const controller = new AbortController(); exportLifetime.current = controller;
+    return () => { alive.current = false; controller.abort(); };
+  }, []);
   useEffect(() => {
     const container = editor.getContainer();
     const listen = (event: Event) => { const detail = (event as CustomEvent).detail; setNotice(detail?.message ?? ''); setBusy(!!detail?.busy); };
@@ -924,26 +934,25 @@ export function DrawingChrome() {
     catch { if (alive.current) setNotice(label('uploadFailed')); }
     finally { if (alive.current) setBusy(false); }
   }
+  function exportFailure(error: unknown) {
+    const code = error instanceof Error ? error.message : '';
+    if (['asset-fetch', 'limit', 'cancelled'].includes(code)) return vectorLabel(code);
+    if (code === 'stale') return workbenchLabel('changed');
+    return label(['invalidOptions', 'exportEmpty', 'exportTooLarge', 'exportReduced'].includes(code) ? code as DrawingLabel : 'exportFailed');
+  }
   async function exportDrawing(format: 'svg' | 'png') {
     if (busy) return;
-    const result = planDrawingExport(editor, format, exportOptions);
-    if (result.ok === false) { setExportError(label(result.error)); return; }
-    const plan = result.value;
-    setBusy(true); setExportError('');
+    setBusy(true); setExportError(''); setNotice(label('exportPreparing'));
     try {
-      const blob = await exportToBlob({ editor, ids: plan.ids, format, opts: {
-        background: exportOptions.background, padding: exportOptions.padding, scale: plan.nativeScale,
-        bounds: new Box(plan.bounds.x, plan.bounds.y, plan.bounds.w, plan.bounds.h)
-      } });
-      const output = format === 'png' ? await drawingPngSize(blob) : plan;
-      const reduced = format === 'png' && (output.width < plan.width - 1 || output.height < plan.height - 1);
+      const { blob, plan, reduced, ...output } = await exportDrawingArtwork(editor, format, exportOptions, exportLifetime.current!.signal);
       if (!alive.current) return;
       const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
       anchor.href = url; anchor.download = `oms-drawing.${format}`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      setNotice(`${label('exportSize')}: ${output.width} × ${output.height}. ${label('exportOmitted')}: ${plan.omitted}.${reduced ? ` ${label('exportReduced')}` : ''}`);
+      const size = output.physical ? `${output.physical.widthMm.toFixed(3)} × ${output.physical.heightMm.toFixed(3)} mm` : `${output.width} × ${output.height}`;
+      setNotice(`${label(output.physical ? 'exportPhysicalSize' : 'exportSize')}: ${size}. ${label('exportOmitted')}: ${plan.omitted}.${reduced ? ` ${label('exportReduced')}` : ''}`);
       closeMenus();
-    } catch { if (alive.current) setExportError(label('exportFailed')); }
+    } catch (error) { if (alive.current) { const message = exportFailure(error); setExportError(message); setNotice(message); } }
     finally { if (alive.current) setBusy(false); }
   }
   function annotation(kind: 'comment' | 'warning' | 'explanation') {
@@ -990,6 +999,7 @@ export function DrawingChrome() {
   const panelLabel = (mode: Exclude<Panel, null>) => mode === 'pen' ? penLabel('title') : mode === 'guides' ? guideLabel('title') : mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
   const groupLabel = (group: typeof toolGroups[number]) => group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
   const activeToolGroup = toolGroups.find(group => group.id === toolGroup);
+  const statusText = freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`);
 
   return <>
     {portal('commands', <>
@@ -1010,19 +1020,19 @@ export function DrawingChrome() {
             <label><span>{label('padding')}</span><input type="number" min="0" max="1000" step="1" value={Number.isNaN(exportOptions.padding) ? '' : exportOptions.padding}
               onChange={event => { setExportOptions(previous => ({ ...previous, padding: event.target.value.trim() ? Number(event.target.value) : NaN })); setExportError(''); }} /></label>
           </fieldset>
-          <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
-          <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
+          <button type="button" disabled={busy || !exportPlans?.svg.ok} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
+          <button type="button" disabled={busy || !exportPlans?.png.ok} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
           <button type="button" onClick={() => focusCad('files')}>{vectorLabel('files')}</button>
           <button type="button" onClick={() => focusCad('preflight')}>{preflightLabel('title')}</button>
-          {order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!controls.hasShapes} createFile={async()=>{
-            const result=planDrawingExport(editor,saveFormat,exportOptions);if(!result.ok)throw new Error('saveFailed');const plan=result.value;
-            const revision=JSON.stringify([editor.getCurrentPageShapesSorted(),editor.getSelectedShapeIds()]);
-            const blob=await exportToBlob({editor,ids:plan.ids,format:saveFormat,opts:{background:exportOptions.background,padding:exportOptions.padding,scale:plan.nativeScale,bounds:new Box(plan.bounds.x,plan.bounds.y,plan.bounds.w,plan.bounds.h)}});
-            if(revision!==JSON.stringify([editor.getCurrentPageShapesSorted(),editor.getSelectedShapeIds()]))throw new Error('changed');
-            return blob;
+          {order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
+            const output=await exportDrawingArtwork(editor,saveFormat,exportOptions,signal);
+            if(output.reduced)throw new Error('exportReduced');
+            return output.blob;
           }}/></>}
           {exportError && <p role="alert">{exportError}</p>}
+          {exportPlans && <p className="drawing-help" role="status">{exportPlans.svg.ok === false ? label(exportPlans.svg.error) : exportPlans.png.ok === false ? label(exportPlans.png.error) : `${label('exportOmitted')}: ${exportPlans.svg.value.omitted}`}</p>}
           <p>{label('exportHint')}</p>
+          <p>{label('exportScaleHint')}</p>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}
           <button type="button" onClick={openFindReplace} aria-keyshortcuts="Control+F Meta+F">{findReplaceLabel('title')} · Ctrl/⌘+F</button>
@@ -1142,10 +1152,13 @@ export function DrawingChrome() {
         }} />
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
-        {activePanel === 'guides' ? <DrawingGuidesPanel settings={settings} focusRequest={guidesFocusRequest} onDocument={() => focusCad('document')}
+        {/* Pen preferences persist outside its panel; unmount the test pad on
+            deactivation so an in-progress diagnostic stroke releases capture. */}
+        {panelModes.map(mode => <DrawingPanelSession key={`${editor.store.id}:${state.page}:${mode}`} active={activePanel === mode}>
+        {mode === 'guides' ? <DrawingGuidesPanel settings={settings} focusRequest={guidesFocusRequest} onDocument={() => focusCad('document')}
           renderAlignment={guide => <DrawingGuideAlignment key={guide?.id ?? 'none'} guide={guide}/>}/>
-        : activePanel === 'pen' ? <DrawingPenPanel onFreehand={() => chooseTool('cad-freehand')} />
-        : activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
+        : mode === 'pen' ? panel === 'pen' && <DrawingPenPanel onFreehand={() => chooseTool('cad-freehand')} />
+        : mode === 'snap' ? <CadSnapPanel settings={settings}/> : mode === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : mode === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : mode === 'arrange' ? <>
           <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
             {(['transform','align','repeat','radial'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
           </select></label>
@@ -1153,7 +1166,7 @@ export function DrawingChrome() {
           <div hidden={arrangeTask !== 'align'}><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel></div>
           <div hidden={arrangeTask !== 'repeat'}><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0} expanded/></div>
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
-        </> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
+        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
           <DrawingObjectsPanel focusRequest={objectOrderFocusRequest}/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
@@ -1174,6 +1187,7 @@ export function DrawingChrome() {
           <details className="drawing-shortcuts"><summary>{tr('toolkit.toolbar.selection')}</summary><div className="drawing-arrange">{menuActions(['group', 'ungroup', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'])}</div></details>
 
         </>}
+        </DrawingPanelSession>)}
       </div>
     </>)}
     {portal('dockerTabs', <div className="drawing-docker-tabs" role="toolbar" aria-label={label('panels')} aria-orientation="vertical" onKeyDown={event => {
@@ -1204,7 +1218,7 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: controls.tool === 'cad-freehand' ? getDefaultColorTheme({ isDarkMode: false })[value].solid : theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-freehand' ? penLabel('drawHelp') : rotationPreview ? rotationLabel(rotationPreview.kind === 'pivot' ? 'help' : 'rotate') : skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={statusText}>{statusText}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>
