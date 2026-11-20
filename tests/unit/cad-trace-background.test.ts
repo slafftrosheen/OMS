@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import { traceRaster } from '../../src/lib/components/canvas/cad-trace';
 import { traceBackgroundMask } from '../../src/lib/components/canvas/cad-trace-background';
-import { applyTracePreset, DEFAULT_TRACE_OPTIONS, resolveTraceBackground, validTraceOptions, type TraceOptions } from '../../src/lib/components/canvas/cad-trace-options';
+import { applyTracePreset, DEFAULT_TRACE_OPTIONS, resolveTraceBackground, resolveTraceMethod, validTraceOptions, type TraceOptions } from '../../src/lib/components/canvas/cad-trace-options';
 import type { VectorDocument } from '../../src/lib/components/canvas/cad-paint';
 
 type Pixel = readonly [number, number, number, number];
@@ -127,7 +127,7 @@ describe('trace profiles and compatible options', () => {
   it('leaves background decisions and caller settings intact when selecting a profile', () => {
     const original = options({ mode: 'color', colors: 19, smoothing: 2, noise: 20, background: 'border', removeWhite: false });
     const snapshot = structuredClone(original);
-    for (const preset of ['logo', 'lineart', 'color'] as const) {
+    for (const preset of ['logo', 'lineart', 'color', 'technical', 'drawing'] as const) {
       const next = applyTracePreset(original, preset);
       assert.equal(next.background, 'border'); assert.equal(next.removeWhite, false);
       assert.ok(validTraceOptions(next));
@@ -145,6 +145,44 @@ describe('trace profiles and compatible options', () => {
     assert.equal(resolveTraceBackground(options({ removeWhite: false, background: 'all' })), 'all');
     assert.equal(resolveTraceBackground(options({ removeWhite: true, background: 'keep' })), 'keep');
     assert.equal(Object.hasOwn(DEFAULT_TRACE_OPTIONS, 'background'), false);
+  });
+
+  it('keeps historical mono/color dispatch identical to explicit filled outlines', () => {
+    assert.equal(Object.hasOwn(DEFAULT_TRACE_OPTIONS, 'method'), false);
+    assert.equal(resolveTraceMethod(DEFAULT_TRACE_OPTIONS), 'outline');
+    for (const mode of ['mono', 'color'] as const) {
+      const legacy = options({ mode, background: 'border' });
+      assert.deepEqual(traceRaster(ring(), legacy), traceRaster(ring(), { ...legacy, method: 'outline' }));
+    }
+  });
+
+  it('keeps fine line art filled while technical/drawing profiles produce open editable strokes', () => {
+    const input = raster(32, 32, (x, y) => x >= 4 && x < 28 && y >= 14 && y < 18 ? black : white);
+    const original = options({ mode: 'color', background: 'all' });
+    const outline = traceRaster(input, applyTracePreset(original, 'lineart'));
+    assert.equal(outline.paths.length, 1);
+    assert.equal(outline.paths[0].paint.stroke, 'none');
+    assert.equal(outline.paths[0].paint.fill, '#000000');
+    assert.ok(outline.paths[0].contours.every(contour => contour.closed));
+    for (const preset of ['technical', 'drawing'] as const) {
+      const profile = applyTracePreset(original, preset), centerline = traceRaster(input, profile);
+      assert.equal(profile.mode, 'mono'); assert.equal(resolveTraceMethod(profile), 'centerline');
+      assert.equal(centerline.paths.length, 1);
+      assert.equal(centerline.paths[0].paint.fill, 'none');
+      assert.equal(centerline.paths[0].paint.stroke, '#000000');
+      assert.ok(centerline.paths[0].contours.every(contour => !contour.closed));
+    }
+    assert.equal(applyTracePreset(applyTracePreset(original, 'drawing'), 'color').method, 'outline');
+  });
+
+  it('rejects unknown methods and color centerlines at the shared dispatch boundary', () => {
+    for (const method of ['', null, false, 'skeleton']) {
+      assert.equal(validTraceOptions({ ...DEFAULT_TRACE_OPTIONS, method }), false);
+      assert.throws(() => traceRaster(ring(), { ...DEFAULT_TRACE_OPTIONS, method } as any), /geometry/);
+    }
+    const unsupported = options({ method: 'centerline', mode: 'color' });
+    assert.equal(validTraceOptions(unsupported), false);
+    assert.throws(() => traceRaster(ring(), unsupported), /geometry/);
   });
 
   it('rejects invalid explicit modes before geometry generation', () => {

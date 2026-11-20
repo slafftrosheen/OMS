@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="828" viewBox="0 0 960 828" role="img" aria-labelledby="centerline-title centerline-description">
+<title id="centerline-title">Centerline tracing: actual native curve output</title>
+<desc id="centerline-description">Four 128 by 128 pixel fixtures, each shown as the exact source raster and as actual traceRaster geometry over the same raster at one quarter opacity. All images are displayed at 1.5 times their original size. Teal curves and white anchors are returned by the engine; orange anchors mark shared branch junctions. Stored node counts include coincident endpoints belonging to separate native contours. Source hashes and complete options are in the companion metrics JSON. These examples do not claim universal accuracy or recovery of source stroke thickness.</desc>
+<metadata>{&quot;metrics&quot;:&quot;raster-trace-centerline-metrics.json&quot;,&quot;baselineCommit&quot;:&quot;5cc6bc178b70abd9a42a50d55a6f0b068ef1c1a5&quot;,&quot;sourceHashes&quot;:{&quot;cad-trace.ts&quot;:&quot;902cb4bf2ec820a7982485b9e6bd83e6d1aa9824d2450fbd41243417d088bc1e&quot;,&quot;cad-trace-options.ts&quot;:&quot;dfd221431a1ef55dc20f4534f573aeaf8f1420b7e695df27ed79a51bb90da7e5&quot;,&quot;cad-trace-background.ts&quot;:&quot;59c16630a4bcfe096c151aebe27f12ad4aa0acb4aa80eb36c4cf7fec242a47ff&quot;,&quot;cad-trace-skeleton.ts&quot;:&quot;9c2b84a976d83d518ca06ddf6f49e50202cdea4b852e71840c0167fdda0725b4&quot;,&quot;cad-trace-centerline.ts&quot;:&quot;35acf2a47ea5fb06f6fbf5cecdf4fd84c6461ddda5e6de2d35c8d1c9b545436d&quot;,&quot;cad-trace-centerline-fit.ts&quot;:&quot;4c24206dadc96380992c8b77b73a93bf42410e127b4132416a6387fb7326936b&quot;,&quot;cad-trace-fit.ts&quot;:&quot;0cdf9a18c5ea953d3c4a2e504361a3cee5ce652f2b1db23248e64fc7ef41fd57&quot;,&quot;cad-curves.ts&quot;:&quot;8a0f93c39c59a977925b0f9c59dd8dbb30a2caa3bd48a713a06cd70eac0baeaa&quot;},&quot;options&quot;:{&quot;mode&quot;:&quot;mono&quot;,&quot;threshold&quot;:128,&quot;colors&quot;:8,&quot;smoothing&quot;:0.75,&quot;noise&quot;:0,&quot;removeWhite&quot;:true,&quot;preserveCorners&quot;:true,&quot;method&quot;:&quot;centerline&quot;},&quot;counts&quot;:[{&quot;fixture&quot;:&quot;curved-stroke&quot;,&quot;nativePaths&quot;:1,&quot;contours&quot;:1,&quot;openContours&quot;:1,&quot;closedContours&quot;:0,&quot;storedNodes&quot;:4,&quot;uniqueAnchors&quot;:4,&quot;genuineCurvedSpans&quot;:2,&quot;straightSpans&quot;:1,&quot;graphComponents&quot;:1,&quot;graphCycles&quot;:0,&quot;graphEndpoints&quot;:2,&quot;junctionDegrees&quot;:[]},{&quot;fixture&quot;:&quot;thick-x&quot;,&quot;nativePaths&quot;:1,&quot;contours&quot;:4,&quot;openContours&quot;:4,&quot;closedContours&quot;:0,&quot;storedNodes&quot;:10,&quot;uniqueAnchors&quot;:7,&quot;genuineCurvedSpans&quot;:0,&quot;straightSpans&quot;:6,&quot;graphComponents&quot;:1,&quot;graphCycles&quot;:0,&quot;graphEndpoints&quot;:4,&quot;junctionDegrees&quot;:[4]},{&quot;fixture&quot;:&quot;ring&quot;,&quot;nativePaths&quot;:1,&quot;contours&quot;:1,&quot;openContours&quot;:0,&quot;closedContours&quot;:1,&quot;storedNodes&quot;:22,&quot;uniqueAnchors&quot;:22,&quot;genuineCurvedSpans&quot;:22,&quot;straightSpans&quot;:0,&quot;graphComponents&quot;:1,&quot;graphCycles&quot;:1,&quot;graphEndpoints&quot;:0,&quot;junctionDegrees&quot;:[]},{&quot;fixture&quot;:&quot;loop-with-tail&quot;,&quot;nativePaths&quot;:1,&quot;contours&quot;:2,&quot;openContours&quot;:1,&quot;closedContours&quot;:1,&quot;storedNodes&quot;:10,&quot;uniqueAnchors&quot;:9,&quot;genuineCurvedSpans&quot;:8,&quot;straightSpans&quot;:1,&quot;graphComponents&quot;:1,&quot;graphCycles&quot;:1,&quot;graphEndpoints&quot;:1,&quot;junctionDegrees&quot;:[3]}]}</metadata>
+<defs><image id="source-curved-stroke" width="128" height="128" href="data:image/png;base64,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"/>
+<image id="source-thick-x" width="128" height="128" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAFzUkdCAK7OHOkAAAOeSURBVHic7d3LjhNRFENRB/H/vxwG6A4ampBUnZePvWcMUKLyUl51pX48n88nnGw/up+A680AxDMA8QxAPAMQzwDEMwDxDEA8AxDPAMQzAPEMQDwDEO/n1f/4eDy+/Ns3FWuLuv5hrwB/PiGXV+S1Dn0LMIL8oq9x+GcAI8gr49peBvDqPccI4nt1Te98/rr1CmAENWWNj4i3ACPILXN8RH0GMIKcssdH5IdAI4itYnxEfwswgpiqxkfG10AjuFfl+Mi6F2AE16oeH5k3g4zgszrGR/bdQCN4r67xUXE72Ahe1zk+qs4DGMH3dY+PygMhRvC1CeOj+kSQEfxuyvjoOBKmjmDS+Og6E6iKYNr46DwUqoZg4vjoPhWsgmDq+OgGAAEEk8fHBABYjGD6+JgCAAsRMIyPSQCwCAHL+JgGAAsQMI2PiQBAjIBtfEwFAEIEjONjMgAQIWAdH9MBgAAB8/hgAIDBCNjHBwsADESwYXwwAcAgBFvGBxsADECwaXwwAkAjgm3jgxUAGhBsHB/MAFCIYOv4YAeAAgSbx8cGAEhEsH18bAGABAQK42MTAAQiUBkf2wAgAIHS+NgIADcQqI2PrQBwAYHi+NgMAB8gUB0fAB4Kfzv46ldBgUuz+xXgdGVIhfGhAgAfDqoyPpQA4M1hlcaHGgD3d1IA7v4QtDEZAFE/BW9LAkD0zaBNrQfwvx95us8YdrcawLu/8CkjWAvg0593VRGsBHD1t31FBOsA3L2xo4ZgFYCou3pKCNYAiL6lq4JgBYCs+/kKCOgBZB/m2I6AGkDVSZ7NCGgBVB/j2oqAEkDXGb6NCOgAdB/g3IaACkD3+O88FhsCGgBTxn/nMZkQUACYNv47j82CYDyAqeO/8xwYEIwGMH38EzOCsQBYxj+xIhgJgG38EyOCcQBYxz+xIRgFgH38ExOCMQC2jH9iQTACwLbxTwwI2gFsHf80HUErgO3jnyYjaAOgMv5pKoIWAGrjnyYiKAegOv5pGoJSAOrjnyYhKAPg8b82BUEJAI//fRMQpAPw+K/rRpAKwOO/VyeCNAAe/7O6EKQA8PjX6kAQDsDj36saQSgAjx9TJYIwAB4/tioEIQA8fk4VCG4D8Pi5ZSO4BcDj15SJ4DIAj19bFoLwr4EeP6+MaxsKwOPnF32NwwB4/Loir7XEXw1z/679WLjrzQDEMwDxDEA8AxDPAMQzAPEMQDwDEM8AxDMA8QxAPAMQ7xdXpzgSYslzLgAAAABJRU5ErkJggg=="/>
+<image id="source-ring" width="128" height="128" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAFzUkdCAK7OHOkAAANYSURBVHic7Z1ZjuMwDAXlQd//yp6PgTAGOm4vLZGPelUHSLiUKctI5G3f972BLX+yA4BcEMAcBDAHAcxBAHMQwBwEMAcBzEEAcxDAHAQwBwHMQQBzEMAcBDAHAcxBAHO+sgOYxbZtQz9v1R9OLSXA6KafffZKMpQXYGbT73xndRlKCpDR9DOqy1BKAKXGf6LHV0mEEgK8bfyoRjz9/koibMr/C3ha+KhUVON6g6wAT4qclUKFGK+QFOBOYdXCrhhzUxOgahGPVMtB5lFwtcKdcSdGpd2MxAS4KohAiK+okFf6BKhQpLdcxa4wCVInwE8FqNz4T6jmmjYBVAsyi59yypwEKQK4Nb+jKEG4AK7N76hJECqAe/M7ShKk7wKaWfM7KjmHCXBmtkohMjjLPXIKhAhA88/JlmC6AAoPO6oSUbu0ewCu/v8s+yCI0X+frKVAYhcAeUwTgKv/ORlTIHQC0Pxroms0RQDu/Mczq6ZhE4Cr/z6RteIm0JzhAjD+5zGjtiETgPH/nKiasQSYM1SATyOKq/89n2o3ehlgApiDAOYME4C7/zhG1nrqBGD9/z2za8gSYA4CmIMA5iCAOQhgDgKYgwDmIIA5CGAOApiDAOYggDkIYA4CmIMA5iCAOQhgTsr5AHCfMucD8POvOEbWmiXAHAQwZ6gAEf9kcSLin1ZMAHNSD4qEc8oeFMluYB4zassSYE76YdHwnfKHRbMMjGdWTWVeGAH/WOaFEdnHoFck43RVbgLNSTkfgCnwnayzlSXfG+jG0u8NZEfwnojapR4UyRTIP1Y//bBoZwmym99UdgGOEqjkLPPCCJWCRKD0BtXwCeAugVLzW9YS4CqBWvOb6nsDV5RAsfmttbbtyRv1q2ZXf46gnl/6LuCqAJWngXrzm8IE6NxptEiol1TKJX0CdO4UpMI0qNT8pjQBjlQrYisac1MVoD282rNSqBDjFbICtBcjPyoV1bjeIC1A5+3aPyq17O+fSQkBOhVuAluRxne+sgN4Qi+sqgiVGt8pJUDnWOhsGSo2/UhJAY5kyFC96UfKC3BkpgwrNf3IUgIcWbVho5F5FAw5IIA5CGAOApiDAOYggDkIYA4CmIMA5iCAOQhgDgKYgwDmIIA5CGAOApiDAOb8BRJJc+C9KEs/AAAAAElFTkSuQmCC"/>
+<image id="source-loop-with-tail" width="128" height="128" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAFzUkdCAK7OHOkAAAL7SURBVHic7d3RbqMwGERhu9r3f+X0ytIKhRBq4J/xnO9+i40PDs02ob9er1dDrJ/qAaAWAYQjgHAEEI4AwhFAOAIIRwDhCCAcAYQjgHAEEI4AwhFAOAIIRwDhCCAcAYQjgHAEEI4AwhFAOAIIRwDhCCAcAYQjgHAEEI4Awv2rHsDdeu9T/371D08vF8Dsgh/9vNWCWCaAqxf+6DirhGAfwFMLv3dc9xBsA6ha+C33ECwDOLP4swvz7bF675YRdKfvCPp2Me6aUvXx72ATwDcn/6mpKI1llkUARye8agqq4zpD/p1A5ZN8dGyVG9VPpHeATydQbdhOY/2f7A7gdkI/jUl5J5AMwG3xB8cI5AJwXfzBLQK5APY4LP7gNFapAPauEKcTOuyNWW0XkAlgpcUfHCKQCQA1JAJY8eof1HcBiQDeWWHxB+W5lAegciVUUJh7eQDvKF8xf6U6p9IAFK6AatXnQG4HUL1SrqA4N7kA8CwCCFcWwLvXPsUt8mrv5lh5H8AOEI4AwhFAOAIIZ/nJoBVddSN49kaaHWAxvfdTMRFAOAIIRwDhuAlczNmbQAIQUfU2OC8B4QggHAGEI4BwZQGo/b/4U9T+DoIdIBwBhJMLYOWXAcW5lQaQ8DeAR6rPgdwO0ESvlFmqcyoPoPoKqKQw9/IA9qheMX+hPBeJANQ/Qz9D/bsPJAJAHZkAVtwF1K/+phRAWywCh8VvagF84hSB01jlAnD7ps0tt286lQugGUfgtvhNNYBmGIHj4jf15wU08QdGNIPxHZHdAQblp3K4L35z2AEGpQc1KY1llk0ATeCxbdXHv4NVAIPigyOvOFYFywCa4G8CpqfR96Nh44RXh+C68INtAENVCO4LP9gHMDwVwioLPywTwLBdoNkgVlvwreUC2Fp9AWfJvxOIexFAOAIIRwDhCCAcAYQjgHAEEI4AwhFAOAIIRwDhCCAcAYQjgHAEEI4AwhFAOAIIRwDhCCAcAYQjgHAEEI4AwhFAOAIIRwDhCCDcL3BrGPr15B3dAAAAAElFTkSuQmCC"/></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#26384b}.title{font-size:23px;font-weight:700}.subtitle{font-size:13px;fill:#637386}.settings{font-size:12px;fill:#46596e}.card-title{font-size:17px;font-weight:700}.label{font-size:11px;fill:#637386}.count{font-size:15px;font-weight:700;fill:#087c72}.small{font-size:11px;fill:#637386}.foot{font-size:11px;fill:#637386}</style>
+<rect width="960" height="828" rx="16" fill="#f5f8fb"/>
+<text x="24" y="35" class="title">Centerline tracing: actual native curve output</text>
+<text x="24" y="58" class="subtitle">Source pixels, fitted Béziers and editable anchors · 128 × 128 px fixtures shown at 1.5×</text>
+<text x="24" y="82" class="settings">Monochrome · threshold 128 · fit tolerance 0.75 working px · corners preserved · noise filter off</text>
+<line x1="26" y1="107" x2="50" y2="107" stroke="#087c72" stroke-width="1.5"/><text x="58" y="111" class="label">Actual fitted path</text>
+<circle cx="201" cy="107" r="2.2" fill="#fff" stroke="#087c72"/><text x="210" y="111" class="label">Distinct anchor</text>
+<circle cx="344" cy="107" r="3.5" fill="#ffcf8b" stroke="#a54b0a"/><text x="354" y="111" class="label">Shared junction</text>
+<g aria-label="Curved stroke: 4 stored nodes, 2 curved spans">
+  <rect x="24" y="132" width="446" height="308" rx="12" fill="#fff" stroke="#d7e0e9"/>
+  <text x="42" y="159" class="card-title">Curved stroke</text>
+  <text x="140" y="183" text-anchor="middle" class="label">Source pixels</text>
+  <text x="352" y="183" text-anchor="middle" class="label">Fitted centerline + anchors</text>
+  <rect x="43.5" y="195.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <rect x="255.5" y="195.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <g transform="translate(44 196) scale(1.5)"><use href="#source-curved-stroke"/></g>
+  <g transform="translate(256 196) scale(1.5)">
+    <use href="#source-curved-stroke" opacity=".25"/>
+    <path d="M116.5 29.5C112.94155621593659 38.723954964454386 109.91201724059707 49.5862926510143 103.5 57.5C73.6328250903722 94.36204710730843 38.233599947418625 17.47110147566201 12.5 93.5C12.5 93.5 10.5 94.5 10.5 94.5" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="116.5" cy="29.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="103.5" cy="57.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="12.5" cy="93.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="10.5" cy="94.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+
+  </g>
+  <text x="247" y="411" text-anchor="middle" class="count">4 stored nodes · 2 curved spans</text>
+  <text x="247" y="429" text-anchor="middle" class="small">1 open contour · two endpoints</text>
+</g>
+<g aria-label="Thick crossing: 10 stored nodes, 0 curved spans">
+  <rect x="490" y="132" width="446" height="308" rx="12" fill="#fff" stroke="#d7e0e9"/>
+  <text x="508" y="159" class="card-title">Thick crossing</text>
+  <text x="606" y="183" text-anchor="middle" class="label">Source pixels</text>
+  <text x="818" y="183" text-anchor="middle" class="label">Fitted centerline + anchors</text>
+  <rect x="509.5" y="195.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <rect x="721.5" y="195.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <g transform="translate(510 196) scale(1.5)"><use href="#source-thick-x"/></g>
+  <g transform="translate(722 196) scale(1.5)">
+    <use href="#source-thick-x" opacity=".25"/>
+    <path d="M17.5 16.5C17.5 16.5 17.5 17.5 17.5 17.5C17.5 17.5 64 64 64 64" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M111.5 16.5C111.5 16.5 64 64 64 64" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M64 64C64 64 17.5 110.5 17.5 110.5" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M64 64C64 64 110.5 110.5 110.5 110.5C110.5 110.5 111.5 110.5 111.5 110.5" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17.5" cy="16.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="17.5" cy="17.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="64" cy="64" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="111.5" cy="16.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="17.5" cy="110.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="110.5" cy="110.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="111.5" cy="110.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="64" cy="64" r="2.3" fill="#ffcf8b" stroke="#a54b0a" stroke-width=".8"/>
+  </g>
+  <text x="713" y="411" text-anchor="middle" class="count">10 stored nodes · 0 curved spans</text>
+  <text x="713" y="429" text-anchor="middle" class="small">4 open contours · one shared 4-way junction</text>
+</g>
+<g aria-label="Closed ring: 22 stored nodes, 22 curved spans">
+  <rect x="24" y="456" width="446" height="308" rx="12" fill="#fff" stroke="#d7e0e9"/>
+  <text x="42" y="483" class="card-title">Closed ring</text>
+  <text x="140" y="507" text-anchor="middle" class="label">Source pixels</text>
+  <text x="352" y="507" text-anchor="middle" class="label">Fitted centerline + anchors</text>
+  <rect x="43.5" y="519.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <rect x="255.5" y="519.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <g transform="translate(44 520) scale(1.5)"><use href="#source-ring"/></g>
+  <g transform="translate(256 520) scale(1.5)">
+    <use href="#source-ring" opacity=".25"/>
+    <path d="M63.5 20.5C66.61473268525434 20.5 69.5683356323915 20.68608457365806 72.38911861650757 21.165830548108758C72.73592296500807 21.224813458546034 73.09756924682891 21.114174167361014 73.444449288892 21.172710278273936C74.9362690107066 21.42445530280418 76.08331898231837 21.925584499365698 77.4776523825525 22.330129294318468C90.94614573663182 26.23780939531428 101.8146119678091 36.98505877990564 105.72127075635055 50.50723725662871C106.12590910100829 51.90781821625495 106.58439115397788 53.0737884354877 106.82704318359828 54.552479741410004C106.88371633159733 54.897838860625036 106.81154964932404 55.25623400000799 106.86811481565663 55.60161082159114C107.28177512009559 58.1273468960192 107.5 60.71444493305647 107.5 63.5C107.5 66.61530291960933 107.32029612783013 69.56712169535635 106.83424898947938 72.38864205465809C106.77453968660322 72.73525661199595 106.88649805263177 73.09706902812832 106.82734540726264 73.4437790175349C106.57198630801274 74.94050921520126 106.06552696369799 76.07991597324693 105.65630234364876 77.47395018425851C101.71724407599015 90.89245365461042 90.95215599863106 101.73885443460347 77.48322163272572 105.69113897035884C76.08381171824213 106.10177770494178 74.93605828221656 106.5799841119186 73.44674845630215 106.82710381700161C73.10038805944156 106.88457505477585 72.74017934041574 106.79845578998561 72.39386168646581 106.85618403478267C69.87359862900826 107.2762907231784 67.29010368273045 107.5 64.5 107.5C61.706152819593456 107.5 59.124311660831985 107.27052163203511 56.606562763813926 106.8480192878514C56.2589467187641 106.78968599095934 55.89706519610258 106.88452163604478 55.54934604183268 106.82680614370344C52.79874187361933 106.37025242253182 52.77716659784431 106.09548233171695 50.603468119533254 105.41762907313073C32.5463699863201 99.78664440237728 20.5 83.26101997952435 20.5 64.5C20.5 61.71192876231044 20.72385899755486 59.12612251422171 21.139358445326675 56.604185706954325C21.19660720330899 56.25670570258803 21.11637381862587 55.89577421085824 21.173274232643397 55.548236994707864C21.486163774238506 53.637165482731916 22.033163166552384 52.2656752217666 22.546327852815107 50.59162143595975C28.082847549743445 32.53030114843719 44.8621020534341 20.5 63.5 20.5Z" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="63.5" cy="20.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="72.38911861650757" cy="21.165830548108758" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="73.444449288892" cy="21.172710278273936" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="77.4776523825525" cy="22.330129294318468" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="105.72127075635055" cy="50.50723725662871" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="106.82704318359828" cy="54.552479741410004" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="106.86811481565663" cy="55.60161082159114" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="107.5" cy="63.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="106.83424898947938" cy="72.38864205465809" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="106.82734540726264" cy="73.4437790175349" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="105.65630234364876" cy="77.47395018425851" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="77.48322163272572" cy="105.69113897035884" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="73.44674845630215" cy="106.82710381700161" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="72.39386168646581" cy="106.85618403478267" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="64.5" cy="107.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="56.606562763813926" cy="106.8480192878514" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="55.54934604183268" cy="106.82680614370344" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="50.603468119533254" cy="105.41762907313073" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="20.5" cy="64.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="21.139358445326675" cy="56.604185706954325" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="21.173274232643397" cy="55.548236994707864" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="22.546327852815107" cy="50.59162143595975" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+
+  </g>
+  <text x="247" y="735" text-anchor="middle" class="count">22 stored nodes · 22 curved spans</text>
+  <text x="247" y="753" text-anchor="middle" class="small">1 closed contour · one preserved loop</text>
+</g>
+<g aria-label="Loop with a tail: 10 stored nodes, 8 curved spans">
+  <rect x="490" y="456" width="446" height="308" rx="12" fill="#fff" stroke="#d7e0e9"/>
+  <text x="508" y="483" class="card-title">Loop with a tail</text>
+  <text x="606" y="507" text-anchor="middle" class="label">Source pixels</text>
+  <text x="818" y="507" text-anchor="middle" class="label">Fitted centerline + anchors</text>
+  <rect x="509.5" y="519.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <rect x="721.5" y="519.5" width="193" height="193" fill="#fff" stroke="#e4eaf0"/>
+  <g transform="translate(510 520) scale(1.5)"><use href="#source-loop-with-tail"/></g>
+  <g transform="translate(722 520) scale(1.5)">
+    <use href="#source-loop-with-tail" opacity=".25"/>
+    <path d="M97.5 63.5C97.09480962147138 62.38913905019142 96.51686363553891 61.525201440736 96.15980994140097 60.357606737419005C94.78926979726347 55.875828676441984 94.16222444773669 50.66992844223783 91.25 46.5C75.65574333284613 24.17104301920856 40.55745024937856 28.634859849068885 33.599182370643575 55.582770074367026C33.50364200945686 55.95277782931712 33.25573521814504 56.271777752824185 33.15995417468325 56.64172327726295C32.510151002126925 59.15152862876994 32.5 61.70119907798334 32.5 64.5C32.5 96.0335247410364 73.36706455774323 107.10604873340847 91.25 81.5C94.12384828960845 77.38502124867875 94.94507444946338 72.10039961767423 96.16438926708932 67.61921368116334C96.54599214443307 66.2167592677786 96.9981664092736 64.90120600704046 97.5 63.5Z" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M97.5 63.5C97.5 63.5 115.5 63.5 115.5 63.5" fill="none" stroke="#087c72" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="97.5" cy="63.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="96.15980994140097" cy="60.357606737419005" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="91.25" cy="46.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="33.599182370643575" cy="55.582770074367026" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="33.15995417468325" cy="56.64172327726295" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="32.5" cy="64.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="91.25" cy="81.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="96.16438926708932" cy="67.61921368116334" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="115.5" cy="63.5" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".7"/>
+    <circle cx="97.5" cy="63.5" r="2.3" fill="#ffcf8b" stroke="#a54b0a" stroke-width=".8"/>
+  </g>
+  <text x="713" y="735" text-anchor="middle" class="count">10 stored nodes · 8 curved spans</text>
+  <text x="713" y="753" text-anchor="middle" class="small">1 closed + 1 open contour · one shared junction</text>
+</g>
+<text x="24" y="791" class="foot">Stored node counts include coincident endpoints on separate contours. Curved spans exclude collinear controls.</text>
+<text x="24" y="811" class="foot">Centerlines use a chosen uniform output width; source thickness and pen pressure are not recovered.</text>
+</svg>

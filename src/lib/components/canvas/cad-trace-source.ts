@@ -1,11 +1,12 @@
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
-import { mapContours } from './cad-curves';
-import { assertCadEditable, makeCadPlan } from './cad-plans';
-import { cadMmPerPixel, type CadPoint, type CadSettings } from './cad-settings';
+import { mapContours, validContours, type CadContour } from './cad-curves';
+import { assertCadEditable, makeCadPlan, type CadPlan } from './cad-plans';
+import { cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
 import { prepareVectorImport, validVectorPaint, vectorPaint, type VectorDocument } from './cad-vector';
 import { transformAppearance, validRasterReference } from './cad-appearance';
 import { safeCanvasDocumentUrl } from './toolkit-media-url';
 import { drawingObjectName } from './drawing-operations';
+import { MAX_CENTERLINE_STROKE_WIDTH_MM, MIN_CENTERLINE_STROKE_WIDTH_MM } from './cad-trace-options';
 
 export type TraceResolution = 1024 | 2048;
 export interface DecodedTraceRaster {
@@ -99,6 +100,29 @@ export function prepareAttachedRasterTracePlan(editor: Editor, settings: CadSett
   return { ...plan, shapes: plan.shapes?.map(shape => ({ ...shape, opacity: 1 })) };
 }
 
+/** Centerlines use an explicit physical output width, never an inferred bitmap
+ * thickness. Apply after source/file/card placement so nonuniform image scaling
+ * changes editable centerline coordinates without stretching the round pen. */
+export function styleCenterlineTracePlan(plan: CadPlan, settings: CadSettings, widthMm: number): CadPlan {
+  if (!validateCadSettings(settings) || !Number.isFinite(widthMm) || widthMm < MIN_CENTERLINE_STROKE_WIDTH_MM ||
+      widthMm > MAX_CENTERLINE_STROKE_WIDTH_MM || !plan.shapes?.length)
+    throw new Error('geometry');
+  const strokeWidth = widthMm / cadMmPerPixel(settings);
+  if (!Number.isFinite(strokeWidth) || strokeWidth <= 0 || strokeWidth > 1e6) throw new Error('limit');
+  const shapes = plan.shapes.map(shape => {
+    const paint = shape.meta?.omsVectorPaint;
+    if (shape.type !== 'cad-bezier' || !validContours(shape.props.contours as CadContour[]) ||
+        !validVectorPaint(paint) || paint.fill !== 'none' || paint.stroke === 'none' || paint.gradient || paint.raster)
+      throw new Error('geometry');
+    // Metadata may include nested clips and application fields. Styling a
+    // reviewed plan must not mutate its paint or retain mutable metadata aliases.
+    const meta = structuredClone(shape.meta!);
+    meta.omsVectorPaint = { ...meta.omsVectorPaint, strokeWidth, lineCap: 'round', lineJoin: 'round' };
+    return { ...shape, meta };
+  });
+  return { ...plan, shapes };
+}
+
 /** Trace geometry is in working-image pixels. Map anchors and Bézier handles
  * into the original parent. Its opacity and stacking context remain inherited;
  * only the source object's opacity is folded into the new path paint. */
@@ -135,7 +159,7 @@ export function prepareSelectedRasterTracePlan(editor: Editor, settings: CadSett
       });
     }),
     paint: { ...p.paint, fillOpacity: p.paint.fillOpacity * opacity * (rasterPaint?.fillOpacity ?? 1),
-      strokeOpacity: p.paint.strokeOpacity * opacity,
+      strokeOpacity: p.paint.strokeOpacity * opacity * (rasterPaint?.fillOpacity ?? 1),
       ...(rasterPaint ? { clips: [...(rasterPaint.clips ?? []), ...(originalBoundary ? [] : [{ contours: boundary, fillRule: (source.props as any).fillRule }])]
         .map(c => ({ ...c, contours: mapContours(c.contours, place) })) } : {}) },
   }));
@@ -144,6 +168,6 @@ export function prepareSelectedRasterTracePlan(editor: Editor, settings: CadSett
     name: 'Trace', sourceIds: [source.id], removeIds: replace ? [source.id] : [], warnings: doc.warnings,
     placement: { parentId: source.parentId, aboveId: source.id },
     shapes: paths.map((p, i) => ({ type: 'cad-bezier', x: 0, y: 0, opacity: 1,
-      props: { contours: p.contours, fillRule: p.fillRule }, meta: { omsObjectName: `Trace · ${p.paint.fill} · ${i + 1}`, omsVectorPaint: p.paint } })),
+      props: { contours: p.contours, fillRule: p.fillRule }, meta: { omsObjectName: `Trace · ${p.paint.fill === 'none' ? p.paint.stroke : p.paint.fill} · ${i + 1}`, omsVectorPaint: p.paint } })),
   });
 }

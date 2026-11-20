@@ -2,8 +2,9 @@ import { nodeAt, validContours, type CadContour } from "./cad-curves";
 import { VECTOR_DEFAULT_PAINT, type VectorDocument } from "./cad-paint";
 import { readTraceRasterBoundaries } from "./cad-trace-raster";
 import { fitTraceBoundaries } from "./cad-trace-topology";
-import { validTraceOptions, type TraceOptions } from './cad-trace-options';
+import { resolveTraceMethod, validTraceOptions, type TraceOptions } from './cad-trace-options';
 import { validTraceRasterInput } from './cad-trace-background';
+import { traceCenterlineRaster } from './cad-trace-centerline';
 export { DEFAULT_TRACE_OPTIONS, type TraceOptions } from './cad-trace-options';
 type Segment = {
   type: "L" | "Q";
@@ -47,6 +48,7 @@ export function traceRaster(
 ): VectorDocument {
   if (!validTraceRasterInput(input)) throw new Error('limit');
   if (!validTraceOptions(options)) throw new Error('geometry');
+  if (resolveTraceMethod(options) === 'centerline') return traceCenterlineRaster(input, options);
   const { width, height } = input;
   const raw = readTraceRasterBoundaries(input, options);
   const fitted = fitTraceBoundaries(raw.boundaries, options.smoothing, options.preserveCorners);

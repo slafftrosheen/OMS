@@ -1,0 +1,278 @@
+{
+  "artifactVersion": 1,
+  "baselineCommit": "5cc6bc178b70abd9a42a50d55a6f0b068ef1c1a5",
+  "generatedFromWorkingTree": true,
+  "sourceHashes": {
+    "cad-trace.ts": "902cb4bf2ec820a7982485b9e6bd83e6d1aa9824d2450fbd41243417d088bc1e",
+    "cad-trace-options.ts": "dfd221431a1ef55dc20f4534f573aeaf8f1420b7e695df27ed79a51bb90da7e5",
+    "cad-trace-background.ts": "59c16630a4bcfe096c151aebe27f12ad4aa0acb4aa80eb36c4cf7fec242a47ff",
+    "cad-trace-skeleton.ts": "9c2b84a976d83d518ca06ddf6f49e50202cdea4b852e71840c0167fdda0725b4",
+    "cad-trace-centerline.ts": "35acf2a47ea5fb06f6fbf5cecdf4fd84c6461ddda5e6de2d35c8d1c9b545436d",
+    "cad-trace-centerline-fit.ts": "4c24206dadc96380992c8b77b73a93bf42410e127b4132416a6387fb7326936b",
+    "cad-trace-fit.ts": "0cdf9a18c5ea953d3c4a2e504361a3cee5ce652f2b1db23248e64fc7ef41fd57",
+    "cad-curves.ts": "8a0f93c39c59a977925b0f9c59dd8dbb30a2caa3bd48a713a06cd70eac0baeaa"
+  },
+  "generatorSha256": "e5601eef347f4d9986f9a1430186fd37dcd80d7d304a30a1545832e12080e23f",
+  "renderer": {
+    "package": "@napi-rs/canvas",
+    "version": "0.1.88"
+  },
+  "methodology": {
+    "input": "All fixtures are 128 by 128 pixels. Three are binary pixel-center samples; the curved stroke is rendered with the recorded native canvas version. Each exact source PNG is embedded in the SVG.",
+    "geometry": "Paths use actual traceRaster anchor and control coordinates without numeric rounding. Their only display transform is a uniform 1.5x scale. Markers show distinct anchor coordinates; stored node counts include coincident branch endpoints.",
+    "curves": "Genuinely curved spans have at least one control vector non-collinear with the span chord at a 1e-7 cross-product threshold. Straight cubic commands are counted as straight.",
+    "topology": "Counts derive independently from the returned native contour graph using exact shared anchor coordinates. Graph cycles can span several open contours.",
+    "display": "Raster opacity is 1 in Source and 0.25 in the overlay. Fitted strokes are teal, 1 working pixel wide. White circles mark anchors; orange markers mark shared junctions. Stroke width and marker radius are display choices, not reconstructed source thickness.",
+    "limits": "These synthetic examples show observed output, not a universal accuracy guarantee. The method reconstructs monochrome centerlines with a uniform chosen output width, not original pressure or variable thickness. Timings are omitted."
+  },
+  "results": [
+    {
+      "fixture": "curved-stroke",
+      "title": "Curved stroke",
+      "width": 128,
+      "height": 128,
+      "construction": {
+        "type": "native-antialiased-cubic",
+        "start": [
+          12,
+          94
+        ],
+        "controls": [
+          [
+            42,
+            4
+          ],
+          [
+            86,
+            124
+          ]
+        ],
+        "end": [
+          116,
+          30
+        ],
+        "strokeWidth": 5,
+        "lineCap": "round",
+        "background": "#ffffff",
+        "stroke": "#000000"
+      },
+      "sourceRgbaSha256": "60c89d94674bd83456293ba9abfd2e436ba46dae1f5ed2b32fb6bc2c3d41f001",
+      "embeddedPngSha256": "4c45baedd05a45803a4432806a8a29956b8c2eb136b503fdb1056b68e47212cf",
+      "thresholdedForegroundPixels": 746,
+      "options": {
+        "mode": "mono",
+        "threshold": 128,
+        "colors": 8,
+        "smoothing": 0.75,
+        "noise": 0,
+        "removeWhite": true,
+        "preserveCorners": true,
+        "method": "centerline"
+      },
+      "counts": {
+        "nativePaths": 1,
+        "contours": 1,
+        "openContours": 1,
+        "closedContours": 0,
+        "storedNodes": 4,
+        "uniqueAnchors": 4,
+        "genuineCurvedSpans": 2,
+        "straightSpans": 1,
+        "graphComponents": 1,
+        "graphCycles": 0,
+        "graphEndpoints": 2,
+        "junctionDegrees": []
+      },
+      "junctionAnchors": [],
+      "warnings": [
+        "trace-centerline-approximation"
+      ],
+      "outputJsonSha256": "746b46c7d65a29a81fcfb12e2aec86b3fd030f1c15e140e9c6c3261d19b387e3"
+    },
+    {
+      "fixture": "thick-x",
+      "title": "Thick crossing",
+      "width": 128,
+      "height": 128,
+      "construction": {
+        "type": "binary-pixel-center-sampling",
+        "segmentDistanceAtMost": 2.5,
+        "segments": [
+          [
+            [
+              16,
+              16
+            ],
+            [
+              112,
+              112
+            ]
+          ],
+          [
+            [
+              16,
+              112
+            ],
+            [
+              112,
+              16
+            ]
+          ]
+        ]
+      },
+      "sourceRgbaSha256": "6cd33f1e71ad97ed4b635c21cd4271f9d53283abcf99467a4df72c4718e03df9",
+      "embeddedPngSha256": "8b7e14c50c9576ce32fe460ab74e81324af96fd3f67e33a2e9998feff7d7ebbd",
+      "thresholdedForegroundPixels": 1352,
+      "options": {
+        "mode": "mono",
+        "threshold": 128,
+        "colors": 8,
+        "smoothing": 0.75,
+        "noise": 0,
+        "removeWhite": true,
+        "preserveCorners": true,
+        "method": "centerline"
+      },
+      "counts": {
+        "nativePaths": 1,
+        "contours": 4,
+        "openContours": 4,
+        "closedContours": 0,
+        "storedNodes": 10,
+        "uniqueAnchors": 7,
+        "genuineCurvedSpans": 0,
+        "straightSpans": 6,
+        "graphComponents": 1,
+        "graphCycles": 0,
+        "graphEndpoints": 4,
+        "junctionDegrees": [
+          4
+        ]
+      },
+      "junctionAnchors": [
+        {
+          "x": 64,
+          "y": 64,
+          "degree": 4
+        }
+      ],
+      "warnings": [
+        "trace-centerline-approximation"
+      ],
+      "outputJsonSha256": "6bc2e7053c633e3e31a17a2bc44007c7a86073d535d1151bfeab7903ca857b62"
+    },
+    {
+      "fixture": "ring",
+      "title": "Closed ring",
+      "width": 128,
+      "height": 128,
+      "construction": {
+        "type": "binary-pixel-center-sampling",
+        "center": [
+          64,
+          64
+        ],
+        "radius": 44,
+        "radialHalfWidth": 2.5
+      },
+      "sourceRgbaSha256": "d4f91e9dcff1b4c972f731864c495bcaf2d84e7728097a0133a99cb9a9770065",
+      "embeddedPngSha256": "57322e073b5932c39f808fe5e826ce03389383769552508019256477b477cd4b",
+      "thresholdedForegroundPixels": 1384,
+      "options": {
+        "mode": "mono",
+        "threshold": 128,
+        "colors": 8,
+        "smoothing": 0.75,
+        "noise": 0,
+        "removeWhite": true,
+        "preserveCorners": true,
+        "method": "centerline"
+      },
+      "counts": {
+        "nativePaths": 1,
+        "contours": 1,
+        "openContours": 0,
+        "closedContours": 1,
+        "storedNodes": 22,
+        "uniqueAnchors": 22,
+        "genuineCurvedSpans": 22,
+        "straightSpans": 0,
+        "graphComponents": 1,
+        "graphCycles": 1,
+        "graphEndpoints": 0,
+        "junctionDegrees": []
+      },
+      "junctionAnchors": [],
+      "warnings": [
+        "trace-centerline-approximation"
+      ],
+      "outputJsonSha256": "22fb15095d09da30c41fa297adc5e9ac84b809a8a3cc1e641b660e141e5d64a4"
+    },
+    {
+      "fixture": "loop-with-tail",
+      "title": "Loop with a tail",
+      "width": 128,
+      "height": 128,
+      "construction": {
+        "type": "binary-pixel-center-sampling",
+        "center": [
+          64,
+          64
+        ],
+        "radius": 32,
+        "radialHalfWidth": 2.5,
+        "tail": [
+          [
+            96,
+            64
+          ],
+          [
+            116,
+            64
+          ]
+        ],
+        "tailDistanceAtMost": 2.5
+      },
+      "sourceRgbaSha256": "5a3e90f82b52190bdf875939c5db78e88c7cc3c1cc95a0fee0a64105dcd17898",
+      "embeddedPngSha256": "8c1e9c1dae9b3a10de2e2ecf684c17cf4a37fbf9f0c95b399ebb86e02c81e8ad",
+      "thresholdedForegroundPixels": 1112,
+      "options": {
+        "mode": "mono",
+        "threshold": 128,
+        "colors": 8,
+        "smoothing": 0.75,
+        "noise": 0,
+        "removeWhite": true,
+        "preserveCorners": true,
+        "method": "centerline"
+      },
+      "counts": {
+        "nativePaths": 1,
+        "contours": 2,
+        "openContours": 1,
+        "closedContours": 1,
+        "storedNodes": 10,
+        "uniqueAnchors": 9,
+        "genuineCurvedSpans": 8,
+        "straightSpans": 1,
+        "graphComponents": 1,
+        "graphCycles": 1,
+        "graphEndpoints": 1,
+        "junctionDegrees": [
+          3
+        ]
+      },
+      "junctionAnchors": [
+        {
+          "x": 97.5,
+          "y": 63.5,
+          "degree": 3
+        }
+      ],
+      "warnings": [
+        "trace-centerline-approximation"
+      ],
+      "outputJsonSha256": "42a951b5a75f3b4f23901ddf9bedbb157eed694ce254006406c78c60a2f242ea"
+    }
+  ]
+}

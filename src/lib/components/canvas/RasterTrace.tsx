@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
-import type { CadSettings } from './cad-settings';
+import { cadMmPerPixel, type CadSettings } from './cad-settings';
 import { cadRevision } from './cad-plans';
 import { vectorPaint } from './cad-vector';
-import { DEFAULT_TRACE_OPTIONS, TRACE_PRESETS, applyTracePreset, resolveTraceBackground, type TraceOptions, type TracePresetId } from './cad-trace-options';
+import { DEFAULT_TRACE_OPTIONS, TRACE_PRESETS, DEFAULT_CENTERLINE_STROKE_WIDTH_MM, MIN_CENTERLINE_STROKE_WIDTH_MM,
+  MAX_CENTERLINE_STROKE_WIDTH_MM, applyTracePreset, resolveTraceBackground, resolveTraceMethod, type TraceOptions, type TracePresetId } from './cad-trace-options';
 import { runRasterTrace } from './cad-trace-client';
 import { decodeTraceRaster, prepareSelectedRasterTracePlan, selectedRasterTraceSource, selectedAttachedRasterTraceSource,
-  prepareAttachedRasterTracePlan, prepareRasterTraceFilePlan, type TraceResolution } from './cad-trace-source';
+  prepareAttachedRasterTracePlan, prepareRasterTraceFilePlan, styleCenterlineTracePlan, type TraceResolution } from './cad-trace-source';
 import { RasterTraceReview, type RasterTraceReviewData } from './RasterTraceReview';
 import { useVectorText, vectorError } from './cad-vector-copy';
 import { drawingObjectName } from './drawing-operations';
@@ -17,11 +18,13 @@ export function RasterTrace({ settings, revision, disabled }: { settings: CadSet
   const [options, setOptions] = useState<TraceOptions>({ ...DEFAULT_TRACE_OPTIONS });
   const [preset, setPreset] = useState<TracePresetId | 'custom'>('logo');
   const [resolution, setResolution] = useState<TraceResolution>(2048), [width, setWidth] = useState('100');
+  const [strokeWidth, setStrokeWidth] = useState(String(DEFAULT_CENTERLINE_STROKE_WIDTH_MM));
   const [replace, setReplace] = useState(false), [groupResult, setGroupResult] = useState(true), [review, setReview] = useState<RasterTraceReviewData>();
   const [busy, setBusy] = useState(false), [message, setMessage] = useState('');
   const controller = useRef<AbortController>(), mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; controller.current?.abort(); }; }, []);
-  const key = JSON.stringify([file?.name, file?.lastModified, useSelected, options, resolution, width, replace, groupResult, settings]);
+  const method = resolveTraceMethod(options), centerline = method === 'centerline';
+  const key = JSON.stringify([file?.name, file?.lastModified, useSelected, options, resolution, width, strokeWidth, replace, groupResult, settings]);
   const selected = useValue('trace selected image', () => {
     const shape = editor.getOnlySelectedShape();
     const kind = shape?.type === 'document' && (shape.props as any).kind === 'image' ? 'attached'
@@ -35,10 +38,14 @@ export function RasterTrace({ settings, revision, disabled }: { settings: CadSet
   const attached = useSelected && selected.kind === 'attached', needsWidth = !useSelected || attached;
   const sourceReady = useSelected ? selected.valid : !!file;
   const editOptions = (patch: Partial<TraceOptions>) => { setOptions(current => ({ ...current, ...patch })); setPreset('custom'); setMessage(''); };
+  const strokeWidthMm = strokeWidth.trim() ? Number(strokeWidth) : NaN;
+  const validStrokeWidth = Number.isFinite(strokeWidthMm) && strokeWidthMm >= MIN_CENTERLINE_STROKE_WIDTH_MM && strokeWidthMm <= MAX_CENTERLINE_STROKE_WIDTH_MM &&
+    !!settings && strokeWidthMm / cadMmPerPixel(settings) <= 1e6;
   const valid = Number.isFinite(options.smoothing) && options.smoothing >= .1 && options.smoothing <= 5 &&
     Number.isInteger(options.noise) && options.noise >= 0 && options.noise <= 100 &&
-    (options.mode === 'mono' ? Number.isFinite(options.threshold) && options.threshold >= 0 && options.threshold <= 255
+    (centerline || options.mode === 'mono' ? Number.isFinite(options.threshold) && options.threshold >= 0 && options.threshold <= 255
       : Number.isInteger(options.colors) && options.colors >= 2 && options.colors <= 32) &&
+    (!centerline || validStrokeWidth) &&
     (!needsWidth || width.trim() !== '' && Number.isFinite(Number(width)) && Number(width) > 0 && Number(width) <= 1e6);
   async function prepare() {
     if (disabled || busy || !settings || !valid || !sourceReady) return;
@@ -67,13 +74,14 @@ export function RasterTrace({ settings, revision, disabled }: { settings: CadSet
       const document = await runRasterTrace(decoded.image, options, signal);
       if (signal.aborted) throw new Error('cancelled');
       if (before !== cadRevision(editor)) throw new Error('stale');
-      const plan = attached ? prepareAttachedRasterTracePlan(editor, settings, document, Number(width), decoded)
+      const placed = attached ? prepareAttachedRasterTracePlan(editor, settings, document, Number(width), decoded)
         : useSelected ? prepareSelectedRasterTracePlan(editor, settings, document, replace)
         : prepareRasterTraceFilePlan(editor, settings, document, Number(width), file!.name, decoded);
+      const plan = centerline ? styleCenterlineTracePlan(placed, settings, strokeWidthMm) : placed;
       const sourceName = useSelected ? selected.name : file!.name;
       plan.groupResult = groupResult; plan.groupName = `${t('trace')} · ${sourceName}`;
       plan.shapes = plan.shapes?.map(shape => ({ ...shape, opacity: 1 }));
-      if (mounted.current && controller.current === next) setReview({ plan, key, document, sourceName, decoded: {
+      if (mounted.current && controller.current === next) setReview({ plan, key, document, sourceName, method, strokeWidthMm, decoded: {
         preview: decoded.preview, originalWidth: decoded.originalWidth, originalHeight: decoded.originalHeight, reduced: decoded.reduced,
       } });
     } catch (error) {
@@ -81,8 +89,8 @@ export function RasterTrace({ settings, revision, disabled }: { settings: CadSet
     } finally { if (mounted.current && controller.current === next) setBusy(false); }
   }
   const numeric: Array<[keyof Pick<TraceOptions, 'threshold' | 'colors' | 'smoothing' | 'noise'>, string, number, number, number]> = [
-    options.mode === 'mono' ? ['threshold', 'threshold', 0, 255, 1] : ['colors', 'colors', 2, 32, 1],
-    ['smoothing', 'traceTolerance', .1, 5, .05], ['noise', 'traceNoiseLength', 0, 100, 1],
+    centerline || options.mode === 'mono' ? ['threshold', 'threshold', 0, 255, 1] : ['colors', 'colors', 2, 32, 1],
+    ['smoothing', 'traceTolerance', .1, 5, .05], ['noise', centerline ? 'traceComponentLength' : 'traceNoiseLength', 0, 100, 1],
   ];
   return <section className="drawing-cad-section" data-testid="raster-trace" aria-busy={busy}>
     <h3>{t('trace')}</h3><p className="drawing-help">{t('traceHelp')}</p>
@@ -97,20 +105,30 @@ export function RasterTrace({ settings, revision, disabled }: { settings: CadSet
       </div>
       <p className="drawing-help" data-testid="trace-source-summary">{useSelected ? selected.name || t('imageError') : file?.name || t('traceChooseSource')}</p>
       {selected.kind && !selected.valid && <p className="drawing-help" data-testid="trace-source-unavailable">{t(selected.error)}</p>}
+      <label className="drawing-cad-field"><span>{t('traceMethod')}</span><select value={method} data-testid="trace-method"
+        onChange={event => {
+          const nextPreset = event.target.value === 'centerline' ? 'technical' : 'logo';
+          setOptions(current => applyTracePreset(current, nextPreset)); setPreset(nextPreset); setMessage('');
+        }}>
+        <option value="outline">{t('traceMethod-outline')}</option><option value="centerline">{t('traceMethod-centerline')}</option>
+      </select></label>
+      <p className="drawing-help" data-testid="trace-method-help">{t(centerline ? 'traceCenterlineHelp' : 'traceOutlineHelp')}</p>
       <label className="drawing-cad-field"><span>{t('tracePreset')}</span><select value={preset} data-testid="trace-preset"
         onChange={event => {
           const value = event.target.value as TracePresetId | 'custom'; setPreset(value); setMessage('');
           if (value !== 'custom') setOptions(current => applyTracePreset(current, value));
         }}>
-        {(Object.keys(TRACE_PRESETS) as TracePresetId[]).map(value => <option value={value} key={value}>{t(`tracePreset-${value}`)}</option>)}
+        {(Object.keys(TRACE_PRESETS) as TracePresetId[])
+          .filter(value => resolveTraceMethod({ ...DEFAULT_TRACE_OPTIONS, ...TRACE_PRESETS[value] }) === method)
+          .map(value => <option value={value} key={value}>{t(`tracePreset-${value}`)}</option>)}
         <option value="custom">{t('tracePreset-custom')}</option>
       </select></label>
-      <label className="drawing-cad-field"><span>{t('mode')}</span><select value={options.mode} data-testid="trace-mode"
+      {!centerline && <label className="drawing-cad-field"><span>{t('mode')}</span><select value={options.mode} data-testid="trace-mode"
         onChange={event => editOptions({ mode: event.target.value as TraceOptions['mode'],
           threshold: Number.isFinite(options.threshold) && options.threshold >= 0 && options.threshold <= 255 ? options.threshold : DEFAULT_TRACE_OPTIONS.threshold,
           colors: Number.isInteger(options.colors) && options.colors >= 2 && options.colors <= 32 ? options.colors : DEFAULT_TRACE_OPTIONS.colors })}>
         <option value="mono">{t('mono')}</option><option value="color">{t('color')}</option>
-      </select></label>
+      </select></label>}
       <label className="drawing-cad-field"><span>{t('traceResolution')}</span><select value={resolution} data-testid="trace-resolution"
         onChange={event => setResolution(Number(event.target.value) as TraceResolution)}>
         <option value={1024}>1024 px</option><option value={2048}>2048 px</option>
@@ -121,24 +139,29 @@ export function RasterTrace({ settings, revision, disabled }: { settings: CadSet
           value={Number.isFinite(options[name]) ? options[name] : ''}
           onChange={event => editOptions({ [name]: event.target.value === '' ? NaN : Number(event.target.value) })} />
       </label>)}
+      {centerline && <p className="drawing-help">{t('traceComponentLengthHelp')}</p>}
       <label className="drawing-vector-check"><input type="checkbox" checked={options.preserveCorners} data-testid="trace-preserve-corners"
         onChange={event => editOptions({ preserveCorners: event.target.checked })} />{t('tracePreserveCorners')}</label>
-      <label className="drawing-cad-field"><span>{t('traceBackground')}</span><select value={resolveTraceBackground(options)} data-testid="trace-background"
+      {!centerline && <><label className="drawing-cad-field"><span>{t('traceBackground')}</span><select value={resolveTraceBackground(options)} data-testid="trace-background"
         onChange={event => { setOptions(current => ({ ...current, background: event.target.value as TraceOptions['background'] })); setMessage(''); }}>
         {(['keep', 'border', 'all'] as const).map(value => <option value={value} key={value}>{t(`traceBackground-${value}`)}</option>)}
       </select></label>
-      <p className="drawing-help">{t(options.mode === 'mono' ? 'traceBackgroundMonoHelp' : 'traceBackgroundColorHelp')}</p>
+      <p className="drawing-help">{t(options.mode === 'mono' ? 'traceBackgroundMonoHelp' : 'traceBackgroundColorHelp')}</p></>}
       {useSelected && !attached && <label className="drawing-vector-check"><input type="checkbox" checked={replace} data-testid="trace-replace"
         onChange={event => setReplace(event.target.checked)} />{t('replace')}</label>
       }
       {needsWidth && <label className="drawing-cad-field"><span>{t('width')}</span><input type="number" min="0.001" max="1000000" value={width}
           aria-invalid={!width.trim() || !Number.isFinite(Number(width)) || Number(width) <= 0 || Number(width) > 1e6}
           data-testid="trace-width" onChange={event => setWidth(event.target.value)} /></label>}
+      {centerline && <><label className="drawing-cad-field"><span>{t('traceStrokeWidth')}</span><input type="number" min={MIN_CENTERLINE_STROKE_WIDTH_MM} max={MAX_CENTERLINE_STROKE_WIDTH_MM} step="any" value={strokeWidth}
+        aria-invalid={!validStrokeWidth} data-testid="trace-stroke-width"
+        onChange={event => { setStrokeWidth(event.target.value); setMessage(''); }} /></label>
+        <p className="drawing-help">{t('traceStrokeWidthHelp')}</p></>}
       <label className="drawing-vector-check"><input type="checkbox" checked={groupResult} data-testid="trace-group-result"
         onChange={event => setGroupResult(event.target.checked)} />{t('traceGroupResult')}</label>
       <p className="drawing-help" data-testid="trace-output-summary">{t(attached ? 'traceAttachedHelp' : useSelected ? replace ? 'traceReplaceHelp' : 'traceOverlayHelp' : 'traceCenteredHelp')}</p>
       <p className="drawing-help">{t('traceToleranceHelp')}</p>
-      {!valid && <p className="drawing-help" role="alert">{t('traceSettings')}</p>}
+      {!valid && <p className="drawing-help" role="alert">{t(centerline && !validStrokeWidth ? 'traceStrokeWidthError' : 'traceSettings')}</p>}
       <button type="button" disabled={!valid || !sourceReady} data-testid="trace-prepare" onClick={() => void prepare()}>{t('preview')}</button>
     </fieldset>
     {busy && <p role="status">{t('working')} <button type="button" data-testid="trace-cancel" onClick={() => controller.current?.abort()}>{t('cancel')}</button></p>}

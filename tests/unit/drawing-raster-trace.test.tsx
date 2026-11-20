@@ -26,7 +26,7 @@ async function harness(run: (h: any) => Promise<void>) {
   win.Element.prototype.releasePointerCapture = function (id: number) { if (captures.get(id) === this) captures.delete(id); };
   win.HTMLImageElement.prototype.decode = async () => {};
   const workers: any[] = [], bitmaps: any[] = [], contexts: any[] = [], fetches: string[] = [];
-  let dimensions = { width: 64, height: 32 }, workerMode: 'auto' | 'hold' = 'auto', workerResult: any;
+  let dimensions = { width: 64, height: 32 }, workerMode: 'auto' | 'hold' = 'auto', workerResult: any, workerError: string | undefined;
   values.fetch = async (url: string) => { fetches.push(url); return { ok: true, blob: async () => new Blob(['png'], { type: 'image/png' }) }; };
   values.createImageBitmap = async () => {
     const bitmap = { ...dimensions, closed: false, close() { this.closed = true; } }; bitmaps.push(bitmap); return bitmap;
@@ -35,7 +35,9 @@ async function harness(run: (h: any) => Promise<void>) {
     onmessage: any; onerror: any; terminated = false; posted: any;
     constructor() { workers.push(this); }
     terminate() { this.terminated = true; }
-    postMessage(value: unknown) { this.posted = value; if (workerMode === 'auto') queueMicrotask(() => this.onmessage?.({ data: { result: structuredClone(workerResult) } })); }
+    postMessage(value: unknown) { this.posted = value; if (workerMode === 'auto') queueMicrotask(() => this.onmessage?.({
+      data: workerError ? { error: workerError } : { result: structuredClone(workerResult) },
+    })); }
   };
   win.HTMLCanvasElement.prototype.getContext = function () {
     const { width, height } = this;
@@ -83,6 +85,13 @@ async function harness(run: (h: any) => Promise<void>) {
       curves.nodeAt({ x: 50, y: 25 }), curves.nodeAt({ x: 10, y: 25 }),
     ] }], fillRule: 'evenodd', paint: { ...vector.VECTOR_DEFAULT_PAINT, fill: '#16324f', fillOpacity: .4, stroke: 'none', dash: [] },
   }] });
+  const centerlineFixture = () => {
+    const doc = documentFixture(); doc.warnings = ['trace-centerline-approximation'];
+    doc.paths[0].paint = { ...doc.paths[0].paint, fill: 'none', stroke: '#16324f', strokeOpacity: .4, strokeWidth: 1, lineCap: 'round', lineJoin: 'round' };
+    doc.paths.push(structuredClone(doc.paths[0]));
+    doc.paths[0].contours[0] = { closed: false, nodes: doc.paths[0].contours[0].nodes.slice(0, 2) };
+    return doc;
+  };
   workerResult = documentFixture();
   function Scene() {
     const state = tl.useValue('trace test props', () => ({ settings: cad.readCadSettings(editor), revision: plans.cadRevision(editor), disabled: editor.getInstanceState().isReadonly }), []);
@@ -102,10 +111,10 @@ async function harness(run: (h: any) => Promise<void>) {
     Object.defineProperty(element, 'files', { configurable: true, value: [new win.File(['png'], name, { type: 'image/png' })] });
     element.dispatchEvent(new Event('change', { bubbles: true })); }); await tick(); };
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
-  try { await run({ editor, tl, host, get, click, select, input, upload, act, tick, render, snapshot, cad, plans, vector, curves, source, review, documentFixture,
+  try { await run({ editor, tl, host, get, click, select, input, upload, act, tick, render, snapshot, cad, plans, vector, curves, source, review, documentFixture, centerlineFixture,
     locale, workers, bitmaps, contexts, fetches, toolkitFiles, orderFiles, dimensions: (width: number, height: number) => { dimensions = { width, height }; },
-    hold: () => { workerMode = 'hold'; }, result: (value: any) => { workerResult = value; },
-    release: () => workers.at(-1)?.onmessage?.({ data: { result: structuredClone(workerResult) } }) }); }
+    hold: () => { workerMode = 'hold'; }, result: (value: any) => { workerResult = value; workerError = undefined; }, error: (code: string) => { workerError = code; },
+    release: () => workers.at(-1)?.onmessage?.({ data: workerError ? { error: workerError } : { result: structuredClone(workerResult) } }) }); }
   finally {
     await act(async () => root.unmount()); editor.dispose(); host.remove();
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
@@ -119,6 +128,7 @@ describe('raster tracing source preparation and review', () => {
     assert.equal(get('trace-resolution').value, '2048'); assert.equal(get('trace-preserve-corners').checked, true);
     assert.equal(get('trace-smoothing').value, '0.75'); assert.equal(get('trace-noise').value, '0');
     assert.equal(get('trace-preset').value, 'logo'); assert.equal(get('trace-background').value, 'all');
+    assert.equal(get('trace-method').value, 'outline');
     assert.equal(get('trace-group-result').checked, true); assert.equal(host.querySelector('[data-testid="trace-remove-white"]'), null);
     await upload(); await input('trace-smoothing', '');
     assert.equal(get('trace-smoothing').getAttribute('aria-invalid'), 'true'); assert.equal(get('trace-prepare').matches(':disabled'), true);
@@ -143,6 +153,133 @@ describe('raster tracing source preparation and review', () => {
     await select('trace-preset', 'color'); assert.equal(get('trace-colors').value, '8'); assert.equal(get('trace-background').value, 'border');
     await click('trace-prepare'); assert.equal(workers.at(-1).posted.options.background, 'border');
     assert.equal(workers.at(-1).posted.options.mode, 'color'); assert.deepEqual(snapshot(), before);
+  }));
+
+  it('keeps outline profiles compatible and preserves source and output choices across centerline profiles and methods', async () => harness(async h => {
+    const { upload, select, input, click, get, host, workers, snapshot, result, centerlineFixture } = h, before = snapshot();
+    await upload('lines.png'); await select('trace-background', 'border'); await select('trace-resolution', '1024');
+    await input('trace-width', '75'); await click('trace-group-result'); await select('trace-preset', 'lineart');
+    assert.equal(get('trace-method').value, 'outline'); assert.match(get('trace-method-help').textContent, /filled outlines/);
+    assert.deepEqual([...get('trace-preset').options].map((o: any) => o.value), ['logo', 'lineart', 'color', 'custom']);
+    await select('trace-method', 'centerline');
+    assert.equal(get('trace-preset').value, 'technical'); assert.equal(get('trace-threshold').value, '160');
+    assert.equal(get('trace-smoothing').value, '0.35'); assert.equal(get('trace-preserve-corners').checked, true);
+    assert.equal(get('trace-stroke-width').value, '0.25'); assert.match(get('trace-stroke-width').parentElement.textContent, /\(mm\)/);
+    assert.equal(host.querySelector('[data-testid="trace-mode"]'), null); assert.equal(host.querySelector('[data-testid="trace-colors"]'), null);
+    assert.equal(host.querySelector('[data-testid="trace-background"]'), null);
+    assert.deepEqual([...get('trace-preset').options].map((o: any) => o.value), ['technical', 'drawing', 'custom']);
+    await input('trace-stroke-width', '.6'); assert.equal(get('trace-preset').value, 'technical');
+    await select('trace-preset', 'drawing'); assert.equal(get('trace-threshold').value, '128');
+    assert.equal(get('trace-preserve-corners').checked, false); assert.equal(get('trace-smoothing').value, '0.75');
+    assert.equal(get('trace-stroke-width').value, '.6'); await input('trace-noise', '3'); assert.equal(get('trace-preset').value, 'custom');
+    assert.match(get('trace-noise').parentElement.textContent, /disconnected components/);
+    await select('trace-method', 'outline'); assert.equal(get('trace-preset').value, 'logo');
+    assert.equal(get('trace-background').value, 'border'); assert.equal(get('trace-resolution').value, '1024');
+    assert.equal(get('trace-width').value, '75'); assert.equal(get('trace-group-result').checked, false);
+    assert.match(get('trace-source-summary').textContent, /lines\.png/);
+    await select('trace-method', 'centerline'); assert.equal(get('trace-stroke-width').value, '.6');
+    result(centerlineFixture()); await click('trace-prepare');
+    assert.equal(workers.at(-1).posted.options.method, 'centerline'); assert.equal(workers.at(-1).posted.options.mode, 'mono');
+    assert.equal(workers.at(-1).posted.options.background, 'border');
+    assert.ok(!('strokeWidth' in workers.at(-1).posted.options)); assert.ok(!('strokeWidthMm' in workers.at(-1).posted.options));
+    assert.deepEqual(snapshot(), before);
+  }));
+
+  it('validates physical centerline width independently of document units, profiles and the worker', async () => harness(async h => {
+    const { upload, select, input, click, get, workers, editor, act, cad, result, centerlineFixture } = h;
+    await upload(); await select('trace-method', 'centerline'); result(centerlineFixture());
+    for (const invalid of ['', '0', '.0009', '-1', '1000.01']) {
+      await input('trace-stroke-width', invalid); assert.equal(get('trace-stroke-width').getAttribute('aria-invalid'), 'true');
+      assert.equal(get('trace-prepare').matches(':disabled'), true); await click('trace-prepare'); assert.equal(workers.length, 0);
+    }
+    await act(async () => editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: .001 } } }));
+    await input('trace-stroke-width', '1000'); assert.equal(get('trace-prepare').matches(':disabled'), true);
+    await input('trace-stroke-width', '.25'); assert.equal(get('trace-stroke-width').getAttribute('aria-invalid'), 'false');
+    assert.match(get('trace-stroke-width').parentElement.textContent, /\(mm\)/);
+    await click('trace-prepare'); await click('vector-apply');
+    const group = editor.getOnlySelectedShape(), child = editor.getShape(editor.getSortedChildIdsForParent(group.id)[0]);
+    near(child.meta.omsVectorPaint.strokeWidth, .25 / cad.cadMmPerPixel({ ...cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: .001 }));
+    assert.equal(workers.length, 1);
+  }));
+
+  it('reviews real open curves and closed loops at inspection width and applies editable strokes as one undoable group', async () => harness(async h => {
+    const { upload, select, input, click, get, host, editor, act, snapshot, cad, result, centerlineFixture } = h;
+    const doc = centerlineFixture(), original = structuredClone(doc); result(doc);
+    await act(async () => editor.updateInstanceState({ opacityForNextShape: .2 }));
+    const before = snapshot(); await upload(); await select('trace-method', 'centerline'); await input('trace-stroke-width', '.4');
+    await click('trace-prepare');
+    assert.equal(get('trace-source-preview').getAttribute('viewBox'), '0 0 64 32');
+    assert.equal(get('trace-result-preview').getAttribute('viewBox'), '0 0 64 32');
+    assert.equal(get('trace-object-count').textContent, '2'); assert.equal(get('trace-color-count').textContent, '1');
+    assert.equal(get('trace-open-count').textContent, '1'); assert.equal(get('trace-closed-count').textContent, '1');
+    assert.equal(get('trace-node-count').textContent, '6'); assert.equal(get('trace-curve-count').textContent, '2');
+    assert.equal(get('trace-line-count').textContent, '3'); assert.equal(get('trace-output-stroke-width').textContent, '0.4');
+    assert.match(get('trace-result-grouping').textContent, /editable strokes/); assert.match(get('trace-centerline-inspection').textContent, /fixed inspection width/);
+    assert.equal(host.querySelector('[data-testid="trace-review-ack"]'), null);
+    for (const mode of ['side', 'overlay', 'outline']) {
+      await select('trace-preview-mode', mode);
+      const paths = [...get('trace-result-preview').querySelectorAll('[data-testid="trace-centerline-path"]')]; assert.equal(paths.length, 2);
+      assert.ok(!paths[0].getAttribute('d').includes('Z')); assert.ok(paths[1].getAttribute('d').includes('Z'));
+      assert.ok(paths.every((p: any) => p.getAttribute('fill') === 'none' && p.getAttribute('stroke-width') === '1.5' && p.getAttribute('vector-effect') === 'non-scaling-stroke'));
+    }
+    assert.deepEqual(doc, original); assert.deepEqual(snapshot(), before);
+    await click('vector-apply'); const group = editor.getOnlySelectedShape(); assert.equal(group.type, 'group'); assert.equal(group.opacity, 1);
+    const children = editor.getSortedChildIdsForParent(group.id).map((id: any) => editor.getShape(id));
+    assert.deepEqual(children.map((s: any) => s.props.contours[0].closed).sort(), [false, true]);
+    for (const child of children) {
+      assert.equal(child.type, 'cad-bezier'); assert.equal(child.opacity, 1); assert.equal(child.meta.omsVectorPaint.fill, 'none');
+      near(child.meta.omsVectorPaint.strokeWidth, .4 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS));
+      near(child.meta.omsVectorPaint.strokeOpacity, .4); assert.equal(child.meta.omsVectorPaint.lineCap, 'round'); assert.equal(child.meta.omsVectorPaint.lineJoin, 'round');
+    }
+    const after = snapshot(); await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    await act(async () => editor.redo()); assert.deepEqual(snapshot(), after);
+  }));
+
+  it('applies a horizontal zero-height centerline as an open editable stroke without adding a closing edge', async () => harness(async h => {
+    const { centerlineFixture, curves, result, upload, select, click, get, editor, snapshot, act, cad } = h;
+    const doc = centerlineFixture(); doc.paths = [doc.paths[0]];
+    doc.paths[0].contours = [{ closed: false, nodes: [curves.nodeAt({ x: 5, y: 16 }), curves.nodeAt({ x: 59, y: 16 })] }]; result(doc);
+    const before = snapshot(); await upload(); await select('trace-method', 'centerline'); await click('trace-group-result'); await click('trace-prepare');
+    assert.equal(get('trace-open-count').textContent, '1'); assert.equal(get('trace-closed-count').textContent, '0');
+    assert.equal(get('trace-curve-count').textContent, '0'); assert.equal(get('trace-line-count').textContent, '1');
+    assert.ok(!get('trace-result-preview').querySelector('path').getAttribute('d').includes('Z'));
+    await click('vector-apply'); const shape = editor.getOnlySelectedShape();
+    assert.equal(shape.type, 'cad-bezier'); assert.equal(shape.props.contours[0].closed, false);
+    assert.equal(shape.props.contours[0].nodes.length, 2); assert.equal(editor.getShapeGeometry(shape).bounds.h, 0);
+    near(shape.meta.omsVectorPaint.strokeWidth, .25 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS));
+    await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+  }));
+
+  it('keeps the captured method and applied width on stale reviews and preserves inspection state while retracing', async () => harness(async h => {
+    const { centerlineFixture, documentFixture, result, upload, select, input, click, get, host, snapshot, hold, release, act, tick } = h;
+    result(centerlineFixture()); const before = snapshot(); await upload(); await select('trace-method', 'centerline'); await click('trace-prepare');
+    await select('trace-preview-mode', 'outline'); await select('trace-preview-zoom', '4'); await input('trace-source-opacity', '35');
+    await input('trace-stroke-width', '.5'); assert.equal(get('vector-apply').matches(':disabled'), true);
+    assert.equal(get('trace-output-stroke-width').textContent, '0.25'); await click('vector-apply'); assert.deepEqual(snapshot(), before);
+    hold(); await click('trace-prepare'); assert.equal(get('vector-apply').matches(':disabled'), true);
+    await act(async () => release()); await tick();
+    assert.equal(get('trace-output-stroke-width').textContent, '0.5'); assert.equal(get('trace-preview-zoom').value, '4');
+    assert.equal(get('trace-source-opacity').value, '35'); assert.equal(get('trace-preview-mode').value, 'outline');
+    await select('trace-method', 'outline'); assert.equal(get('vector-apply').matches(':disabled'), true);
+    assert.match(get('trace-review-method').textContent, /Centerline/); assert.ok(get('trace-centerline-inspection'));
+    assert.equal(get('trace-output-stroke-width').textContent, '0.5');
+    result(documentFixture()); await click('trace-prepare'); await act(async () => release()); await tick();
+    assert.match(get('trace-review-method').textContent, /Filled outlines/);
+    assert.equal(host.querySelector('[data-testid="trace-centerline-inspection"]'), null); assert.equal(host.querySelector('[data-testid="trace-output-stroke-width"]'), null);
+    assert.equal(get('trace-preview-zoom').value, '4'); assert.deepEqual(snapshot(), before);
+  }));
+
+  it('requires acknowledgement for omitted centerline dots while approximation and component filtering stay informational', async () => harness(async h => {
+    const { centerlineFixture, result, error, upload, select, click, get, host, snapshot } = h, doc = centerlineFixture(), before = snapshot();
+    doc.warnings.push('trace-noise'); result(doc); await upload(); await select('trace-method', 'centerline'); await click('trace-prepare');
+    assert.equal(get('vector-apply').matches(':disabled'), false); assert.equal(host.querySelector('[data-testid="trace-review-ack"]'), null);
+    assert.match(host.textContent, /Disconnected components shorter/);
+    doc.warnings.push('trace-centerline-dots'); result(doc); await click('trace-prepare');
+    assert.equal(get('vector-apply').matches(':disabled'), true); assert.match(host.textContent, /Isolated dots were omitted/);
+    await click('trace-review-ack'); assert.equal(get('vector-apply').matches(':disabled'), false);
+    await click('trace-prepare'); assert.equal(get('trace-review-ack').checked, false); assert.equal(get('vector-apply').matches(':disabled'), true);
+    error('trace-centerline-empty'); await click('trace-prepare'); assert.match(get('trace-status').textContent, /No centerline paths were found/);
+    assert.deepEqual(snapshot(), before);
   }));
 
   it('aligns bitmap and real curve geometry in the same pixel frame and applies one undoable result', async () => harness(async h => {
@@ -286,6 +423,44 @@ describe('raster tracing source preparation and review', () => {
     await act(async () => { editor.select(card.id); editor.updateShape({ id: frame?.id ?? card.id, type: frame ? 'frame' : 'document', isLocked: true }); });
     assert.throws(() => source.selectedAttachedRasterTraceSource(editor), /locked/);
     assert.equal(get('trace-use-selected').matches(':disabled'), true);
+  }));
+
+  for (const context of ['idea', 'order'] as const) it(`creates centerlines from the original ${context} attachment at physical width while keeping its card and file link`, async () => harness(async h => {
+    const { editor, tl, act, toolkitFiles, orderFiles, centerlineFixture, curves, result, dimensions, select, click, input, get, host, snapshot, fetches, cad } = h;
+    const fileId = '00000000-0000-4000-8000-000000000022', boardId = '00000000-0000-4000-8000-000000000011';
+    await act(async () => {
+      if (context === 'idea') toolkitFiles.placeToolkitAsset(editor, boardId, { id: fileId, fileName: 'technical.png', mime: 'image/png', bytes: 100 }, { x: 120, y: 80 });
+      else {
+        editor.createShape({ id: tl.createShapeId('centerline-visuals'), type: 'frame', x: 100, y: 80, rotation: .2, opacity: .5,
+          props: { w: 800, h: 600, name: 'Visuals (PDF/Rasters)' }, meta: { omsFilePocket: 'visuals' } });
+        orderFiles.addOrderFileDocument(editor, { id: fileId, originalName: 'technical.png', mimeType: 'image/png', url: `/api/files/${fileId}/download` }, { x: 150, y: 300 }, 'visuals');
+      }
+      const card = editor.getCurrentPageShapesSorted().find((shape: any) => shape.type === 'document');
+      editor.updateShape({ id: card.id, type: 'document', opacity: .6, props: { fit: 'cover', opacity: 30, previewImage: 'https://example.com/centerline-thumb.png' } });
+      editor.select(card.id); editor.updateInstanceState({ opacityForNextShape: .2 }); editor.mark('centerline-attachment');
+    });
+    const card = structuredClone(editor.getOnlySelectedShape()), before = snapshot(), bounds = editor.getShapePageBounds(card);
+    const doc = centerlineFixture(); doc.paths = [doc.paths[0]]; doc.width = 2048; doc.height = 499;
+    doc.paths[0].contours = curves.mapContours(doc.paths[0].contours, (p: any) => ({ x: p.x * doc.width / 64, y: p.y * doc.height / 32 }));
+    const originalDoc = structuredClone(doc); result(doc); dimensions(4096, 997);
+    await click('trace-use-selected'); await select('trace-method', 'centerline'); await input('trace-width', '72'); await input('trace-stroke-width', '.35');
+    assert.equal(host.querySelector('[data-testid="trace-replace"]'), null); await click('trace-prepare');
+    assert.equal(fetches.at(-1), card.props.url); assert.ok(!fetches.includes(card.props.previewImage));
+    assert.equal(get('trace-original-size').textContent, '4096 × 997 px'); assert.equal(get('trace-working-size').textContent, '2048 × 499 px');
+    assert.equal(get('trace-open-count').textContent, '1'); assert.equal(get('trace-closed-count').textContent, '0');
+    assert.equal(get('trace-output-stroke-width').textContent, '0.35'); assert.deepEqual(snapshot(), before);
+    await click('vector-apply'); const output = editor.getOnlySelectedShape();
+    assert.equal(output.type, 'cad-bezier'); assert.equal(output.parentId, editor.getCurrentPageId()); assert.equal(output.opacity, 1);
+    assert.equal(output.props.contours[0].closed, false); assert.equal(output.meta.omsVectorPaint.fill, 'none');
+    near(output.meta.omsVectorPaint.strokeWidth, .35 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS)); near(output.meta.omsVectorPaint.strokeOpacity, .4);
+    const fullWidth = 72 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS), fullHeight = fullWidth * 997 / 4096;
+    near(output.props.contours[0].nodes[0].x, bounds.maxX + 24 + 10 / 64 * fullWidth);
+    near(output.props.contours[0].nodes[0].y, bounds.minY + 10 / 32 * fullHeight);
+    near(output.props.contours[0].nodes[0].outY, -8 / 32 * fullHeight);
+    assert.deepEqual(editor.getShape(card.id), card); assert.equal(editor.getShape(card.id).props.fileId, fileId); assert.deepEqual(doc, originalDoc);
+    assert.equal(get('trace-use-selected').matches(':disabled'), true);
+    const after = snapshot(); await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    await act(async () => editor.redo()); assert.deepEqual(snapshot(), after);
   }));
 
   it('zooms aligned previews together, synchronizes scroll centers and adjusts overlay opacity without editing the drawing', async () => harness(async h => {
@@ -441,15 +616,28 @@ describe('raster tracing source preparation and review', () => {
   }));
 
   it('counts actual curvature rather than nonzero collinear handles or C path commands', async () => harness(async ({ review, documentFixture }) => {
-    const doc = documentFixture(); assert.deepEqual(review.rasterTraceCounts(doc), { objects: 1, colors: 1, contours: 1, nodes: 4, curves: 1, lines: 3 });
+    const doc = documentFixture(); assert.deepEqual(review.rasterTraceCounts(doc), { objects: 1, colors: 1, contours: 1, open: 0, closed: 1, nodes: 4, curves: 1, lines: 3 });
     doc.paths[0].contours[0].nodes[0].outY = 0; doc.paths[0].contours[0].nodes[1].inY = 0;
-    assert.deepEqual(review.rasterTraceCounts(doc), { objects: 1, colors: 1, contours: 1, nodes: 4, curves: 0, lines: 4 });
+    assert.deepEqual(review.rasterTraceCounts(doc), { objects: 1, colors: 1, contours: 1, open: 0, closed: 1, nodes: 4, curves: 0, lines: 4 });
+  }));
+
+  it('counts visible stroke colors and open/closed paths without inventing a closure or counting invisible paint', async () => harness(async ({ review, centerlineFixture }) => {
+    const doc = centerlineFixture();
+    assert.deepEqual(review.rasterTraceCounts(doc), { objects: 2, colors: 1, contours: 2, open: 1, closed: 1, nodes: 6, curves: 2, lines: 3 });
+    doc.paths[1].paint.stroke = '#ffffff'; doc.paths[1].paint.strokeOpacity = 0;
+    assert.equal(review.rasterTraceCounts(doc).colors, 1);
+    doc.paths[1].paint.strokeOpacity = 1; doc.paths[1].paint.strokeWidth = 0;
+    assert.equal(review.rasterTraceCounts(doc).colors, 1);
+    doc.paths[1].paint.strokeWidth = 1; assert.equal(review.rasterTraceCounts(doc).colors, 2);
+    doc.paths[0].paint.fill = '#16324F'; assert.equal(review.rasterTraceCounts(doc).colors, 2);
   }));
 
   it('renders EN/RU/LV trace terminology and keeps approximation notices informational', async () => harness(async h => {
-    const { locale, act, tick, host, upload, click, get } = h;
-    for (const [lang, label] of [['ru', 'Сохранять острые углы'], ['lv', 'Saglabāt asus stūrus'], ['en', 'Preserve sharp corners']]) {
+    const { locale, act, tick, host, upload, click, get, select, result, centerlineFixture } = h;
+    await select('trace-method', 'centerline'); result(centerlineFixture());
+    for (const [lang, label, method] of [['ru', 'Сохранять острые углы', 'Осевые линии'], ['lv', 'Saglabāt asus stūrus', 'Viduslīnijas'], ['en', 'Preserve sharp corners', 'Centerline']]) {
       await act(async () => locale.set(lang)); await tick(); assert.ok(host.textContent.includes(label));
+      assert.equal(get('trace-method').selectedOptions[0].textContent, method);
     }
     await upload(); await click('trace-prepare'); assert.equal(get('vector-apply').matches(':disabled'), false);
     assert.equal(host.querySelector('[data-testid="trace-review-ack"]'), null);

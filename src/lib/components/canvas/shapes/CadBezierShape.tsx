@@ -5,6 +5,7 @@ import { isCadNodeEditing, retainCadNodesAfterHandleDrag } from "../cad-node-sel
 import { assertCadEditable } from "../cad-plans";
 import { transformAppearance } from "../cad-appearance";
 import { vectorPaint, paintMetadata } from "../cad-vector";
+import type { VectorPaint } from "../cad-paint";
 import { cadFreehandPreview } from "../cad-freehand-state";
 import {
   ShapeUtil,
@@ -71,16 +72,61 @@ const contours = T.arrayOf(
   if (!validContours(value as CadContour[]))
     throw new Error("Invalid CAD curves");
 });
+type CurveClip = { points: Array<Array<{ x: number; y: number }>>; fillRule: string };
+function inCurveClips(point: Vec, clips: CurveClip[]) {
+  return clips.every((c) => {
+    let winding = 0;
+    for (const ps of c.points)
+      for (let i = 0; i < ps.length; i++) {
+        const a = ps[i], b = ps[(i + 1) % ps.length];
+        const side = (b.x - a.x) * (point.y - a.y) - (point.x - a.x) * (b.y - a.y);
+        if (a.y <= point.y && b.y > point.y && side > 0) winding++;
+        if (a.y > point.y && b.y <= point.y && side < 0) winding--;
+      }
+    return c.fillRule === "evenodd" ? Math.abs(winding) % 2 === 1 : winding !== 0;
+  });
+}
+function curveClips(paint: VectorPaint): CurveClip[] {
+  return (paint.clips ?? []).map(c => ({ points: flattenContours(c.contours, .25, 200000), fillRule: c.fillRule }));
+}
+type RoundStrokeHit = { radius: number; visible: boolean; inClips: (point: Vec) => boolean };
+function roundStrokeHit(paint: VectorPaint, opacity: number, clips?: CurveClip[]): RoundStrokeHit | null {
+  // A round solid stroke is the union of radius-sized disks along its path.
+  // Other caps/joins, dashes, and filled artwork keep their existing hit policy.
+  if (paint.fill !== 'none' || paint.gradient || paint.raster || paint.dash.length || paint.lineCap !== 'round' || paint.lineJoin !== 'round') return null;
+  const masks = clips ?? curveClips(paint);
+  let x = NaN, y = NaN, included = false;
+  return { radius: paint.strokeWidth / 2, visible: paint.stroke !== 'none' && paint.strokeWidth > 0 && paint.strokeOpacity > 0 && opacity > 0,
+    inClips(point) {
+      // Native Group2d picking asks every contour about the same point. Reuse
+      // one mask test instead of repeating a compound clip for every branch.
+      if (point.x !== x || point.y !== y) { x = point.x; y = point.y; included = inCurveClips(point, masks); }
+      return included;
+    } };
+}
+class RoundStrokePolyline extends Polyline2d {
+  constructor(points: Vec[], private strokeHit: () => RoundStrokeHit | null) { super({ points }); }
+  override distanceToPoint(point: Vec, hitInside = false) {
+    const stroke = this.strokeHit();
+    // Editor.getShapeAtPoint bypasses the parent Group2d override. This child
+    // has filled *stroke area*, without treating the curve's interior as fill.
+    this.isFilled = !!stroke;
+    if (!stroke) return super.distanceToPoint(point, hitInside);
+    if (!stroke.visible || !stroke.inClips(point)) return Infinity;
+    return super.distanceToPoint(point, false) - stroke.radius;
+  }
+  override hitTestPoint(point: Vec, margin = 0, hitInside = false) {
+    return this.strokeHit() ? this.distanceToPoint(point, false) <= margin : super.hitTestPoint(point, margin, hitInside);
+  }
+}
 class CurveGeometry extends Group2d {
   constructor(
     private contourBounds: ReturnType<typeof curveBounds>,
     children: Polyline2d[],
     private fillRule: "evenodd" | "nonzero",
     private filled: boolean,
-    private clips: Array<{
-      points: Array<Array<{ x: number; y: number }>>;
-      fillRule: string;
-    }> = [],
+    private clips: CurveClip[] = [],
+    private strokeHit: () => RoundStrokeHit | null = () => null,
   ) {
     super({ children });
     this.isFilled = filled;
@@ -110,23 +156,10 @@ class CurveGeometry extends Group2d {
       : winding !== 0;
   }
   private inClips(point: Vec) {
-    return this.clips.every((c) => {
-      let winding = 0;
-      for (const ps of c.points)
-        for (let i = 0; i < ps.length; i++) {
-          const a = ps[i],
-            b = ps[(i + 1) % ps.length],
-            side =
-              (b.x - a.x) * (point.y - a.y) - (point.x - a.x) * (b.y - a.y);
-          if (a.y <= point.y && b.y > point.y && side > 0) winding++;
-          if (a.y > point.y && b.y <= point.y && side < 0) winding--;
-        }
-      return c.fillRule === "evenodd"
-        ? Math.abs(winding) % 2 === 1
-        : winding !== 0;
-    });
+    return inCurveClips(point, this.clips);
   }
   override hitTestPoint(point: Vec, margin = 0, hitInside = false) {
+    if (this.strokeHit()) return super.hitTestPoint(point, margin, false);
     if (!this.inClips(point)) return false;
     return (
       super.hitTestPoint(point, margin, false) ||
@@ -134,6 +167,7 @@ class CurveGeometry extends Group2d {
     );
   }
   override distanceToPoint(point: Vec, hitInside = false) {
+    if (this.strokeHit()) return super.distanceToPoint(point, false);
     const distance = Math.abs(super.distanceToPoint(point, false));
     return this.inClips(point) &&
       (this.filled || hitInside) &&
@@ -177,6 +211,18 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
   }
   override getGeometry(shape: CadBezierShape) {
     const bounds = curveBounds(shape.props.contours);
+    const paint = vectorPaint(shape.meta, shape.props.color), clips = curveClips(paint);
+    let meta = shape.meta, opacity = shape.opacity, stroke = roundStrokeHit(paint, opacity, clips);
+    const strokeHit = () => {
+      // The installed Editor's geometry cache compares props, not metadata or
+      // opacity. Outline edits must change picking without changing saved nodes.
+      const current = this.editor.getShape(shape.id) ?? shape;
+      if (current.meta !== meta || current.opacity !== opacity) {
+        meta = current.meta; opacity = current.opacity;
+        stroke = roundStrokeHit(vectorPaint(meta, shape.props.color), opacity);
+      }
+      return stroke;
+    };
     // Hit testing is bounded and approximate; SVG rendering and saved control points are exact.
     const points = flattenContours(
       shape.props.contours,
@@ -187,20 +233,17 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
       bounds,
       points.map(
         (p, i) =>
-          new Polyline2d({
-            points: (shape.props.contours[i].closed ? [...p, p[0]] : p).map(
+          new RoundStrokePolyline(
+            (shape.props.contours[i].closed ? [...p, p[0]] : p).map(
               (q) => new Vec(q.x, q.y),
             ),
-          }),
+            strokeHit,
+          ),
       ),
       shape.props.fillRule,
-      vectorPaint(shape.meta, shape.props.color).fill !== "none" ||
-        !!vectorPaint(shape.meta).raster ||
-        !!vectorPaint(shape.meta).gradient,
-      (vectorPaint(shape.meta).clips ?? []).map((c) => ({
-        points: flattenContours(c.contours, 0.25, 200000),
-        fillRule: c.fillRule,
-      })),
+      paint.fill !== "none" || !!paint.raster || !!paint.gradient,
+      clips,
+      strokeHit,
     );
   }
   private path(shape: CadBezierShape) {
