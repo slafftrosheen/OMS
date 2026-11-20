@@ -20,12 +20,12 @@ import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteC
 import { getSelectedCadNode, selectCadNode, setCadNodeEditing } from './cad-node-selection';
 import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-join';
 import { applyCadCompound } from './cad-compound';
-import { prepareCadShaping } from './cad-shaping';
+import { prepareCadShaping, type CadShapingOptions } from './cad-shaping';
 import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'publishPdf' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -42,7 +42,7 @@ function canChange(editor: Editor, selection = true) {
 }
 function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadAdvancedLabel {
   const code = (error as { code?: string })?.code ?? (error as Error)?.message;
-  return ({ 'spline-fit-only': 'splineFitOnly', 'spline-fit-points': 'splineFitPoints', 'spline-discontinuous': 'splineDiscontinuous', 'spline-control-points': 'splineControlPoints', 'spline-count': 'splineCount', 'spline-knots': 'splineKnots', 'spline-weights': 'splineWeights', 'spline-degree': 'splineDegree', 'spline-closure': 'splineClosure', 'spline-limit': 'splineLimit', 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'arc-text-fit': 'arcTextFit', 'arc-text-advance': 'arcTextAdvance', 'arc-text-line': 'arcTextLine', 'arc-text-layout': 'unsupportedFont', 'guide-selection': 'guideSelection', 'guide-source': 'guideSource', 'guide-fit': 'guideTextFit', 'guide-tangent': 'guideTextTangent', 'guide-limit': 'guideTextLimit', 'guide-layout': 'unsupportedFont', 'fill-rule': 'compoundFailed', 'mixed-parents': 'mixedParents', 'mixed-clips': 'mixedClips', 'conversion-native-style': 'convertNativeStyle', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
+  return ({ 'spline-fit-only': 'splineFitOnly', 'spline-fit-points': 'splineFitPoints', 'spline-discontinuous': 'splineDiscontinuous', 'spline-control-points': 'splineControlPoints', 'spline-count': 'splineCount', 'spline-knots': 'splineKnots', 'spline-weights': 'splineWeights', 'spline-degree': 'splineDegree', 'spline-closure': 'splineClosure', 'spline-limit': 'splineLimit', 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'arc-text-fit': 'arcTextFit', 'arc-text-advance': 'arcTextAdvance', 'arc-text-line': 'arcTextLine', 'arc-text-layout': 'unsupportedFont', 'guide-selection': 'guideSelection', 'guide-source': 'guideSource', 'guide-fit': 'guideTextFit', 'guide-tangent': 'guideTextTangent', 'guide-limit': 'guideTextLimit', 'guide-layout': 'unsupportedFont', 'fill-rule': 'compoundFailed', 'midline-pair': 'midlineHelp', 'offset-open': 'offsetOpenHelp', 'mixed-parents': 'mixedParents', 'mixed-clips': 'mixedClips', 'conversion-native-style': 'convertNativeStyle', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
 }
 function warningLabel(code: string): CadAdvancedLabel {
   return ({ 'join-arc-approximation': 'joinApproximation', 'reference-appearance': 'referenceAppearance', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'curves-retained': 'curvesRetained', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
@@ -96,7 +96,8 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} onCorner={() => setCornerFocus(value => value + 1)} />
     <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />
-    <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
+    <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && ['shaping', 'offset', 'midline'].includes(focusRequest?.section ?? '')} sequence={focusRequest?.sequence}
+      requestedOperation={task === 'edit' && (focusRequest?.section === 'offset' || focusRequest?.section === 'midline') ? focusRequest.section : undefined} />
     </div><div hidden={task !== 'draw'}>
     <RectangleShapePanel settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'rectangle' ? focusRequest.sequence : undefined} />
     <EllipseSegmentControls settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'ellipse' ? focusRequest.sequence : undefined} />
@@ -434,18 +435,21 @@ function JoinCurves({ settings, revision, disabled, focus, sequence }: SharedPro
   </details>;
 }
 
-function Shaping({ settings, revision, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
+function Shaping({ settings, revision, disabled, focus, sequence, requestedOperation }: SharedProps & {
+  focus: boolean; sequence?: number; requestedOperation?: 'offset' | 'midline';
+}) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const selected = useValue('shaping sources', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].flatMap(id => {
     const shape = editor.getShape(id); return shape && shape.type !== 'group' ? [{ id: shape.id, name: drawingObjectName(shape) }] : [];
   }), [editor]);
-  const [operation, setOperation] = useState<'weld' | 'trim' | 'intersect' | 'offset'>('weld');
+  const [operation, setOperation] = useState<CadShapingOptions['operation']>(requestedOperation ?? 'weld');
   const [tolerance, setTolerance] = useState('0.02'); const [values, setValues] = useUnitDraft(settings, { offset: '1' });
   const [join, setJoin] = useState<'round' | 'miter' | 'square'>('round'); const [keepSources, setKeepSources] = useState(true); const [targetId, setTargetId] = useState('');
   const [review, setReview] = useState<Review | null>(null); const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false);
+  useEffect(() => { if (requestedOperation) { setOperation(requestedOperation); setMessage(''); } }, [requestedOperation, sequence]);
   const inputKey = JSON.stringify([operation, tolerance, values.offset, join, keepSources, targetId, settings]);
-  const valid = Number.isFinite(number(tolerance)) && number(tolerance) >= 0.001 && number(tolerance) <= 1 && selected.length >= (operation === 'offset' ? 1 : 2) &&
+  const valid = Number.isFinite(number(tolerance)) && number(tolerance) >= 0.001 && number(tolerance) <= 1 && (operation === 'midline' ? selected.length === 2 : selected.length >= (operation === 'offset' ? 1 : 2)) &&
     (operation !== 'offset' || Number.isFinite(number(values.offset)) && number(values.offset) !== 0 && Math.abs(number(values.offset)) <= 1_000_000) && (operation !== 'trim' || selected.some(shape => shape.id === targetId));
   return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-shaping">
     <summary>{label('shaping')}</summary>
@@ -457,7 +461,8 @@ function Shaping({ settings, revision, disabled, focus, sequence }: SharedProps 
       catch (error) { setFailed(true); setMessage(errorLabel(error)); }
     }}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings}>
-        <Field label={label('operation')}><select value={operation} onChange={event => { setOperation(event.target.value as typeof operation); setMessage(''); }}>{(['weld', 'trim', 'intersect', 'offset'] as const).map(value => <option key={value} value={value}>{label(value)}</option>)}</select></Field>
+        <Field label={label('operation')}><select value={operation} onChange={event => { setOperation(event.target.value as typeof operation); setMessage(''); }}>{(['weld', 'trim', 'intersect', 'offset', 'midline'] as const).map(value => <option key={value} value={value}>{label(value)}</option>)}</select></Field>
+        {operation === 'midline' && <p className="drawing-help">{label('midlineHelp')}</p>}
         {operation === 'trim' && <><Field label={label('target')}><select value={targetId} required onChange={event => setTargetId(event.target.value)}><option value="">{label('chooseTarget')}</option>{selected.map((shape, index) => <option key={shape.id} value={shape.id}>{index + 1}. {shape.name}</option>)}</select></Field><p className="drawing-help">{label('targetHelp')}</p></>}
         {operation === 'offset' && <>
           <Field label={`${label('distance')} (${settings?.unit ?? 'mm'})`}><input type="number" required step="any" value={values.offset} aria-invalid={!Number.isFinite(number(values.offset)) || number(values.offset) === 0} onChange={event => setValues(current => ({ ...current, offset: event.target.value }))} /></Field>

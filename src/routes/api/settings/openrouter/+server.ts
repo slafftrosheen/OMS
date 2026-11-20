@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '$lib/server/config';
 import { readOpenRouterModels } from '$lib/server/ai/provider-models';
 import { resolveOpenRouterApiKey } from '$lib/server/ai/provider-key';
+import { activeAiProvider, openAiModels } from '$lib/server/ai/active-provider';
 import { canManageOpenRouterKey, maskSecret, normalizeOpenRouterKey, redactCredential } from '$lib/server/ai/provider-settings';
 
 function database() {
@@ -26,7 +27,10 @@ export const GET: RequestHandler = async ({ locals }) => {
   try {
     const key = await resolveOpenRouterApiKey();
     const models = await readOpenRouterModels();
-    return json({ provider: 'openrouter', model: models.textModel, visionModel: models.visionModel, ...maskSecret(key), source: key ? (process.env.OPENROUTER_API_KEY?.trim() ? 'environment-or-vault' : 'vault') : 'none' }, { headers: { 'Cache-Control': 'no-store' } });
+    return json({ provider: 'openrouter', model: models.textModel, visionModel: models.visionModel,
+      activeProvider: activeAiProvider(), openAI: { configured: !!process.env.OPENAI_API_KEY?.trim(), ...openAiModels() },
+      ...maskSecret(key), source: key ? (process.env.OPENROUTER_API_KEY?.trim() ? 'environment-or-vault' : 'vault') : 'none' },
+      { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[settings/openrouter] read failed:', safeError(err));
     return json({ error: safeError(err) }, { status: 503, headers: { 'Cache-Control': 'no-store' } });

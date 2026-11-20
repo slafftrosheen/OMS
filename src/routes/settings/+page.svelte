@@ -21,7 +21,10 @@
   import TelegramAdminSettings from '$lib/notifications/TelegramAdminSettings.svelte';
   import { settingsTabsCopy } from '$lib/settings/settings-tabs-copy';
   import OpenRouterModels from '$lib/settings/OpenRouterModels.svelte';
-  let aiSettings = $state<{ configured: boolean; masked: string; source?: string } | null>(null);
+  let aiSettings = $state<{
+    configured: boolean; masked: string; source?: string; activeProvider?: 'openrouter' | 'openai';
+    openAI?: { configured: boolean; textModel: string; visionModel: string };
+  } | null>(null);
   let openRouterKey = $state('');
   let aiSettingsLoading = $state(false);
   let aiSettingsSaving = $state(false);
@@ -359,12 +362,19 @@
             <p class="muted">{$t('settings.provider.description')}</p>
           </div>
         </div>
+        {#if aiSettings?.openAI}
+          <div class="setting-group">
+            <p>{$t('settings.provider.activeProvider')} <strong>{aiSettings.activeProvider === 'openai' ? 'OpenAI API' : 'OpenRouter'}</strong></p>
+            <p>OpenAI API · {aiSettings.openAI.configured ? $t('settings.provider.configured') : $t('settings.provider.notConfigured')}</p>
+            <p class="muted">{$t('settings.provider.openAISetup')}</p>
+          </div>
+        {/if}
         <div class="setting-group ai-policy-group">
           <label class="ai-policy-label">
             <input type="checkbox" checked={aiPolicy?.enabled===true}
               disabled={aiPolicyLoading || aiPolicySaving || !aiPolicy}
               onchange={event => void saveAiPolicy(event.currentTarget.checked)} />
-            <span><strong>{tabCopy.sharingTitle}</strong><small>{tabCopy.sharingHint}</small></span>
+            <span><strong>{tabCopy.sharingTitle}</strong><small>{aiSettings?.activeProvider === 'openai' ? $t('settings.provider.openAISharing') : tabCopy.sharingHint}</small></span>
           </label>
           {#if aiPolicyLoading}<p class="muted">{tabCopy.sharingLoading}</p>{/if}
           {#if aiPolicySaving}<p class="muted">{tabCopy.sharingSaving}</p>{/if}

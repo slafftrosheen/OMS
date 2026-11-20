@@ -4,6 +4,8 @@ import {
   OPENROUTER_VISION_MODEL,
   OPENROUTER_TIMEOUT_MS
 } from '$lib/server/config';
+import { activeAiProvider, openAiModels } from './active-provider';
+import { openAiChatResponse, openAiResponsesBody } from './openai-responses';
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
 export interface OpenRouterMessage {
@@ -36,6 +38,7 @@ export interface OpenRouterChatOptions {
 }
 export interface OpenRouterChatResult { model: string; response: Response }
 export interface OpenRouterClientConfig {
+  provider?: 'openrouter' | 'openai';
   apiKey: string;
   baseUrl: string;
   defaultModel: string;
@@ -61,6 +64,11 @@ async function configuredClientConfig(): Promise<OpenRouterClientConfig> {
   // Read the DB for every request so revocation takes effect immediately.
   const { assertOpenRouterPolicyEnabled } = await import('$lib/server/ai/provider-policy');
   await assertOpenRouterPolicyEnabled();
+  if (activeAiProvider() === 'openai') {
+    const models = openAiModels();
+    return { ...OPENROUTER_CONFIG, provider: 'openai', baseUrl: 'https://api.openai.com/v1',
+      defaultModel: models.textModel, visionModel: models.visionModel, apiKey: process.env.OPENAI_API_KEY?.trim() ?? '' };
+  }
   const { resolveOpenRouterApiKey } = await import('$lib/server/ai/provider-key');
   const {readOpenRouterModels, environmentModelDefaults} = await import('./provider-models');
   const models = await readOpenRouterModels();
@@ -139,28 +147,34 @@ export async function openRouterChat(
   options.signal?.throwIfAborted();
   const resolvedConfig = config ?? await configuredClientConfig();
   options.signal?.throwIfAborted();
-  if (!resolvedConfig.apiKey.trim()) throw new Error('OpenRouter is not configured: add the system key in Settings or set OPENROUTER_API_KEY');
+  const direct = resolvedConfig.provider === 'openai';
+  if (!resolvedConfig.apiKey.trim()) throw new Error(direct
+    ? 'OpenAI is not configured: set OPENAI_API_KEY on the server'
+    : 'OpenRouter is not configured: add the system key in Settings or set OPENROUTER_API_KEY');
   if (!/^https:\/\//i.test(resolvedConfig.baseUrl)) throw new Error('OPENROUTER_BASE_URL must use HTTPS');
-  const body = openRouterRequestBody(options, resolvedConfig);
+  // Existing OMS tool routes can pass OpenRouter model aliases. The OpenAI
+  // deployment selects the configured text or vision model instead.
+  const body = openRouterRequestBody(direct ? { ...options, model: undefined } : options, resolvedConfig);
+  const payload = direct ? openAiResponsesBody(options, body.messages, body.model) : body;
   // A stream remains abortable *after headers arrive*. Clearing a timer in
   // fetch().finally() left SSE streams unbounded indefinitely.
   const requestedTimeout = options.timeoutMs ?? resolvedConfig.timeoutMs;
   const timeoutMs = Number.isFinite(requestedTimeout)
     ? Math.max(5_000, Math.min(requestedTimeout, 180_000)) : 120_000;
-  const response = await fetcher(`${resolvedConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+  const response = await fetcher(direct ? 'https://api.openai.com/v1/responses' : `${resolvedConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
+    ...(direct ? { redirect: 'error' } : {}),
     headers: {
       Authorization: `Bearer ${resolvedConfig.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://reclamefabriek.eu',
-      'X-Title': 'Reclame Fabriek OMS'
+      ...(!direct ? { 'HTTP-Referer': 'https://reclamefabriek.eu', 'X-Title': 'Reclame Fabriek OMS' } : {})
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
     signal: options.signal
       ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
       : AbortSignal.timeout(timeoutMs)
   });
-  return { model: String(body.model), response };
+  return { model: String(body.model), response: direct ? await openAiChatResponse(response, body.model, body.stream) : response };
 }
 
 export function openRouterError(response: Response, text: string, credential = ''): Error {

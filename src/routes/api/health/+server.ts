@@ -1,6 +1,6 @@
 // Readiness: core OMS dependencies are required; OpenRouter is optional.
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { isOpenRouterConfigured } from '$lib/server/ai/openrouter';
+import { isActiveAiConfigured } from '$lib/server/ai/active-provider';
 import { evaluateHealth, type ProbeStatus } from '$lib/server/health-policy';
 
 async function probe(fn: () => Promise<void>): Promise<ProbeStatus> {
@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ locals }) => {
             if (error) throw error;
         }),
         openrouter: await probe(async () => {
-            if (!(await isOpenRouterConfigured())) throw new Error('Provider not configured');
+            if (!(await isActiveAiConfigured())) throw new Error('Provider not configured');
         })
     };
     const result = evaluateHealth(checks);

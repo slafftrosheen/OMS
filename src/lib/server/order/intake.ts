@@ -1,3 +1,4 @@
+import { activeAiProvider } from '$lib/server/ai/active-provider';
 /** OMS-R13: proposals only. This endpoint never updates an order or its files. */
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
@@ -286,6 +287,11 @@ async function prepareIntakeSource(bytes: Uint8Array, filename: string, mime: st
     const scope = `Source scope: PDF pages ${pages.start}–${pages.end} of ${pages.total}. Use the original page numbers; do not infer content from omitted pages.`;
     return {parts: [{type:'text',text:scope}, ...parts], pages, model: OPENROUTER_VISION_MODEL, engine: 'page-images'};
   }
+  if (activeAiProvider() === 'openai') {
+    if (mode === 'ocr') throw error(403, 'This OCR mode requires OpenRouter');
+    return { parts: [toolkitMediaContent(filename, mime, bytes)],
+      model: OPENROUTER_VISION_MODEL, engine: 'openai-native', pages: null };
+  }
   const paid = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
   if (mode === 'ocr' && !paid) throw error(403, 'Paid OCR is disabled by the administrator');
   const pdfModel = process.env.OPENROUTER_ORDER_INTAKE_PDF_MODEL?.trim() || '';
@@ -310,7 +316,7 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
     const signal = AbortSignal.any([event.request.signal, AbortSignal.timeout(INTAKE_PROVIDER_TIMEOUT_MS)]);
     const options = {
       model, temperature:0.1, maxTokens:6500, timeoutMs:INTAKE_PROVIDER_TIMEOUT_MS, signal,
-      ...(parserEngine&&parserEngine!=='page-images'?{plugins:[{id:'file-parser',pdf:{engine:parserEngine}}]}:{})
+      ...(parserEngine&&!['page-images','openai-native'].includes(parserEngine)?{plugins:[{id:'file-parser',pdf:{engine:parserEngine}}]}:{})
     };
     const jsonMode = process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false';
     const strictSchema = {name:'oms_order_intake_v2',

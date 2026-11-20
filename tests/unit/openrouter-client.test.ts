@@ -65,3 +65,65 @@ describe('OpenRouter chat client', () => {
   });
 });
 
+
+const direct: OpenRouterClientConfig = {
+  ...config, provider: 'openai', defaultModel: 'gpt-6-luna', visionModel: 'gpt-6.1-terra'
+};
+describe('OpenAI API transport', () => {
+  it('routes PDFs, images, structured schemas and paired tool calls to Responses', async () => {
+    const fake: typeof fetch = async (url, init) => {
+      expect(url).toBe('https://api.openai.com/v1/responses');
+      expect(init?.redirect).toBe('error');
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer test-key-for-unit-only');
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe('gpt-6.1-terra');
+      expect(body.store).toBe(false);
+      expect(body.input[0].content.map((p: any) => p.type)).toEqual(['input_file', 'input_image']);
+      expect(body.input[1]).toEqual({ type: 'function_call', call_id: 'call_1', name: 'preview_order', arguments: '{}' });
+      expect(body.input[2]).toEqual({ type: 'function_call_output', call_id: 'call_1', output: 'ready' });
+      expect(body.tools[0].name).toBe('preview_order');
+      expect(body.text.format.type).toBe('json_schema');
+      expect(body.plugins).toBeUndefined();
+      return Response.json({ status: 'completed', output: [
+        { type: 'function_call', call_id: 'call_2', name: 'preview_order', arguments: '{"width":100}' }
+      ] });
+    };
+    const { response } = await openRouterChat({
+      model: 'openrouter/free', messages: [
+        { role: 'user', content: [
+          { type: 'file', file: { filename: 'drawing.pdf', file_data: 'data:application/pdf;base64,abc' } },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }
+        ] },
+        { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'preview_order', arguments: '{}' } }] },
+        { role: 'tool', tool_call_id: 'call_1', content: 'ready' }
+      ],
+      tools: [{ type: 'function', function: { name: 'preview_order', parameters: { type: 'object' } } }],
+      plugins: [{ id: 'file-parser' }],
+      jsonSchema: { name: 'intake', schema: { type: 'object' } }
+    }, direct, fake);
+    expect(extractAssistantMessage(await response.json()).tool_calls?.[0].id).toBe('call_2');
+  });
+
+  it('normalizes streamed text split across chunks and forwards sanitized rate limits', async () => {
+    const encode = new TextEncoder();
+    const data = (event: unknown) => 'data: ' + JSON.stringify(event) + '\n\n';
+    const input = [
+      data({ type: 'response.output_text.delta', delta: 'Hello' }),
+      data({ type: 'response.completed', response: { status: 'completed', output: [] } })
+    ].join('');
+    const streamed: typeof fetch = async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(encode.encode(input.slice(0, 24))); controller.enqueue(encode.encode(input.slice(24))); controller.close(); }
+    }));
+    const options = { messages: [{ role: 'user' as const, content: 'Hello' }], stream: true };
+    const { response } = await openRouterChat(options, direct, streamed);
+    const output = await response.text();
+    expect(output).toContain('"content":"Hello"');
+    expect(output).toContain('"finish_reason":"stop"');
+    const limited = await openRouterChat(options, direct, async () => new Response('private upstream body', {
+      status: 429, headers: { 'Retry-After': '12' }
+    }));
+    expect(limited.response.status).toBe(429);
+    expect(limited.response.headers.get('Retry-After')).toBe('12');
+    expect(await limited.response.text()).toBe('');
+  });
+});

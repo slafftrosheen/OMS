@@ -1,4 +1,6 @@
 import { captureCanvasDocument } from './canvas-document';
+import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
+import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
 import {installDrawingFonts} from './drawing-fonts';
 import {CadCircleTool,CadDimensionTool} from './CadTwoPointTool';
@@ -82,7 +84,7 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
-    OnTheCanvas: () => <><DrawingPageSheet/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/></>,
+    OnTheCanvas: () => <><DrawingPageSheet/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
     SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
     Toolbar: null, StylePanel: null,
@@ -193,6 +195,10 @@ export function CanvasApp({
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
         cleanupCadTransformsRef.current = () => { stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
+        if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
+            const page = editor.getCurrentPage();
+            editor.run(() => editor.updatePage({ id: page.id, meta: { ...page.meta, [CAD_META_KEY]: { ...DEFAULT_CAD_SETTINGS } } }), { history: 'ignore' });
+        }
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks

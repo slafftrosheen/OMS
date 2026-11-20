@@ -1071,6 +1071,8 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
+          <button type="button" onClick={() => focusCad('offset')}>{advancedLabel('offset')}</button>
+          <button type="button" onClick={() => focusCad('midline')}>{advancedLabel('midline')}</button>
           <button type="button" onClick={() => focusCad('ellipse')}>{vectorLabel('ellipseSegments')}</button>
           <button type="button" onClick={() => focusCad('polygon')}>{parametricShapeLabel('title')}</button>
           <button type="button" onClick={() => focusCad('rectangle')}>{rectangleShapeLabel('title')}</button>

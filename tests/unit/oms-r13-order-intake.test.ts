@@ -69,7 +69,8 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(api).toContain("process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'");
     expect(api).toContain('{jsonMode:true}');
     expect(api).toContain('normalizeIntakeProposals(basic)');
-    expect(api).toContain("process.env.OPENROUTER_TOOLKIT_PDF_OCR==='true'");
+    expect(api).toMatch(/process\.env\.OPENROUTER_TOOLKIT_PDF_OCR\s*===\s*'true'/);
+    expect(api).toContain("engine: 'openai-native'");
     expect(api).toContain("provenance:'model-reported'");
     expect(api).toContain("'Cache-Control':'private, no-store'");
     expect(api).not.toContain(".update(");

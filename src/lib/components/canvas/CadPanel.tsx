@@ -46,7 +46,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
   const editor = useEditor(); const { label } = useCadText();
   const preflightLabel = usePreflightText();
   const { label: advancedLabel } = useCadAdvancedText(); const vectorLabel = useVectorText();
-  const [task, setTask] = useState<CadTask>(settings ? 'edit' : 'document');
+  const [task, setTask] = useState<CadTask>(() => settings && editor.getSelectedShapeIds().length ? 'edit' : 'document');
   const sourceIsText = useValue('cad focus text', () => editor.getOnlySelectedShape()?.type === 'text', [editor]);
   const consumedFocus = useRef<number>();
   useEffect(() => {

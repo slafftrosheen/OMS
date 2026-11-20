@@ -16,6 +16,11 @@ export function hasCanvasDraft(editor: Editor): boolean {
   return !!drafts.get(editor)?.();
 }
 
+export function getCanvasDraftShape(editor: Editor) {
+  const draft = drafts.get(editor)?.();
+  return draft ? editor.getShape(draft.id) : undefined;
+}
+
 /** Document-only persistence boundary, shared by autosave and recovery.
  * Never mutate the live store, history, selection or current drawing tool. */
 export function captureCanvasDocument(editor: Editor) {

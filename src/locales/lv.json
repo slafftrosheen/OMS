@@ -1075,6 +1075,9 @@
     "textSizeSelection": "Teksta lieluma izvēle",
     "densitySelection": "Atstarpju blīvuma izvēle",
     "provider": {
+      "activeProvider": "Aktīvais MI pakalpojumu sniedzējs",
+      "openAISetup": "Lai izvēlētos OpenAI, servera vidē iestatiet OMS_AI_PROVIDER=openai un OPENAI_API_KEY, pēc tam restartējiet OMS.",
+      "openAISharing": "Atļaut OMS nosūtīt vaicājumus, attēlus, PDF un saistītos pasūtījumu datus uz OpenAI API no konfigurētā konta.",
       "title": "AI pakalpojums — OpenRouter",
       "description": "Kopīga AI piekļuves atslēga komandai. Uzvednes un pievienotie attēli var tikt nosūtīti OpenRouter; bezmaksas maršrutiem var būt pieprasījumu ierobežojumi.",
       "loading": "Ielādē pakalpojuma iestatījumus…",

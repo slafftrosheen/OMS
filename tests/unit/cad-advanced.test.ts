@@ -300,6 +300,42 @@ describe('CAD region shaping', () => {
     near(area(minus.contours), 5600, 0.2);
     assert.throws(() => prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset', offset: -100 }), /empty/);
   });
+  it('offsets open straight vectors by an exact signed distance in millimetres', () => {
+    const f = fixture();
+    const id = shape(f, 'segment', [{ closed: false, nodes: [{ x: 30, y: 100 }, { x: 90, y: 180 }].map(nodeAt) }]);
+    f.editor.setSelectedShapes([id]);
+    for (const offset of [12, -12]) {
+      const plan = prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset', offset });
+      assert.equal(plan.contours[0].closed, false);
+      const nodes = plan.contours[0].nodes;
+      const change = offset / cadMmPerPixel(settings);
+      near(nodes[0].x, 30 + .8 * change);
+      near(nodes[0].y, 100 - .6 * change);
+      near(nodes[1].x - nodes[0].x, 60);
+      near(nodes[1].y - nodes[0].y, 80);
+      assert.deepEqual(plan.removeIds, []);
+    }
+  });
+  it('pairs opposite open curves and averages their positions and Bézier handles', () => {
+    const f = fixture();
+    const a = shape(f, 'left', [{ closed: false, nodes: [
+      { ...nodeAt({ x: 0, y: 0 }), outX: 20, outY: -30 },
+      { ...nodeAt({ x: 120, y: 0 }), inX: -20, inY: -30 }
+    ] }]);
+    const b = shape(f, 'right', [{ closed: false, nodes: [
+      { ...nodeAt({ x: 120, y: 100 }), outX: -10, outY: -10 },
+      { ...nodeAt({ x: 0, y: 100 }), inX: 10, inY: -10 }
+    ] }]);
+    f.editor.setSelectedShapes([a, b]);
+    const plan = prepareCadShaping(f.editor, settings, { ...opts, operation: 'midline' });
+    const nodes = [...plan.contours[0].nodes].sort((a, b) => a.x - b.x);
+    near(nodes[0].y, 50);
+    near(nodes[1].y, 50);
+    assert.deepEqual([nodes[0].outX, nodes[0].outY, nodes[1].inX, nodes[1].inY], [15, -20, -15, -20]);
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    assert.ok(f.editor.getShape(a) && f.editor.getShape(b));
+    assert.equal(f.only().props.contours[0].closed, false);
+  });
   it('refuses open contours, clipped geometry, protected and bound destructive operations, and stale plans', () => {
     const f = fixture(),
       id = shape(f, 'a', [rect(0, 0, 100, 100)]);

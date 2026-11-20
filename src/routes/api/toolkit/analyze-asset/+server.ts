@@ -7,7 +7,7 @@ import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { OpenRouterHttpError } from '$lib/server/ai/openrouter';
 import { analyzeToolkitMedia, PdfSourceError } from '$lib/server/toolkit/analyze-media';
 import { resolveToolkitModel, toolkitModelChoices } from '$lib/server/toolkit/ai-models';
-import {readOpenRouterModels} from '$lib/server/ai/provider-models';
+import {readActiveAiModels, activeAiProvider} from '$lib/server/ai/active-provider';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 import { parsePdfPageRange, type PdfPageRange } from '$lib/pdf/page-range';
 
@@ -38,7 +38,7 @@ export const POST: RequestHandler = async (event) => {
       (body.pdfMode !== undefined && !['auto', 'text', 'visual'].includes(body.pdfMode))) {
     throw error(400, 'Select a valid Canvas image/PDF and a bounded question');
   }
-  const allowPaidOcr = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
+  const allowPaidOcr = activeAiProvider() === 'openrouter' && process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
   if (body.ocr === true && !allowPaidOcr) throw error(403, 'Paid PDF OCR is disabled by the OMS administrator');
   let pdfPages: PdfPageRange | undefined;
   try { pdfPages = parsePdfPageRange(body.pdfPages, body.pdfMode === 'visual' ? 10 : 40); }
@@ -97,7 +97,7 @@ This is analysis ONLY: never claim you edited Canvas, saved anything or verified
 If any content is unreadable, state the limitation instead of filling gaps with guesses.
 ${responseLanguageInstruction(locale)}`;
   try {
-    const models = await readOpenRouterModels();
+    const models = await readActiveAiModels();
     const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model, toolkitModelChoices(models.textModel)) : null;
     if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
     const result = await analyzeToolkitMedia({
