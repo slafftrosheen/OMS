@@ -16,6 +16,8 @@ const en = {
   compound: 'Combine & break apart', combine: 'Combine · Ctrl/⌘ L', breakApart: 'Break apart · Ctrl/⌘ K',
   compoundHelp: 'Combine keeps the original paths in one curve. With even-odd paths, nested and overlapping areas become holes. Weld merges areas. Break apart separates every contour, including holes. Combining circles or arcs converts them within 0.005 mm.',
   compoundFailed: 'Select supported editable curves or geometry. Break apart needs a curve with multiple contours. Outline text first; combine font outlines separately from even-odd paths. Check locks and connections.',
+  mixedParents: 'Select objects in the same group, frame or page level for this command.', mixedClips: 'This command cannot merge multiple objects with individual clipping paths.',
+  referenceAppearance: 'Result uses the reference object’s paint and opacity.', combineAppearance: 'Result uses the last source’s paint and opacity.',
   reverse: 'Reverse contour direction', startNode: 'Set node as start', directionHelp: 'Reverse changes traversal direction. Set start moves the seam of a closed contour to the chosen node. Both preserve the curve geometry. Reversing one font contour can change holes in winding-based shaping.',
   bezierTool: 'CAD Bézier', bezierKeys: 'Click: corner node · Drag: curve handles · Enter: finish · first node: close · Backspace: undo node · Escape: cancel',
   nodes: 'Bézier nodes · F10', noCurve: 'Select one CAD curve to edit its nodes. Convert supported geometry below, or draw a Bézier curve.',
@@ -113,6 +115,8 @@ const ru: Dictionary = {
   compound: 'Объединение и разъединение', combine: 'Объединить · Ctrl/⌘ L', breakApart: 'Разъединить · Ctrl/⌘ K',
   compoundHelp: 'Объединение сохраняет исходные пути в одной кривой. В контурах с правилом чётности вложенные и перекрывающиеся области становятся отверстиями. Weld сливает области. Разъединение отделяет каждый контур, включая отверстия. Окружности и дуги преобразуются с допуском 0,005 мм.',
   compoundFailed: 'Выберите поддерживаемые редактируемые кривые или фигуры. Для разъединения нужна кривая с несколькими контурами. Сначала переведите текст в контуры; объединяйте контуры шрифта отдельно от путей с правилом чётности. Проверьте блокировки и связи.',
+  mixedParents: 'Для этой команды выберите объекты в одной группе, одном фрейме или на одном уровне страницы.', mixedClips: 'Нельзя объединить несколько объектов с индивидуальными контурами обрезки.',
+  referenceAppearance: 'Результат наследует оформление и прозрачность опорного объекта.', combineAppearance: 'Результат наследует оформление и прозрачность последнего исходного объекта.',
   reverse: 'Обратить направление контура', startNode: 'Сделать узел начальным', directionHelp: 'Обращение меняет направление обхода. Начальный узел задаёт стык замкнутого контура. Геометрия кривой сохраняется. Обращение одного контура шрифта может изменить отверстия при обработке по направлению обхода.',
   bezierTool: 'CAD-кривая Безье', bezierKeys: 'Клик: угловой узел · Перетаскивание: направляющие · Enter: завершить · первый узел: замкнуть · Backspace: убрать узел · Escape: отменить',
   nodes: 'Узлы Безье · F10', noCurve: 'Выберите одну CAD-кривую для редактирования узлов. Преобразуйте геометрию ниже или нарисуйте кривую Безье.',
@@ -209,6 +213,8 @@ const lv: Dictionary = {
   compound: 'Kontūru apvienošana un sadalīšana', combine: 'Apvienot kontūras · Ctrl/⌘ L', breakApart: 'Sadalīt kontūras · Ctrl/⌘ K',
   compoundHelp: 'Apvienošana saglabā sākotnējos ceļus vienā līknē. Ar pāra-nepāra aizpildījumu ligzdoti un pārklāti laukumi kļūst par atverēm. Weld sapludina laukumus. Sadalīšana atdala katru kontūru, arī atveres. Apļi un loki tiek pārveidoti ar 0,005 mm pielaidi.',
   compoundFailed: 'Atlasiet atbalstītas rediģējamas līknes vai figūras. Sadalīšanai vajag līkni ar vairākām kontūrām. Vispirms pārveidojiet tekstu kontūrās; fonta kontūras apvienojiet atsevišķi no pāra-nepāra ceļiem. Pārbaudiet bloķēšanu un saites.',
+  mixedParents: 'Šai komandai atlasiet objektus vienā grupā, ietvarā vai lapas līmenī.', mixedClips: 'Komanda nevar apvienot vairākus objektus ar atsevišķām apgriešanas kontūrām.',
+  referenceAppearance: 'Rezultāts pārņem atsauces objekta noformējumu un necaurredzamību.', combineAppearance: 'Rezultāts pārņem pēdējā avota objekta noformējumu un necaurredzamību.',
   reverse: 'Apgriezt kontūras virzienu', startNode: 'Iestatīt sākuma mezglu', directionHelp: 'Apgriešana maina kontūras virzienu. Sākuma mezgls pārvieto slēgtās kontūras savienojumu. Līknes ģeometrija saglabājas. Vienas fonta kontūras apgriešana var mainīt atveres apstrādē ar virziena aizpildījumu.',
   bezierTool: 'CAD Bezjē līkne', bezierKeys: 'Klikšķis: stūra mezgls · Vilkšana: vadotnes · Enter: pabeigt · pirmais mezgls: aizvērt · Backspace: noņemt mezglu · Escape: atcelt',
   nodes: 'Bezjē mezgli · F10', noCurve: 'Atlasiet vienu CAD līkni mezglu rediģēšanai. Pārveidojiet ģeometriju zemāk vai zīmējiet Bezjē līkni.',
@@ -301,4 +307,14 @@ export function useCadAdvancedText() {
   const language = useSyncExternalStore(subscribe, () => get(locale), () => 'en');
   const dictionary = language?.startsWith('ru') ? ru : language?.startsWith('lv') ? lv : en;
   return { label: (key: CadAdvancedLabel) => dictionary[key] };
+}
+
+export function cadCompoundFeedback(code: string | undefined): CadAdvancedLabel {
+  switch (code) {
+    case 'mixed-parents': return 'mixedParents';
+    case 'mixed-clips': return 'mixedClips';
+    case 'conversion-native-style': return 'convertNativeStyle';
+    case 'reference-appearance': return 'combineAppearance';
+    default: return 'compoundFailed';
+  }
 }

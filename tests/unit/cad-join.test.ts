@@ -23,11 +23,11 @@ function add(f: ReturnType<typeof fixture>, id: string, contours: CadContour[], 
 const bridge = { mode: 'bridge' as const, pairing: 'end-start' as const, toleranceMm: 0.01 };
 
 describe('CAD endpoint joins', () => {
-  it('bridges exact cubics in world coordinates through rotated parents with physical gap reporting', () => {
+  it('bridges exact cubics in world coordinates inside a rotated group with physical gap reporting', () => {
     const f = fixture();
     f.editor.createShape({ id: 'shape:group', type: 'group', x: 80, y: 130, rotation: 0.43 });
     const a = add(f, 'a', [path()], { parentId: 'shape:group', x: 20, rotation: 0.7 });
-    const b = add(f, 'b', [path()], { x: 400, y: -50, rotation: -0.6 });
+    const b = add(f, 'b', [path()], { parentId: 'shape:group', x: 400, y: -50, rotation: -0.6 });
     f.editor.setSelectedShapes([a, b]);
     const [first, second] = [a, b].map(id => shapeCadContours(f.editor, f.editor.getShape(id))[0]);
     const scaled = { ...settings, unit: 'in' as const, scale: 5, originX: 500, originY: 400 };
@@ -38,6 +38,7 @@ describe('CAD endpoint joins', () => {
     near(plan.gapMm, Math.hypot(first.nodes[2].x - second.nodes[0].x, first.nodes[2].y - second.nodes[0].y) * cadMmPerPixel(scaled));
     assert.equal(applyCadPlan(f.editor, plan), true);
     assert.equal(f.marks.length, 2);
+    assert.equal(f.only().parentId, 'shape:group');
     const dxf = new DxfParser().parseSync(buildCadDxf(f.editor, 'selected', scaled).text)!;
     assert.equal(dxf.entities.length, 1);
     assert.equal(dxf.entities[0].type, 'SPLINE');

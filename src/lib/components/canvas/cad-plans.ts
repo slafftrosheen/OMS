@@ -1,9 +1,9 @@
 import { validVectorPaint } from './cad-paint';
-import { createShapeId, getIndicesBetween, type Editor, type TLParentId, type TLShapeId } from '@tldraw/tldraw';
+import { createShapeId, getIndicesBetween, type Editor, type TLParentId, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { cadMmPerPixel, validateCadSettings, type CadSettings } from './cad-settings';
 import { curveBounds, validContours, type CadContour } from './cad-curves';
-import { retainTraceSourceGroups } from './cad-trace-output';
+import { retainCadSourceGroups } from './cad-source-groups';
 
 export class CadOperationError extends Error {
   constructor(public code: string) {
@@ -15,6 +15,8 @@ export interface CadPlannedShape {
   x: number;
   y: number;
   rotation?: number;
+  /** Insert at this source’s stacking position, in its parent’s coordinate space. */
+  aboveSourceId?: TLShapeId;
   /** Explicit opacity prevents the active drawing style multiplying imported paint alpha. */
   opacity?: number;
   props: Record<string, unknown>;
@@ -85,14 +87,12 @@ export function makeCadPlan(
 /** A placement is anchored to a reviewed source, not an arbitrary destination.
  * Check ancestry before native lock traversal, including malformed cycles or
  * foreign-page parents. Generic plans retain their page-root placement. */
-function cadPlanPlacement(editor: Editor, plan: CadPlan) {
-  if (plan.placement === undefined) return undefined;
-  const placement = plan.placement;
-  if (!placement || typeof placement.parentId !== 'string' || typeof placement.aboveId !== 'string' ||
-      !plan.sourceIds.includes(placement.aboveId)) throw new CadOperationError('placement');
-  const above = editor.getShape(placement.aboveId);
-  if (!above || above.parentId !== placement.parentId) throw new CadOperationError('placement');
-  let id = placement.parentId;
+function cadPlanPlacement(editor: Editor, plan: CadPlan, aboveId: TLShapeId, expectedParent?: TLParentId) {
+  if (!plan.sourceIds.includes(aboveId)) throw new CadOperationError('placement');
+  const above = editor.getShape(aboveId);
+  if (!above || expectedParent !== undefined && above.parentId !== expectedParent)
+    throw new CadOperationError('placement');
+  let id = above.parentId;
   const seen = new Set<string>([above.id]);
   while (id !== editor.getCurrentPageId()) {
     if (seen.has(id) || plan.removeIds.includes(id)) throw new CadOperationError('placement');
@@ -101,19 +101,24 @@ function cadPlanPlacement(editor: Editor, plan: CadPlan) {
     if (!parent || !['group', 'frame'].includes(parent.type)) throw new CadOperationError('placement');
     id = parent.parentId;
   }
-  return { parentId: placement.parentId, above };
+  const parentId = above.parentId;
+  const nextSibling = editor.getSortedChildIdsForParent(parentId).map(id => editor.getShape(id))
+    .find(shape => shape && shape.index > above.index);
+  return { parentId, above, nextSibling, indices: [] as TLShape['index'][] };
 }
 
 export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
   try {
-    cadPlanPlacement(editor, plan);
+    if (plan.placement !== undefined) {
+      if (!plan.placement || typeof plan.placement.parentId !== 'string') return false;
+      cadPlanPlacement(editor, plan, plan.placement.aboveId, plan.placement.parentId);
+    }
     assertCadEditable(editor, plan.sourceIds);
     editor.complete();
     editor.setCurrentTool('select');
     assertCadEditable(editor, plan.sourceIds);
     if (plan.blocked) return false;
     if (plan.revision !== cadRevision(editor) || !validContours(plan.contours)) return false;
-    const placement = cadPlanPlacement(editor, plan);
     if (plan.groupResult !== undefined && typeof plan.groupResult !== 'boolean') return false;
     if (plan.groupName !== undefined && (typeof plan.groupName !== 'string' || !plan.groupName.trim())) return false;
     if (
@@ -147,25 +152,43 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
     // bitmaps must fail before mutation, rather than create an unsaveable board.
     if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length + JSON.stringify(shapes).length +
         (groupRecord ? JSON.stringify(groupRecord).length : 0) > 1_900_000) return false;
-    const parentId = placement?.parentId ?? editor.getCurrentPageId();
-    const nextSibling = placement ? editor.getSortedChildIdsForParent(parentId).map(id => editor.getShape(id))
-      .find(shape => shape && shape.index > placement.above.index) : undefined;
-    const indices = placement ? getIndicesBetween(placement.above.index, nextSibling?.index, shapes.length) : undefined;
-    const finishGroups = placement ? retainTraceSourceGroups(editor, parentId) : () => {};
+    const anchorCounts = new Map<TLShapeId, number>();
+    for (const shape of shapes) {
+      if (shape.aboveSourceId && (plan.placement || grouped)) return false;
+      const anchor = shape.aboveSourceId ?? plan.placement?.aboveId;
+      if (anchor) anchorCounts.set(anchor, (anchorCounts.get(anchor) ?? 0) + 1);
+    }
+    const placements = new Map([...anchorCounts].map(([id, count]) => {
+      const placement = cadPlanPlacement(editor, plan, id, plan.placement?.parentId);
+      placement.indices = getIndicesBetween(placement.above.index, placement.nextSibling?.index, count);
+      return [id, placement] as const;
+    }));
+    const parentId = plan.placement?.parentId ?? editor.getCurrentPageId();
+    const placedParents = new Set([...placements.values()].map(placement => placement.parentId));
+    const finishGroups: Array<(committed: boolean) => void> = [];
     let committed = false;
     try {
+      for (const parent of placedParents) {
+        const removing = plan.removeIds.filter(id => editor.getShape(id as TLShapeId)?.parentId === parent).length;
+        const adding = [...placements.values()].filter(placement => placement.parentId === parent)
+          .reduce((count, placement) => count + placement.indices.length, 0);
+        const finalChildCount = editor.getSortedChildIdsForParent(parent).length - removing + (grouped ? 1 : adding);
+        finishGroups.push(retainCadSourceGroups(editor, parent, finalChildCount === 1));
+      }
       committed = drawingTransaction(editor, () => {
-        const ids = shapes.map((s, index) => {
-          const id = createShapeId();
+        const ids = shapes.map(({ aboveSourceId, ...s }) => {
+          const anchor = aboveSourceId ?? plan.placement?.aboveId;
+          const placement = anchor ? placements.get(anchor) : undefined;
+          const id = createShapeId(), destination = placement?.parentId ?? parentId;
           editor.createShape({
             ...s,
             id,
-            parentId,
-            ...(indices ? { index: indices[index] } : {}),
+            parentId: destination,
+            ...(placement ? { index: placement.indices.shift() } : {}),
             meta: { ...s.meta, omsObjectName: s.meta?.omsObjectName ?? plan.name }
           } as any);
           const created = editor.getShape(id);
-          if (!created || (placement || grouped) && created.parentId !== parentId) throw new CadOperationError('capacity');
+          if (!created || (placement || grouped) && created.parentId !== destination) throw new CadOperationError('capacity');
           return id;
         });
         let selected = ids;
@@ -180,23 +203,25 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
           if (editor.getShape(groupId)?.meta.omsObjectName !== groupName) throw new CadOperationError('group');
           selected = [groupId];
         }
-        if (placement && selected.some(id => {
-          const shape = editor.getShape(id);
-          return !shape || shape.parentId !== parentId || shape.index <= placement.above.index ||
-            !!nextSibling && shape.index >= nextSibling.index;
-        })) throw new CadOperationError('placement');
         editor.deleteShapes(plan.removeIds as TLShapeId[]);
-        // Include generated group/record defaults and native reparenting in the
-        // final saved-size check. Any refusal rolls the complete operation back.
-        if ((grouped || placement) && editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000)
+        if (selected.some((id, i) => {
+          const anchor = (grouped ? undefined : shapes[i].aboveSourceId) ?? plan.placement?.aboveId;
+          const placement = anchor && placements.get(anchor);
+          if (!placement) return false;
+          const shape = editor.getShape(id);
+          return !shape || shape.parentId !== placement.parentId || shape.index <= placement.above.index ||
+            !!placement.nextSibling && shape.index >= placement.nextSibling.index;
+        })) throw new CadOperationError('placement');
+        // Include native defaults and grouping in the saved-size check.
+        if ((grouped || placements.size) && editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000)
           throw new CadOperationError('save-limit');
-        if ((grouped || placement) && editor.getCurrentPageShapeIds().size > editor.options.maxShapesPerPage)
+        if ((grouped || placements.size) && editor.getCurrentPageShapeIds().size > editor.options.maxShapesPerPage)
           throw new CadOperationError('capacity');
         editor.setSelectedShapes(selected);
       });
       return committed;
     } finally {
-      finishGroups(committed);
+      for (const finish of finishGroups.reverse()) finish(committed);
     }
   } catch {
     return false;

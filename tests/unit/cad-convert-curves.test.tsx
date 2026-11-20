@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 const { JSDOM } = createRequire(`${process.cwd()}/package.json`)('jsdom');
 const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} != ${expected}`);
 
@@ -200,5 +201,158 @@ describe('native geometry conversion without changing artwork context', () => {
     editor.createShape=function(shape:any){if(++calls===2)return this;return original.call(this,shape);};
     try{assert.equal(editing.convertSelectionToCurves(editor,cad.DEFAULT_CAD_SETTINGS),false);}finally{editor.createShape=original;}
     assert.deepEqual(snapshot(),before);assert.deepEqual(editor.getSelectedShapeIds(),[group]);
+  }));
+});
+
+
+describe('native CAD replacements preserve source context', () => {
+  it('replaces text with filled glyphs under its original frame and group, with Undo/Redo and reload', async () => harness(async h => {
+    const { editor, tl, cad, shapeUtils, create, snapshot } = h;
+    const { prepareCadText } = await import('../../src/lib/components/canvas/cad-text');
+    const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
+    const frame = create('frame', { w: 150, h: 180 }, { x: 200, y: 100, rotation: .2 }, {});
+    const group = create('group', {}, { parentId: frame.id, x: 15, y: 25, rotation: -.3, opacity: .5 }, {});
+    const source = create('text', { text: 'BŪVE', font: 'sans', size: 'm', scale: 2, color: 'red' },
+      { parentId: group.id, x: 18, y: 26, rotation: .4, opacity: .4 }, { omsObjectName: 'Sign copy' });
+    editor.select(source.id);
+    editor.mark('outline-fixture');
+    const font = readFileSync('static/tldraw/2.4.6/fonts/IBMPlexSans-Medium.woff2');
+    const originalFetch = globalThis.fetch;
+    const measure = editor.textMeasure.measureTextSpans;
+    editor.textMeasure.measureTextSpans = () => [{ text: 'BŪVE', box: { x: 0, y: 0, w: 80, h: 24 } }];
+    globalThis.fetch = async () => new Response(new Uint8Array(font));
+    const before = snapshot();
+    try {
+      const options = { sourceId: source.id, text: '', font: 'sans', height: 20, x: 0, y: 0, keepSource: true };
+      const kept = await prepareCadText(editor, cad.DEFAULT_CAD_SETTINGS, options);
+      assert.equal(applyCadPlan(editor, kept), true);
+      const copy = editor.getOnlySelectedShape();
+      assert.equal(copy.parentId, group.id);
+      assert.deepEqual(editor.getShape(source.id), source);
+      assert.ok(copy.index > source.index);
+      editor.undo();
+      assert.deepEqual(snapshot(), before);
+      editor.select(source.id);
+      const replaced = await prepareCadText(editor, cad.DEFAULT_CAD_SETTINGS, { ...options, keepSource: false });
+      editor.updateInstanceState({ opacityForNextShape: .1 });
+      assert.equal(applyCadPlan(editor, replaced), true);
+      const result = editor.getOnlySelectedShape();
+      assert.equal(editor.getShape(source.id), undefined);
+      for (const key of ['parentId', 'x', 'y', 'rotation', 'opacity']) assert.equal(result[key], source[key]);
+      assert.equal(result.meta.omsObjectName, 'Sign copy');
+      assert.equal(result.meta.omsVectorPaint.fill, tl.getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() }).red.solid);
+      assert.equal(result.meta.omsVectorPaint.stroke, 'none');
+      assert.equal(result.props.fillRule, 'nonzero');
+      assert.ok(result.props.contours.length > 4);
+      assert.deepEqual(editor.getShapeMask(result.id), editor.getShapeMask(group.id));
+      const after = snapshot();
+      editor.undo(); assert.deepEqual(snapshot(), before);
+      editor.redo(); assert.deepEqual(snapshot(), after);
+      const restored = tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils });
+      restored.loadStoreSnapshot(JSON.parse(JSON.stringify(after)));
+      assert.deepEqual(restored.getStoreSnapshot('document'), after);
+    } finally {
+      globalThis.fetch = originalFetch;
+      editor.textMeasure.measureTextSpans = measure;
+    }
+  }));
+
+  it('keeps a collapsed group for Combine and restores exact local clip and gradient data on Break Apart', async () => harness(async h => {
+    const { editor, cad, create, rectangle, paint, snapshot } = h;
+    const { prepareCadCompound } = await import('../../src/lib/components/canvas/cad-compound');
+    const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
+    const settings = cad.DEFAULT_CAD_SETTINGS;
+    const group = create('group', {}, { x: 220, y: 130, rotation: -.2, opacity: .5 }, {});
+    const gradient = { type: 'linear', matrix: [1, 0, 0, 1, 17, 22], start: [0, 0], end: [80, 0],
+      r0: 0, r1: 0, stops: [{ offset: 0, color: '#bb3300' }, { offset: 1, color: '#ffe000' }] };
+    const a = create('cad-bezier', { contours: [rectangle(0, 0, 30, 40)] },
+      { parentId: group.id, x: 15, y: 18, opacity: .2 });
+    const b = create('cad-bezier', { contours: [rectangle(0, 0, 80, 60)] },
+      { parentId: group.id, x: 55, y: 35, rotation: .25, opacity: .6 },
+      { omsVectorPaint: { ...paint, gradient }, omsObjectName: 'Primary art' });
+    editor.select(a.id, b.id);
+    editor.mark('combine-fixture');
+    const before = snapshot();
+    const plan = prepareCadCompound(editor, settings, 'combine');
+    assert.ok(plan.warnings.includes('reference-appearance'));
+    assert.equal(applyCadPlan(editor, plan), true);
+    const combined = editor.getOnlySelectedShape();
+    assert.deepEqual(editor.getShape(group.id), group);
+    assert.equal(combined.parentId, group.id);
+    assert.equal(combined.opacity, .6);
+    assert.deepEqual(combined.meta.omsVectorPaint.gradient, gradient);
+    const merged = snapshot();
+    editor.undo(); assert.deepEqual(snapshot(), before);
+    editor.redo(); assert.deepEqual(snapshot(), merged);
+    const clipped = { ...combined.meta.omsVectorPaint, clips: [{ contours: [rectangle(0, 0, 50, 50)], fillRule: 'evenodd' }] };
+    editor.updateShape({ id: combined.id, type: combined.type, meta: { ...combined.meta, omsVectorPaint: clipped } });
+    const upper = create('cad-bezier', { contours: [rectangle(100, 100, 20, 20)] }, { parentId: group.id }, {});
+    const otherCompound = create('cad-bezier', { contours: [rectangle(0, 0, 30, 30), rectangle(70, 5, 12, 25)] },
+      { parentId: editor.getCurrentPageId() });
+    editor.select(combined.id, otherCompound.id);
+    editor.mark('break-fixture');
+    const beforeBreak = snapshot();
+    assert.equal(applyCadPlan(editor, prepareCadCompound(editor, settings, 'breakApart')), true);
+    const parts = editor.getSelectedShapes().filter((shape: any) => shape.parentId === group.id);
+    assert.equal(parts.length, 2);
+    assert.equal(editor.getSelectedShapes().length, 4);
+    const expected = combined.props.contours;
+    parts.forEach((part: any, index: number) => {
+      assert.ok(part.index > combined.index && part.index < upper.index);
+      assert.deepEqual(part.props.contours, [expected[index]]);
+      assert.deepEqual(part.meta.omsVectorPaint, clipped);
+      assert.equal(part.opacity, .6);
+    });
+    const afterBreak = snapshot();
+    editor.undo(); assert.deepEqual(snapshot(), beforeBreak);
+    editor.redo(); assert.deepEqual(snapshot(), afterBreak);
+  }));
+
+  it('keeps Join and Trim at their reference stacking positions and refuses mixed clipping', async () => harness(async h => {
+    const { editor, cad, create, contour, rectangle, paint, snapshot } = h;
+    const { prepareCadJoin } = await import('../../src/lib/components/canvas/cad-join');
+    const { prepareCadShaping } = await import('../../src/lib/components/canvas/cad-shaping');
+    const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
+    const settings = cad.DEFAULT_CAD_SETTINGS;
+    const group = create('group', {}, { x: 180, y: 125, rotation: .5, opacity: .6 }, {});
+    const a = create('cad-bezier', { contours: [contour([[0, 0], [60, 10]])] },
+      { x: 2, y: 3, parentId: group.id, opacity: .3 });
+    const b = create('cad-bezier', { contours: [contour([[70, 15], [130, 35]])] },
+      { x: 2, y: 3, parentId: group.id, opacity: .7 });
+    const top = create('cad-bezier', { contours: [rectangle(350, 350, 50, 60)] }, { parentId: group.id });
+    editor.select(a.id, b.id);
+    const join = prepareCadJoin(editor, settings, { mode: 'bridge', pairing: 'nearest', toleranceMm: .01 });
+    assert.ok(join.warnings.includes('reference-appearance'));
+    assert.equal(applyCadPlan(editor, join), true);
+    const result = editor.getOnlySelectedShape();
+    assert.equal(result.parentId, group.id);
+    assert.equal(result.opacity, a.opacity);
+    assert.ok(result.index > a.index && result.index < b.index);
+    const target = create('cad-bezier', { contours: [rectangle(0, 0, 100, 100)] },
+      { x: 10, y: 25, parentId: group.id, opacity: .25 });
+    const cutter = create('cad-bezier', { contours: [rectangle(50, 0, 100, 100)] },
+      { x: 10, y: 25, parentId: group.id, opacity: .9 },
+      { omsVectorPaint: { ...paint, fill: '#002299' } });
+    editor.select(target.id, cutter.id);
+    editor.mark('trim-fixture');
+    const before = snapshot();
+    const options = { operation: 'trim' as const, targetId: target.id, keepSources: false, toleranceMm: .01, offset: 1, join: 'miter' as const };
+    const trim = prepareCadShaping(editor, settings, options);
+    assert.equal(applyCadPlan(editor, trim), true);
+    const trimmed = editor.getOnlySelectedShape();
+    assert.equal(trimmed.parentId, group.id);
+    assert.equal(trimmed.opacity, .25);
+    assert.deepEqual(trimmed.meta.omsVectorPaint, paint);
+    assert.ok(trimmed.index > target.index && trimmed.index < cutter.index);
+    assert.deepEqual(editor.getShape(top.id), top);
+    const after = snapshot();
+    editor.undo(); assert.deepEqual(snapshot(), before);
+    editor.redo(); assert.deepEqual(snapshot(), after);
+    editor.undo();
+    editor.updateShape({ id: cutter.id, type: cutter.type, meta: { omsVectorPaint: { ...paint,
+      clips: [{ contours: [rectangle(60, 0, 15, 15)], fillRule: 'evenodd' }] } } });
+    const clipped = snapshot();
+    assert.throws(() => prepareCadShaping(editor, settings, options), /mixed-clips/);
+    assert.deepEqual(snapshot(), clipped);
   }));
 });

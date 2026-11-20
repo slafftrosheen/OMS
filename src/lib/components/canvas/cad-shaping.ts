@@ -3,6 +3,7 @@ import type { Editor } from '@tldraw/tldraw';
 import { cadMmPerPixel, unitMm, type CadSettings } from './cad-settings';
 import { flattenContours, nodeAt, type CadContour } from './cad-curves';
 import { cadSelectedShapes, shapeCadContours } from './cad-editing';
+import { assertCadMergeContext, cadReferencePaintWarnings, sourceCurveResult } from './cad-source-result';
 import { makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
 
 export interface CadShapingOptions {
@@ -26,7 +27,7 @@ function clip(a: Polygon[], b: Polygon[], operation: number, evenOdd = false): P
   return result;
 }
 export function prepareCadShaping(editor: Editor, settings: CadSettings, options: CadShapingOptions): CadPlan {
-  const shapes = cadSelectedShapes(editor),
+  const shapes = cadSelectedShapes(editor, true),
     factor = cadMmPerPixel(settings),
     tolerance = options.toleranceMm;
   if (
@@ -38,6 +39,10 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
   )
     throw new CadOperationError('geometry');
   if (options.operation !== 'offset' && shapes.length < 2) throw new CadOperationError('selection');
+  const target = options.operation === 'trim' ? shapes.findIndex(s => s.id === options.targetId) : shapes.length - 1;
+  if (target < 0) throw new CadOperationError('selection');
+  const reference = shapes[target];
+  assertCadMergeContext(shapes, reference);
   let vertices = 0;
   const polygons = shapes.map((shape) => {
     const curves = shapeCadContours(editor, shape, tolerance / factor / 8);
@@ -59,8 +64,6 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
   });
   let result: Polygon[];
   if (options.operation === 'trim') {
-    const target = shapes.findIndex((s) => s.id === options.targetId);
-    if (target < 0) throw new CadOperationError('selection');
     const cutters = clip(polygons.filter((_, i) => i !== target).flat(), [], ClipperLib.ClipType.ctUnion);
     result = clip(polygons[target], cutters, ClipperLib.ClipType.ctDifference);
   } else if (options.operation === 'intersect')
@@ -94,6 +97,9 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
     sourceIds: ids,
     removeIds: options.keepSources ? [] : ids,
     name: `CAD ${options.operation}`,
-    warnings: ['curves-approximated', ...(options.keepSources ? ['sources-overlap'] : [])]
+    fillRule: 'nonzero',
+    shapes: [sourceCurveResult(editor, reference, contours, 'nonzero')],
+    warnings: ['curves-approximated', ...cadReferencePaintWarnings(editor, shapes, reference),
+      ...(options.keepSources ? ['sources-overlap'] : [])]
   });
 }

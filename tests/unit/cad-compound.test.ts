@@ -21,24 +21,31 @@ function add(f: ReturnType<typeof fixture>, id: string, contours = [curve()], ex
 }
 
 describe('CAD compound operations', () => {
-  it('combines exact world curves through rotated parents and splits them without losing controls or units', () => {
+  it('combines exact world curves inside a rotated group and splits them without losing controls or units', () => {
     const f = fixture();
     f.editor.createShape({ id: 'shape:group', type: 'group', x: 300, y: -100, rotation: 0.8 });
     const a = add(f, 'a', [curve()], { parentId: 'shape:group', x: 40, y: 70, rotation: 0.3 });
-    const b = add(f, 'b', [curve(false)], { x: -80, y: 160, rotation: -0.4 });
+    const b = add(f, 'b', [curve(false)], { parentId: 'shape:group', x: -80, y: 160, rotation: -0.4 });
     f.editor.setSelectedShapes([a, b]);
     const before = [a, b].flatMap(id => shapeCadContours(f.editor, f.editor.getShape(id)));
     const scaled = { ...settings, unit: 'cm' as const, scale: 10, originX: 42, originY: -19 };
     assert.equal(applyCadCompound(f.editor, scaled, 'combine'), true);
     assert.equal(f.marks.length, 2);
-    assert.deepEqual(f.only().props.contours, before);
+    assert.equal(f.only().parentId, 'shape:group');
+    const combined = shapeCadContours(f.editor, f.only());
+    const compareContours = (actual: CadContour[]) => actual.forEach((contour, ci) => {
+      assert.equal(contour.closed, before[ci].closed);
+      contour.nodes.forEach((node, ni) => {
+        for (const key of ['x', 'y', 'inX', 'inY', 'outX', 'outY'] as const) near(node[key], before[ci].nodes[ni][key]);
+      });
+    });
+    compareContours(combined);
     assert.equal(f.only().props.color, 'red');
     const dxfBefore = new DxfParser().parseSync(buildCadDxf(f.editor, 'selected', scaled).text)!;
     assert.equal(applyCadCompound(f.editor, scaled, 'breakApart'), true);
     assert.equal(f.marks.length, 4);
-    const after = f.editor.getSelectedShapes().flatMap((shape: any) => shape.props.contours);
-    assert.deepEqual(after, before);
-    assert.deepEqual(curveBounds(after), curveBounds(before));
+    const after = f.editor.getSelectedShapes().flatMap((shape: any) => shapeCadContours(f.editor, shape));
+    compareContours(after);
     const dxfAfter = new DxfParser().parseSync(buildCadDxf(f.editor, 'selected', scaled).text)!;
     assert.deepEqual(dxfAfter.entities, dxfBefore.entities);
     assert.equal(dxfAfter.entities.filter(e => e.type === 'SPLINE').length, 2);
@@ -72,6 +79,11 @@ describe('CAD compound operations', () => {
       () => { f.editor.updateShape({ id: a, isLocked: true }); },
       () => { f.state.bindings = [{}]; },
       () => { f.editor.getShape(a).mask = []; },
+      () => {
+        f.editor.createShape({ id: 'shape:other-group', type: 'group' });
+        f.editor.updateShape({ id: a, parentId: 'shape:other-group' });
+        assert.throws(() => prepareCadCompound(f.editor, settings, 'combine'), /mixed-parents/);
+      },
       () => { f.editor.updateShape({ id: b, type: 'order-details' }); }
     ]) {
       change();

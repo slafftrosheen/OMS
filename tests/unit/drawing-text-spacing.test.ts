@@ -110,8 +110,11 @@ describe('editable text spacing', () => {
       const svg = await util.toSvg(shape, { isDarkMode: false } as any);
       const plan = await prepareCadText(f.editor, DEFAULT_CAD_SETTINGS, { sourceId: id, text: '', font: 'sans', height: 10, x: 0, y: 0, keepSource: false });
       const contours = plan.shapes[0].props.contours as CadContour[];
-      const inverse = f.editor.getShapePageTransform(shape).clone().invert();
-      const local = mapContours(contours, p => { const q = inverse.applyToPoint(p); return { x: q.x / shape.props.scale, y: q.y / shape.props.scale }; });
+      const local = mapContours(contours, p => ({ x: p.x / shape.props.scale, y: p.y / shape.props.scale }));
+      const world = mapContours(contours, p => f.editor.getShapePageTransform(shape).applyToPoint(p));
+      world.forEach((contour, ci) => contour.nodes.forEach((node, ni) => {
+        for (const key of ['x', 'y', 'inX', 'inY', 'outX', 'outY'] as const) close(node[key], plan.contours[ci].nodes[ni][key]);
+      }));
       const actual = curvePathData(local).match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g)!.map(Number), expected = svg.props.d.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g)!.map(Number);
       assert.equal(actual.length, expected.length); actual.forEach((value, i) => close(value, expected[i])); assert.equal(svg.type, 'path');
       const font = await readCadFont(Uint8Array.from(raw).buffer), spacing = getDrawingTextSpacing(shape);

@@ -1,10 +1,12 @@
 import {getShapeDrawingFontId, getLoadedDrawingFont, drawingFontFamily} from './drawing-fonts';
 import { selectedTextGuide, type CadTextGuide, type TextGuide } from './cad-text-guide';
-import { DefaultFontFamilies, type Editor, type TLShapeId, type TLTextShape } from '@tldraw/tldraw';
+import { DefaultFontFamilies, getDefaultColorTheme, type Editor, type TLShapeId, type TLTextShape } from '@tldraw/tldraw';
 import { drawingTextBaseline, drawingTextLineHeight, getDrawingTextSpacing, withDrawingTextSpacing } from './drawing-text-spacing';
 import assetUrls from './tldraw-asset-urls.json';
 import { cadPointToCanvas, unitLengthToCanvas, cadMmPerPixel, type CadSettings } from './cad-settings';
 import { curveBounds, mapContours, nodeAt, type CadContour } from './cad-curves';
+import { sourceCurveResult } from './cad-source-result';
+import { VECTOR_DEFAULT_PAINT } from './cad-paint';
 import { assertCadEditable, cadRevision, makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
 
 export interface CadTextOptions {
@@ -249,7 +251,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
   const uploaded = uploadedId ? getLoadedDrawingFont(editor, uploadedId) : undefined;
   if (uploadedId && !uploaded) throw new CadOperationError('font');
   const font = uploaded?.font ?? await getCadFont(source ? p.font : options.font, options.fontData);
-  let contours: CadContour[] = [];
+  let contours: CadContour[] = [], sourceContours: CadContour[] = [];
   let arcText: CadTextPlan['arcText'], guideText: CadTextPlan['guideText'];
   if (source) {
     const fontSize = FONT_SIZES[p.size],
@@ -270,8 +272,9 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
     const baseline = drawingTextBaseline(font, fontSize, spacing, spans[0]?.box.y ?? 0);
     for (const span of spans)
       contours.push(...glyphRunContours(font, span.text, span.box.x, span.box.y + baseline, fontSize, spacing.letterSpacing));
+    sourceContours = mapContours(contours, point => ({ x: point.x * p.scale, y: point.y * p.scale }));
     const matrix = editor.getShapePageTransform(source);
-    contours = mapContours(contours, (point) => matrix.applyToPoint({ x: point.x * p.scale, y: point.y * p.scale }));
+    contours = mapContours(sourceContours, point => matrix.applyToPoint(point));
   } else if (guide && options.guide) {
     const offset=unitLengthToCanvas(options.guide.offset,settings),distance=unitLengthToCanvas(options.guide.distance,settings);
     const result=layoutCadGuideText(font,text,guide,{height:unitLengthToCanvas(options.height,settings),offset,distance,reverse:options.guide.reverse,layout:layout!});
@@ -299,6 +302,11 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
     }));
   }
   if (cadRevision(editor) !== revision) throw new CadOperationError('stale');
+  const shape = source ? sourceCurveResult(editor, source, sourceContours, 'nonzero', {
+    ...VECTOR_DEFAULT_PAINT,
+    fill: getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() })[p.color].solid,
+    stroke: 'none'
+  }, 'local') : { type: 'cad-bezier' as const, x: 0, y: 0, props: { contours, color: 'black', fillRule: 'nonzero' } };
   const plan = makeCadPlan(editor, settings, contours, {
     sourceIds: source ? [source.id] : options.guide ? [options.guide.shapeId] : [],
     removeIds: source && !options.keepSource ? [source.id] : [],
@@ -313,11 +321,8 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
     ],
     shapes: [
       {
-        type: 'cad-bezier',
-        x: 0,
-        y: 0,
-        props: { contours, color: p?.color ?? 'black', fillRule: 'nonzero' },
-        meta: { omsSourceText: text, omsFontName: font.fullName ?? options.font, ...(layout ? { omsTextLayout: { ...layout } } : {}), ...(arcText ? { omsTextArc: { ...arcText } } : {}), ...(guideText ? { omsTextGuide: { ...guideText } } : {}) }
+        ...shape,
+        meta: { ...('meta' in shape ? shape.meta : {}), omsSourceText: text, omsFontName: font.fullName ?? options.font, ...(layout ? { omsTextLayout: { ...layout } } : {}), ...(arcText ? { omsTextArc: { ...arcText } } : {}), ...(guideText ? { omsTextGuide: { ...guideText } } : {}) }
       }
     ]
   });

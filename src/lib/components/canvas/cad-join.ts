@@ -2,6 +2,7 @@ import type { Editor } from '@tldraw/tldraw';
 import { cadSelectedShapes, shapeCadContours } from './cad-editing';
 import { cadMmPerPixel, type CadSettings } from './cad-settings';
 import { makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
+import { assertCadMergeContext, cadReferencePaintWarnings, sourceCurveResult } from './cad-source-result';
 import type { CadBezierNode, CadContour } from './cad-curves';
 
 export type CadJoinPair = 'end-start' | 'start-start' | 'end-end' | 'start-end';
@@ -26,13 +27,15 @@ export function prepareCadJoin(editor: Editor, settings: CadSettings, options: C
   if (!['bridge', 'merge'].includes(options.mode) || !['nearest', ...pairs].includes(options.pairing) ||
       options.mode === 'merge' && (!Number.isFinite(options.toleranceMm) || options.toleranceMm < 0.001 || options.toleranceMm > 1))
     throw new CadOperationError('geometry');
-  const shapes = cadSelectedShapes(editor);
+  const shapes = cadSelectedShapes(editor, true);
   if (shapes.length > 2) throw new CadOperationError('join-selection');
   const factor = cadMmPerPixel(settings);
   const contours = shapes.flatMap(shape => shapeCadContours(editor, shape, 0.005 / factor));
   if (contours.length !== 2 || contours.some(contour => contour.closed)) throw new CadOperationError('join-selection');
   const rules = shapes.map(shape => (shape.props as any).fillRule ?? 'evenodd');
   if (new Set(rules).size !== 1) throw new CadOperationError('fill-rule');
+  const reference = shapes[0];
+  assertCadMergeContext(shapes, reference);
   const candidates = pairs.map(pair => {
     const [a, b] = orient(contours, pair);
     return { pair, gap: Math.hypot(a.at(-1)!.x - b[0].x, a.at(-1)!.y - b[0].y) };
@@ -61,9 +64,10 @@ export function prepareCadJoin(editor: Editor, settings: CadSettings, options: C
   const ids = shapes.map(shape => shape.id);
   return { ...makeCadPlan(editor, settings, [joined], {
     sourceIds: ids, removeIds: ids, name: 'Joined curve', fillRule: rules[0],
-    warnings: shapes.some(s => s.type === 'cad-arc') ? ['join-arc-approximation'] : [],
-    shapes: [{ type: 'cad-bezier', x: 0, y: 0, props: {
-      contours: [joined], color: (shapes[0].props as any).color ?? 'black', fillRule: rules[0]
-    }, meta: { ...shapes[0].meta } }]
+    warnings: [
+      ...(shapes.some(s => s.type === 'cad-arc') ? ['join-arc-approximation'] : []),
+      ...cadReferencePaintWarnings(editor, shapes, reference)
+    ],
+    shapes: [sourceCurveResult(editor, reference, [joined], rules[0])]
   }), gapMm, pairing: choice.pair };
 }

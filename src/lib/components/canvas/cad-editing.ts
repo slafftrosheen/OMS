@@ -17,7 +17,7 @@ import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
 import { VECTOR_DEFAULT_PAINT, validVectorPaint, type VectorPaint } from './cad-paint';
 import { paintMetadata } from './cad-vector';
 import { cadShapePaint } from './cad-shape-appearance';
-import { retainTraceSourceGroups } from './cad-trace-output';
+import { retainCadSourceGroups } from './cad-source-groups';
 import type { CadBezierShape } from './shapes/CadBezierShape';
 
 function shapeCadLocalContours(editor: Editor, shape: TLShape, toleranceCanvas = 0.01, preserveNativeTraversal = false): CadContour[] {
@@ -74,15 +74,31 @@ export function shapeCadContours(editor: Editor, shape: TLShape, toleranceCanvas
   const matrix = editor.getShapePageTransform(shape);
   return mapContours(contours, (point) => matrix.applyToPoint(point));
 }
-export function cadSelectedShapes(editor: Editor): TLShape[] {
+export function cadSelectedShapes(editor: Editor, sourceRelative = false): TLShape[] {
   const ids = [...editor.getSelectedShapeIds()];
   assertCadEditable(editor, ids);
   const shapes = [...editor.getShapeAndDescendantIds(ids)]
     .map((id) => editor.getShape(id))
     .filter((s) => s && s.type !== 'group');
   if (!shapes.length || shapes.length > 200) throw new CadOperationError('selection');
-  // Refuse potentially clipped CAD rather than applying operations to invisible areas.
-  if (shapes.some((s) => editor.getShapeMask(s.id) || (s.meta.omsVectorPaint as any)?.clips?.length || (s.meta.omsVectorPaint as any)?.gradient || (s.meta.omsVectorPaint as any)?.raster)) throw new CadOperationError('unsupported');
+  for (const shape of shapes) {
+    const authored = shape.meta.omsVectorPaint;
+    const paint = validVectorPaint(authored) ? authored : undefined;
+    if (authored !== undefined && !paint) throw new CadOperationError('unsupported');
+    if (paint?.raster && paint.raster.usage !== 'material') throw new CadOperationError('unsupported');
+    if (editor.getShapeMask(shape.id)) {
+      if (!sourceRelative) throw new CadOperationError('unsupported');
+      let parent = editor.getShape(shape.parentId);
+      const visited = new Set<TLShapeId>();
+      while (parent?.type === 'group' && !visited.has(parent.id)) {
+        visited.add(parent.id);
+        parent = editor.getShape(parent.parentId);
+      }
+      if (parent?.type !== 'frame') throw new CadOperationError('unsupported');
+    }
+    if (!sourceRelative && (paint?.clips?.length || paint?.gradient || paint?.raster))
+      throw new CadOperationError('unsupported');
+  }
   return shapes;
 }
 export function getCadCurveSelection(
@@ -312,7 +328,7 @@ export function getCadCurveConversionIssue(editor: Editor): CadCurveConversionIs
   }
 }
 
-function convertedCurvePaint(editor: Editor, shape: TLShape): VectorPaint {
+export function convertedCurvePaint(editor: Editor, shape: TLShape): VectorPaint {
   if (shape.type !== 'geo' && shape.type !== 'line') {
     const paint = cadShapePaint(shape);
     // Legacy analytic CAD shapes without explicit paint take their stroke from
@@ -322,6 +338,8 @@ function convertedCurvePaint(editor: Editor, shape: TLShape): VectorPaint {
     return paint;
   }
   const p = shape.props as any, theme = getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() }), color = theme[p.color];
+  if (p.dash !== 'solid' || shape.type === 'geo' && !['none', 'solid', 'semi', 'fill'].includes(p.fill))
+    throw new CadOperationError('conversion-native-style');
   // tldraw 2.4.6's native STROKE_SIZES are not exposed by its public barrel.
   // Match GeoShapeBody/LineShapeUtil, including their stored scale. Its native
   // SVG container gives both solid styles round caps and joins.
@@ -355,7 +373,7 @@ export function convertSelectionToCurves(editor: Editor, settings: CadSettings):
     if (!validContours(replacements.flatMap(shape => shape.props.contours))) return false;
     if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length +
         JSON.stringify(replacements).length - JSON.stringify(targets).length > 1_900_000) return false;
-    for (const parent of new Set(targets.map(shape => shape.parentId))) finishes.push(retainTraceSourceGroups(editor, parent));
+    for (const parent of new Set(targets.map(shape => shape.parentId))) finishes.push(retainCadSourceGroups(editor, parent));
     committed = drawingTransaction(editor, () => {
       const replace = () => {
         // Store atomic defers native group cleanup across removal/recreation;

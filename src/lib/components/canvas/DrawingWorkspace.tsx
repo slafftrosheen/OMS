@@ -72,7 +72,7 @@ import { exportDrawingArtwork } from './drawing-artwork-export';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
 import { applyArrangePlan, arrangementRoots, prepareArrangePlan, type ArrangeOptions } from './drawing-arrange';
 import { CadPanel } from './CadPanel';
-import { useCadAdvancedText } from './cad-advanced-copy';
+import { cadCompoundFeedback, useCadAdvancedText } from './cad-advanced-copy';
 import type { CadFocusRequest } from './CadAdvancedPanel';
 import { useCadText, type CadLabel } from './cad-copy';
 import { canvasLengthToUnit, canvasPointToCad, readCadSettings, type CadSettings } from './cad-settings';
@@ -604,7 +604,9 @@ export function DrawingChrome() {
   }
   function compound(operation: CadCompoundOperation) {
     const settings = readCadSettings(editor);
-    setNotice(settings && applyCadCompound(editor, settings, operation) ? advancedLabel('applied') : advancedLabel(settings ? 'compoundFailed' : 'settingsRequired'));
+    let code: string | undefined;
+    const applied = settings && applyCadCompound(editor, settings, operation, issue => { code = issue; });
+    setNotice(advancedLabel(applied && !code ? 'applied' : settings ? cadCompoundFeedback(code) : 'settingsRequired'));
     closeMenus();
   }
   function closeMenus(restoreFocus = false) {

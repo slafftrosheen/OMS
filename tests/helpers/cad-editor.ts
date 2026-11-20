@@ -1,4 +1,4 @@
-import { Box, Polygon2d, Vec, Mat, Editor } from '@tldraw/tldraw';
+import { Box, Polygon2d, Vec, Mat, Editor, getIndexAbove } from '@tldraw/tldraw';
 import {
   CadPathShapeUtil,
   CadEllipseShapeUtil,
@@ -36,7 +36,7 @@ export function fixture() {
   const editor: any = {
     options: { maxShapesPerPage: 4000 },
     inputs: { currentPagePoint: { x: 0, y: 0 }, shiftKey: false },
-    user: { getIsSnapMode: () => state.snap },
+    user: { getIsSnapMode: () => state.snap, getIsDarkMode: () => false },
     getInstanceState: () => state,
     getCurrentToolId: () => state.tool,
     setCurrentTool: (tool: string) => (state.tool = tool),
@@ -74,6 +74,7 @@ export function fixture() {
     createShape: (s: any) => {
       if (state.failCreation) return;
       const util = utils[s.type];
+      const siblings = editor.getSortedChildIdsForParent(s.parentId ?? page.id);
       const shape = {
         x: 0,
         y: 0,
@@ -81,6 +82,7 @@ export function fixture() {
         isLocked: false,
         opacity: 1,
         parentId: page.id,
+        index: getIndexAbove(shapes.get(siblings.at(-1))?.index),
         meta: {},
         ...s,
         props: { ...(util?.getDefaultProps() ?? {}), ...s.props }
@@ -125,7 +127,7 @@ export function fixture() {
       return { bounds: new Box(0, 0, w, h), children: [body], vertices: body.vertices };
     },
     getShapeUtil: (s: any) =>
-      utils[(typeof s === 'string' ? shapes.get(s) : s).type] ?? {
+      s === 'group' ? { editor } : utils[(typeof s === 'string' ? shapes.get(s) : s).type] ?? {
         canResize: () => true,
         hideRotateHandle: () => false,
         isAspectRatioLocked: () => false
@@ -147,7 +149,7 @@ export function fixture() {
     _resizeUnalignedShape: (Editor.prototype as any)._resizeUnalignedShape,
     flipShapes: Editor.prototype.flipShapes,
     isShapeOfType: (shape: any, type: string) => shape.type === type,
-    getSortedChildIdsForParent: (id: string) => [...shapes.values()].filter((s) => s.parentId === id).map((s) => s.id),
+    getSortedChildIdsForParent: (id: string) => [...shapes.values()].filter((s) => s.parentId === id).sort((a, b) => a.index < b.index ? -1 : a.index > b.index ? 1 : 0).map((s) => s.id),
     nudgeShapes: (ids: string[], delta: any) => {
       for (const id of ids) {
         const s = shapes.get(id);

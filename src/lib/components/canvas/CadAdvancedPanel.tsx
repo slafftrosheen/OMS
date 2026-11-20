@@ -11,7 +11,7 @@ import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react
 import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { drawingObjectName } from './drawing-operations';
-import { useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
+import { cadCompoundFeedback, useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
 import { unitMm, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
@@ -41,10 +41,10 @@ function canChange(editor: Editor, selection = true) {
 }
 function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadAdvancedLabel {
   const code = (error as { code?: string })?.code ?? (error as Error)?.message;
-  return ({ 'spline-fit-only': 'splineFitOnly', 'spline-fit-points': 'splineFitPoints', 'spline-discontinuous': 'splineDiscontinuous', 'spline-control-points': 'splineControlPoints', 'spline-count': 'splineCount', 'spline-knots': 'splineKnots', 'spline-weights': 'splineWeights', 'spline-degree': 'splineDegree', 'spline-closure': 'splineClosure', 'spline-limit': 'splineLimit', 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'arc-text-fit': 'arcTextFit', 'arc-text-advance': 'arcTextAdvance', 'arc-text-line': 'arcTextLine', 'arc-text-layout': 'unsupportedFont', 'guide-selection': 'guideSelection', 'guide-source': 'guideSource', 'guide-fit': 'guideTextFit', 'guide-tangent': 'guideTextTangent', 'guide-limit': 'guideTextLimit', 'guide-layout': 'unsupportedFont', 'fill-rule': 'compoundFailed', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
+  return ({ 'spline-fit-only': 'splineFitOnly', 'spline-fit-points': 'splineFitPoints', 'spline-discontinuous': 'splineDiscontinuous', 'spline-control-points': 'splineControlPoints', 'spline-count': 'splineCount', 'spline-knots': 'splineKnots', 'spline-weights': 'splineWeights', 'spline-degree': 'splineDegree', 'spline-closure': 'splineClosure', 'spline-limit': 'splineLimit', 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'arc-text-fit': 'arcTextFit', 'arc-text-advance': 'arcTextAdvance', 'arc-text-line': 'arcTextLine', 'arc-text-layout': 'unsupportedFont', 'guide-selection': 'guideSelection', 'guide-source': 'guideSource', 'guide-fit': 'guideTextFit', 'guide-tangent': 'guideTextTangent', 'guide-limit': 'guideTextLimit', 'guide-layout': 'unsupportedFont', 'fill-rule': 'compoundFailed', 'mixed-parents': 'mixedParents', 'mixed-clips': 'mixedClips', 'conversion-native-style': 'convertNativeStyle', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
 }
 function warningLabel(code: string): CadAdvancedLabel {
-  return ({ 'join-arc-approximation': 'joinApproximation', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
+  return ({ 'join-arc-approximation': 'joinApproximation', 'reference-appearance': 'referenceAppearance', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="drawing-cad-field"><span>{label}</span>{children}</label>;
@@ -111,13 +111,17 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
 
 function CompoundControls({ settings, disabled }: { settings: CadSettings | null; disabled: boolean }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
-  const [failed, setFailed] = useState(false);
+  const [feedback, setFeedback] = useState<{ label: CadAdvancedLabel; error: boolean }>();
   return <section className="drawing-cad-section" aria-label={label('compound')}>
     <div className="drawing-cad-actions">{(['combine', 'breakApart'] as const).map(operation =>
       <button key={operation} type="button" disabled={disabled} data-testid={`drawing-cad-${operation}`}
-        onClick={() => setFailed(!settings || !applyCadCompound(editor, settings, operation))}>{label(operation)}</button>)}</div>
+        onClick={() => {
+          let code: string | undefined;
+          const applied = !!settings && applyCadCompound(editor, settings, operation, issue => { code = issue; });
+          setFeedback(applied && !code ? undefined : { label: cadCompoundFeedback(code), error: !applied });
+        }}>{label(operation)}</button>)}</div>
     <p className="drawing-help">{label('compoundHelp')}</p>
-    {failed && <Message value="compoundFailed" error />}
+    {feedback && <Message value={feedback.label} error={feedback.error} />}
   </section>;
 }
 
