@@ -80,9 +80,21 @@ async function harness(run: (value: any) => Promise<void>, withPenBridge = false
   const root = createRoot(host), rect = env.win.DOMRect.fromRect({ x: 140, y: 90, width: 800, height: 600 });
   let container!: HTMLDivElement;
   const containerRef = (node: HTMLDivElement | null) => { if (node) { container = node; node.getBoundingClientRect = () => rect; } };
+  function NativeArtwork() {
+    const editor = tldraw.useEditor();
+    const shapes = tldraw.useValue('Native CAD artwork test', () => {
+      editor.user.getIsDarkMode();
+      return editor.getRenderingShapes().filter(item => item.shape.type === 'cad-bezier');
+    }, [editor]);
+    return <div>{shapes.map(({ shape, util, opacity, index }) => <div key={shape.id} data-native-shape={shape.id}
+      style={{ opacity, zIndex: index, transform: editor.getShapePageTransform(shape).toCssString() }}>
+      {util.component(shape)}
+    </div>)}</div>;
+  }
   function Canvas() {
     useDocumentEvents(); const events = useCanvasEvents();
     return <div className="tl-canvas" tabIndex={0} {...events}>
+      <NativeArtwork />
       <CadFreehandOverlay />
       <div className="canvas-form-sheet" onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         <input aria-label="Order address" defaultValue="Rīga" />
@@ -112,10 +124,12 @@ async function harness(run: (value: any) => Promise<void>, withPenBridge = false
     await act(async () => { root.render(<Application editor={editor} />); editor.setCurrentTool('cad-freehand'); });
     const tick = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); }); };
     const makePointer = (name: string, point: { x: number; y: number }, options: any = {}) => {
-      const { pointerId = 1, pointerType = 'mouse', isPrimary = true, pressure = .5, coalesced, ...mouse } = options;
+      const { pointerId = 1, pointerType = 'mouse', isPrimary = true, pressure = .5, tiltX, tiltY, coalesced, ...mouse } = options;
       const event = new MouseEvent(name, { bubbles: true, cancelable: true, button: 0, buttons: name === 'pointerup' ? 0 : 1,
         clientX: point.x, clientY: point.y, ...mouse });
       Object.defineProperties(event, { pointerId: { value: pointerId }, pointerType: { value: pointerType }, isPrimary: { value: isPrimary }, pressure: { value: pressure } });
+      if (tiltX !== undefined) Object.defineProperty(event, 'tiltX', { value: tiltX });
+      if (tiltY !== undefined) Object.defineProperty(event, 'tiltY', { value: tiltY });
       if (coalesced) Object.defineProperty(event, 'getCoalescedEvents', { value: () => coalesced });
       return event;
     };
@@ -147,6 +161,23 @@ async function harness(run: (value: any) => Promise<void>, withPenBridge = false
     await act(async () => { controller.cancelCadFreehand(editor); stopPen(); root.unmount(); });
     if (!editor.isDisposed) editor.dispose(); host.remove(); env.restore();
   }
+}
+
+function originalCurve(curves: any) {
+  return { closed: false, nodes: [
+    { ...curves.nodeAt({ x: 0, y: 0 }), outX: 35, outY: -40 },
+    { ...curves.nodeAt({ x: 100, y: 30 }), inX: -30, inY: 20, outX: 15, outY: 50 },
+    { ...curves.nodeAt({ x: 160, y: 80 }), inX: 10, inY: -30 },
+  ] };
+}
+async function selectSource(h: any, extra: any = {}, contours = [originalCurve(h.curves)]) {
+  const id = h.tldraw.createShapeId('continuation-source');
+  await h.act(async () => {
+    h.editor.setCurrentTool('select');
+    h.editor.createShape({ id, type: 'cad-bezier', props: { contours, fillRule: 'evenodd', color: 'red' }, ...extra });
+    h.editor.select(id); h.editor.mark('continuation-fixture'); h.editor.setCurrentTool('cad-freehand');
+  });
+  await h.tick(); return id;
 }
 
 describe('CAD freehand through the actual canvas and editor', () => {
@@ -246,6 +277,282 @@ describe('CAD freehand through the actual canvas and editor', () => {
       assert.equal(preview(), null); assert.deepEqual(snapshot(), saved);
       await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
     }, true);
+  });
+
+  it('retains each queued coalesced pen orientation and lower-pressure stationary rotations in calligraphy', async () => {
+    await harness(async ({ editor, canvas, pointer, makePointer, screen, configure, preview, snapshot, act, curves, pageContours, engine }) => {
+      await configure({ mode: 'calligraphy', width: 20, smoothing: 0, autoClose: false, useTilt: true, useBearing: true });
+      const before = snapshot(), options = { pointerId: 29, pointerType: 'pen' };
+      await pointer(canvas, 'pointerdown', screen({ x: 20, y: 40 }), { ...options, pressure: .8, tiltX: 60, tiltY: 0 });
+      const samples = [
+        makePointer('pointermove', screen({ x: 60, y: 40 }), { ...options, pressure: .8, tiltX: 60, tiltY: 0 }),
+        makePointer('pointermove', screen({ x: 60, y: 40 }), { ...options, pressure: .6, tiltX: 0, tiltY: 60 }),
+        makePointer('pointermove', screen({ x: 100, y: 40 }), { ...options, pressure: .4, tiltX: 0, tiltY: 0 }),
+      ];
+      // The bridge queues all three public pointer_move events before a
+      // native editor tick. A mutable latest-orientation slot fails this test.
+      await pointer(canvas, 'pointermove', screen({ x: 100, y: 40 }), { ...options, pressure: .4, tiltX: 0, tiltY: 0, coalesced: samples });
+      assert.deepEqual(preview().samples.map((sample: any) => [sample.x, sample.pressure, sample.tiltX, sample.tiltY]),
+        [[20, .8, 60, 0], [60, .8, 60, 0], [60, .6, 0, 60], [100, .4, 0, 0]]);
+      assert.equal(preview().mode, 'calligraphy'); assert.deepEqual(snapshot(), before);
+      const expected = engine.buildCadFreehandGeometry(preview().samples, engine.readCadFreehandOptions(editor), 8);
+      assert.equal(curves.curvePathData(preview().geometry.contours), curves.curvePathData(expected.contours));
+      await pointer(canvas, 'pointerup', screen({ x: 100, y: 40 }), { ...options, pressure: 0, tiltX: 0, tiltY: 0 });
+      const shape = editor.getOnlySelectedShape(); assert.equal(shape.type, 'cad-bezier');
+      assert.equal(shape.meta.omsVectorPaint.fill, '#172535'); assert.equal(shape.meta.omsVectorPaint.stroke, 'none');
+      assert.equal(curves.curvePathData(pageContours(shape)), curves.curvePathData(expected.contours));
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    }, true);
+  });
+
+  it('keeps fixed nib and round ink stationary pressure merging while ignoring unused orientation changes', async () => {
+    await harness(async ({ editor, canvas, pointer, screen, configure, preview, controller, act }) => {
+      const options = { pointerId: 31, pointerType: 'pen' };
+      for (const mode of ['calligraphy', 'ink']) {
+        await configure({ mode, useTilt: false, useBearing: false, autoClose: false });
+        await pointer(canvas, 'pointerdown', screen({ x: 20, y: 40 }), { ...options, pressure: .8, tiltX: 60, tiltY: 0 });
+        await pointer(canvas, 'pointermove', screen({ x: 20, y: 40 }), { ...options, pressure: .4, tiltX: 0, tiltY: 60 });
+        assert.equal(preview().sampleCount, 1); assert.equal(preview().samples[0].pressure, .8);
+        await act(async () => controller.cancelCadFreehand(editor));
+      }
+    }, true);
+  });
+
+  it('preserves a selected curve on entry, hits endpoints in screen pixels, and appends in one native Undo', async () => {
+    await harness(async h => {
+      const { editor, act, configure, dispatch, container, controller, preview, notice, snapshot, curves } = h;
+      await configure({ smoothing: 0, width: 30, color: '#eeeeee' });
+      const paint = { fill: 'none', stroke: '#a31764', strokeWidth: 7, fillOpacity: 1, strokeOpacity: .65,
+        lineCap: 'square', lineJoin: 'bevel', miterLimit: 7, dash: [], dashOffset: 0 };
+      const id = await selectSource(h, { opacity: .45, meta: { omsVectorPaint: paint, omsObjectName: 'Keep this object', custom: { retained: 7 } } });
+      await act(async () => editor.setCamera({ x: 10, y: 20, z: 2 }));
+      assert.deepEqual(editor.getSelectedShapeIds(), [id]); assert.equal(container.querySelectorAll('[data-testid="cad-freehand-endpoint"]').length, 2);
+      await dispatch('pointer_move', { x: 163.9, y: 80 });
+      assert.equal(controller.cadFreehandHover(editor).get().end, 'end');
+      near(Number(container.querySelector('[data-testid="cad-freehand-endpoint-hover"]').getAttribute('r')), 4);
+      await dispatch('pointer_move', { x: 164.1, y: 80 }); assert.equal(controller.cadFreehandHover(editor).get(), null);
+      const before = snapshot(), source = structuredClone(editor.getShape(id)); let creates = 0, updates = 0;
+      const stopCreate = editor.sideEffects.registerAfterCreateHandler('shape', () => { creates++; });
+      const stopUpdate = editor.sideEffects.registerAfterChangeHandler('shape', () => { updates++; });
+      await dispatch('pointer_down', { x: 163.9, y: 80 });
+      assert.equal(preview().continuation.shapeId, id); assert.deepEqual(preview().samples[0], { x: 160, y: 80, pressure: 1 });
+      await dispatch('pointer_move', { x: 230, y: 130 });
+      assert.deepEqual(snapshot(), before); assert.equal(creates, 0); assert.equal(updates, 0);
+      assert.deepEqual(preview().geometry.contours[0].nodes.map(({ x, y }: any) => ({ x, y })),
+        [{ x: 0, y: 0 }, { x: 100, y: 30 }, { x: 160, y: 80 }, { x: 230, y: 130 }]);
+      assert.deepEqual(preview().geometry.paint, paint); assert.equal(preview().opacity, .45);
+      assert.equal(preview().geometry.fillRule, source.props.fillRule);
+      const sourceContainer = container.querySelector(`[data-native-shape="${id}"]`);
+      assert.equal(sourceContainer.querySelectorAll('path[stroke="#a31764"]').length, 1);
+      const previewPath = sourceContainer.querySelector('[data-testid="cad-freehand-source-preview"] path[stroke="#a31764"]').getAttribute('d');
+      assert.equal(previewPath, curves.curvePathData(preview().geometry.contours));
+      assert.equal(container.querySelector('[data-testid="cad-freehand-preview"]').getAttribute('data-continuation'), id);
+      assert.equal(container.querySelector('[data-testid="cad-freehand-preview"] path'), null);
+      assert.equal(sourceContainer.style.opacity, '0.45');
+      await dispatch('pointer_up', { x: 230, y: 130 });
+      assert.equal(notice(), 'continued'); assert.equal(preview(), null); assert.equal(creates, 0); assert.equal(updates, 1);
+      const saved = editor.getOnlySelectedShape(), after = snapshot(); assert.equal(saved.id, id); assert.equal(editor.getCurrentPageShapeIds().size, 1);
+      assert.equal(container.querySelector(`[data-native-shape="${id}"] path[stroke="#a31764"]`).getAttribute('d'), previewPath);
+      assert.deepEqual({ ...saved, props: { ...saved.props, contours: source.props.contours } }, source);
+      assert.deepEqual([...curves.contourSegments(saved.props.contours[0])].slice(0, 2), [...curves.contourSegments(source.props.contours[0])]);
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+      await act(async () => editor.redo()); assert.deepEqual(snapshot(), after);
+      stopCreate(); stopUpdate();
+    });
+  });
+
+  it('prepends without reversing the original curve and can extend a full page without creating an object', async () => {
+    await harness(async h => {
+      const { editor, configure, dispatch, snapshot, preview, notice, curves, act } = h;
+      await configure({ smoothing: 0, autoClose: false }); const id = await selectSource(h), before = snapshot();
+      const source = structuredClone(editor.getShape(id)); editor.options.maxShapesPerPage = editor.getCurrentPageShapeIds().size;
+      await dispatch('pointer_down', { x: 0, y: 0 }); await dispatch('pointer_move', { x: -60, y: 50 });
+      assert.equal(preview().continuation.end, 'start');
+      assert.deepEqual(preview().geometry.contours[0].nodes.map(({ x, y }: any) => ({ x, y })),
+        [{ x: -60, y: 50 }, { x: 0, y: 0 }, { x: 100, y: 30 }, { x: 160, y: 80 }]);
+      await dispatch('pointer_up', { x: -60, y: 50 }); assert.equal(notice(), 'continued');
+      assert.equal(editor.getCurrentPageShapeIds().size, 1); assert.equal(editor.getOnlySelectedShape().id, id);
+      assert.deepEqual([...curves.contourSegments(editor.getShape(id).props.contours[0])].slice(1), [...curves.contourSegments(source.props.contours[0])]);
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+      await dispatch('pointer_down', { x: 300, y: 200 }); assert.equal(preview(), null); assert.equal(notice(), 'freehand-limit');
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('previews native colors in the current theme and cancels a theme-dependent continuation before it can diverge', async () => {
+    await harness(async h => {
+      const { editor, tldraw, act, tick, dispatch, configure, preview, notice, snapshot, container } = h;
+      const colorScheme = editor.user.getUserPreferences().colorScheme;
+      try {
+        await act(async () => editor.user.updateUserPreferences({ colorScheme: 'dark' }));
+        await configure({ autoClose: false }); const id = await selectSource(h), before = snapshot();
+        await dispatch('pointer_down', { x: 160, y: 80 }); await dispatch('pointer_move', { x: 220, y: 110 });
+        assert.equal(preview().geometry.paint.stroke, tldraw.getDefaultColorTheme({ isDarkMode: true }).red.solid);
+        assert.equal(container.querySelector('[data-testid="cad-freehand-source-preview"] path[stroke]:not([stroke="none"])').getAttribute('stroke'), preview().geometry.paint.stroke);
+        await act(async () => editor.user.updateUserPreferences({ colorScheme: 'light' })); await tick();
+        assert.equal(preview(), null); assert.equal(notice(), 'stale');
+        await dispatch('pointer_up', { x: 220, y: 110 }); assert.deepEqual(snapshot(), before);
+        await dispatch('pointer_down', { x: 160, y: 80 }); await dispatch('pointer_move', { x: 220, y: 110 });
+        assert.equal(preview().geometry.paint.stroke, tldraw.getDefaultColorTheme({ isDarkMode: false }).red.solid);
+        await dispatch('pointer_up', { x: 220, y: 110 }); assert.equal(notice(), 'continued');
+        assert.equal(editor.getShape(id).props.color, 'red'); assert.deepEqual(editor.getShape(id).meta, {});
+        await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+      } finally { await act(async () => editor.user.updateUserPreferences({ colorScheme: colorScheme ?? 'light' })); }
+    });
+  });
+
+  it('clears idle endpoint hover when options, selection, viewport, or editing availability change', async () => {
+    await harness(async h => {
+      const { editor, configure, dispatch, controller, container, act, tick } = h;
+      const id = await selectSource(h);
+      const hover = async () => {
+        await dispatch('pointer_move', { x: 160, y: 80 }); assert.ok(controller.cadFreehandHover(editor).get());
+      };
+      await hover(); await configure({ continueCurve: false });
+      assert.equal(controller.cadFreehandHover(editor).get(), null); assert.equal(container.querySelectorAll('[data-testid="cad-freehand-endpoint"]').length, 0);
+      await configure({ continueCurve: true }); await hover();
+      await act(async () => editor.selectNone()); await tick(); assert.equal(controller.cadFreehandHover(editor).get(), null);
+      await act(async () => editor.select(id)); await hover();
+      await act(async () => editor.setCamera({ x: 20, y: 10, z: 1 })); await tick(); assert.equal(controller.cadFreehandHover(editor).get(), null);
+      await hover(); await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      assert.equal(controller.cadFreehandHover(editor).get(), null); assert.equal(container.querySelectorAll('[data-testid="cad-freehand-endpoint"]').length, 0);
+    });
+  });
+
+  for (const end of ['start', 'end']) {
+    it(`closes a selected open curve by drawing from its ${end} to the opposite endpoint`, async () => {
+      await harness(async h => {
+        const { editor, configure, dispatch, preview, notice, snapshot, container, curves, act } = h;
+        await configure({ smoothing: .4, autoClose: true }); const id = await selectSource(h), before = snapshot();
+        const source = structuredClone(editor.getShape(id)), start = end === 'end' ? { x: 160, y: 80 } : { x: 0, y: 0 };
+        const opposite = end === 'end' ? { x: 0, y: 0 } : { x: 160, y: 80 };
+        await act(async () => editor.setCamera({ x: 10, y: 20, z: 2 }));
+        await dispatch('pointer_down', start); await dispatch('pointer_move', { x: 80, y: 170 });
+        await dispatch('pointer_move', { x: opposite.x + 3, y: opposite.y });
+        assert.equal(preview().continuation.closing, true); assert.equal(preview().closeCandidate, true);
+        const target = container.querySelector('[data-testid="cad-freehand-close-target"]');
+        near(Number(target.getAttribute('cx')), opposite.x); near(Number(target.getAttribute('cy')), opposite.y); near(Number(target.getAttribute('r')), 4);
+        assert.deepEqual(snapshot(), before);
+        await dispatch('pointer_up', { x: opposite.x + 3, y: opposite.y });
+        assert.equal(notice(), 'closed'); assert.equal(editor.getOnlySelectedShape().id, id);
+        const result = editor.getShape(id).props.contours[0]; assert.equal(result.closed, true);
+        assert.deepEqual([...curves.contourSegments(result)].slice(0, 2), [...curves.contourSegments(source.props.contours[0])]);
+        assert.equal(container.querySelectorAll('[data-testid="cad-freehand-endpoint"]').length, 0);
+        await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+      });
+    });
+  }
+
+  it('retains grouped transforms and untouched contours while previewing inherited opacity', async () => {
+    await harness(async h => {
+      const { editor, tldraw, curves, configure, dispatch, preview, snapshot, act, tick, pageContours, notice, container } = h;
+      await configure({ smoothing: 0, autoClose: false });
+      const group = tldraw.createShapeId('continued-group'), id = tldraw.createShapeId('continued-child'), sibling = tldraw.createShapeId('sibling');
+      const contours = [originalCurve(curves), { ...originalCurve(curves), closed: true }];
+      await act(async () => {
+        editor.setCurrentTool('select'); editor.createShapes([
+          { id: group, type: 'group', x: 140, y: 80, rotation: .63, opacity: .5 },
+          { id, type: 'cad-bezier', parentId: group, x: 30, y: -20, rotation: -.27, opacity: .6, props: { contours } },
+          { id: sibling, type: 'geo', parentId: group, x: 300, y: 20 },
+        ]); editor.select(id); editor.mark('group-continuation-fixture'); editor.setCurrentTool('cad-freehand');
+      }); await tick();
+      const before = snapshot(), source = structuredClone(editor.getShape(id)), parent = structuredClone(editor.getShape(group));
+      const start = pageContours(source)[0].nodes.at(-1), finish = { x: start.x + 70, y: start.y + 45 };
+      await dispatch('pointer_down', start); await dispatch('pointer_move', finish); near(preview().opacity, .3);
+      const artwork = container.querySelector(`[data-native-shape="${id}"]`);
+      assert.equal(artwork.style.opacity, '0.3');
+      assert.equal(artwork.querySelector('[data-testid="cad-freehand-source-preview"] path[stroke]:not([stroke="none"])').getAttribute('d'),
+        curves.curvePathData(preview().continuation.localContours));
+      await dispatch('pointer_up', finish); assert.equal(notice(), 'continued');
+      const saved = editor.getShape(id); assert.deepEqual(editor.getShape(group), parent);
+      assert.deepEqual({ ...saved, props: { ...saved.props, contours: source.props.contours } }, source);
+      assert.deepEqual(saved.props.contours[1], contours[1]);
+      const endpoint = pageContours(saved)[0].nodes.at(-1); near(endpoint.x, finish.x); near(endpoint.y, finish.y);
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('replaces only the rendered source with its complete graft, preserving paint, layers, exports, and cancel restoration', async () => {
+    await harness(async h => {
+      const { renderToStaticMarkup } = await import('react-dom/server');
+      const { editor, curves, configure, dispatch, preview, snapshot, act, container, controller, tldraw, tick } = h;
+      await configure({ smoothing: 0, autoClose: false });
+      const paint = { fill: 'none', stroke: '#345678', strokeWidth: 16, fillOpacity: 1, strokeOpacity: .5,
+        lineCap: 'round', lineJoin: 'miter', miterLimit: 10, dash: [17, 7], dashOffset: 3 };
+      const second = { ...originalCurve(curves), closed: true };
+      const id = await selectSource(h, { opacity: .5, meta: { omsVectorPaint: paint } }, [originalCurve(curves), second]);
+      const otherId = tldraw.createShapeId('overlapping-artwork');
+      await act(async () => { editor.createShape({ id: otherId, type: 'cad-bezier', props: { contours: [originalCurve(curves)] } }); editor.mark('artwork-fixture'); });
+      await tick();
+      const source = editor.getShape(id), before = snapshot(), util = editor.getShapeUtil(source), sourcePath = curves.curvePathData(source.props.contours);
+      const exportBefore = renderToStaticMarkup(util.toSvg(source)), indicatorBefore = renderToStaticMarkup(util.indicator(source));
+      const sourceContainer = container.querySelector(`[data-native-shape="${id}"]`), otherContainer = container.querySelector(`[data-native-shape="${otherId}"]`);
+      const sourceLayer = sourceContainer.style.zIndex, otherLayer = otherContainer.style.zIndex;
+      assert.equal(sourceContainer.querySelector('path[stroke="#345678"]').getAttribute('d'), sourcePath);
+      await dispatch('pointer_down', { x: 0, y: 0 });
+      assert.equal(preview().geometry, null); assert.equal(sourceContainer.querySelector('path[stroke="#345678"]').getAttribute('d'), sourcePath);
+      await dispatch('pointer_move', { x: -70, y: 50 });
+      const draft = sourceContainer.querySelector('[data-testid="cad-freehand-source-preview"] path[stroke="#345678"]');
+      assert.ok(draft); assert.equal(sourceContainer.querySelectorAll('path[stroke="#345678"]').length, 1);
+      assert.equal(draft.getAttribute('d'), curves.curvePathData(preview().continuation.localContours));
+      assert.equal(draft.getAttribute('stroke-linecap'), 'round'); assert.equal(draft.getAttribute('stroke-linejoin'), 'miter');
+      assert.equal(draft.getAttribute('stroke-dasharray'), '17 7'); assert.equal(draft.getAttribute('stroke-dashoffset'), '3');
+      assert.equal(draft.getAttribute('stroke-opacity'), '0.5'); assert.equal(sourceContainer.style.opacity, '0.5');
+      assert.equal(preview().geometry.contours.length, 2); assert.deepEqual(preview().continuation.localContours[1], second);
+      assert.equal(sourceContainer.style.zIndex, sourceLayer); assert.equal(otherContainer.style.zIndex, otherLayer);
+      assert.ok(otherContainer.querySelector('path')); assert.equal(otherContainer.querySelector('[data-testid="cad-freehand-source-preview"]'), null);
+      assert.equal(container.querySelector('[data-testid="cad-freehand-preview"] path'), null);
+      assert.equal(renderToStaticMarkup(util.toSvg(editor.getShape(id))), exportBefore);
+      assert.equal(renderToStaticMarkup(util.indicator(editor.getShape(id))), indicatorBefore);
+      assert.deepEqual(snapshot(), before);
+      await act(async () => controller.cancelCadFreehand(editor));
+      assert.equal(sourceContainer.querySelector('[data-testid="cad-freehand-source-preview"]'), null);
+      assert.equal(sourceContainer.querySelector('path[stroke="#345678"]').getAttribute('d'), sourcePath); assert.deepEqual(snapshot(), before);
+      await dispatch('pointer_down', { x: 0, y: 0 }); await dispatch('pointer_move', { x: -70, y: 50 });
+      const finalPath = sourceContainer.querySelector('path[stroke="#345678"]').getAttribute('d');
+      await dispatch('pointer_up', { x: -70, y: 50 });
+      assert.equal(sourceContainer.querySelector('[data-testid="cad-freehand-source-preview"]'), null);
+      assert.equal(sourceContainer.querySelector('path[stroke="#345678"]').getAttribute('d'), finalPath);
+      assert.deepEqual(editor.getShape(id).meta.omsVectorPaint, paint); assert.deepEqual(editor.getShape(id).props.contours[1], second);
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+      assert.equal(sourceContainer.querySelector('path[stroke="#345678"]').getAttribute('d'), sourcePath);
+    });
+  });
+
+  it('keeps offset endpoint taps, cancellation, and stale source changes out of continuation history', async () => {
+    await harness(async h => {
+      const { editor, configure, dispatch, preview, notice, snapshot, controller, act, tick } = h;
+      await configure({ smoothing: 0, autoClose: false }); const id = await selectSource(h), before = snapshot();
+      await dispatch('pointer_down', { x: 165, y: 82 }); await dispatch('pointer_up', { x: 165, y: 82 });
+      assert.equal(notice(), 'freehand-empty'); assert.equal(preview(), null); assert.deepEqual(snapshot(), before);
+      await dispatch('pointer_down', { x: 160, y: 80 }); await dispatch('pointer_move', { x: 240, y: 130 });
+      await act(async () => controller.cancelCadFreehand(editor)); assert.deepEqual(snapshot(), before); assert.equal(preview(), null);
+      await dispatch('pointer_down', { x: 160, y: 80 }); await dispatch('pointer_move', { x: 240, y: 130 });
+      await act(async () => editor.updateShape({ id, type: 'cad-bezier', meta: { externalChange: 'keep' } })); await tick();
+      const external = snapshot(); assert.equal(preview(), null); assert.equal(notice(), 'stale');
+      await dispatch('pointer_up', { x: 300, y: 160 }); assert.deepEqual(snapshot(), external);
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('draws a new object outside endpoints or with continuation disabled, and respects Auto close off', async () => {
+    await harness(async h => {
+      const { editor, configure, dispatch, preview, notice, snapshot, act, curves } = h;
+      await configure({ smoothing: 0, autoClose: false }); const id = await selectSource(h), original = structuredClone(editor.getShape(id));
+      await dispatch('pointer_down', { x: 160, y: 80 }); await dispatch('pointer_move', { x: 100, y: 180 }); await dispatch('pointer_up', { x: 0, y: 0 });
+      assert.equal(notice(), 'continued'); assert.equal(editor.getShape(id).props.contours[0].closed, false);
+      assert.deepEqual([...curves.contourSegments(editor.getShape(id).props.contours[0])].slice(0, 2), [...curves.contourSegments(original.props.contours[0])]);
+      await act(async () => editor.undo());
+      await dispatch('pointer_down', { x: 300, y: 300 }); assert.equal(preview().continuation, null);
+      await dispatch('pointer_up', { x: 360, y: 330 }); assert.equal(notice(), 'drawn'); assert.equal(editor.getCurrentPageShapeIds().size, 2);
+      assert.deepEqual(editor.getShape(id), original);
+      await configure({ continueCurve: false });
+      await act(async () => { editor.setCurrentTool('select'); editor.select(id); editor.setCurrentTool('cad-freehand'); });
+      assert.equal(editor.getSelectedShapeIds().length, 0); const before = snapshot();
+      await dispatch('pointer_down', { x: 160, y: 80 }); assert.equal(preview().continuation, null);
+      await dispatch('pointer_up', { x: 220, y: 100 }); assert.equal(notice(), 'drawn'); assert.equal(editor.getCurrentPageShapeIds().size, 3);
+      assert.deepEqual(editor.getShape(id), original); await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    });
   });
 
   it('creates a pressure dot, but a curve tap leaves the existing redo history intact', async () => {

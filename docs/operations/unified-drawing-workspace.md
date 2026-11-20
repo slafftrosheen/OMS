@@ -476,6 +476,87 @@ The connected browser could not access this local fixture in the current session
 
 References: [W3C Pointer Events Level 3](https://www.w3.org/TR/pointerevents3/), [Huion pen settings and Windows Ink](https://www.huion.com/manual/inspiroy-2/735), [Inspiroy 2 product specifications](https://www.huion.com/products/inspiroy-2-s), and [CorelDRAW drawing lines and Freehand smoothing](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Windows/CorelDRAW-en/CorelDRAW-Lines.html).
 
+## Calligraphic ink and endpoint continuation — 20 November 2026
+
+This follow-up extends the initial Pen/Freehand pass above. The shared Idea and Order workspace now offers three Freehand outputs: **Curve**, **Pressure ink** and **Calligraphic ink**. All controls and status messages are available in English, Russian and Latvian. This pass adds no dependencies or document-schema changes.
+
+### Calligraphic nib controls
+
+Choose **Freehand (F5) → Calligraphic ink** in the property bar or the **Pen & freehand** docker. The existing width, smoothing, color, pressure response and automatic closure controls remain available. Both control surfaces share the same next-stroke settings.
+
+| Control | Behavior |
+| --- | --- |
+| Nib angle | Fixed major-axis angle from −180° to 180°. Positive rotation follows the screen's clockwise convention. |
+| Nib tilt | Angle above the drawing plane, from 15° to 90°. Lower values make the ellipse flatter; 90° makes it round. |
+| Use pen tilt | Uses received tilt to change nib flatness. Disabled by default. |
+| Use pen bearing | Uses the direction the pen leans to rotate the nib. This is independent of barrel twist and is disabled by default. |
+| Fixed nib preview | Shows the selected fixed angle and tilt. It is an illustrative control preview, not a live device meter. |
+
+Angle and tilt fields commit on Enter or blur. Escape restores the current value; invalid or empty drafts show a localized error. Fixed controls remain editable while live input is enabled because they also provide the fallback for mouse strokes and samples without orientation. Controls are disabled during a pending stroke and in a read-only drawing. Changing these settings alone does not modify the document or its history.
+
+Pressure changes the nib's overall size. The maximum width is its full major-axis diameter, expressed through the existing document-unit conversion. OMS models the minor/major diameter ratio as `sin(tilt)`, with a 15° lower bound. This is an explicit OMS ellipse model; it does not claim to reproduce Corel's internal brush algorithm. Turning pressure off uses full size while retaining enabled live tilt and bearing. Near an upright orientation, the last meaningful bearing is retained to avoid unstable rotation.
+
+The saved result is an ordinary filled `cad-bezier` silhouette named **Calligraphic ink**. Its nodes can be edited with F10, and the existing JSON, SVG, DXF and PDF paths consume the literal geometry. Ellipse sweeps are combined with winding-preserving unions, including self-crossings and holes. The live preview remains outside the document; release writes one object and one Undo step. This is not a nondestructive Corel Artistic Media brush object: the original centerline and nib parameters are not retained for later brush retuning.
+
+Calligraphy is bounded to 4,096 received samples, 512 retained centers, 512 interpolated pose intervals, 40,000 union-input vertices and 4,096 saved nodes. Each fixed-pose sweep is reduced to its convex boundary before union; changing orientations still pass through intermediate poses, so a stationary rotating nib does not lose its swept area. The ellipse tessellation tolerance is 0.2% of maximum width, capped at 0.02 canvas units. Pose interpolation uses 1% of maximum width, capped at 0.2 canvas units. These approximation tolerances are separate from user-selected smoothing. Excessive complexity is refused without writing partial geometry.
+
+### Per-sample pen orientation
+
+Tilt is associated with the exact public pointer event sent to the editor. This matters because the pinned editor queues pointer-move events until its next tick. A mutable “latest tilt” value would silently replace earlier coalesced samples. The event-keyed association retains every queued sample, stays isolated between editors, and is garbage-collected with its event.
+
+The pen bridge, controller and geometry builder retain stationary orientation changes when live controls are enabled. A reported `(0, 0)` tilt is treated as upright. Browsers may also report zero for devices without tilt support, so OMS does not infer hardware capabilities from that value. Use the existing diagnostic pad to inspect the received values and leave the live controls disabled when the device does not supply useful orientation. Inspiroy 2 M/L support tilt; Inspiroy 2 S uses the fixed nib controls. Driver/browser delivery and physical tablet behavior remain hardware acceptance checks.
+
+### Continue an existing open curve
+
+1. Select one editable, open CAD Bézier curve with a visible outline and no visible fill.
+2. Activate **Freehand (F5)** in **Curve** mode. **Continue selected curve** is enabled by default.
+3. Drag from a marked endpoint. An eight-screen-pixel acquisition target remains consistent across zoom levels.
+4. Release to append or prepend the new segment to the same object. With **Auto-close** enabled, releasing near the opposite endpoint closes that contour.
+
+Drawing away from the marked endpoints creates a new curve. Disabling continuation also creates a new curve. Pressure ink and Calligraphic ink always create separate silhouettes. A stationary endpoint click does not create geometry or an Undo entry. Existing **Join Curves** and node tools remain available for combining separate objects and more explicit node operations.
+
+Continuation preserves the source ID, grouping, local transform, ordering, metadata and paint. Its existing cubic segments and other contours are retained exactly; only the formerly unused endpoint handle is assigned at the join. Source width, color and effective opacity govern the extension, even when the next-stroke controls specify something different. Smoothing applies to the new segment. A valid continuation preview renders the complete grafted curve inside the source's existing canvas container. This keeps layer order, group opacity, joins, line caps and dash phase consistent with the final path, including prepending and closure. The replacement is transient render state; it does not affect saved records, hit testing or export and is removed on completion or cancellation.
+
+No source records change before release. One atomic update makes the continuation one Undo/Redo step. Cancellation, lost capture, blur, tool changes, read-only changes and stale source/view settings discard the pending extension. Eligibility and document limits are checked again at application. A document at its shape-count limit can still extend an eligible curve because no new object is created; node and payload limits still apply.
+
+Locked or protected sources, protected ancestors, bindings, clipping, unsupported material/raster/gradient appearances and non-group ancestors are not offered as continuation targets. The gesture does not join or delete other selected or nearby artwork. This pass implements dragging from an existing endpoint; Corel's click-to-click line creation, Shift backtracking erasure and complete Artistic Media workflow are separate functionality.
+
+### Verification for this follow-up
+
+| Check | Result |
+| --- | --- |
+| Complete CAD/drawing/canvas/draft regression set | **1,129 passed, 0 failed**, across 78 distinct files |
+| Actual editor/React/DOM cases included in that total | **229 passed** |
+| New regression cases in this follow-up | **53 passed**: 35 geometry/store/export/continuation cases and 18 editor/input/panel cases |
+| Application Svelte/TypeScript check | **0 errors**; 13 existing warnings in five unrelated Svelte files |
+| ESLint on all 20 changed/new TS/TSX files | **Passed**, zero warnings |
+| Production build | **Passed**, with existing Svelte/bundler warnings |
+| Static scan of changed workspace UI and styles | **Passed** |
+| Browser discovery | **61 scenarios across six files**, including eight new calligraphy/continuation scenarios; discovery only |
+
+The complete regression set ran in 16 bounded sequential batches, with native DOM suites isolated in separate processes. Counts include each test once. Assertions cover the real public pen bridge and queued editor events, stationary orientation changes, independent tilt/bearing, fixed nib fallbacks, topology and winding, physical DXF dimensions, PDF output, save/reload, protected objects, compound/grouped continuation, exact existing cubics, one-step Undo/Redo, and rollback. Rendered source-component tests verify complete preview-to-commit path equality, a single translucent stroke, inherited layers/opacity, and unchanged exports and indicators during a pending extension. The panel harness now runs without its previous React `act()` warning.
+
+Representative CPU geometry measurements used five runs per case in the development container:
+
+| Case | Median | Maximum |
+| --- | --- | --- |
+| Fixed 20-unit stroke | 1.24 ms | 6.11 ms |
+| Stationary 90° nib turn | 18.31 ms | 39.94 ms |
+| Four-pose pressure/tilt trace | 11.24 ms | 13.08 ms |
+| 1,000-sample multidirectional trace | 17.47 ms | 50.84 ms |
+
+The last trace produces 462 saved nodes. These measurements cover geometry construction only. They do not establish browser frame rate or end-to-end tablet latency; complex changing nibs can exceed a 16.7 ms frame budget.
+
+Run the added browser acceptance scenarios in an environment that can reach the shared fixture:
+
+```sh
+npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts drawing-calligraphy-continuation.spec.ts
+```
+
+The new scenarios cover both Idea and Order hosts, fixed nib widths, synthetic coalesced orientation, inherited curve appearance, continuation and closure, cancellation, read-only changes, Undo/Redo and saved drawing reload. Fixture access in these scenarios is read-only; drawing and configuration use the public UI and DOM pointer events. Discovery and source checking do not establish that these browser scenarios pass at runtime. No live browser, pixel-layout, physical Huion, production persistence or cutter verification is claimed for this follow-up. No production service is restarted by this source change.
+
+Behavior references: [CorelDRAW calligraphic lines](https://product.corel.com/help/CorelDRAW/540227992/Main/EN/Documentation/CorelDRAW-Drawing-calligraphic-and-preset-lines.html), [CorelDRAW expressive brushstrokes](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-expressive-brushstrokes_3aapplying.html), [CorelDRAW Freehand continuation](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Windows/CorelDRAW-en/CorelDRAW-Lines.html), [W3C orientation conversion](https://www.w3.org/TR/pointerevents3/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle), and [Huion Inspiroy 2 specifications](https://www.huion.com/products/inspiroy-2-s).
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

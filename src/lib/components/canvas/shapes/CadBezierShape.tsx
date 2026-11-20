@@ -5,6 +5,7 @@ import { isCadNodeEditing, retainCadNodesAfterHandleDrag } from "../cad-node-sel
 import { assertCadEditable } from "../cad-plans";
 import { transformAppearance } from "../cad-appearance";
 import { vectorPaint, paintMetadata } from "../cad-vector";
+import { cadFreehandPreview } from "../cad-freehand-state";
 import {
   ShapeUtil,
   SVGContainer,
@@ -16,6 +17,8 @@ import {
   DefaultColorStyle,
   getDefaultColorTheme,
   getIndices,
+  useValue,
+  type Editor,
   type TLBaseShape,
   type TLDefaultColorStyle,
   type TLHandle,
@@ -38,6 +41,16 @@ export type CadBezierShape = TLBaseShape<
     fillRule: "evenodd" | "nonzero";
   }
 >;
+function CadBezierArtwork({ editor, shape, artwork }: { editor: Editor; shape: CadBezierShape; artwork: React.ReactNode }) {
+  const preview = useValue('Freehand source artwork', () => {
+    const preview = cadFreehandPreview(editor).get();
+    return preview?.geometry && preview.continuation?.localContours && preview.continuation.shapeId === shape.id ? preview : null;
+  }, [editor, shape.id]);
+  return preview?.geometry && preview.continuation?.localContours
+    ? <g data-testid="cad-freehand-source-preview" data-shape-id={shape.id}><VectorArtwork id={`shape-${shape.id}`}
+      contours={preview.continuation.localContours} fillRule={preview.geometry.fillRule} paint={preview.geometry.paint} /></g>
+    : <>{artwork}</>;
+}
 const number = T.number;
 const contours = T.arrayOf(
   T.object({
@@ -207,7 +220,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
   }
 
   override component(shape: CadBezierShape) {
-    return <SVGContainer>{this.path(shape)}</SVGContainer>;
+    return <SVGContainer><CadBezierArtwork editor={this.editor} shape={shape} artwork={this.path(shape)} /></SVGContainer>;
   }
   override indicator(shape: CadBezierShape) {
     const showHandles =

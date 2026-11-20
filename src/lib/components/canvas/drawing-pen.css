@@ -32,3 +32,10 @@
 .drawing-freehand-controls.is-compact .drawing-cad-check { max-width: 168px; }
 .drawing-freehand-controls.is-compact .drawing-cad-check input { min-height: 20px; }
 .drawing-freehand-controls.is-compact .drawing-help { max-width: 220px; margin: 0; font-size: 11px; line-height: 14px; }
+.drawing-freehand-nib-preview { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; color: var(--ink-primary); }
+.drawing-freehand-nib-preview svg { display: block; flex: none; width: 64px; height: 48px; border: 1px solid var(--border); background: var(--bg-0); }
+.drawing-freehand-nib-preview ellipse { fill: currentColor; }
+.drawing-freehand-nib-axis { stroke: var(--border); stroke-dasharray: 2 3; fill: none; }
+.drawing-freehand-nib-preview span { color: var(--ink-secondary); font-size: 11px; }
+.drawing-freehand-controls.is-compact .drawing-freehand-nib-number { width: 92px; }
+.drawing-freehand-controls.is-compact .drawing-freehand-nib-preview { flex: none; }

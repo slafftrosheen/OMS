@@ -51,12 +51,23 @@ async function harness(run: (value: any) => Promise<void>) {
   const { ContainerProvider } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useContainer.mjs');
   const input = await import('../../src/lib/components/canvas/drawing-pen-input');
   const settings = await import('../../src/lib/components/canvas/drawing-pen-settings');
+  const orientation = await import('../../src/lib/components/canvas/drawing-pen-samples');
+  const orientationSamples: Array<{ phase: string; orientation: unknown }> = [];
   const samples: Array<{ x: number; y: number; z: number }> = [], commits: any[] = [];
   class CadFreehandProbe extends tl.StateNode {
     static override id = 'cad-freehand'; active = false;
-    override onPointerDown = () => { samples.length = 0; samples.push(this.editor.inputs.currentPagePoint.toJson() as any); this.active = true; };
-    override onPointerMove = () => { if (this.active) samples.push(this.editor.inputs.currentPagePoint.toJson() as any); };
-    override onPointerUp = () => { if (this.active) { commits.push(samples.slice()); samples.length = 0; this.active = false; } };
+    override onPointerDown = (info: any) => {
+      samples.length = 0; samples.push(this.editor.inputs.currentPagePoint.toJson() as any); this.active = true;
+      orientationSamples.push({ phase: 'down', orientation: orientation.readDrawingPenOrientation(this.editor, info) });
+    };
+    override onPointerMove = (info: any) => { if (this.active) {
+      samples.push(this.editor.inputs.currentPagePoint.toJson() as any);
+      orientationSamples.push({ phase: 'move', orientation: orientation.readDrawingPenOrientation(this.editor, info) });
+    } };
+    override onPointerUp = (info: any) => { if (this.active) {
+      commits.push(samples.slice()); samples.length = 0; this.active = false;
+      orientationSamples.push({ phase: 'up', orientation: orientation.readDrawingPenOrientation(this.editor, info) });
+    } };
     override onCancel = () => { samples.length = 0; this.active = false; };
     override onExit = () => { samples.length = 0; this.active = false; };
   }
@@ -114,7 +125,7 @@ async function harness(run: (value: any) => Promise<void>) {
     } as any)); return id; };
     const reinstall = () => { stop(); stop = input.installDrawingPenInput(editor); };
     await run({ env, editor, container, canvas: container.querySelector('.tl-canvas'), act, tick, pointer, createPointer, set, tool, snapshot, ink, points, add,
-      settings, input, tl, makeEditor, samples, commits, reinstall, customPresses: () => customPresses });
+      settings, input, tl, makeEditor, samples, commits, orientation, orientationSamples, reinstall, customPresses: () => customPresses });
   } finally {
     await act(async () => { stop(); root.unmount(); }); editor.dispose(); host.remove(); env.restore();
   }
@@ -182,6 +193,58 @@ describe('pen input through native editor and DOM events', () => {
       await set({ pressure: false }); await pointer('pointerdown', { x: 120, y: 50 }, { pressure: .1 });
       await pointer('pointermove', { x: 150, y: 60 }, { pressure: .9 }); await pointer('pointerup', { x: 170, y: 60 });
       assert.ok(commits[1].every((p: any) => p.z === 1));
+    });
+  });
+
+  it('retains each queued coalesced tilt sample including stationary bearing changes and pressure-off input', async () => {
+    await harness(async ({ pointer, tool, set, createPointer, canvas, orientationSamples, samples, act, tick }) => {
+      await tool('cad-freehand');
+      await pointer('pointerdown', { x: 10, y: 50 }, { tiltX: 15, tiltY: -10, pressure: .5 });
+      const packet = createPointer('pointermove', { x: 40, y: 50 }, { tiltX: 80, tiltY: 80, twist: 180, pressure: .5,
+        coalesced: [
+          { x: 40, y: 50, tiltX: 30, tiltY: 0, pressure: .5 },
+          { x: 40, y: 50, tiltX: 0, tiltY: 60, pressure: .5 },
+          { x: 40, y: 50, tiltX: -45, tiltY: 20, pressure: .5 },
+        ] });
+      await act(async () => {
+        canvas.dispatchEvent(packet);
+        assert.equal(orientationSamples.length, 1, 'Native movement remains queued until a tick');
+      });
+      await tick();
+      assert.deepEqual(orientationSamples.map((sample: any) => sample.orientation), [
+        { tiltX: 15, tiltY: -10 }, { tiltX: 30, tiltY: 0 }, { tiltX: 0, tiltY: 60 }, { tiltX: -45, tiltY: 20 },
+      ]);
+      await pointer('pointerup', { x: 40, y: 50 }, { tiltX: -45, tiltY: 20 });
+      await set({ pressure: false });
+      await pointer('pointerdown', { x: 80, y: 50 }, { pressure: .1, tiltX: 50, tiltY: 0 });
+      await pointer('pointermove', { x: 80, y: 50 }, { pressure: .1, tiltX: 0, tiltY: -50 });
+      assert.ok(samples.every((sample: any) => sample.z === 1));
+      assert.deepEqual(orientationSamples.at(-1).orientation, { tiltX: 0, tiltY: -50 });
+      await pointer('pointerup', { x: 80, y: 50 });
+    });
+  });
+
+  it('isolates orientation by editor and event identity, rejecting missing or invalid data without inventing tilt', async () => {
+    await harness(async ({ editor, orientation, makeEditor }) => {
+      const other = makeEditor();
+      const event: any = { type: 'pointer', name: 'pointer_move', target: 'canvas', point: { x: 10, y: 20, z: .5 },
+        pointerId: 17, button: 0, isPen: true, shiftKey: false, ctrlKey: false, altKey: false };
+      try {
+        const sample = { tiltX: 45, tiltY: -30 };
+        orientation.recordDrawingPenOrientation(editor, event, sample); sample.tiltX = 90;
+        assert.deepEqual(orientation.readDrawingPenOrientation(editor, event), { tiltX: 45, tiltY: -30 });
+        assert.equal(orientation.readDrawingPenOrientation(other, event), null);
+        assert.equal(orientation.readDrawingPenOrientation(editor, { ...event }), null);
+        assert.ok(Object.isFrozen(orientation.readDrawingPenOrientation(editor, event)));
+        for (const invalid of [{}, { tiltX: 5 }, { tiltX: NaN, tiltY: 0 }, { tiltX: 91, tiltY: 0 }]) {
+          orientation.recordDrawingPenOrientation(editor, event, invalid);
+          assert.equal(orientation.readDrawingPenOrientation(editor, event), null);
+        }
+        orientation.recordDrawingPenOrientation(editor, event, { tiltX: 0, tiltY: 0 });
+        assert.deepEqual(orientation.readDrawingPenOrientation(editor, event), { tiltX: 0, tiltY: 0 });
+        event.isPen = false;
+        assert.equal(orientation.readDrawingPenOrientation(editor, event), null);
+      } finally { other.dispose(); }
     });
   });
 

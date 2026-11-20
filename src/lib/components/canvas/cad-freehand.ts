@@ -6,10 +6,12 @@ import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
 import { drawingTransaction } from './drawing-commands';
 import { VECTOR_DEFAULT_PAINT, validVectorPaint, type VectorPaint } from './cad-paint';
 import { paintMetadata } from './cad-vector';
+import { buildCadCalligraphyContours, validFreehandOrientation } from './cad-calligraphy';
 
-export interface FreehandSample extends CadPoint { pressure: number }
+export interface FreehandSample extends CadPoint { pressure: number; tiltX?: number; tiltY?: number }
 export interface CadFreehandOptions {
-  mode: 'curve' | 'ink'; width: number; smoothing: number; autoClose: boolean; color: string;
+  mode: 'curve' | 'ink' | 'calligraphy'; width: number; smoothing: number; autoClose: boolean; color: string;
+  nibAngle: number; nibTilt: number; useTilt: boolean; useBearing: boolean; continueCurve: boolean;
 }
 export interface CadFreehandGeometry {
   contours: CadContour[]; paint: VectorPaint; fillRule: 'nonzero'; closed: boolean;
@@ -22,6 +24,7 @@ export const MAX_CAD_FREEHAND_SAMPLES = 4096;
 export const MAX_CAD_FREEHAND_INK_CENTERS = 512;
 export const DEFAULT_CAD_FREEHAND_OPTIONS: CadFreehandOptions = {
   mode: 'curve', width: 4, smoothing: .4, autoClose: true, color: '#172535',
+  nibAngle: 45, nibTilt: 15, useTilt: false, useBearing: false, continueCurve: true,
 };
 const states = new WeakMap<Editor, ReturnType<typeof atom<CadFreehandOptions>>>();
 export function cadFreehandOptions(editor: Editor) {
@@ -32,15 +35,18 @@ export function cadFreehandOptions(editor: Editor) {
 export function readCadFreehandOptions(editor: Editor): CadFreehandOptions { return { ...cadFreehandOptions(editor).get() }; }
 export function validCadFreehandOptions(value: unknown): value is CadFreehandOptions {
   const p = value as CadFreehandOptions;
-  return !!p && (p.mode === 'curve' || p.mode === 'ink') && Number.isFinite(p.width) && p.width >= .01 && p.width <= 10000 &&
+  return !!p && ['curve', 'ink', 'calligraphy'].includes(p.mode) && Number.isFinite(p.width) && p.width >= .01 && p.width <= 10000 &&
     Number.isFinite(p.smoothing) && p.smoothing >= 0 && p.smoothing <= 1 && typeof p.autoClose === 'boolean' &&
+    Number.isFinite(p.nibAngle) && Math.abs(p.nibAngle) <= 180 && Number.isFinite(p.nibTilt) && p.nibTilt >= 15 && p.nibTilt <= 90 &&
+    typeof p.useTilt === 'boolean' && typeof p.useBearing === 'boolean' && typeof p.continueCurve === 'boolean' &&
     typeof p.color === 'string' && /^#[0-9a-f]{6}$/i.test(p.color);
 }
 /** Device preferences are next-stroke view state, never document metadata. */
 export function setCadFreehandOptions(editor: Editor, patch: Partial<CadFreehandOptions>): boolean {
   const next = { ...readCadFreehandOptions(editor), ...patch };
   if (!validCadFreehandOptions(next)) return false;
-  cadFreehandOptions(editor).set({ mode: next.mode, width: next.width, smoothing: next.smoothing, autoClose: next.autoClose, color: next.color });
+  cadFreehandOptions(editor).set({ mode: next.mode, width: next.width, smoothing: next.smoothing, autoClose: next.autoClose, color: next.color,
+    nibAngle: next.nibAngle, nibTilt: next.nibTilt, useTilt: next.useTilt, useBearing: next.useBearing, continueCurve: next.continueCurve });
   return true;
 }
 
@@ -50,16 +56,17 @@ const samePoint = (a: CadPoint, b: CadPoint) => Math.hypot(a.x - b.x, a.y - b.y)
 const mix = (a: CadPoint, b: CadPoint, t: number): CadPoint => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
 const failure = (code: 'invalid' | 'empty' | 'limit') => new CadOperationError(`freehand-${code}`);
 
-function normalizedSamples(input: readonly FreehandSample[]): FreehandSample[] {
+function normalizedSamples(input: readonly FreehandSample[], preserveOrientation: boolean): FreehandSample[] {
   if (!Array.isArray(input) || input.length > MAX_CAD_FREEHAND_SAMPLES) throw failure('limit');
   const result: FreehandSample[] = [];
   for (const sample of input) {
-    if (!validCadPoint(sample) || !Number.isFinite(sample.pressure) || sample.pressure < 0 || sample.pressure > 1) throw failure('invalid');
+    if (!validCadPoint(sample) || !Number.isFinite(sample.pressure) || sample.pressure < 0 || sample.pressure > 1 || !validFreehandOrientation(sample)) throw failure('invalid');
     const previous = result.at(-1);
     // A stationary pen can add pressure before its next XY sample. Keep that
     // maximum instead of silently erasing the wider dot from the final ink.
-    if (previous && samePoint(previous, sample)) previous.pressure = Math.max(previous.pressure, sample.pressure);
-    else result.push({ x: sample.x, y: sample.y, pressure: sample.pressure });
+    if (previous && samePoint(previous, sample) && (!preserveOrientation || previous.tiltX === sample.tiltX && previous.tiltY === sample.tiltY)) previous.pressure = Math.max(previous.pressure, sample.pressure);
+    else result.push({ x: sample.x, y: sample.y, pressure: sample.pressure,
+      ...(sample.tiltX === undefined ? {} : { tiltX: sample.tiltX, tiltY: sample.tiltY }) });
   }
   if (!result.length) throw failure('empty');
   return result;
@@ -185,20 +192,23 @@ function inkContours(samples: FreehandSample[], width: number, closed: boolean):
 
 export function buildCadFreehandGeometry(input: readonly FreehandSample[], options: CadFreehandOptions, closeTolerance: number): CadFreehandGeometry {
   if (!validCadFreehandOptions(options) || !Number.isFinite(closeTolerance) || closeTolerance < 0 || closeTolerance > 1000000) throw failure('invalid');
-  let samples = normalizedSamples(input);
+  const preserveOrientation = options.mode === 'calligraphy' && (options.useTilt || options.useBearing);
+  let samples = normalizedSamples(input, preserveOrientation);
   let closed = options.autoClose && samples.length >= 3 && Math.hypot(samples[0].x - samples.at(-1)!.x, samples[0].y - samples.at(-1)!.y) <= closeTolerance;
-  if (closed && samePoint(samples[0], samples.at(-1)!)) {
+  if (closed && samePoint(samples[0], samples.at(-1)!) && (!preserveOrientation ||
+      samples[0].tiltX === samples.at(-1)!.tiltX && samples[0].tiltY === samples.at(-1)!.tiltY)) {
     const last = samples.pop()!; samples[0].pressure = Math.max(samples[0].pressure, last.pressure);
     if (samples.length < 3) { samples.push(last); closed = false; }
   }
   const sampleCount = samples.length;
   const tolerance = Math.max(EPS, options.smoothing * Math.max(.25, Math.min(8, options.width / 4)));
-  samples = simplify(samples, tolerance, options.mode === 'ink' ? options.width / 2 : 0, closed);
-  const contours = options.mode === 'ink' ? inkContours(samples, options.width, closed) : [centerline(samples, options.smoothing, closed)];
+  if (options.mode !== 'calligraphy') samples = simplify(samples, tolerance, options.mode === 'ink' ? options.width / 2 : 0, closed);
+  const contours = options.mode === 'calligraphy' ? buildCadCalligraphyContours(samples, options, closed)
+    : options.mode === 'ink' ? inkContours(samples, options.width, closed) : [centerline(samples, options.smoothing, closed)];
   if (!contours.length) throw failure('empty');
   if (!validContours(contours)) throw failure('limit');
   const paint: VectorPaint = { ...VECTOR_DEFAULT_PAINT, dash: [], lineCap: 'round', lineJoin: 'round',
-    fill: options.mode === 'ink' ? options.color : 'none', stroke: options.mode === 'curve' ? options.color : 'none',
+    fill: options.mode !== 'curve' ? options.color : 'none', stroke: options.mode === 'curve' ? options.color : 'none',
     strokeWidth: options.mode === 'curve' ? options.width : 0 };
   return { contours, paint, fillRule: 'nonzero', closed: contours.every(contour => contour.closed),
     nodeCount: contours.reduce((count, contour) => count + contour.nodes.length, 0), sampleCount, bounds: curveBounds(contours) };
@@ -229,7 +239,7 @@ export function applyCadFreehandPlan(editor: Editor, plan: CadFreehandPlan): boo
     const normalize = validContours(local), contours = normalize ? local : structuredClone(plan.geometry.contours);
     const id = createShapeId(), shape = { id, type: 'cad-bezier' as const, parentId: editor.getCurrentPageId(), x: normalize ? bounds.x : 0, y: normalize ? bounds.y : 0, rotation: 0,
       opacity: plan.opacity, props: { contours, fillRule: 'nonzero' as const, color: 'black' as const },
-      meta: { omsObjectName: plan.options.mode === 'ink' ? 'Pressure ink' : 'Freehand curve', omsVectorPaint: paintMetadata(plan.geometry.paint) } };
+      meta: { omsObjectName: plan.options.mode === 'calligraphy' ? 'Calligraphic ink' : plan.options.mode === 'ink' ? 'Pressure ink' : 'Freehand curve', omsVectorPaint: paintMetadata(plan.geometry.paint) } };
     if (JSON.stringify(editor.store.getStoreSnapshot()).length + JSON.stringify(shape).length > 1_900_000) return false;
     return drawingTransaction(editor, () => {
       editor.createShape(shape);

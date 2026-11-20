@@ -1,37 +1,22 @@
-import { atom, react, StateNode, type Editor, type TLEventHandlers, type TLPointerEventInfo } from '@tldraw/tldraw';
+import { react, StateNode, type Editor, type TLEventHandlers, type TLPointerEventInfo } from '@tldraw/tldraw';
 import {
   applyCadFreehandPlan, buildCadFreehandGeometry, cadFreehandOptions, MAX_CAD_FREEHAND_SAMPLES,
-  prepareCadFreehandPlan, readCadFreehandOptions, type CadFreehandGeometry, type CadFreehandOptions, type FreehandSample,
+  prepareCadFreehandPlan, readCadFreehandOptions, type CadFreehandOptions, type FreehandSample,
 } from './cad-freehand';
 import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
 import { validCadPoint } from './cad-settings';
 import { clearCadSnap } from './cad-snap';
 import { isDrawingPointerGestureActive } from './drawing-pointer-gesture';
+import { readDrawingPenOrientation } from './drawing-pen-samples';
+import { curveBounds, type CadContour } from './cad-curves';
+import {
+  applyCadFreehandContinuation, captureCadFreehandContinuation, nearestCadFreehandEndpoint,
+  prepareCadFreehandContinuation, readCadFreehandEndpoints, type CadFreehandContinuation,
+} from './cad-freehand-continuation';
+import { cadFreehandHover, cadFreehandNotice, cadFreehandPreview, type CadFreehandPreview } from './cad-freehand-state';
+export { cadFreehandHover, cadFreehandNotice, cadFreehandPreview, type CadFreehandPreview } from './cad-freehand-state';
 
 export const CAD_FREEHAND_CLOSE_DISTANCE = 8;
-export interface CadFreehandPreview {
-  samples: FreehandSample[];
-  geometry: CadFreehandGeometry | null;
-  mode: CadFreehandOptions['mode'];
-  sampleCount: number;
-  isPen: boolean;
-  closeCandidate: boolean;
-  autoClose: boolean;
-  opacity: number;
-  error: string | null;
-}
-const previews = new WeakMap<Editor, ReturnType<typeof atom<CadFreehandPreview | null>>>();
-const notices = new WeakMap<Editor, ReturnType<typeof atom<string | null>>>();
-export function cadFreehandPreview(editor: Editor) {
-  let value = previews.get(editor);
-  if (!value) { value = atom<CadFreehandPreview | null>('Freehand preview', null); previews.set(editor, value); }
-  return value;
-}
-export function cadFreehandNotice(editor: Editor) {
-  let value = notices.get(editor);
-  if (!value) { value = atom<string | null>('Freehand notice', null); notices.set(editor, value); }
-  return value;
-}
 /** Public cancellation also resets the native editor's drag state. */
 export function cancelCadFreehand(editor: Editor): void {
   if (editor.getCurrentToolId() === CadFreehandTool.id) editor.cancel();
@@ -42,10 +27,12 @@ interface Stroke {
   isPen: boolean;
   samples: FreehandSample[];
   options: CadFreehandOptions;
+  continuation: CadFreehandContinuation | null;
   revision: string;
   viewport: string;
   opacity: number;
   closeTolerance: number;
+  startPoint: { x: number; y: number };
   lastScreenPoint: { x: number; y: number };
   invalidated: boolean;
   frame: number;
@@ -64,13 +51,18 @@ export class CadFreehandTool extends StateNode {
   static override id = 'cad-freehand';
   private stroke: Stroke | null = null;
   private cancelReason: string | null = null;
+  private stopHover = () => {};
+  private hoverViewport = '';
 
   override onEnter = () => {
     this.clearStroke(); clearCadSnap(this.editor);
     cadFreehandNotice(this.editor).set(null);
-    this.editor.selectNone(); this.editor.setCursor({ type: 'cross', rotation: 0 });
+    const options = readCadFreehandOptions(this.editor);
+    if (options.mode !== 'curve' || !options.continueCurve || !readCadFreehandEndpoints(this.editor).length) this.editor.selectNone();
+    this.editor.setCursor({ type: 'cross', rotation: 0 });
+    this.watchHover();
   };
-  override onExit = () => { this.clearStroke(this.stroke ? 'canceled' : undefined); clearCadSnap(this.editor); };
+  override onExit = () => { this.stopHover(); this.clearStroke(this.stroke ? 'canceled' : undefined); clearCadSnap(this.editor); };
   override onCancel = () => { this.clearStroke(this.cancelReason ?? (this.stroke ? 'canceled' : undefined)); };
   override onComplete = () => { this.clearStroke(this.stroke ? 'canceled' : undefined); };
   override onInterrupt = () => { this.clearStroke(this.stroke ? 'canceled' : undefined); };
@@ -85,15 +77,32 @@ export class CadFreehandTool extends StateNode {
       !this.editor.getInstanceState().isReadonly && !this.editor.getIsMenuOpen() &&
       !isDrawingPointerGestureActive(this.editor);
   }
+  private watchHover(): void {
+    this.stopHover(); let stopped = false;
+    const stop = react('validate Freehand endpoint hover', () => {
+      const hover = cadFreehandHover(this.editor).get();
+      if (!hover) return;
+      const options = readCadFreehandOptions(this.editor);
+      const actual = this.available() && options.mode === 'curve' && options.continueCurve && this.hoverViewport === viewport(this.editor)
+        ? nearestCadFreehandEndpoint(this.editor, this.editor.inputs.currentPagePoint, CAD_FREEHAND_CLOSE_DISTANCE / this.editor.getZoomLevel()) : null;
+      if (JSON.stringify(actual) !== JSON.stringify(hover)) queueMicrotask(() => {
+        if (!stopped && cadFreehandHover(this.editor).get() === hover) cadFreehandHover(this.editor).set(null);
+      });
+    });
+    const dispose = () => { stopped = true; stop(); this.editor.disposables.delete(dispose); cadFreehandHover(this.editor).set(null); };
+    this.stopHover = dispose; this.editor.disposables.add(dispose);
+  }
   private sample(info: TLPointerEventInfo): FreehandSample | null {
     const point = this.editor.inputs.currentPagePoint;
     const pressure = info.isPen ? point.z : 1;
     if (!validCadPoint(point) || !Number.isFinite(pressure) || pressure < 0 || pressure > 1) return null;
-    return { x: point.x, y: point.y, pressure };
+    const orientation = info.isPen ? readDrawingPenOrientation(this.editor, info) : null;
+    return { x: point.x, y: point.y, pressure, ...(orientation ?? {}) };
   }
   private fresh(stroke: Stroke): boolean {
     return this.stroke === stroke && !stroke.invalidated && this.available() && stroke.revision === cadRevision(this.editor) &&
       stroke.viewport === viewport(this.editor) && stroke.opacity === this.editor.getInstanceState().opacityForNextShape &&
+      (!stroke.continuation || stroke.continuation.theme === null || stroke.continuation.theme === this.editor.user.getIsDarkMode()) &&
       JSON.stringify(stroke.options) === JSON.stringify(cadFreehandOptions(this.editor).get());
   }
   private requestCancel(reason: string): void {
@@ -123,6 +132,7 @@ export class CadFreehandTool extends StateNode {
       }
     }
     cadFreehandPreview(this.editor).set(null);
+    cadFreehandHover(this.editor).set(null);
     if (notice) cadFreehandNotice(this.editor).set(notice);
   }
 
@@ -139,22 +149,36 @@ export class CadFreehandTool extends StateNode {
     if (!this.available()) return;
     const sample = this.sample(info), win = this.editor.getContainer().ownerDocument.defaultView;
     if (!sample || !win) { cadFreehandNotice(this.editor).set('freehand-invalid'); return; }
-    if (this.editor.getCurrentPageShapeIds().size >= this.editor.options.maxShapesPerPage) {
+    const options = readCadFreehandOptions(this.editor), closeTolerance = CAD_FREEHAND_CLOSE_DISTANCE / this.editor.getZoomLevel();
+    const endpoint = options.mode === 'curve' && options.continueCurve ? nearestCadFreehandEndpoint(this.editor, sample, closeTolerance) : null;
+    let continuation: CadFreehandContinuation | null = null;
+    try { if (endpoint) continuation = captureCadFreehandContinuation(this.editor, endpoint); }
+    catch (error) { cadFreehandNotice(this.editor).set(errorCode(error)); return; }
+    if (!continuation && this.editor.getCurrentPageShapeIds().size >= this.editor.options.maxShapesPerPage) {
       cadFreehandNotice(this.editor).set('freehand-limit'); return;
     }
+    const startPoint = { x: sample.x, y: sample.y };
+    if (continuation) { sample.x = continuation.endpoint.point.x; sample.y = continuation.endpoint.point.y; }
     const stroke: Stroke = {
-      pointerId: info.pointerId, isPen: info.isPen, samples: [sample], options: readCadFreehandOptions(this.editor),
+      pointerId: info.pointerId, isPen: info.isPen, samples: [sample], options, continuation,
       revision: cadRevision(this.editor), viewport: viewport(this.editor), opacity: this.editor.getInstanceState().opacityForNextShape,
       lastScreenPoint: { x: info.point.x, y: info.point.y },
-      closeTolerance: CAD_FREEHAND_CLOSE_DISTANCE / this.editor.getZoomLevel(), invalidated: false, frame: 0, window: win, cleanup: () => {},
+      closeTolerance, startPoint, invalidated: false, frame: 0, window: win, cleanup: () => {},
     };
-    this.stroke = stroke; cadFreehandNotice(this.editor).set(null); clearCadSnap(this.editor);
+    this.stroke = stroke; cadFreehandHover(this.editor).set(null); cadFreehandNotice(this.editor).set(null); clearCadSnap(this.editor);
     this.installGuards(stroke);
     if (this.stroke === stroke) this.publish(stroke);
   };
   override onPointerMove: TLEventHandlers['onPointerMove'] = info => {
     const stroke = this.stroke;
-    if (!stroke || info.pointerId !== stroke.pointerId || info.isPen !== stroke.isPen) return;
+    if (!stroke) {
+      const options = readCadFreehandOptions(this.editor);
+      const endpoint = this.available() && options.mode === 'curve' && options.continueCurve
+        ? nearestCadFreehandEndpoint(this.editor, this.editor.inputs.currentPagePoint, CAD_FREEHAND_CLOSE_DISTANCE / this.editor.getZoomLevel()) : null;
+      this.hoverViewport = viewport(this.editor);
+      cadFreehandHover(this.editor).set(endpoint); return;
+    }
+    if (info.pointerId !== stroke.pointerId || info.isPen !== stroke.isPen) return;
     if (stroke.invalidated || !this.available()) { this.requestCancel('stale'); return; }
     if (!this.append(stroke, info)) return;
     if (!stroke.frame) stroke.frame = stroke.window.requestAnimationFrame(() => {
@@ -170,10 +194,16 @@ export class CadFreehandTool extends StateNode {
     if (!this.fresh(stroke)) { this.requestCancel('stale'); return; }
     if (!this.append(stroke, info)) return;
     try {
-      const plan = prepareCadFreehandPlan(this.editor, stroke.samples, stroke.options, stroke.closeTolerance);
-      // Remove invalidation listeners before our one atomic document write.
-      this.clearStroke();
-      cadFreehandNotice(this.editor).set(applyCadFreehandPlan(this.editor, plan) ? 'drawn' : 'failed');
+      if (stroke.continuation) {
+        const { plan } = this.continuedGeometry(stroke);
+        this.clearStroke();
+        cadFreehandNotice(this.editor).set(applyCadFreehandContinuation(this.editor, plan) ? plan.close ? 'closed' : 'continued' : 'failed');
+      } else {
+        const plan = prepareCadFreehandPlan(this.editor, stroke.samples, stroke.options, stroke.closeTolerance);
+        // Remove invalidation listeners before our one atomic document write.
+        this.clearStroke();
+        cadFreehandNotice(this.editor).set(applyCadFreehandPlan(this.editor, plan) ? 'drawn' : 'failed');
+      }
     } catch (error) { this.clearStroke(errorCode(error)); }
   };
   private append(stroke: Stroke, info: TLPointerEventInfo): boolean {
@@ -181,17 +211,43 @@ export class CadFreehandTool extends StateNode {
     if (!sample) { this.requestCancel('freehand-invalid'); return false; }
     stroke.lastScreenPoint = { x: info.point.x, y: info.point.y };
     const previous = stroke.samples.at(-1)!;
-    if (Math.hypot(sample.x - previous.x, sample.y - previous.y) <= 1e-8) {
+    // Snapping an offset endpoint click must not turn a stationary tap into
+    // a tiny extension. Once the pointer actually moves, its path is retained.
+    if (stroke.continuation && stroke.samples.length === 1 && Math.hypot(sample.x - stroke.startPoint.x, sample.y - stroke.startPoint.y) <= 1e-8) {
+      previous.pressure = Math.max(previous.pressure, sample.pressure); return true;
+    }
+    const changedOrientation = stroke.options.mode === 'calligraphy' && (stroke.options.useTilt || stroke.options.useBearing) &&
+      (sample.tiltX !== previous.tiltX || sample.tiltY !== previous.tiltY);
+    if (Math.hypot(sample.x - previous.x, sample.y - previous.y) <= 1e-8 && !changedOrientation) {
       previous.pressure = Math.max(previous.pressure, sample.pressure);
       return true;
     }
     if (stroke.samples.length >= MAX_CAD_FREEHAND_SAMPLES) { this.requestCancel('freehand-limit'); return false; }
     stroke.samples.push(sample); return true;
   }
+  private continuedGeometry(stroke: Stroke) {
+    const captured = stroke.continuation!, samples = stroke.samples.map(sample => ({ ...sample })), last = samples.at(-1)!;
+    const close = stroke.options.autoClose && samples.length >= 2 &&
+      Math.hypot(last.x - captured.oppositePoint.x, last.y - captured.oppositePoint.y) <= stroke.closeTolerance;
+    if (close) { last.x = captured.oppositePoint.x; last.y = captured.oppositePoint.y; }
+    const geometry = buildCadFreehandGeometry(samples, { ...stroke.options, mode: 'curve', autoClose: false,
+      width: Math.max(.01, Math.min(10000, captured.paint.strokeWidth)), color: captured.paint.stroke }, 0);
+    const plan = prepareCadFreehandContinuation(this.editor, captured, geometry.contours[0], close);
+    return { plan, geometry: { ...geometry, contours: plan.preview, paint: plan.previewPaint, fillRule: captured.source.props.fillRule,
+      nodeCount: plan.preview.reduce((count, contour) => count + contour.nodes.length, 0),
+      bounds: curveBounds(plan.preview), closed: plan.preview.every(contour => contour.closed) } };
+  }
   private publish(stroke: Stroke): void {
     if (this.stroke !== stroke) return;
-    let geometry: CadFreehandGeometry | null = null, error: string | null = null;
-    try { geometry = buildCadFreehandGeometry(stroke.samples, stroke.options, stroke.closeTolerance); }
+    let geometry: CadFreehandPreview['geometry'] = null, error: string | null = null;
+    let localContours: CadContour[] | null = null;
+    let closing = false;
+    try {
+      if (stroke.continuation) {
+        const result = this.continuedGeometry(stroke); geometry = result.geometry; closing = result.plan.close; localContours = result.plan.contours;
+      }
+      else geometry = buildCadFreehandGeometry(stroke.samples, stroke.options, stroke.closeTolerance);
+    }
     catch (cause) {
       error = errorCode(cause);
       // A curve begins with one point; zero-pressure ink also has no area yet.
@@ -201,9 +257,10 @@ export class CadFreehandTool extends StateNode {
     const first = stroke.samples[0], last = stroke.samples.at(-1)!;
     cadFreehandPreview(this.editor).set({
       samples: stroke.samples.map(sample => ({ ...sample })), geometry, mode: stroke.options.mode,
-      sampleCount: stroke.samples.length, isPen: stroke.isPen, opacity: stroke.opacity,
+      sampleCount: stroke.samples.length, isPen: stroke.isPen, opacity: stroke.continuation?.opacity ?? stroke.opacity,
       autoClose: stroke.options.autoClose,
-      closeCandidate: stroke.options.autoClose && stroke.samples.length >= 3 && Math.hypot(first.x - last.x, first.y - last.y) <= stroke.closeTolerance,
+      closeCandidate: stroke.continuation ? closing : stroke.options.autoClose && stroke.samples.length >= 3 && Math.hypot(first.x - last.x, first.y - last.y) <= stroke.closeTolerance,
+      continuation: stroke.continuation ? { ...stroke.continuation.endpoint, oppositePoint: stroke.continuation.oppositePoint, closing, localContours } : null,
       error,
     });
   }

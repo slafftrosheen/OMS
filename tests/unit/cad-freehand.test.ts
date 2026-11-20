@@ -288,4 +288,36 @@ describe('freehand native schema, history and production geometry', () => {
       assert.equal(pdf.omitted.length, 0); assert.ok(pdf.text.startsWith('%PDF-'));
     } finally { f.dispose(); }
   });
+
+  it('saves calligraphic ink in the native curve schema with one Undo and exact snapshot restoration', () => {
+    const f = nativeCanvas();
+    try {
+      const before = f.snapshot(), samples = [sample(10, 20, .25), sample(110, 40, 1)];
+      const plan = prepareCadFreehandPlan(f.editor, samples, options({ mode: 'calligraphy', width: 12, nibAngle: 35, nibTilt: 20 }), 0);
+      assert.equal(applyCadFreehandPlan(f.editor, plan), true);
+      const shape = f.records()[0]; assert.equal(shape.type, 'cad-bezier'); assert.equal(shape.meta.omsObjectName, 'Calligraphic ink');
+      assert.equal((shape.meta.omsVectorPaint as any).stroke, 'none'); assert.ok(validVectorPaint(shape.meta.omsVectorPaint));
+      const after = f.snapshot(); f.history.undo(); assert.deepEqual(f.snapshot(), before);
+      f.history.redo(); assert.deepEqual(f.snapshot(), after);
+      const other = nativeCanvas();
+      try { other.store.loadStoreSnapshot(after); assert.deepEqual(other.snapshot(), after); } finally { other.dispose(); }
+    } finally { f.dispose(); }
+  });
+
+  it('exports rotated calligraphic outlines and holes at document scale through DXF and PDF', () => {
+    const f = nativeCanvas();
+    try {
+      const settings = { ...DEFAULT_CAD_SETTINGS, scale: 10, originX: 0, originY: 0 };
+      f.store.put([{ ...f.page, meta: { omsCad: settings } }]);
+      const plan = prepareCadFreehandPlan(f.editor, square(), options({ mode: 'calligraphy', width: 20, nibAngle: 40, nibTilt: 15, autoClose: true }), 8);
+      assert.equal(applyCadFreehandPlan(f.editor, plan), true);
+      const dxf = buildCadDxf(f.editor, 'all', settings), parsed = new DxfParser().parseSync(dxf.text)!;
+      assert.equal(dxf.omitted.length, 0); assert.equal(dxf.closedContours, 2); assert.equal(dxf.openContours, 0);
+      assert.ok(parsed.entities.every((entity: any) => entity.type === 'LWPOLYLINE' && entity.shape));
+      const vertices = parsed.entities.flatMap((entity: any) => entity.vertices);
+      near(Math.max(...vertices.map(p => p.x)) - Math.min(...vertices.map(p => p.x)), plan.geometry.bounds.w * 25.4 / 96 * 10, .0001);
+      near(Math.max(...vertices.map(p => p.y)) - Math.min(...vertices.map(p => p.y)), plan.geometry.bounds.h * 25.4 / 96 * 10, .0001);
+      const pdf = prepareVectorExport(f.editor, settings, 'all', 'pdf'); assert.equal(pdf.omitted.length, 0); assert.ok(pdf.text.startsWith('%PDF-'));
+    } finally { f.dispose(); }
+  });
 });

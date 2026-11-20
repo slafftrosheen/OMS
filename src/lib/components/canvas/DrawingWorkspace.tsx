@@ -28,7 +28,7 @@ import {drawingPickGuideSnap} from './drawing-pick-guide-snap';
 import {DrawingPenPanel} from './DrawingPenPanel';
 import {DrawingFreehandControls} from './DrawingFreehandControls';
 import {readCadFreehandOptions, setCadFreehandOptions} from './cad-freehand';
-import {cadFreehandNotice, cadFreehandPreview} from './CadFreehandTool';
+import {cadFreehandHover, cadFreehandNotice, cadFreehandPreview} from './CadFreehandTool';
 import {drawingPenDiagnostics} from './drawing-pen-input';
 import {enPen, usePenText} from './pen-copy';
 import {enSkew, useSkewText} from './skew-copy';
@@ -504,11 +504,14 @@ export function DrawingChrome() {
   const rotationNoticeText = rotationNotice ? rotationLabel(rotationNotice) : '';
   const freehandOptions = useValue('Next freehand stroke', () => readCadFreehandOptions(editor), [editor]);
   const freehandStatus = useValue('Freehand gesture status', () => {
-    const preview = cadFreehandPreview(editor).get(); return preview ? preview.error ?? 'drawing' : null;
+    const preview = cadFreehandPreview(editor).get();
+    return preview ? preview.error ?? (preview.continuation ? preview.continuation.closing ? 'closing' : 'continuing' : 'drawing') : null;
   }, [editor]);
+  const freehandHover = useValue('Freehand continuation target', () => editor.getCurrentToolId() === 'cad-freehand' && !!cadFreehandHover(editor).get(), [editor]);
   const freehandNotice = useValue('Freehand completion notice', () => cadFreehandNotice(editor).get(), [editor]);
   const penNotice = useValue('Pen interruption notice', () => drawingPenDiagnostics(editor).get().notice, [editor]);
   const penMessage = (code: string) => penLabel(Object.hasOwn(enPen, code) ? code as keyof typeof enPen : 'failed');
+  const freehandHint = freehandStatus ? freehandStatus === 'drawing' ? penLabel('drawHelp') : penMessage(freehandStatus) : freehandHover ? penLabel('continueStart') : null;
   const freehandNoticeText = freehandNotice ? penMessage(freehandNotice) : '';
   const penNoticeText = penNotice ? penMessage(penNotice) : '';
   const guideNoticeText = guideNotice ? guideLabel(guideNotice) : '';
@@ -1201,7 +1204,7 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: controls.tool === 'cad-freehand' ? getDefaultColorTheme({ isDarkMode: false })[value].solid : theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-freehand' ? penLabel('drawHelp') : rotationPreview ? rotationLabel(rotationPreview.kind === 'pivot' ? 'help' : 'rotate') : skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{freehandStatus ? freehandStatus === 'drawing' ? penLabel('drawHelp') : penMessage(freehandStatus) : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-freehand' ? penLabel('drawHelp') : rotationPreview ? rotationLabel(rotationPreview.kind === 'pivot' ? 'help' : 'rotate') : skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>

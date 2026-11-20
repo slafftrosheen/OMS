@@ -42,7 +42,7 @@ async function harness(run: (h: any) => Promise<void>) {
   const { locale } = await import('svelte-i18n'); locale.set('en');
   const instances: Array<{ editor: any; root: any; host: HTMLDivElement }> = [];
   const mount = async () => {
-    const host = document.createElement('div'); document.body.append(host);
+    const host = document.createElement('div'); host.tabIndex = 0; document.body.append(host);
     const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil];
     const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
       bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools, CadFreehandTool], getContainer: () => host, initialState: 'select' });
@@ -72,6 +72,8 @@ async function harness(run: (h: any) => Promise<void>) {
   const key = async (id: string, value: string) => {
     await act(async () => get(id).dispatchEvent(new KeyboardEvent('keydown', { key: value, code: value, bubbles: true, cancelable: true }))); await tick();
   };
+  const focus = async (id: string) => { await act(async () => get(id).focus()); await tick(); };
+  const blur = async (id: string) => { await act(async () => get(id).blur()); await tick(); };
   const click = async (id: string) => { await act(async () => get(id).click()); await tick(); };
   const pointer = async (name: string, x: number, pressure: number, extra = {}, target: EventTarget = get('drawing-pen-test')) => {
     const event = new MouseEvent(name, { bubbles: true, cancelable: true, clientX: x, clientY: 56, button: 0, buttons: name === 'pointerup' || name === 'pointercancel' ? 0 : 1 });
@@ -80,7 +82,7 @@ async function harness(run: (h: any) => Promise<void>) {
     await act(async () => target.dispatchEvent(event)); await tick();
   };
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
-  try { await run({ editor, host, win, get, select, input, key, click, pointer, tick, act, snapshot, cad, pen, runtime, freehand, mount, locale }); }
+  try { await run({ editor, host, win, get, select, input, key, focus, blur, click, pointer, tick, act, snapshot, cad, pen, runtime, freehand, mount, locale }); }
   finally {
     for (const instance of instances.reverse()) { await act(async () => instance.root.unmount()); instance.editor.dispose(); instance.host.remove(); }
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
@@ -140,7 +142,8 @@ describe('Pen docker and contextual Freehand controls', () => {
 
   it('keeps preferences usable after ignored form input, read-only canvas contact and lost test-pad capture', async () => {
     await harness(async ({ editor, host, runtime, snapshot, pointer, get, click, act, tick }) => {
-      const stop = runtime.installDrawingPenInput(editor), before = snapshot();
+      let stop = () => {}; const before = snapshot();
+      await act(async () => { stop = runtime.installDrawingPenInput(editor); }); await tick();
       const canvas = document.createElement('div'); canvas.className = 'tl-canvas';
       const form = document.createElement('div'); form.className = 'canvas-form-sheet';
       const field = document.createElement('input'); form.append(field); canvas.append(form); host.append(canvas);
@@ -160,17 +163,134 @@ describe('Pen docker and contextual Freehand controls', () => {
         assert.equal(runtime.drawingPenDiagnostics(editor).get().contact, false);
         assert.equal(get('drawing-pen-mode').matches(':disabled'), false);
         assert.deepEqual(snapshot(), before);
-      } finally { stop(); canvas.remove(); }
+      } finally { await act(async () => { stop(); canvas.remove(); }); await tick(); }
+    });
+  });
+
+  it('shares fixed calligraphic nib settings and independent live tilt/bearing between property bar and docker', async () => {
+    await harness(async ({ editor, get, select, input, key, focus, blur, click, freehand, snapshot }) => {
+      const before = snapshot();
+      await select('drawing-freehand-property-mode', 'calligraphy');
+      assert.equal((get('drawing-freehand-mode') as HTMLSelectElement).value, 'calligraphy');
+      assert.equal((get('drawing-freehand-property-nib-angle') as HTMLInputElement).value, '45');
+      assert.equal((get('drawing-freehand-property-nib-tilt') as HTMLInputElement).value, '15');
+      const preview = get('drawing-freehand-property-nib-preview');
+      assert.equal(preview.getAttribute('aria-hidden'), 'true');
+      assert.ok(preview.childElementCount > 0);
+      const initialPreview = preview.outerHTML;
+      await input('drawing-freehand-property-nib-angle', '-30'); await key('drawing-freehand-property-nib-angle', 'Enter');
+      assert.equal(freehand.readCadFreehandOptions(editor).nibAngle, -30);
+      assert.equal((get('drawing-freehand-nib-angle') as HTMLInputElement).value, '-30');
+      assert.notEqual(get('drawing-freehand-property-nib-preview').outerHTML, initialPreview);
+      await focus('drawing-freehand-nib-tilt'); await input('drawing-freehand-nib-tilt', '60'); await blur('drawing-freehand-nib-tilt');
+      assert.equal(freehand.readCadFreehandOptions(editor).nibTilt, 60);
+      assert.equal((get('drawing-freehand-property-nib-tilt') as HTMLInputElement).value, '60');
+      await click('drawing-freehand-property-use-tilt');
+      assert.equal(freehand.readCadFreehandOptions(editor).useTilt, true);
+      assert.equal(freehand.readCadFreehandOptions(editor).useBearing, false);
+      assert.equal((get('drawing-freehand-use-tilt') as HTMLInputElement).checked, true);
+      assert.equal(get('drawing-freehand-nib-tilt').matches(':disabled'), false);
+      await click('drawing-freehand-use-bearing');
+      assert.equal(freehand.readCadFreehandOptions(editor).useBearing, true);
+      assert.equal((get('drawing-freehand-property-use-bearing') as HTMLInputElement).checked, true);
+      assert.equal(get('drawing-freehand-property-nib-angle').matches(':disabled'), false);
+      await click('drawing-freehand-use-tilt');
+      assert.equal(freehand.readCadFreehandOptions(editor).useTilt, false);
+      assert.equal(freehand.readCadFreehandOptions(editor).useBearing, true);
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('validates calligraphic angle and tilt on Enter or blur and restores invalid drafts with Escape', async () => {
+    await harness(async ({ editor, get, select, input, key, focus, blur, freehand, snapshot }) => {
+      const before = snapshot(); await select('drawing-freehand-mode', 'calligraphy');
+      for (const [field, property, invalid, edge] of [
+        ['nib-angle', 'nibAngle', '-181', '-180'], ['nib-angle', 'nibAngle', '181', '180'],
+        ['nib-tilt', 'nibTilt', '14', '15'], ['nib-tilt', 'nibTilt', '91', '90'],
+      ]) {
+        const id = `drawing-freehand-property-${field}`, previous = freehand.readCadFreehandOptions(editor)[property];
+        await focus(id); await input(id, invalid); await key(id, 'Enter');
+        assert.equal(get(id).getAttribute('aria-invalid'), 'true');
+        assert.equal(freehand.readCadFreehandOptions(editor)[property], previous);
+        await key(id, 'Escape');
+        assert.equal((get(id) as HTMLInputElement).value, String(previous));
+        assert.equal(get(id).getAttribute('aria-invalid'), 'false');
+        await input(id, edge); await blur(id);
+        assert.equal(freehand.readCadFreehandOptions(editor)[property], Number(edge));
+        assert.equal((get(`drawing-freehand-${field}`) as HTMLInputElement).value, edge);
+      }
+      await focus('drawing-freehand-property-nib-tilt'); await input('drawing-freehand-property-nib-tilt', '');
+      await blur('drawing-freehand-property-nib-tilt');
+      assert.equal(get('drawing-freehand-property-nib-tilt').getAttribute('aria-invalid'), 'true');
+      assert.equal(freehand.readCadFreehandOptions(editor).nibTilt, 90);
+      await key('drawing-freehand-property-nib-tilt', 'Escape');
+      assert.equal((get('drawing-freehand-property-nib-tilt') as HTMLInputElement).value, '90');
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('shows continuation only for curves and nib controls only for calligraphy while retaining next-stroke options', async () => {
+    await harness(async ({ editor, host, get, select, click, freehand, snapshot }) => {
+      const before = snapshot(), exists = (id: string) => !!host.querySelector(`[data-testid="${id}"]`);
+      assert.equal((get('drawing-freehand-property-continue') as HTMLInputElement).checked, true);
+      assert.equal(exists('drawing-freehand-property-nib-angle'), false);
+      await click('drawing-freehand-property-continue');
+      assert.equal(freehand.readCadFreehandOptions(editor).continueCurve, false);
+      assert.equal((get('drawing-freehand-continue') as HTMLInputElement).checked, false);
+      await select('drawing-freehand-property-mode', 'ink');
+      assert.equal(exists('drawing-freehand-property-continue'), false);
+      assert.equal(exists('drawing-freehand-nib-tilt'), false);
+      await select('drawing-freehand-mode', 'calligraphy');
+      assert.equal(exists('drawing-freehand-property-continue'), false);
+      assert.equal(exists('drawing-freehand-property-nib-angle'), true);
+      assert.equal(exists('drawing-freehand-nib-preview'), true);
+      await select('drawing-freehand-mode', 'curve');
+      assert.equal(exists('drawing-freehand-property-nib-preview'), false);
+      assert.equal((get('drawing-freehand-property-continue') as HTMLInputElement).checked, false);
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('disables calligraphy and continuation controls during a real pending stroke or readonly mode', async () => {
+    await harness(async ({ editor, get, select, act, tick, snapshot }) => {
+      const before = snapshot(); await select('drawing-freehand-property-mode', 'calligraphy');
+      await act(async () => {
+        editor.setCurrentTool('cad-freehand');
+        editor.dispatch({ type: 'pointer', name: 'pointer_down', target: 'canvas', pointerId: 27, button: 0, isPen: false,
+          point: { x: 320, y: 220, z: 1 }, shiftKey: false, ctrlKey: false, altKey: false });
+      }); await tick();
+      for (const prefix of ['drawing-freehand', 'drawing-freehand-property'])
+        for (const field of ['mode', 'width', 'nib-angle', 'nib-tilt', 'use-tilt', 'use-bearing']) assert.equal(get(`${prefix}-${field}`).matches(':disabled'), true);
+      assert.deepEqual(snapshot(), before);
+      await act(async () => editor.cancel()); await tick();
+      assert.equal(get('drawing-freehand-property-nib-angle').matches(':disabled'), false);
+      await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      assert.equal(get('drawing-freehand-nib-angle').matches(':disabled'), true);
+      assert.equal(get('drawing-freehand-property-use-bearing').matches(':disabled'), true);
+      await act(async () => editor.updateInstanceState({ isReadonly: false })); await tick();
+      await select('drawing-freehand-property-mode', 'curve');
+      await act(async () => editor.dispatch({ type: 'pointer', name: 'pointer_down', target: 'canvas', pointerId: 28, button: 0, isPen: false,
+        point: { x: 380, y: 260, z: 1 }, shiftKey: false, ctrlKey: false, altKey: false })); await tick();
+      assert.equal(get('drawing-freehand-continue').matches(':disabled'), true);
+      assert.equal(get('drawing-freehand-property-continue').matches(':disabled'), true);
+      await act(async () => editor.cancel()); await tick();
+      assert.equal(get('drawing-freehand-property-continue').matches(':disabled'), false);
+      assert.deepEqual(snapshot(), before);
     });
   });
 
   it('renders the pen controls and device guidance in English, Russian and Latvian', async () => {
-    await harness(async ({ locale, get, act, tick }) => {
+    await harness(async ({ locale, get, select, act, tick }) => {
+      await select('drawing-freehand-mode', 'calligraphy'); const labels = new Set<string>();
       for (const [language, expected] of [['en', 'Test the pen'], ['ru', 'Проверка пера'], ['lv', 'Pārbaudīt pildspalvu']]) {
         await act(async () => locale.set(language)); await tick();
         assert.ok(get('drawing-pen-panel').textContent?.includes(expected));
         assert.ok(get('drawing-pen-panel').textContent?.includes('Windows Ink'));
+        const label = get('drawing-freehand-use-bearing').closest('label')?.textContent?.trim();
+        assert.ok(label); labels.add(label);
+        assert.equal(get('drawing-freehand-nib-preview').getAttribute('aria-hidden'), 'true');
       }
+      assert.equal(labels.size, 3);
     });
   });
 });

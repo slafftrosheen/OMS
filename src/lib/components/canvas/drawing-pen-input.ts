@@ -1,9 +1,10 @@
-import { atom, react, type Editor, type TLShapeId } from '@tldraw/tldraw';
+import { atom, react, type Editor, type TLPointerEventInfo, type TLShapeId } from '@tldraw/tldraw';
 import { assertCadEditable } from './cad-plans';
 import { isCadNodeEditing } from './cad-node-selection';
 import { hasCanvasDraft } from './canvas-document';
 import { isDrawingPointerGestureActive, suppressDrawingKeyRelease } from './drawing-pointer-gesture';
 import { drawingPenSettings, drawingPenStorageStatus, drawingPenSettingsPersisted, mapDrawingPenPressure, readDrawingPenSettings, type DrawingPenSettings } from './drawing-pen-settings';
+import { recordDrawingPenOrientation, validDrawingPenOrientation } from './drawing-pen-samples';
 
 export type DrawingPenNotice = null | 'ink-retained' | 'canceled' | 'readonly' | 'storage-unavailable';
 export interface DrawingPenDiagnostics {
@@ -49,7 +50,7 @@ export function recordDrawingPenSample(editor: Editor, event: PointerEvent): Dra
 }
 
 type Kind = 'ink' | 'freehand' | 'native' | 'pan' | 'eraser' | 'blocked';
-interface Sample { x: number; y: number; pressure: number; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }
+interface Sample { x: number; y: number; pressure: number; tiltX?: number; tiltY?: number; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }
 interface Session {
   pointerId: number; owned: boolean; kind: Kind; tool: string; page: string; view: string;
   preferences: DrawingPenSettings; last: Sample; lastSent: string; capture: Element | null; stale: boolean;
@@ -62,6 +63,7 @@ const consume = (event: Event) => {
   event.preventDefault(); event.stopImmediatePropagation(); (event as Event & { isKilled?: boolean }).isKilled = true;
 };
 const sample = (event: PointerEvent): Sample => ({ x: event.clientX, y: event.clientY, pressure: clamp(event.pressure, 0, 1, .5),
+  ...(validDrawingPenOrientation(event) ? { tiltX: event.tiltX, tiltY: event.tiltY } : {}),
   shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey });
 const viewport = (editor: Editor) => {
   const c = editor.getCamera(), b = editor.getViewportScreenBounds();
@@ -115,9 +117,11 @@ export function installDrawingPenInput(editor: Editor): () => void {
   };
   const dispatch = (session: Session, name: 'pointer_down' | 'pointer_move' | 'pointer_up', point: Sample) => {
     const z = mapDrawingPenPressure(point.pressure, session.preferences, session.tool);
-    editor.dispatch({ type: 'pointer', name, target: 'canvas', point: { x: point.x, y: point.y, z },
+    const info: TLPointerEventInfo = { type: 'pointer', name, target: 'canvas', point: { x: point.x, y: point.y, z },
       pointerId: session.pointerId, isPen: true, button: session.kind === 'pan' ? 1 : 0,
-      shiftKey: point.shiftKey, ctrlKey: point.ctrlKey || point.metaKey, altKey: point.altKey });
+      shiftKey: point.shiftKey, ctrlKey: point.ctrlKey || point.metaKey, altKey: point.altKey };
+    recordDrawingPenOrientation(editor, info, point);
+    editor.dispatch(info);
   };
   const restoreTool = (session: Session) => {
     if (session.kind === 'eraser' && editor.getCurrentToolId() === 'eraser') editor.setCurrentTool(session.tool);
