@@ -323,3 +323,7 @@
 .drawing-trace-review .drawing-vector-comparison svg { display: block; width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; background-color: #fff; background-image: conic-gradient(#e5e7eb 25%, transparent 0 50%, #e5e7eb 0 75%, transparent 0); background-size: 12px 12px; }
 .drawing-trace-review image { image-rendering: pixelated; }
 .drawing-trace-outline { stroke: #1d4ed8; }
+
+.drawing-page-sheet { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.drawing-page-sheet rect { fill: var(--bg-1); fill-opacity: .26; stroke: var(--ink-secondary); stroke-width: 1; }
+.drawing-status .drawing-page-navigator { width: clamp(76px, 17%, 184px); min-height: 28px; border: 1px solid var(--border); border-radius: 2px; background: var(--bg-1); font-size: 11px; }

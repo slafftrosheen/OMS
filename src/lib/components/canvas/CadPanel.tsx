@@ -1,3 +1,4 @@
+import { DrawingPageSetup } from './DrawingPageSetup';
 import {readCadSettings} from './cad-settings';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { useVectorText } from './cad-vector-copy';
@@ -39,7 +40,9 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 }
 
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
-export function CadPanel({ settings, focusRequest }: { settings: CadSettings | null; focusRequest?: CadFocusRequest }) {
+export function CadPanel({ settings, focusRequest, multiplePages = false }: {
+  settings: CadSettings | null; focusRequest?: CadFocusRequest; multiplePages?: boolean;
+}) {
   const editor = useEditor(); const { label } = useCadText();
   const preflightLabel = usePreflightText();
   const { label: advancedLabel } = useCadAdvancedText(); const vectorLabel = useVectorText();
@@ -51,7 +54,7 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
     const drawingFocus = focusRequest.section === 'rectangle' || focusRequest.section === 'ellipse' || focusRequest.section === 'polygon' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
-    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : drawingFocus ? 'draw' : 'edit');
+    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
@@ -85,6 +88,7 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
     </label>
     {controls.readOnly && <p className="drawing-help">{label('readOnly')}</p>}
     <div hidden={task !== 'document'}>
+    <DrawingPageSetup multiple={multiplePages} focus={task === 'document' && focusRequest?.section === 'pageSetup' ? focusRequest.sequence : undefined} />
     <details className="drawing-cad-section" open>
       <summary>{label('document')}</summary>
       <form onSubmit={event => { event.preventDefault(); if (proposed) perform(writeCadSettings(editor, proposed), 'settingsSaved'); }}>

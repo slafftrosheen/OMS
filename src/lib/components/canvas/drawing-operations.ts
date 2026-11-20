@@ -2,6 +2,7 @@ import { Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { getCadShapePageBounds } from './cad-bounds';
 import { curveBounds, mapContours } from './cad-curves';
+import { drawingPageBounds } from './drawing-pages';
 import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadPaintHasFill, cadPaintHasStroke, cadShapePaint } from './cad-shape-appearance';
 
 const NAME_KEY = 'omsObjectName';
@@ -52,7 +53,7 @@ export interface RepeatGridOptions {
   directionX?: 1 | -1;
   directionY?: 1 | -1;
 }
-export type DrawingOperationError = 'selectionRequired' | 'selectionChanged' | 'repeatProtected' | 'repeatLimit' | 'invalidOptions' | 'exportEmpty' | 'exportTooLarge' | 'changedFailed';
+export type DrawingOperationError = 'selectionRequired' | 'selectionChanged' | 'repeatProtected' | 'repeatLimit' | 'invalidOptions' | 'exportEmpty' | 'exportTooLarge' | 'pageNeedsSize' | 'changedFailed';
 type Result<T> = { ok: true; value: T } | { ok: false; error: DrawingOperationError };
 type RepeatBounds = { x: number; y: number; w: number; h: number };
 export interface RepeatGridPlan {
@@ -168,7 +169,7 @@ export function repeatDrawingSelection(editor: Editor, options: RepeatGridOption
   return planned.ok === true ? applyRepeatGrid(editor, planned.value) : planned;
 }
 
-export interface DrawingExportOptions { scope: 'selected' | 'all'; scale: 1 | 2 | 4; background: boolean; padding: number; }
+export interface DrawingExportOptions { scope: 'selected' | 'all' | 'page'; scale: 1 | 2 | 4; background: boolean; padding: number; }
 export interface DrawingExportPlan {
   ids: TLShapeId[]; omitted: number; width: number; height: number;
   bounds: { x: number; y: number; w: number; h: number };
@@ -216,8 +217,10 @@ function drawingExportBounds(editor: Editor, shape: TLShape): Box | undefined {
 }
 
 export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options: DrawingExportOptions): Result<DrawingExportPlan> {
-  if (!['selected', 'all'].includes(options.scope) || ![1, 2, 4].includes(options.scale) || typeof options.background !== 'boolean' ||
-      !Number.isFinite(options.padding) || options.padding < 0 || options.padding > 1000) return { ok: false, error: 'invalidOptions' };
+  if (!['selected', 'all', 'page'].includes(options.scope) || ![1, 2, 4].includes(options.scale) || typeof options.background !== 'boolean' ||
+      options.scope !== 'page' && (!Number.isFinite(options.padding) || options.padding < 0 || options.padding > 1000)) return { ok: false, error: 'invalidOptions' };
+  const page = options.scope === 'page' ? drawingPageBounds(editor) : null;
+  if (options.scope === 'page' && !page) return { ok: false, error: 'pageNeedsSize' };
   const candidates = options.scope === 'selected' ? [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])] : [...editor.getCurrentPageShapeIds()];
   const ids: TLShapeId[] = [];
   let omitted = 0;
@@ -228,16 +231,19 @@ export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options
     if (!ARTWORK_TYPES.has(shape.type)) { if (shape.type !== 'group') omitted++; continue; }
     const bounds = drawingExportBounds(editor, shape);
     if (!bounds) continue;
+    if (page && (bounds.maxX < page.minX || bounds.minX > page.maxX || bounds.maxY < page.minY || bounds.minY > page.maxY)) continue;
     ids.push(id); minX = Math.min(minX, bounds.x); minY = Math.min(minY, bounds.y);
     maxX = Math.max(maxX, bounds.x + bounds.w); maxY = Math.max(maxY, bounds.y + bounds.h);
   }
   if (!ids.length) return { ok: false, error: 'exportEmpty' };
   const scale = format === 'png' ? options.scale : 1;
-  const width = Math.ceil((maxX - minX + options.padding * 2) * scale);
-  const height = Math.ceil((maxY - minY + options.padding * 2) * scale);
+  const bounds = page ? { x: page.x, y: page.y, w: page.w, h: page.h } : { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  const padding = page ? 0 : options.padding;
+  const width = Math.ceil((bounds.w + padding * 2) * scale);
+  const height = Math.ceil((bounds.h + padding * 2) * scale);
   if (![width, height].every(value => Number.isFinite(value) && value > 0) ||
       format === 'png' && (width > MAX_EXPORT_SIDE || height > MAX_EXPORT_SIDE || width * height > MAX_EXPORT_PIXELS)) return { ok: false, error: 'exportTooLarge' };
-  return { ok: true, value: { ids, omitted, width, height, bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+  return { ok: true, value: { ids, omitted, width, height, bounds,
     // tldraw 2.4 exportToBlob rasterizes its SVG at a fixed 2× scale. Divide
     // here so the UI's 1×/2×/4× are the actual PNG output dimensions.
     nativeScale: format === 'png' ? options.scale / 2 : 1 } };

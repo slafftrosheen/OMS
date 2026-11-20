@@ -67,6 +67,9 @@ import {
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
+import { DrawingPageNavigator } from './DrawingPageSetup';
+import { CanvasModeContext } from './canvas-mode';
+import { drawingPageBounds, fitDrawingPage, switchDrawingPage } from './drawing-pages';
 import { planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { exportDrawingArtwork } from './drawing-artwork-export';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
@@ -486,6 +489,9 @@ export function DrawingChrome() {
   const [guidesFocusRequest, setGuidesFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
+  const multiplePages = useContext(CanvasModeContext) === 'toolkit';
+  const pages = useValue('drawing page list', () => editor.getPages(), [editor]);
+  const pageBounds = useValue('drawing page for export', () => drawingPageBounds(editor), [editor]);
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
   const [cadAnchor, setCadAnchor] = useState<CadAnchor>('bottom-left');
   const [proportional, setProportional] = useState(false);
@@ -943,7 +949,7 @@ export function DrawingChrome() {
     const code = error instanceof Error ? error.message : '';
     if (['asset-fetch', 'limit', 'cancelled'].includes(code)) return vectorLabel(code);
     if (code === 'stale') return workbenchLabel('changed');
-    return label(['invalidOptions', 'exportEmpty', 'exportTooLarge', 'exportReduced'].includes(code) ? code as DrawingLabel : 'exportFailed');
+    return label(['invalidOptions', 'exportEmpty', 'exportTooLarge', 'exportReduced', 'pageNeedsSize'].includes(code) ? code as DrawingLabel : 'exportFailed');
   }
   async function exportDrawing(format: 'svg' | 'png') {
     if (busy) return;
@@ -1013,8 +1019,9 @@ export function DrawingChrome() {
         <details className="drawing-menu" data-drawing-menu="file" open={openMenu === 'file'}>{menuSummary('file', label('file'))}<div className="drawing-menu-popover">
           <button type="button" disabled={controls.readOnly || busy || !onImport} onClick={() => { closeMenus(); input.current?.click(); }}>{label('import')}</button>
           <fieldset className="drawing-export-options" disabled={busy}>
-            <label><span>{label('exportScope')}</span><select value={exportOptions.scope} onChange={event => { setExportOptions(previous => ({ ...previous, scope: event.target.value as 'selected' | 'all' })); setExportError(''); }}>
+            <label><span>{label('exportScope')}</span><select value={exportOptions.scope} onChange={event => { setExportOptions(previous => ({ ...previous, scope: event.target.value as DrawingExportOptions['scope'] })); setExportError(''); }}>
               <option value="selected">{label('selectedOnly')}</option><option value="all">{label('allArtwork')}</option>
+              <option value="page" disabled={!pageBounds}>{label('pageExport')}</option>
             </select></label>
             <label><span>{label('pngScale')}</span><select value={exportOptions.scale} onChange={event => { setExportOptions(previous => ({ ...previous, scale: Number(event.target.value) as 1 | 2 | 4 })); setExportError(''); }}>
               {[1, 2, 4].map(scale => <option key={scale} value={scale}>{scale}×</option>)}
@@ -1022,8 +1029,8 @@ export function DrawingChrome() {
             <label><span>{label('background')}</span><select value={exportOptions.background ? 'solid' : 'transparent'} onChange={event => setExportOptions(previous => ({ ...previous, background: event.target.value === 'solid' }))}>
               <option value="transparent">{label('transparent')}</option><option value="solid">{label('solidBackground')}</option>
             </select></label>
-            <label><span>{label('padding')}</span><input type="number" min="0" max="1000" step="1" value={Number.isNaN(exportOptions.padding) ? '' : exportOptions.padding}
-              onChange={event => { setExportOptions(previous => ({ ...previous, padding: event.target.value.trim() ? Number(event.target.value) : NaN })); setExportError(''); }} /></label>
+            {exportOptions.scope !== 'page' && <label><span>{label('padding')}</span><input type="number" min="0" max="1000" step="1" value={Number.isNaN(exportOptions.padding) ? '' : exportOptions.padding}
+              onChange={event => { setExportOptions(previous => ({ ...previous, padding: event.target.value.trim() ? Number(event.target.value) : NaN })); setExportError(''); }} /></label>}
           </fieldset>
           <button type="button" disabled={busy || !exportPlans?.svg.ok} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !exportPlans?.png.ok} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
@@ -1073,6 +1080,7 @@ export function DrawingChrome() {
         </div></details>
         <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
         <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
+          <button type="button" onClick={() => focusCad('pageSetup')}>{label('pageSetup')}</button>
           <button type="button" onClick={() => focusCad('document')}>{cadLabel('document')}</button><button type="button" onClick={()=>{setPanel('measure');closeMenus();}}>{workbenchLabel('measure')}</button>
           <button type="button" onClick={openGuides}>{guideLabel('open')}</button>
         </div></details>
@@ -1179,7 +1187,7 @@ export function DrawingChrome() {
           <div hidden={arrangeTask !== 'align'}><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel></div>
           <div hidden={arrangeTask !== 'repeat'}><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0} expanded/></div>
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
-        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : mode === 'objects' ? <>
+        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
           <DrawingObjectsPanel focusRequest={objectOrderFocusRequest}/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
@@ -1231,6 +1239,8 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: controls.tool === 'cad-freehand' ? getDefaultColorTheme({ isDarkMode: false })[value].solid : theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
+      {multiplePages && pages.length > 1 && <DrawingPageNavigator pages={pages} active={editor.getCurrentPageId()}
+        onSelect={id => { if (!switchDrawingPage(editor, id)) setNotice(label('changedFailed')); else setNotice(''); }} />}
       <span className="drawing-status-text" role="status" title={statusText}>{statusText}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
@@ -1238,9 +1248,10 @@ export function DrawingChrome() {
       <button type="button" className="drawing-snap-options-shortcut" onClick={() => setPanel('snap')} aria-pressed={panel === 'snap'} data-testid="drawing-status-snap-options">{snapLabel('open')}</button>
       <div className="drawing-zoom" aria-label={label('zoom')}>
         <ToolButton label={label('zoomOut')} onClick={() => command('zoom-out')}>−</ToolButton>
-        <select aria-label={label('zoom')} value="current" onChange={event => { if (event.target.value === 'fit') command('fit'); else if (event.target.value === 'selection') command('fit-selection'); else { editor.setCamera({ ...editor.getCamera(), z: Number(event.target.value) }); } }}>
+        <select aria-label={label('zoom')} value="current" onChange={event => { if (event.target.value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (event.target.value === 'fit') command('fit'); else if (event.target.value === 'selection') command('fit-selection'); else { editor.setCamera({ ...editor.getCamera(), z: Number(event.target.value) }); } }}>
           <option value="current" disabled>{Math.round(state.zoom * 100)}%</option>
           {[0.25, 0.5, 1, 2, 4].map(value => <option key={value} value={value}>{value * 100}%</option>)}
+          {pageBounds && <option value="page">{label('pageFit')}</option>}
           <option value="fit" disabled={!controls.hasShapes}>{actionLabel('fit')}</option><option value="selection" disabled={!controls.canFitSelection}>{actionLabel('fit-selection')}</option>
         </select>
         <ToolButton label={label('zoomIn')} onClick={() => command('zoom-in')}>+</ToolButton>

@@ -215,6 +215,99 @@ function material(h: any, n = 0, repeat = false, toolkit = false) {
 }
 const exportOptions = { scope: 'selected' as const, scale: 1 as const, background: false, padding: 0 };
 
+describe('physical drawing pages', () => {
+  it('persists independent page sizes and drawings and keeps setup and creation undoable', async () => harness(async h => {
+    const { addDrawingPage, drawingPageBounds, fitDrawingPage, readDrawingPageSize, saveDrawingPage, switchDrawingPage } =
+      await import('../../src/lib/components/canvas/drawing-pages');
+    const { captureCanvasDocument, registerCanvasDraft } = await import('../../src/lib/components/canvas/canvas-document');
+    const editor = h.editor;
+    const first = editor.getCurrentPageId(), shape = h.create();
+    const a4 = { widthMm: 210, heightMm: 297 }, custom = { widthMm: 300, heightMm: 120 };
+    const options = { ...exportOptions, scope: 'page' as const };
+    assert.deepEqual(h.planDrawingExport(editor, 'svg', options), { ok: false, error: 'pageNeedsSize' });
+    editor.updatePage({ id: first, meta: { existing: 'kept' } });
+    assert.equal(saveDrawingPage(editor, 'Front', a4), true);
+    assert.equal(h.cad.readCadSettings(editor).scale, 1);
+    assert.equal(editor.getCurrentPage().meta.existing, 'kept');
+    const originalBounds = drawingPageBounds(editor)!;
+    assert.equal(h.cad.writeCadSettings(editor, { ...h.cad.DEFAULT_CAD_SETTINGS, originX: 90, originY: 50 }), true);
+    assert.deepEqual(drawingPageBounds(editor), originalBounds);
+    assert.equal(saveDrawingPage(editor, 'Invalid', { widthMm: 0, heightMm: 20 }), false);
+    assert.equal(fitDrawingPage(editor), true);
+
+    assert.equal(addDrawingPage(editor, 'Reverse'), true);
+    const second = editor.getCurrentPageId();
+    assert.notEqual(second, first);
+    assert.equal(editor.getCurrentPageShapeIds().size, 0);
+    assert.deepEqual(readDrawingPageSize(editor), a4);
+    assert.equal(h.cad.readCadSettings(editor).originX, 0);
+    editor.undo();
+    assert.equal(editor.getCurrentPageId(), first);
+    assert.equal(editor.getPage(second), undefined);
+    editor.redo();
+    assert.equal(editor.getCurrentPageId(), second);
+    assert.equal(saveDrawingPage(editor, 'Panel back', custom), true);
+    editor.undo();
+    assert.deepEqual(readDrawingPageSize(editor), a4);
+    editor.redo();
+    assert.deepEqual(readDrawingPageSize(editor), custom);
+
+    const reverseShape = h.create();
+    const stopDraft = registerCanvasDraft(editor, () => ({ id: reverseShape.id, props: reverseShape.props }));
+    assert.equal(switchDrawingPage(editor, first), false);
+    assert.equal(addDrawingPage(editor, 'While drawing'), false);
+    stopDraft();
+    const saved = structuredClone(captureCanvasDocument(editor));
+    h.tl.loadSnapshot(editor.store, saved);
+    editor.updateInstanceState({ isReadonly: true });
+    assert.equal(switchDrawingPage(editor, first), true);
+    assert.deepEqual([...editor.getCurrentPageShapeIds()], [shape.id]);
+    assert.deepEqual(readDrawingPageSize(editor), a4);
+    assert.equal(switchDrawingPage(editor, second), true);
+    assert.equal(editor.getCurrentPage().name, 'Panel back');
+    assert.deepEqual([...editor.getCurrentPageShapeIds()], [reverseShape.id]);
+    assert.deepEqual(readDrawingPageSize(editor), custom);
+    assert.equal(addDrawingPage(editor, 'Protected'), false);
+    assert.equal(saveDrawingPage(editor, 'Protected', null), false);
+  }));
+
+  it('exports SVG and PNG to the active sheet and trims objects at the sheet edge', async () => harness(async h => nativeRasterApis(h, async () => {
+    const { addDrawingPage, saveDrawingPage } = await import('../../src/lib/components/canvas/drawing-pages');
+    const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
+    const editor = h.editor, signal = new AbortController().signal;
+    const size = { widthMm: 25.4, heightMm: 12.7 };
+    const options = { ...exportOptions, scope: 'page' as const, padding: 24 };
+    const rectangle = (x: number, y: number, fill: string) =>
+      h.create([h.rectangle(0, 0, 40, 20)], { stroke: 'none', fill, fillOpacity: 1 }, { x, y });
+    rectangle(8, 8, '#0000ff');
+    assert.equal(addDrawingPage(editor, 'Cut sheet'), true);
+    assert.equal(saveDrawingPage(editor, 'Cut sheet', size), true);
+    const partial = rectangle(80, 16, '#ff0000'), outside = rectangle(150, 16, '#00ff00');
+    editor.select(outside.id);
+    const before = h.snapshot();
+    const svg = await exportDrawingArtwork(editor, 'svg', options, signal);
+    assert.deepEqual(svg.physical, size);
+    assert.deepEqual(svg.plan.ids, [partial.id]);
+    const contents = await svg.blob.text();
+    const root = new DOMParser().parseFromString(contents, 'image/svg+xml').documentElement;
+    assert.equal(root.getAttribute('width'), '25.4mm');
+    assert.equal(root.getAttribute('height'), '12.7mm');
+    assert.equal(root.getAttribute('viewBox'), '0 0 96 48');
+    assert.equal(root.querySelector('clipPath#oms-export-page rect')?.getAttribute('width'), '96');
+    assert.ok(root.querySelector('g[clip-path="url(#oms-export-page)"] path'));
+    assert.ok(!contents.includes('#00ff00'));
+    assert.ok(!contents.includes('#0000ff'));
+    const png = await exportDrawingArtwork(editor, 'png', { ...options, scale: 2 }, signal);
+    assert.deepEqual([png.width, png.height, png.reduced], [192, 96, false]);
+    const sharp = createRequire(`${process.cwd()}/package.json`)('sharp');
+    const image = Buffer.from(await png.blob.arrayBuffer());
+    const pixel = (left: number, top: number) => sharp(image).ensureAlpha().extract({ left, top, width: 1, height: 1 }).raw().toBuffer();
+    assert.deepEqual([...await pixel(191, 40)], [255, 0, 0, 255]);
+    assert.equal((await pixel(25, 40))[3], 0);
+    assert.deepEqual(h.snapshot(), before);
+  })));
+});
+
 describe('portable artwork export through native SVG and PNG APIs', () => {
   it('embeds authenticated order and Idea rasters, deduplicates repeated fills, and emits an uploadable SVG', async () => harness(async h => nativeRasterApis(h, async png => {
     const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');

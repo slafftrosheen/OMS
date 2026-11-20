@@ -4,6 +4,7 @@ import { CAD_APPEARANCE_TYPES, cadShapePaint } from './cad-shape-appearance';
 import { cadMmPerPixel, readCadSettings } from './cad-settings';
 import { cadRevision } from './cad-plans';
 import { drawingPngSize, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { readDrawingPageSize } from './drawing-pages';
 
 // Match private attachment limits; the aggregate also bounds base64 expansion.
 export const DRAWING_EXPORT_ASSET_BYTES = 25 * 1024 * 1024;
@@ -93,7 +94,7 @@ export async function prepareDrawingArtworkSvg(editor: Editor, format: 'svg' | '
     }
   }
   const native = await editor.getSvgString(plan.ids, {
-    background: options.background, padding: options.padding, scale: plan.nativeScale,
+    background: options.background, padding: options.scope === 'page' ? 0 : options.padding, scale: plan.nativeScale,
     bounds: new Box(plan.bounds.x, plan.bounds.y, plan.bounds.w, plan.bounds.h)
   });
   check();
@@ -128,10 +129,28 @@ export async function prepareDrawingArtworkSvg(editor: Editor, format: 'svg' | '
     image.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
     image.setAttribute('href', data);
   }
+  if (options.scope === 'page') {
+    // Keep the trim when the SVG is imported into another vector editor.
+    const element = (name: string) => doc.createElementNS(root.namespaceURI, name);
+    const defs = Array.from(root.children).find(child => child.localName === 'defs') ?? element('defs');
+    if (!defs.parentNode) root.prepend(defs);
+    const clip = element('clipPath'), rect = element('rect'), group = element('g');
+    clip.setAttribute('id', 'oms-export-page');
+    rect.setAttribute('width', String(plan.bounds.w));
+    rect.setAttribute('height', String(plan.bounds.h));
+    clip.append(rect);
+    defs.append(clip);
+    group.setAttribute('clip-path', 'url(#oms-export-page)');
+    for (const child of Array.from(root.children)) {
+      if (child !== defs) group.append(child);
+    }
+    root.append(group);
+  }
   // A calibrated document exports real model-space dimensions. The existing
   // user padding remains canvas-space padding and scales with the artwork.
   // Legacy boards without omsCad, and all PNG output, retain pixel dimensions.
-  const physical = format === 'svg' && settings ? {
+  const pageSize = options.scope === 'page' ? readDrawingPageSize(editor) : null;
+  const physical = format === 'svg' && settings ? pageSize ?? {
     widthMm: native.width * cadMmPerPixel(settings), heightMm: native.height * cadMmPerPixel(settings)
   } : undefined;
   if (physical) {
