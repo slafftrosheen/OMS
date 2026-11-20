@@ -315,3 +315,11 @@
 .drawing-radial-legend .is-original { color: var(--ink-secondary); }
 .drawing-radial-legend .is-pivot { color: var(--ink-primary); }
 .drawing-workspace .drawing-docker .drawing-workbench-fields input[type="number"][aria-invalid="true"] { border-color: var(--error); }
+
+.drawing-trace-review .drawing-vector-comparison { margin-top: 8px; }
+.drawing-trace-review .drawing-vector-comparison.is-trace-overlay { grid-template-columns: minmax(0, 1fr); }
+.drawing-trace-viewport { height: 200px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: 4px; }
+.drawing-trace-viewport:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.drawing-trace-review .drawing-vector-comparison svg { display: block; width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; background-color: #fff; background-image: conic-gradient(#e5e7eb 25%, transparent 0 50%, #e5e7eb 0 75%, transparent 0); background-size: 12px 12px; }
+.drawing-trace-review image { image-rendering: pixelated; }
+.drawing-trace-outline { stroke: #1d4ed8; }

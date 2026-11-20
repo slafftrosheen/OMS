@@ -1,6 +1,7 @@
-import ImageTracer from "imagetracerjs";
 import { nodeAt, validContours, type CadContour } from "./cad-curves";
 import { VECTOR_DEFAULT_PAINT, type VectorDocument } from "./cad-paint";
+import { MAX_TRACE_PIXELS, MAX_TRACE_SIDE, readTraceRasterBoundaries } from "./cad-trace-raster";
+import { fitTraceBoundaries } from "./cad-trace-topology";
 
 export interface TraceOptions {
   mode: "mono" | "color";
@@ -9,14 +10,16 @@ export interface TraceOptions {
   smoothing: number;
   noise: number;
   removeWhite: boolean;
+  preserveCorners: boolean;
 }
 export const DEFAULT_TRACE_OPTIONS: TraceOptions = {
   mode: "mono",
   threshold: 128,
   colors: 8,
-  smoothing: 1,
-  noise: 8,
+  smoothing: .75,
+  noise: 0,
   removeWhite: true,
+  preserveCorners: true,
 };
 type Segment = {
   type: "L" | "Q";
@@ -26,11 +29,6 @@ type Segment = {
   y2: number;
   x3?: number;
   y3?: number;
-};
-type TracedPath = {
-  segments: Segment[];
-  isholepath: boolean;
-  holechildren: number[];
 };
 export function traceSegments(segments: Segment[]): CadContour {
   if (!segments.length) throw new Error("empty");
@@ -69,12 +67,14 @@ export function traceRaster(
     !Number.isInteger(height) ||
     width < 1 ||
     height < 1 ||
-    width * height > 1024 * 1024 ||
+    width > MAX_TRACE_SIDE || height > MAX_TRACE_SIDE || width * height > MAX_TRACE_PIXELS ||
+    !(input.data instanceof Uint8ClampedArray) ||
     input.data.length !== width * height * 4
   )
     throw new Error("limit");
   if (
-    !["mono", "color"].includes(options.mode) ||
+    !options || !["mono", "color"].includes(options.mode) ||
+    typeof options.removeWhite !== "boolean" || typeof options.preserveCorners !== "boolean" ||
     !Number.isInteger(options.colors) ||
     options.colors < 2 ||
     options.colors > 32 ||
@@ -89,66 +89,20 @@ export function traceRaster(
     options.noise > 100
   )
     throw new Error("geometry");
-  const data = new Uint8ClampedArray(input.data);
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3] / 255;
-    for (let j = 0; j < 3; j++)
-      data[i + j] = data[i + j] * alpha + 255 * (1 - alpha);
-    if (options.mode === "mono") {
-      const value =
-        0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2] <
-        options.threshold
-          ? 0
-          : 255;
-      data[i] = data[i + 1] = data[i + 2] = value;
-    }
-    data[i + 3] = 255;
-  }
-  const result = ImageTracer.imagedataToTracedata(
-    { width, height, data },
-    {
-      ltres: options.smoothing,
-      qtres: options.smoothing,
-      pathomit: options.noise,
-      numberofcolors: options.mode === "mono" ? 2 : options.colors,
-      colorsampling: 2,
-      colorquantcycles: 3,
-      ...(options.mode === "mono"
-        ? {
-            pal: [
-              { r: 0, g: 0, b: 0, a: 255 },
-              { r: 255, g: 255, b: 255, a: 255 },
-            ],
-          }
-        : {}),
-    },
-  );
+  const raw = readTraceRasterBoundaries(input, options);
+  const fitted = fitTraceBoundaries(raw.boundaries, options.smoothing, options.preserveCorners);
   const paths: VectorDocument["paths"] = [];
-  let total = 0;
-  result.layers.forEach((layer: TracedPath[], index: number) => {
-    const color = result.palette[index];
-    if (options.removeWhite && Math.min(color.r, color.g, color.b) >= 245)
-      return;
-    const fill =
-      "#" +
-      [color.r, color.g, color.b]
-        .map((n) => Math.round(n).toString(16).padStart(2, "0"))
-        .join("");
-    for (const p of layer) {
-      if (p.isholepath || !p.segments.length) continue;
-      const contours = [p, ...p.holechildren.map((i) => layer[i])].map((p) =>
-        traceSegments(p.segments),
-      );
-      total += contours.reduce((n, c) => n + c.nodes.length, 0);
-      if (total > 4096 || paths.length >= 512 || !validContours(contours))
-        throw new Error("limit");
-      paths.push({
-        contours,
-        fillRule: "evenodd",
-        paint: { ...VECTOR_DEFAULT_PAINT, fill, stroke: "none", dash: [] },
-      });
-    }
-  });
+  for (let i = 0; i < raw.boundaries.length; i++) {
+    const boundary = raw.boundaries[i];
+    if (boundary.hole) continue;
+    const color = raw.palette[boundary.color];
+    const fill = "#" + [color.r, color.g, color.b].map(n => n.toString(16).padStart(2, "0")).join("");
+    const contours = [fitted.contours[i], ...boundary.children.map(index => fitted.contours[index])];
+    if (!validContours(contours)) throw new Error("limit");
+    paths.push({ contours, fillRule: "evenodd", paint: { ...VECTOR_DEFAULT_PAINT,
+      fill, fillOpacity: color.a / 255, stroke: "none", dash: [] } });
+  }
   if (!paths.length) throw new Error("empty");
-  return { paths, width, height, warnings: ["trace-approximation"] };
+  return { paths, width, height, warnings: ["trace-approximation",
+    ...(raw.noiseRemoved ? ["trace-noise"] : []), ...(fitted.conservative ? ["trace-topology"] : [])] };
 }

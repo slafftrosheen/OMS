@@ -1,0 +1,30 @@
+{
+  "source": "2048\u00d72048 binary disk, radius900px",
+  "pixels": 4194304,
+  "options": {
+    "mode": "mono",
+    "threshold": 128,
+    "colors": 8,
+    "smoothing": 0.75,
+    "noise": 0,
+    "removeWhite": true,
+    "preserveCorners": true
+  },
+  "elapsedMs": 1068.57,
+  "timing": "Single local full traceRaster call including boundary extraction, fitting and topology; excludes input generation and UI/worker transfer",
+  "paths": 1,
+  "nodes": 16,
+  "curvedSpans": 16,
+  "smoothNodes": 16,
+  "maxAnalyticRadialErrorPx": 0.1007,
+  "warnings": [
+    "trace-approximation"
+  ],
+  "sourceHashes": {
+    "cad-trace.ts": "88602977c84bff27430647a4c34c235cf04ee8af284623297630e1345733c165",
+    "cad-trace-fit.ts": "72d271e360fc3accbf69e99262057e900b2ac58ab14d8063af7b2effad666a6b",
+    "cad-trace-topology.ts": "4038e51097253cc38a1bf62fdabf458b7c1896ce16a94a5cb3a3a6fa67e6f6fd",
+    "cad-trace-raster.ts": "8739f41240120d0def955cbdf3372a1aa756d0f76d3d6e7c1c9cc2b90595f8d8"
+  },
+  "errorMeasurement": "Largest sampled radial deviation from the generating analytic disk; not an arbitrary-artwork guarantee."
+}

@@ -557,6 +557,10 @@ The new scenarios cover both Idea and Order hosts, fixed nib widths, synthetic c
 
 Behavior references: [CorelDRAW calligraphic lines](https://product.corel.com/help/CorelDRAW/540227992/Main/EN/Documentation/CorelDRAW-Drawing-calligraphic-and-preset-lines.html), [CorelDRAW expressive brushstrokes](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-expressive-brushstrokes_3aapplying.html), [CorelDRAW Freehand continuation](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Windows/CorelDRAW-en/CorelDRAW-Lines.html), [W3C orientation conversion](https://www.w3.org/TR/pointerevents3/#converting-between-tiltx-tilty-and-altitudeangle-azimuthangle), and [Huion Inspiroy 2 specifications](https://www.huion.com/products/inspiroy-2-s).
 
+## Cubic bitmap tracing — 20 November 2026
+
+The shared **Bitmaps → Trace bitmap** workflow now fits cubic Bézier curves directly to pixel boundaries, with explicit working-pixel tolerance, corner preservation, 1024/2048 px resolution and aligned source/result inspection. It retains exact straight sides, shared color edges, holes, opacity and editable handles. The review offers synchronized zoom/scroll, overlay opacity and actual curved/straight segment counts. Full workflow, bounds, algorithm details and measured before/after fixtures are in [Canvas vector exchange](canvas-vector-exchange.md#cubic-raster-tracing--20-november-2026).
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

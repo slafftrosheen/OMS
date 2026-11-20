@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="655" viewBox="0 0 960 655" role="img" aria-labelledby="trace-title trace-description">
+  <title id="trace-title">Raster tracing: measured before and after</title>
+  <desc id="trace-description">Actual traces of identical 128 by 128 pixel binary fixtures: a rounded rectangle with width 96, height 64, and corner radius 14, and a disk of radius 44. Top row uses commit 7f10ef791b5f78fd43d4251e1f189f6cf8b3b70c and its original defaults. Bottom row uses the new pipeline defaults. Gray silhouettes are reconstructed directly from black source pixels. Orange and teal outlines use the actual returned Bézier control coordinates; white dots mark actual editable anchor nodes. Curved spans count non-collinear control points, so straight cubic commands do not count as curves. Maximum deviations are independently sampled distances to the analytic shapes that generated these synthetic sources, not universal tracing accuracy guarantees. Generated from the source hashes in metadata.</desc>
+  <metadata>{&quot;baselineCommit&quot;:&quot;7f10ef791b5f78fd43d4251e1f189f6cf8b3b70c&quot;,&quot;hashes&quot;:{&quot;cad-trace.ts&quot;:&quot;88602977c84bff27430647a4c34c235cf04ee8af284623297630e1345733c165&quot;,&quot;cad-trace-fit.ts&quot;:&quot;72d271e360fc3accbf69e99262057e900b2ac58ab14d8063af7b2effad666a6b&quot;,&quot;cad-trace-topology.ts&quot;:&quot;4038e51097253cc38a1bf62fdabf458b7c1896ce16a94a5cb3a3a6fa67e6f6fd&quot;,&quot;cad-trace-raster.ts&quot;:&quot;8739f41240120d0def955cbdf3372a1aa756d0f76d3d6e7c1c9cc2b90595f8d8&quot;},&quot;baselineOptions&quot;:{&quot;mode&quot;:&quot;mono&quot;,&quot;threshold&quot;:128,&quot;colors&quot;:8,&quot;smoothing&quot;:1,&quot;noise&quot;:8,&quot;removeWhite&quot;:true},&quot;newOptions&quot;:{&quot;mode&quot;:&quot;mono&quot;,&quot;threshold&quot;:128,&quot;colors&quot;:8,&quot;smoothing&quot;:0.75,&quot;noise&quot;:0,&quot;removeWhite&quot;:true,&quot;preserveCorners&quot;:true},&quot;measurements&quot;:[{&quot;fixture&quot;:&quot;disk128_r44&quot;,&quot;version&quot;:&quot;baseline&quot;,&quot;nodes&quot;:17,&quot;genuineCubicSpans&quot;:4,&quot;smoothNodes&quot;:0,&quot;maxAnalyticBoundaryErrorPx&quot;:0.4775,&quot;maxJoinAngleDeg&quot;:15.70864,&quot;medianTraceMs&quot;:9.26,&quot;warnings&quot;:[&quot;trace-approximation&quot;]},{&quot;fixture&quot;:&quot;disk128_r44&quot;,&quot;version&quot;:&quot;new&quot;,&quot;nodes&quot;:4,&quot;genuineCubicSpans&quot;:4,&quot;smoothNodes&quot;:4,&quot;maxAnalyticBoundaryErrorPx&quot;:0.0093,&quot;maxJoinAngleDeg&quot;:0,&quot;medianTraceMs&quot;:16.92,&quot;warnings&quot;:[&quot;trace-approximation&quot;]},{&quot;fixture&quot;:&quot;rounded128_w96_h64_r14&quot;,&quot;version&quot;:&quot;baseline&quot;,&quot;nodes&quot;:12,&quot;genuineCubicSpans&quot;:0,&quot;smoothNodes&quot;:0,&quot;maxAnalyticBoundaryErrorPx&quot;:0.7529,&quot;maxJoinAngleDeg&quot;:37.40536,&quot;medianTraceMs&quot;:2.21,&quot;warnings&quot;:[&quot;trace-approximation&quot;]},{&quot;fixture&quot;:&quot;rounded128_w96_h64_r14&quot;,&quot;version&quot;:&quot;new&quot;,&quot;nodes&quot;:8,&quot;genuineCubicSpans&quot;:4,&quot;smoothNodes&quot;:8,&quot;maxAnalyticBoundaryErrorPx&quot;:0.1788,&quot;maxJoinAngleDeg&quot;:0,&quot;medianTraceMs&quot;:5.37,&quot;warnings&quot;:[&quot;trace-approximation&quot;]}]}</metadata>
+  <style>text{font-family:Arial,Helvetica,sans-serif;fill:#26384b}.title{font-size:22px;font-weight:700}.subtitle{font-size:13px;fill:#637386}.column{font-size:15px;font-weight:700}.row{font-size:18px;font-weight:700}.label{font-size:12px;fill:#637386}.value{font-size:12px}.count{font-size:15px;font-weight:700}.small{font-size:11px;fill:#637386}.foot{font-size:10px;fill:#637386}</style>
+  <rect width="960" height="655" rx="16" fill="#f5f8fb"/>
+  <text x="24" y="34" class="title">Raster tracing: measured before and after</text>
+  <text x="24" y="56" class="subtitle">Actual fitted paths and editable anchors · faint gray shows the source pixel silhouette</text>
+  <text x="370" y="86" text-anchor="middle" class="column">Rounded rectangle · 128 × 128 px</text>
+  <text x="750" y="86" text-anchor="middle" class="column">Disk · 128 × 128 px</text>
+  <text x="24" y="143" class="row" style="fill:#b6541c">Before</text>
+  <text x="24" y="165" class="label">Original defaults</text>
+  <text x="24" y="194" class="label">Legacy fit thresholds</text>
+  <text x="24" y="213" class="value">Line 1.0 · quadratic 1.0</text>
+  <text x="24" y="241" class="label">Noise filter</text>
+  <text x="24" y="260" class="value">8 px of perimeter</text>
+  <text x="24" y="414" class="row" style="fill:#087c72">After</text>
+  <text x="24" y="436" class="label">New defaults</text>
+  <text x="24" y="465" class="label">Geometric fit tolerance</text>
+  <text x="24" y="484" class="value">0.75 working pixels</text>
+  <text x="24" y="512" class="label">Noise filter</text>
+  <text x="24" y="531" class="value">Off · corners preserved</text>
+  <g aria-label="Before: rounded128_w96_h64_r14; 12 nodes, 0 genuinely curved spans">
+    <rect x="200" y="103" width="340" height="235" rx="12" fill="#fff" stroke="#d7e0e9"/>
+    <g transform="translate(280.4 111) scale(1.4)">
+      <path d="M26 32h76v1h-76zM24 33h80v1h-80zM22 34h84v1h-84zM21 35h86v1h-86zM20 36h88v1h-88zM19 37h90v1h-90zM18 38h92v1h-92zM18 39h92v1h-92zM17 40h94v1h-94zM17 41h94v1h-94zM16 42h96v1h-96zM16 43h96v1h-96zM16 44h96v1h-96zM16 45h96v1h-96zM16 46h96v1h-96zM16 47h96v1h-96zM16 48h96v1h-96zM16 49h96v1h-96zM16 50h96v1h-96zM16 51h96v1h-96zM16 52h96v1h-96zM16 53h96v1h-96zM16 54h96v1h-96zM16 55h96v1h-96zM16 56h96v1h-96zM16 57h96v1h-96zM16 58h96v1h-96zM16 59h96v1h-96zM16 60h96v1h-96zM16 61h96v1h-96zM16 62h96v1h-96zM16 63h96v1h-96zM16 64h96v1h-96zM16 65h96v1h-96zM16 66h96v1h-96zM16 67h96v1h-96zM16 68h96v1h-96zM16 69h96v1h-96zM16 70h96v1h-96zM16 71h96v1h-96zM16 72h96v1h-96zM16 73h96v1h-96zM16 74h96v1h-96zM16 75h96v1h-96zM16 76h96v1h-96zM16 77h96v1h-96zM16 78h96v1h-96zM16 79h96v1h-96zM16 80h96v1h-96zM16 81h96v1h-96zM16 82h96v1h-96zM16 83h96v1h-96zM16 84h96v1h-96zM16 85h96v1h-96zM17 86h94v1h-94zM17 87h94v1h-94zM18 88h92v1h-92zM18 89h92v1h-92zM19 90h90v1h-90zM20 91h88v1h-88zM21 92h86v1h-86zM22 93h84v1h-84zM24 94h80v1h-80zM26 95h76v1h-76z" fill="#c4ced9" fill-opacity=".48"/>
+      <path d="M26.5 32C26.5 32 101.5 32 101.5 32C101.5 32 110 38.5 110 38.5C110 38.5 112 42.5 112 42.5C112 42.5 112 85.5 112 85.5C112 85.5 105.5 94 105.5 94C105.5 94 101.5 96 101.5 96C101.5 96 26.5 96 26.5 96C26.5 96 18 89.5 18 89.5C18 89.5 16 85.5 16 85.5C16 85.5 16 42.5 16 42.5C16 42.5 22.5 34 22.5 34C22.5 34 26.5 32 26.5 32Z" fill="none" stroke="#b6541c" stroke-width="1.05" stroke-linejoin="round"/>
+      <circle cx="26.5" cy="32" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="101.5" cy="32" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="110" cy="38.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="112" cy="42.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="112" cy="85.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="105.5" cy="94" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="101.5" cy="96" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="26.5" cy="96" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="18" cy="89.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="16" cy="85.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="16" cy="42.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="22.5" cy="34" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+    </g>
+    <text x="370" y="310" text-anchor="middle" class="count" style="fill:#b6541c">12 nodes · 0 curved spans</text>
+    <text x="370" y="328" text-anchor="middle" class="small">Sampled ideal-boundary error: 0.753 px</text>
+  </g>
+  <g aria-label="Before: disk128_r44; 17 nodes, 4 genuinely curved spans">
+    <rect x="580" y="103" width="340" height="235" rx="12" fill="#fff" stroke="#d7e0e9"/>
+    <g transform="translate(660.4 111) scale(1.4)">
+      <path d="M57 20h14v1h-14zM53 21h22v1h-22zM49 22h30v1h-30zM47 23h34v1h-34zM45 24h38v1h-38zM43 25h42v1h-42zM41 26h46v1h-46zM39 27h50v1h-50zM38 28h52v1h-52zM37 29h54v1h-54zM35 30h58v1h-58zM34 31h60v1h-60zM33 32h62v1h-62zM32 33h64v1h-64zM31 34h66v1h-66zM30 35h68v1h-68zM30 36h68v1h-68zM29 37h70v1h-70zM28 38h72v1h-72zM27 39h74v1h-74zM27 40h74v1h-74zM26 41h76v1h-76zM26 42h76v1h-76zM25 43h78v1h-78zM25 44h78v1h-78zM24 45h80v1h-80zM24 46h80v1h-80zM23 47h82v1h-82zM23 48h82v1h-82zM22 49h84v1h-84zM22 50h84v1h-84zM22 51h84v1h-84zM22 52h84v1h-84zM21 53h86v1h-86zM21 54h86v1h-86zM21 55h86v1h-86zM21 56h86v1h-86zM20 57h88v1h-88zM20 58h88v1h-88zM20 59h88v1h-88zM20 60h88v1h-88zM20 61h88v1h-88zM20 62h88v1h-88zM20 63h88v1h-88zM20 64h88v1h-88zM20 65h88v1h-88zM20 66h88v1h-88zM20 67h88v1h-88zM20 68h88v1h-88zM20 69h88v1h-88zM20 70h88v1h-88zM21 71h86v1h-86zM21 72h86v1h-86zM21 73h86v1h-86zM21 74h86v1h-86zM22 75h84v1h-84zM22 76h84v1h-84zM22 77h84v1h-84zM22 78h84v1h-84zM23 79h82v1h-82zM23 80h82v1h-82zM24 81h80v1h-80zM24 82h80v1h-80zM25 83h78v1h-78zM25 84h78v1h-78zM26 85h76v1h-76zM26 86h76v1h-76zM27 87h74v1h-74zM27 88h74v1h-74zM28 89h72v1h-72zM29 90h70v1h-70zM30 91h68v1h-68zM30 92h68v1h-68zM31 93h66v1h-66zM32 94h64v1h-64zM33 95h62v1h-62zM34 96h60v1h-60zM35 97h58v1h-58zM37 98h54v1h-54zM38 99h52v1h-52zM39 100h50v1h-50zM41 101h46v1h-46zM43 102h42v1h-42zM45 103h38v1h-38zM47 104h34v1h-34zM49 105h30v1h-30zM53 106h22v1h-22zM57 107h14v1h-14z" fill="#c4ced9" fill-opacity=".48"/>
+      <path d="M57.5 20C57.5 20 70.5 20 70.5 20C70.5 20 78.5 22 78.5 22C86.527778 24.972222 93.027778 29.472222 98 35.5C98 35.5 106 49.5 106 49.5C106 49.5 108 57.5 108 57.5C108 57.5 108 70.5 108 70.5C105.588519 82.421852 100.421852 91.588519 92.5 98C92.5 98 78.5 106 78.5 106C78.5 106 70.5 108 70.5 108C70.5 108 57.5 108 57.5 108C45.578148 105.588519 36.411481 100.421852 30 92.5C30 92.5 22 78.5 22 78.5C22 78.5 20 70.5 20 70.5C20 70.5 20 57.5 20 57.5C22.411481 45.578148 27.578148 36.411481 35.5 30C35.5 30 49.5 22 49.5 22C49.5 22 57.5 20 57.5 20Z" fill="none" stroke="#b6541c" stroke-width="1.05" stroke-linejoin="round"/>
+      <circle cx="57.5" cy="20" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="70.5" cy="20" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="78.5" cy="22" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="98" cy="35.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="106" cy="49.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="108" cy="57.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="108" cy="70.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="92.5" cy="98" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="78.5" cy="106" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="70.5" cy="108" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="57.5" cy="108" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="30" cy="92.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="22" cy="78.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="20" cy="70.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="20" cy="57.5" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="35.5" cy="30" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+      <circle cx="49.5" cy="22" r="1.45" fill="#fff" stroke="#b6541c" stroke-width=".75"/>
+    </g>
+    <text x="750" y="310" text-anchor="middle" class="count" style="fill:#b6541c">17 nodes · 4 curved spans</text>
+    <text x="750" y="328" text-anchor="middle" class="small">Sampled ideal-boundary error: 0.477 px</text>
+  </g>
+  <g aria-label="After: rounded128_w96_h64_r14; 8 nodes, 4 genuinely curved spans">
+    <rect x="200" y="374" width="340" height="235" rx="12" fill="#fff" stroke="#d7e0e9"/>
+    <g transform="translate(280.4 382) scale(1.4)">
+      <path d="M26 32h76v1h-76zM24 33h80v1h-80zM22 34h84v1h-84zM21 35h86v1h-86zM20 36h88v1h-88zM19 37h90v1h-90zM18 38h92v1h-92zM18 39h92v1h-92zM17 40h94v1h-94zM17 41h94v1h-94zM16 42h96v1h-96zM16 43h96v1h-96zM16 44h96v1h-96zM16 45h96v1h-96zM16 46h96v1h-96zM16 47h96v1h-96zM16 48h96v1h-96zM16 49h96v1h-96zM16 50h96v1h-96zM16 51h96v1h-96zM16 52h96v1h-96zM16 53h96v1h-96zM16 54h96v1h-96zM16 55h96v1h-96zM16 56h96v1h-96zM16 57h96v1h-96zM16 58h96v1h-96zM16 59h96v1h-96zM16 60h96v1h-96zM16 61h96v1h-96zM16 62h96v1h-96zM16 63h96v1h-96zM16 64h96v1h-96zM16 65h96v1h-96zM16 66h96v1h-96zM16 67h96v1h-96zM16 68h96v1h-96zM16 69h96v1h-96zM16 70h96v1h-96zM16 71h96v1h-96zM16 72h96v1h-96zM16 73h96v1h-96zM16 74h96v1h-96zM16 75h96v1h-96zM16 76h96v1h-96zM16 77h96v1h-96zM16 78h96v1h-96zM16 79h96v1h-96zM16 80h96v1h-96zM16 81h96v1h-96zM16 82h96v1h-96zM16 83h96v1h-96zM16 84h96v1h-96zM16 85h96v1h-96zM17 86h94v1h-94zM17 87h94v1h-94zM18 88h92v1h-92zM18 89h92v1h-92zM19 90h90v1h-90zM20 91h88v1h-88zM21 92h86v1h-86zM22 93h84v1h-84zM24 94h80v1h-80zM26 95h76v1h-76z" fill="#c4ced9" fill-opacity=".48"/>
+      <path d="M32 32C53.333333 32 74.666667 32 96 32C106.391325 32 112 37.608675 112 48C112 58.666667 112 69.333333 112 80C112 90.391325 106.391325 96 96 96C74.666667 96 53.333333 96 32 96C21.608675 96 16 90.391325 16 80C16 69.333333 16 58.666667 16 48C16 37.608675 21.608675 32 32 32Z" fill="none" stroke="#087c72" stroke-width="1.05" stroke-linejoin="round"/>
+      <circle cx="32" cy="32" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="96" cy="32" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="112" cy="48" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="112" cy="80" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="96" cy="96" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="32" cy="96" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="16" cy="80" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="16" cy="48" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+    </g>
+    <text x="370" y="581" text-anchor="middle" class="count" style="fill:#087c72">8 nodes · 4 curved spans</text>
+    <text x="370" y="599" text-anchor="middle" class="small">Sampled ideal-boundary error: 0.179 px</text>
+  </g>
+  <g aria-label="After: disk128_r44; 4 nodes, 4 genuinely curved spans">
+    <rect x="580" y="374" width="340" height="235" rx="12" fill="#fff" stroke="#d7e0e9"/>
+    <g transform="translate(660.4 382) scale(1.4)">
+      <path d="M57 20h14v1h-14zM53 21h22v1h-22zM49 22h30v1h-30zM47 23h34v1h-34zM45 24h38v1h-38zM43 25h42v1h-42zM41 26h46v1h-46zM39 27h50v1h-50zM38 28h52v1h-52zM37 29h54v1h-54zM35 30h58v1h-58zM34 31h60v1h-60zM33 32h62v1h-62zM32 33h64v1h-64zM31 34h66v1h-66zM30 35h68v1h-68zM30 36h68v1h-68zM29 37h70v1h-70zM28 38h72v1h-72zM27 39h74v1h-74zM27 40h74v1h-74zM26 41h76v1h-76zM26 42h76v1h-76zM25 43h78v1h-78zM25 44h78v1h-78zM24 45h80v1h-80zM24 46h80v1h-80zM23 47h82v1h-82zM23 48h82v1h-82zM22 49h84v1h-84zM22 50h84v1h-84zM22 51h84v1h-84zM22 52h84v1h-84zM21 53h86v1h-86zM21 54h86v1h-86zM21 55h86v1h-86zM21 56h86v1h-86zM20 57h88v1h-88zM20 58h88v1h-88zM20 59h88v1h-88zM20 60h88v1h-88zM20 61h88v1h-88zM20 62h88v1h-88zM20 63h88v1h-88zM20 64h88v1h-88zM20 65h88v1h-88zM20 66h88v1h-88zM20 67h88v1h-88zM20 68h88v1h-88zM20 69h88v1h-88zM20 70h88v1h-88zM21 71h86v1h-86zM21 72h86v1h-86zM21 73h86v1h-86zM21 74h86v1h-86zM22 75h84v1h-84zM22 76h84v1h-84zM22 77h84v1h-84zM22 78h84v1h-84zM23 79h82v1h-82zM23 80h82v1h-82zM24 81h80v1h-80zM24 82h80v1h-80zM25 83h78v1h-78zM25 84h78v1h-78zM26 85h76v1h-76zM26 86h76v1h-76zM27 87h74v1h-74zM27 88h74v1h-74zM28 89h72v1h-72zM29 90h70v1h-70zM30 91h68v1h-68zM30 92h68v1h-68zM31 93h66v1h-66zM32 94h64v1h-64zM33 95h62v1h-62zM34 96h60v1h-60zM35 97h58v1h-58zM37 98h54v1h-54zM38 99h52v1h-52zM39 100h50v1h-50zM41 101h46v1h-46zM43 102h42v1h-42zM45 103h38v1h-38zM47 104h34v1h-34zM49 105h30v1h-30zM53 106h22v1h-22zM57 107h14v1h-14z" fill="#c4ced9" fill-opacity=".48"/>
+      <path d="M64 20C88.282981 20 108 39.717019 108 64C108 88.282981 88.282981 108 64 108C39.717019 108 20 88.282981 20 64C20 39.717019 39.717019 20 64 20Z" fill="none" stroke="#087c72" stroke-width="1.05" stroke-linejoin="round"/>
+      <circle cx="64" cy="20" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="108" cy="64" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="64" cy="108" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+      <circle cx="20" cy="64" r="1.45" fill="#fff" stroke="#087c72" stroke-width=".75"/>
+    </g>
+    <text x="750" y="581" text-anchor="middle" class="count" style="fill:#087c72">4 nodes · 4 curved spans</text>
+    <text x="750" y="599" text-anchor="middle" class="small">Sampled ideal-boundary error: 0.009 px</text>
+  </g>
+  <text x="24" y="630" class="foot">Legacy line/quadratic thresholds and the new geometric pixel tolerance use different fitting rules.</text>
+  <text x="24" y="646" class="foot">Errors describe these synthetic fixtures. Node and curve counts come from the actual exported editable geometry.</text>
+</svg>

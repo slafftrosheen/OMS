@@ -1,0 +1,159 @@
+{
+  "baselineCommit": "7f10ef791b5f78fd43d4251e1f189f6cf8b3b70c",
+  "hashes": {
+    "cad-trace.ts": "88602977c84bff27430647a4c34c235cf04ee8af284623297630e1345733c165",
+    "cad-trace-fit.ts": "72d271e360fc3accbf69e99262057e900b2ac58ab14d8063af7b2effad666a6b",
+    "cad-trace-topology.ts": "4038e51097253cc38a1bf62fdabf458b7c1896ce16a94a5cb3a3a6fa67e6f6fd",
+    "cad-trace-raster.ts": "8739f41240120d0def955cbdf3372a1aa756d0f76d3d6e7c1c9cc2b90595f8d8"
+  },
+  "note": "Binary pixel-center sampling. Each version uses its own defaults. Error uses 256 samples per output segment against independent analytic distance. Times are median of three local CPU traces, not UI latency.",
+  "baselineOptions": {
+    "mode": "mono",
+    "threshold": 128,
+    "colors": 8,
+    "smoothing": 1,
+    "noise": 8,
+    "removeWhite": true
+  },
+  "newOptions": {
+    "mode": "mono",
+    "threshold": 128,
+    "colors": 8,
+    "smoothing": 0.75,
+    "noise": 0,
+    "removeWhite": true,
+    "preserveCorners": true
+  },
+  "results": [
+    {
+      "fixture": "disk32_r11",
+      "version": "baseline",
+      "nodes": 8,
+      "genuineCubicSpans": 1,
+      "smoothNodes": 0,
+      "maxAnalyticBoundaryErrorPx": 0.6511,
+      "maxJoinAngleDeg": 46.62115,
+      "medianTraceMs": 2.77,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "disk32_r11",
+      "version": "new",
+      "nodes": 4,
+      "genuineCubicSpans": 4,
+      "smoothNodes": 4,
+      "maxAnalyticBoundaryErrorPx": 0.0173,
+      "maxJoinAngleDeg": 0,
+      "medianTraceMs": 4.32,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "disk128_r44",
+      "version": "baseline",
+      "nodes": 17,
+      "genuineCubicSpans": 4,
+      "smoothNodes": 0,
+      "maxAnalyticBoundaryErrorPx": 0.4775,
+      "maxJoinAngleDeg": 15.70864,
+      "medianTraceMs": 9.26,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "disk128_r44",
+      "version": "new",
+      "nodes": 4,
+      "genuineCubicSpans": 4,
+      "smoothNodes": 4,
+      "maxAnalyticBoundaryErrorPx": 0.0093,
+      "maxJoinAngleDeg": 0,
+      "medianTraceMs": 16.92,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "ellipse128_rx46_ry24",
+      "version": "baseline",
+      "nodes": 13,
+      "genuineCubicSpans": 7,
+      "smoothNodes": 0,
+      "maxAnalyticBoundaryErrorPx": 0.5227,
+      "maxJoinAngleDeg": 14.91475,
+      "medianTraceMs": 2.67,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "ellipse128_rx46_ry24",
+      "version": "new",
+      "nodes": 16,
+      "genuineCubicSpans": 16,
+      "smoothNodes": 16,
+      "maxAnalyticBoundaryErrorPx": 0.2538,
+      "maxJoinAngleDeg": 0,
+      "medianTraceMs": 16.99,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "ellipse160_rx54_ry29_rot0.47",
+      "version": "baseline",
+      "nodes": 18,
+      "genuineCubicSpans": 5,
+      "smoothNodes": 0,
+      "maxAnalyticBoundaryErrorPx": 0.7911,
+      "maxJoinAngleDeg": 65.04525,
+      "medianTraceMs": 3.53,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "ellipse160_rx54_ry29_rot0.47",
+      "version": "new",
+      "nodes": 10,
+      "genuineCubicSpans": 10,
+      "smoothNodes": 10,
+      "maxAnalyticBoundaryErrorPx": 0.2361,
+      "maxJoinAngleDeg": 0,
+      "medianTraceMs": 16.71,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "rounded128_w96_h64_r14",
+      "version": "baseline",
+      "nodes": 12,
+      "genuineCubicSpans": 0,
+      "smoothNodes": 0,
+      "maxAnalyticBoundaryErrorPx": 0.7529,
+      "maxJoinAngleDeg": 37.40536,
+      "medianTraceMs": 2.21,
+      "warnings": [
+        "trace-approximation"
+      ]
+    },
+    {
+      "fixture": "rounded128_w96_h64_r14",
+      "version": "new",
+      "nodes": 8,
+      "genuineCubicSpans": 4,
+      "smoothNodes": 8,
+      "maxAnalyticBoundaryErrorPx": 0.1788,
+      "maxJoinAngleDeg": 0,
+      "medianTraceMs": 5.37,
+      "warnings": [
+        "trace-approximation"
+      ]
+    }
+  ]
+}
