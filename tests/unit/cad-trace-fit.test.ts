@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { describe, it } from 'vitest';
 import { fitTraceBoundary, MAX_TRACE_BOUNDARY_POINTS, type TraceFitOptions } from '../../src/lib/components/canvas/cad-trace-fit';
 import { validContours, type CadBezierNode, type CadContour } from '../../src/lib/components/canvas/cad-curves';
 import type { CadPoint } from '../../src/lib/components/canvas/cad-settings';
+import { DEFAULT_TRACE_OPTIONS, traceRaster } from '../../src/lib/components/canvas/cad-trace';
 
 const options = (patch: Partial<TraceFitOptions> = {}): TraceFitOptions => ({ tolerance: .75, preserveCorners: true, ...patch });
 const distance = (a: CadPoint, b: CadPoint) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -38,6 +41,14 @@ const roundedRectangle = () => pixelBoundary(128, (x, y) => {
   const a = Math.abs(x - 64) - 34, b = Math.abs(y - 64) - 18;
   return Math.hypot(Math.max(a, 0), Math.max(b, 0)) + Math.min(Math.max(a, b), 0) <= 14;
 });
+function insidePolygon(points: CadPoint[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    if ((a.y > y) !== (b.y > y) && x < a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)) inside = !inside;
+  }
+  return inside;
+}
 function at(a: CadBezierNode, b: CadBezierNode, t: number): CadPoint {
   const s = 1 - t;
   return {
@@ -130,6 +141,32 @@ describe('bounded cubic fitting of raw raster edges', () => {
     }
   });
 
+  for (const width of [12, 28, 64]) it(`preserves all three corners of a pointed triangle with a ${width}px base`, () => {
+    const vertices = [{ x: 64, y: 5 }, { x: 64 + width / 2, y: 120 }, { x: 64 - width / 2, y: 120 }];
+    const raw = pixelBoundary(128, (x, y) => insidePolygon(vertices, x, y)), contour = fitTraceBoundary(raw, options());
+    const corners = contour.nodes.filter(n => n.mode === 'corner');
+    assert.equal(corners.length, 3); assert.ok(contour.nodes.length <= 40);
+    // At small widths pixel coverage clips the mathematical apex. Preserve
+    // the cusp at the actual raster cap, without inventing an invisible tip.
+    const cap = { x: 64, y: Math.min(...raw.map(p => p.y)) };
+    for (const p of [cap, ...vertices.slice(1)]) assert.ok(corners.some(n => distance(n, p) < 1e-8), `missing exact cusp ${JSON.stringify(p)}`);
+    assertDeviation(raw, contour, .75);
+    const smooth = fitTraceBoundary(raw, options({ preserveCorners: false }));
+    assertSmooth(smooth); assertDeviation(raw, smooth, .75);
+  });
+
+  for (const size of [64, 128]) it(`retains the outer and reentrant cusps of a ${size}px star`, () => {
+    const vertices = Array.from({ length: 10 }, (_, i) => {
+      const radius = (i % 2 ? .20 : .44) * size, angle = -Math.PI / 2 + i * Math.PI / 5;
+      return { x: size / 2 + radius * Math.cos(angle), y: size / 2 + radius * Math.sin(angle) };
+    });
+    const raw = pixelBoundary(size, (x, y) => insidePolygon(vertices, x, y)), contour = fitTraceBoundary(raw, options());
+    const corners = contour.nodes.filter(n => n.mode === 'corner');
+    assert.equal(corners.length, 10); assert.ok(contour.nodes.length <= 64);
+    for (const point of vertices) assert.ok(corners.some(n => distance(n, point) <= 1.5), 'star cusp was replaced by a smooth arc');
+    assertDeviation(raw, contour, .75);
+  });
+
   it('fits a 2048px disk without a scale-driven node explosion or exhausting the shared budget', () => {
     const raw = disk(2048, 900), budget = { remaining: 32_000_000 }, contour = fitTraceBoundary(raw, options({ budget }));
     assert.equal(raw.length, 7200); assert.ok(contour.nodes.length <= 32, `${contour.nodes.length} nodes on a smooth large disk`);
@@ -179,6 +216,55 @@ describe('bounded cubic fitting of raw raster edges', () => {
       { x: 2, y: 3, inX: 0, inY: 0, outX: 0, outY: 0, mode: 'corner' },
       { x: 17, y: 21, inX: 0, inY: 0, outX: 0, outY: 0, mode: 'corner' },
     ] });
+  });
+});
+
+describe('native small-letter raster regression', () => {
+  for (const size of [24, 36]) it(`keeps the two counters and bounded outline of a ${size}px serif B`, () => {
+    // Keep the native renderer external to the unit runner's esbuild bundle.
+    const { createCanvas, GlobalFonts } = createRequire(resolve('package.json'))('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
+    assert.ok(GlobalFonts.registerFromPath(resolve('static/tldraw/2.4.6/fonts/IBMPlexSerif-Medium.woff2'), 'TraceFitCounterFixture'));
+    const width = size * 2, height = Math.ceil(size * 1.8), canvas = createCanvas(width, height), context = canvas.getContext('2d');
+    context.fillStyle = '#ffffff'; context.fillRect(0, 0, width, height);
+    context.fillStyle = '#000000'; context.font = `${size}px TraceFitCounterFixture`;
+    context.fillText('B', Math.ceil(size / 2), Math.ceil(size * 1.3));
+    const data = context.getImageData(0, 0, width, height).data, edges: CadPoint[][] = [], mask = new Uint8Array(width * height);
+    for (let i = 0; i < mask.length; i++) mask[i] = Number(data[i * 4] < 128);
+    const filled = (x: number, y: number) => x >= 0 && x < width && y >= 0 && y < height && !!mask[y * width + x];
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (filled(x, y)) {
+      if (!filled(x - 1, y)) edges.push([{ x, y }, { x, y: y + 1 }]);
+      if (!filled(x + 1, y)) edges.push([{ x: x + 1, y }, { x: x + 1, y: y + 1 }]);
+      if (!filled(x, y - 1)) edges.push([{ x, y }, { x: x + 1, y }]);
+      if (!filled(x, y + 1)) edges.push([{ x, y: y + 1 }, { x: x + 1, y: y + 1 }]);
+    }
+    const nearest = (point: CadPoint, polygons: CadPoint[][]) => polygons.reduce((best, polygon) => Math.min(best, polylineDistance(point, polygon)), Infinity);
+    const seen = new Uint8Array(mask.length), counters: CadPoint[][] = [];
+    for (let start = 0; start < mask.length; start++) if (!seen[start] && !mask[start]) {
+      const queue = [start], points: CadPoint[] = []; seen[start] = 1;
+      let border = false;
+      for (let head = 0; head < queue.length; head++) {
+        const index = queue[head], x = index % width, y = Math.floor(index / width);
+        points.push({ x: x + .5, y: y + .5 });
+        if (!x || !y || x === width - 1 || y === height - 1) border = true;
+        for (const next of [x > 0 ? index - 1 : -1, x + 1 < width ? index + 1 : -1, y > 0 ? index - width : -1, y + 1 < height ? index + width : -1]) {
+          if (next >= 0 && !seen[next] && !mask[next]) { seen[next] = 1; queue.push(next); }
+        }
+      }
+      if (!border) counters.push(points);
+    }
+    assert.equal(counters.length, 2, 'native fixture must have two independent empty counters');
+    const document = traceRaster({ width, height, data }, DEFAULT_TRACE_OPTIONS);
+    assert.equal(document.paths.length, 1); assert.equal(document.paths[0].contours.length, 3);
+    const contours = document.paths[0].contours, fitted = contours.map(contour => sample(contour));
+    assert.ok(contours.reduce((count, contour) => count + contour.nodes.length, 0) <= 64);
+    assert.ok(contours.some(contour => curvedCount(contour) > 0));
+    for (const polygon of fitted) for (const point of polygon) assert.ok(nearest(point, edges) <= .755, 'letter curve escapes its raw pixel boundary');
+    for (const [a, b] of edges) for (const point of [a, b, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }])
+      assert.ok(nearest(point, fitted) <= .755, 'letter loses pixel-boundary detail');
+    for (const counter of counters) {
+      const witness = counter.reduce((best, point) => nearest(point, edges) > nearest(best, edges) ? point : best);
+      assert.equal(fitted.filter(polygon => insidePolygon(polygon, witness.x, witness.y)).length % 2, 0, 'letter counter filled in');
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-import type { TraceOptions } from "./cad-trace";
+import type { TraceOptions } from "./cad-trace-options";
 import type { VectorDocument } from "./cad-vector";
 
 export function runRasterTrace(

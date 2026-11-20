@@ -1,26 +1,10 @@
 import { nodeAt, validContours, type CadContour } from "./cad-curves";
 import { VECTOR_DEFAULT_PAINT, type VectorDocument } from "./cad-paint";
-import { MAX_TRACE_PIXELS, MAX_TRACE_SIDE, readTraceRasterBoundaries } from "./cad-trace-raster";
+import { readTraceRasterBoundaries } from "./cad-trace-raster";
 import { fitTraceBoundaries } from "./cad-trace-topology";
-
-export interface TraceOptions {
-  mode: "mono" | "color";
-  threshold: number;
-  colors: number;
-  smoothing: number;
-  noise: number;
-  removeWhite: boolean;
-  preserveCorners: boolean;
-}
-export const DEFAULT_TRACE_OPTIONS: TraceOptions = {
-  mode: "mono",
-  threshold: 128,
-  colors: 8,
-  smoothing: .75,
-  noise: 0,
-  removeWhite: true,
-  preserveCorners: true,
-};
+import { validTraceOptions, type TraceOptions } from './cad-trace-options';
+import { validTraceRasterInput } from './cad-trace-background';
+export { DEFAULT_TRACE_OPTIONS, type TraceOptions } from './cad-trace-options';
 type Segment = {
   type: "L" | "Q";
   x1: number;
@@ -61,34 +45,9 @@ export function traceRaster(
   input: { width: number; height: number; data: Uint8ClampedArray },
   options: TraceOptions,
 ): VectorDocument {
+  if (!validTraceRasterInput(input)) throw new Error('limit');
+  if (!validTraceOptions(options)) throw new Error('geometry');
   const { width, height } = input;
-  if (
-    !Number.isInteger(width) ||
-    !Number.isInteger(height) ||
-    width < 1 ||
-    height < 1 ||
-    width > MAX_TRACE_SIDE || height > MAX_TRACE_SIDE || width * height > MAX_TRACE_PIXELS ||
-    !(input.data instanceof Uint8ClampedArray) ||
-    input.data.length !== width * height * 4
-  )
-    throw new Error("limit");
-  if (
-    !options || !["mono", "color"].includes(options.mode) ||
-    typeof options.removeWhite !== "boolean" || typeof options.preserveCorners !== "boolean" ||
-    !Number.isInteger(options.colors) ||
-    options.colors < 2 ||
-    options.colors > 32 ||
-    !Number.isFinite(options.threshold) ||
-    options.threshold < 0 ||
-    options.threshold > 255 ||
-    !Number.isFinite(options.smoothing) ||
-    options.smoothing < 0.1 ||
-    options.smoothing > 5 ||
-    !Number.isInteger(options.noise) ||
-    options.noise < 0 ||
-    options.noise > 100
-  )
-    throw new Error("geometry");
   const raw = readTraceRasterBoundaries(input, options);
   const fitted = fitTraceBoundaries(raw.boundaries, options.smoothing, options.preserveCorners);
   const paths: VectorDocument["paths"] = [];

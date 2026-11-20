@@ -146,7 +146,24 @@ function tangent(points: CadPoint[], index: number, span: number, first: number,
   const after = along(points, index, 1, span, false, first, last, budget);
   return unit(minus(after, before));
 }
+function linearCornerSupport(points: CadPoint[], index: number, direction: -1 | 1, span: number, closed: boolean, budget: Budget): boolean {
+  // Skip the tiny flat cap that pixel coverage puts across a pointed tip.
+  // The remaining side must fit a straight strip at several sample distances;
+  // a rounded extremum keeps bending as this support window grows.
+  const samples = Array.from({ length: 8 }, (_, i) => along(points, index, direction, span * (i + 1) / 4, closed, 0, points.length - 1, budget));
+  if (distance(samples[0], samples.at(-1)!) < span) return false;
+  const center = samples.reduce((sum, p) => ({ x: sum.x + p.x / samples.length, y: sum.y + p.y / samples.length }), { x: 0, y: 0 });
+  let xx = 0, xy = 0, yy = 0;
+  for (const point of samples) {
+    const x = point.x - center.x, y = point.y - center.y;
+    xx += x * x; xy += x * y; yy += y * y;
+  }
+  const angle = Math.atan2(2 * xy, xx - yy) / 2, normal = { x: -Math.sin(angle), y: Math.cos(angle) };
+  return samples.every(point => Math.abs(dot(minus(point, center), normal)) <= .75);
+}
 function cornerIndices(points: CadPoint[], closed: boolean, span: number, budget: Budget): number[] {
+  let perimeter = 0;
+  for (let i = 0; i < points.length - (closed ? 0 : 1); i++) { spend(budget); perimeter += distance(points[i], points[(i + 1) % points.length]); }
   const scores = points.map((point, index) => {
     if (!closed && (index === 0 || index === points.length - 1)) return 0;
     const turn = (size: number) => {
@@ -158,7 +175,20 @@ function cornerIndices(points: CadPoint[], closed: boolean, span: number, budget
     const small = turn(span), large = turn(span * 3);
     // Genuine cusps retain their turn at both scales. Smooth raster staircases
     // acquire a larger turn as the window grows and must not become corners.
-    return small >= Math.PI / 4.5 && Math.abs(large - small) <= Math.PI / 22.5 ? small : 0;
+    if (small < Math.PI / 4.5) return 0;
+    if (Math.abs(large - small) <= Math.PI / 22.5) return small;
+    // A narrow cusp's two-pixel cap makes its smallest-window turn look round.
+    // Recover it only when the turn stabilizes at a larger scale and both
+    // supporting sides stay straight. Relaxing the original angle threshold
+    // alone would mark small circles as corners. Never inspect the opposite
+    // side of a small closed loop as if it were local support.
+    for (const scale of [span * 2, span * 3]) {
+      if (closed && scale * 2 > perimeter / 4) continue;
+      const a = turn(scale), b = turn(scale * 2);
+      if (a >= Math.PI / 4.5 && Math.abs(a - b) <= Math.PI / 15 &&
+          linearCornerSupport(points, index, -1, scale, closed, budget) && linearCornerSupport(points, index, 1, scale, closed, budget)) return small;
+    }
+    return 0;
   });
   const result: number[] = [];
   for (let i = 0; i < points.length; i++) {

@@ -561,6 +561,8 @@ Behavior references: [CorelDRAW calligraphic lines](https://product.corel.com/he
 
 The shared **Bitmaps → Trace bitmap** workflow now fits cubic Bézier curves directly to pixel boundaries, with explicit working-pixel tolerance, corner preservation, 1024/2048 px resolution and aligned source/result inspection. It retains exact straight sides, shared color edges, holes, opacity and editable handles. The review offers synchronized zoom/scroll, overlay opacity and actual curved/straight segment counts. Full workflow, bounds, algorithm details and measured before/after fixtures are in [Canvas vector exchange](canvas-vector-exchange.md#cubic-raster-tracing--20-november-2026).
 
+The follow-up preserves acute triangle/star cusps, adds logo/line-art/color profiles and separate border-only/all-white removal, and groups multi-object results in the same Undo operation. Native bitmap output retains its parent, sibling position and inherited opacity. Normal Idea/Order image attachment cards can also supply their original image: the new artwork appears beside the retained card at an explicit width. File output is centered, and repeated previews retain the inspected area. See [Tracing workflow and sharp corners](canvas-vector-exchange.md#tracing-workflow-and-sharp-corners--20-november-2026-follow-up) for exact behavior, background semantics and quality limits.
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

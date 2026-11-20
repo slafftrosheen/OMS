@@ -4,7 +4,7 @@ Both the idea canvas and the order drawing use these controls. Set document unit
 
 ## Operator workflow
 
-1. **Bitmaps → Trace bitmap** opens the tracing docker. Choose a local PNG/JPEG/WebP or select an existing uncropped bitmap (including a bitmap imported from PDF/EPS) and click **Use selected bitmap**. Choose monochrome or color, working resolution, curve-fitting tolerance and corner preservation, then prepare a preview. Compare source/result side by side, as an overlay, or as an outline over the source. Both views use the same working-image coordinates. The result is ordinary editable cubic Bézier curves, including compound holes, with one undo operation. Source replacement is optional. Selected-image placement, size, rotation, flips, clipping and effective object/group opacity are retained.
+1. **Bitmaps → Trace bitmap** opens the tracing docker. Choose a local PNG/JPEG/WebP, select an existing uncropped bitmap (including a bitmap imported from PDF/EPS), or select an imported image attachment card. Choose a trace profile, background handling, working resolution and precision settings, then prepare a preview. Compare source/result side by side, as an overlay, or as an outline over the source. Both views use the same working-image coordinates. The result is ordinary editable cubic Bézier curves, including compound holes, with one undo operation. Multi-object results are grouped by default. Native bitmap tracing retains placement, size, rotation, flips, clipping, parent context, stacking order and effective opacity; source replacement is optional. Attachment cards trace their original image into new artwork beside the card at the requested width, keeping the card and its file link.
 2. **File → PDF / EPS / DXF** opens vector exchange. PDF import selects one page and retains its physical size. **Automatic · preserve appearance** keeps editable paths when supported; pages with unsupported effects or live text become a clearly labelled bitmap at the selected 72/150/300/600 DPI. Choose **Editable curves** to retain supported vectors and inspect omissions, or **Rendered page** to force a bitmap. Enable **Outline text on the OMS server** for glyph outlines. EPS uses the same conversion service automatically. Choose another page to import additional pages. This is separate from attaching the original PDF to an order.
 3. DXF accepts ASCII and binary files. Choose a font (including a local TTF/OTF/WOFF/WOFF2) for editable text outlines; review the substitution warning. For 3D DXF choose Top (XY), Front (XZ), or Side (YZ). Strict 2D remains the default. Projection drops depth and does not remove hidden edges.
 4. **Object → Fill & outline (F12)** changes fill, outline color and physical outline width. For CAD curves, left-clicking a palette swatch sets fill and right-clicking sets outline. Paint is saved with the curve and survives node edits, shaping and combine/break-apart. Filled holes remain holes for hit testing as well as rendering.
@@ -42,12 +42,12 @@ The default trace uses **2048 px**, **0.75 working-pixel tolerance**, **Preserve
 | Curve-fitting tolerance, 0.1–5 working px | Bounds fitting deviation from the thresholded/quantized pixel boundary. Lower values preserve more raster detail and generally require more nodes; higher values allow simpler curves. |
 | Preserve sharp corners | Retains corners detected across multiple boundary scales. Pixel staircases on smooth forms are not automatically treated as intentional corners. Color junctions and diagonal contacts stay fixed regardless of this switch. |
 | Ignore contours shorter than, 0–100 working px | Removes boundaries shorter than the selected perimeter length, including small holes. This is **not an area threshold**. Zero keeps small components. A removed outer component takes its holes with it. Actual filtering produces a review notice. |
-| Remove all white | Removes near-white regions throughout the image, including internal white details. Fully transparent pixels remain empty with this switch either on or off. |
+| Background | **Keep all colors**, **Remove white at the border**, or **Remove all white**. Border removal preserves enclosed white details; all-white removal also removes those details. Mono uses the thresholded white class; color uses source pixels whose RGB channels are all at least 245. Fully transparent pixels stay empty in every mode. |
 | Working resolution | Caps the longest side at 1024 or 2048 px. The tolerance and contour-length controls refer to these working pixels after resizing and thresholding/color reduction. |
 
 The pixel tolerance does not measure fidelity to an unknown original vector design. Resizing, thresholding and color quantization can change a scanned edge before curve fitting begins. At a full-image width of 100 mm and a working width of 1000 px, a 0.75 px fitting tolerance corresponds to 0.075 mm in the horizontal direction; this excludes uncertainty already present in the raster. Use a larger source or a lower tolerance when the task needs finer boundaries, and inspect holes, lettering and narrow separations before applying.
 
-The review reports paths, nodes, genuinely curved segments and straight segments. A cubic command with collinear handles is counted as straight. Side-by-side, overlay and outline modes share one image coordinate system; zoom and scroll inspection do not modify the prepared geometry. Overlay opacity can be adjusted to compare edges. Applying writes editable `cad-bezier` objects in one history operation. **Shape/F10** exposes their anchor points and handles. Existing JSON save/load, PDF cubic export and DXF degree-3 SPLINE export consume the actual saved curves. Explicit DXF polyline export remains available when required by the receiving application.
+The review reports editable objects, contours, distinct fill/opacity colors, nodes, genuinely curved segments and straight segments. A hole adds a contour, not an independent object. A cubic command with collinear handles is counted as straight. Side-by-side, overlay and outline modes share one image coordinate system; zoom and scroll inspection do not modify the prepared geometry. Overlay opacity can be adjusted to compare edges. Retracing the same source retains its inspection settings. Applying writes editable `cad-bezier` objects, optionally inside a native group, in one history operation. **Shape/F10** exposes their anchor points and handles. Existing JSON save/load, PDF cubic export and DXF degree-3 SPLINE export consume the actual saved curves. Explicit DXF polyline export remains available when required by the receiving application.
 
 ### Fitting and safeguards
 
@@ -63,7 +63,7 @@ Algorithm and interaction references: [Schneider's piecewise cubic fitting paper
 
 ### Measured before and after
 
-The comparison below uses identical binary rasters generated from analytic shapes. The old version is commit `7f10ef791b5f78fd43d4251e1f189f6cf8b3b70c`; each version uses its own defaults. The old line/quadratic thresholds and the new geometric pixel tolerance have different meanings. Error is the largest independently sampled distance to the ideal shape, using 256 samples per returned segment. It describes these fixtures, not arbitrary customer artwork.
+The comparison below records the initial cubic-fitting pass using identical binary rasters generated from analytic shapes: old version `7f10ef791b5f78fd43d4251e1f189f6cf8b3b70c`, cubic version `a129a50d79d27992cf7c5ae1557bb25f62f3b25f`, each with its own defaults. The old line/quadratic thresholds and the new geometric pixel tolerance have different meanings. Error is the largest independently sampled distance to the ideal shape, using 256 samples per returned segment. It describes these historical fixtures, not arbitrary customer artwork or later fitter revisions.
 
 | Fixture | Nodes, old → new | Actually curved spans, old → new | Sampled ideal-boundary error, old → new |
 |---|---:|---:|---:|
@@ -80,6 +80,73 @@ Every new join in these fixtures is tangent-smooth within numerical precision. T
 A complete 2048 × 2048 trace of a radius-900 disk produced 16 nodes, 16 genuinely curved spans and 16 smooth joins, without a topology fallback. One local `traceRaster` call took 1.069 seconds, including extraction, fitting and topology checks; this excludes source generation, decoding and worker transfer. Sampled radial deviation from the ideal disk was 0.1007 px. Hardware and source complexity affect runtime.
 
 The [fixture measurements](assets/raster-trace-metrics.json) and [2048 px measurement](assets/raster-trace-2048-metrics.json) retain source hashes, options and measurement details.
+
+## Tracing workflow and sharp corners — 20 November 2026 follow-up
+
+### Acute corners without faceting smooth curves
+
+Rasterized pointed tips can end in a tiny flat cap. The earlier two-scale corner detector sometimes classified that cap as a rounded edge, smoothing real triangle and star cusps. Ambiguous candidates now receive two additional, bounded scale checks: the turning angle must stabilize, and eight samples on each supporting side must fit a narrow straight strip. A perimeter guard keeps these checks local to the corner. The continuous, bidirectional error certificate against the raw pixel boundary is unchanged, as are exact shared junctions and the option to turn corner preservation off.
+
+The following deterministic fixtures compare this correction with `a129a50d` at 0.75 px tolerance and with corner preservation enabled:
+
+| Fixture | Nodes, before → after | Detected sharp corners, before → after |
+|---|---:|---:|
+| Acute triangle, 128 px image, 64 px base | 33 → 17 | 0 → 3 |
+| Acute triangle, 128 px image, 12 px base | 15 → 21 | 2 → 3 |
+| Five-point star, 128 px image | 38 → 51 | 8 → 10 |
+| Disk, 2048 px image, radius 900 px | 16 → 16 | 0 → 0 |
+
+Preserving previously rounded cusps can require additional nodes; this is not a blanket node-count reduction. The large disk still uses 16 smooth cubics. Regression coverage includes acute triangles, 64/128 px stars, smooth circles and ellipses, strict fitting tolerance, native-rendered letter counters, and the existing work limits. A one-pixel ring or a tiny glyph whose counter touches its outside boundary at an exact raster junction remains limited by that source geometry; fitting does not reconstruct missing image detail.
+
+### Profiles and background handling
+
+The shared Idea/Order tracing panel offers **Black-and-white logo**, **Fine line art**, **Color artwork**, and **Custom**. Profiles set tracing parameters only. Changing a profile keeps the selected source, background mode, working resolution, physical output width, replacement choice and grouping choice. Manual changes to tracing parameters select Custom.
+
+| Profile | Mode and starting settings |
+|---|---|
+| Black-and-white logo | Mono, threshold 128, 0.75 px tolerance, corner preservation, no short-contour filtering |
+| Fine line art | Mono, threshold 160, 0.35 px tolerance, corner preservation, no short-contour filtering |
+| Color artwork | Color, 8 palette colors, 0.75 px tolerance, corner preservation, no short-contour filtering |
+
+These are starting values for filled-outline tracing. The line-art profile still traces the outlines of a stroke; it does not produce a centerline or recognize lettering as text.
+
+Background removal is independent of the profile:
+
+| Mode | Result |
+|---|---|
+| Keep all colors | Keeps visible white and other retained colors. Fully transparent pixels remain empty. |
+| Remove white at the border | Removes only white regions reachable from any image edge through white or fully transparent pixels. Enclosed white details remain painted objects. |
+| Remove all white | Removes matching white throughout the image, including enclosed details. This remains the default and preserves the earlier global-removal behavior. |
+
+The border flood uses four-neighbor connectivity: white pixels that touch only at a corner do not connect. In mono mode, white means visible luminance at or above the selected threshold; in color mode, it means all source RGB channels are at least 245. The mask is applied before palette reduction, so discarded exterior white cannot consume a palette entry or merge into gray. The source RGBA buffer is not modified. Border processing uses at most one byte per working pixel plus one 32-bit queue entry per pixel, within the existing 2048 × 2048 image limit.
+
+Use **Remove all white** when white counters should become transparent holes, for example cutting outlines from a black logo. Use **Remove white at the border** when white areas inside a colored sign are intentional painted details. Keeping an enclosed white region preserves that fill, rather than silently converting it into a transparent hole.
+
+### Source placement and applying the result
+
+Local file traces are centered using the full image frame, including transparent margins. They no longer start at the viewport center and extend only down/right. File and attachment output use the original image's aspect ratio at the requested physical width, even when reducing the working image rounds its short side to a different proportion. Preview comparison continues to use the actual working pixels sent to the fitter.
+
+For a selected native image or imported raster-filled CAD object, the new curves remain in the same parent and immediately above the source's sibling position. Optional replacement removes the source in the same transaction. The source's own opacity is folded into its new paint; ancestor opacity continues to come from the retained parent hierarchy. This preserves overlapping labels and nested groups. Imported clipping remains attached to the curves.
+
+Images imported through the usual Idea/Order attachment flow are image **cards** with a header and file association. Tracing a card reads the original PNG/JPEG/WebP and creates new artwork beside it at an explicit physical width. The card remains intact. Its preview crop, header and display opacity do not become part of the artwork. The existing locked/protected/read-only guards still apply.
+
+**Group result** is enabled by default. Two or more created objects become one native group, with each object's paint and compound holes retained. A single-object result remains one selected curve. The existing Objects tree, Group/Ungroup, Select Same and F10 tools provide further editing. Creating the curves, grouping them and optionally replacing a native source share one Undo step. Capacity, stale-source, parent and snapshot checks precede mutation, and a failed group operation rolls the transaction back.
+
+Native group normalization can otherwise dissolve a pre-existing singleton parent during Undo and lose its opacity context. Source-relative tracing retains only those existing singleton ancestor groups in the current editor. Unrelated groups, empty-group cleanup and explicit Ungroup keep their native behavior. This protection is runtime state rather than saved metadata; a fresh editor establishes it on its next source-relative trace. Failed operations release newly installed protection after completing rollback.
+
+Changing tracing parameters and preparing another result retains the comparison mode, zoom, opacity and inspected area for the same source. The previous preview cannot be applied while a new trace is running or after its inputs become stale. After Apply selects the output, the source controls no longer offer a trace of an invalid vector selection. A previously chosen local file remains available without another upload.
+
+Behavior references: CorelDRAW [trace profiles](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Mac/CorelDRAW-en/CorelDRAW-Choose-a-trace-type-and-profile.html), [background scope and grouped completion](https://product.corel.com/help/CorelDRAW/540111186/Documentation-Windows/CorelDRAW-en/CorelDRAW-Finetune-traced-results.html), and [source-image retention](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Mac/CorelDRAW-en/CorelDRAW-Prepare-the-image.html). The specific flood connectivity, thresholds, fit tolerances and resource limits above are OMS implementation choices.
+
+### Follow-up verification
+
+The CAD/canvas regression set passes **1,249 tests in 86 files**, including **270 isolated native Editor/React/DOM tests** and **47 new tests** in this follow-up. Targeted coverage includes 27 fitter tests, 13 background/options tests, 21 native output/group/history tests and 20 tracing-control/source tests. The attachment scenarios use actual Idea and Order card factories and native box geometry; the card's PDF/Svelte visual components are omitted from the DOM harness.
+
+The first broad run exposed a pre-existing Freehand harness race: a fixed 40 ms wait could observe a collected pointer endpoint before the next animation frame published its preview. A delayed-frame probe reproduced it with both `a129a50d` and current production sources. The harness now awaits two actual animation frames, with all assertions retained. The affected 38-test suite and both delayed start/end closure probes pass; no Freehand production behavior changed.
+
+Svelte/TypeScript checking reports zero errors and the same 13 pre-existing warnings in five unrelated Svelte files. ESLint passes for all 17 changed/new TS/TSX files, and the static UI scan reports no findings. The production build completes successfully with the existing SvelteKit Node adapter. Source/test hashes are held fixed across validation and publication.
+
+Playwright discovery finds 61 scenarios in six files; they were **not executed** because of the previously observed browser URL security restriction. Native Editor/DOM results do not establish browser pixel layout, production persistence or physical cutting accuracy. No production service is restarted by this source change.
 
 
 ## Deployment

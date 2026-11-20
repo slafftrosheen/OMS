@@ -7,7 +7,7 @@ import type { DecodedTraceRaster } from './cad-trace-source';
 import { useVectorText } from './cad-vector-copy';
 import { VectorArtwork } from './VectorArtwork';
 
-export interface RasterTraceReviewData { plan: CadPlan; key: string; document: VectorDocument; decoded: Omit<DecodedTraceRaster, 'image'> }
+export interface RasterTraceReviewData { plan: CadPlan; key: string; document: VectorDocument; sourceName: string; decoded: Omit<DecodedTraceRaster, 'image'> }
 const informational = new Set(['trace-approximation', 'trace-resolution', 'trace-topology', 'trace-noise']);
 const zoomLevels = [1, 2, 4, 8] as const;
 type PreviewZoom = typeof zoomLevels[number];
@@ -35,7 +35,9 @@ export function rasterTraceCounts(document: VectorDocument) {
       if (curved) curves++; else lines++;
     }
   }
-  return { contours, nodes, curves, lines };
+  const colors = new Set(document.paths.filter(path => path.paint.fill !== 'none' && path.paint.fillOpacity > 0)
+    .map(path => `${path.paint.fill.toLowerCase()}:${path.paint.fillOpacity}`)).size;
+  return { objects: document.paths.length, colors, contours, nodes, curves, lines };
 }
 
 export function RasterTraceReview({ review, inputKey, revision, disabled, onApplied }: {
@@ -64,6 +66,7 @@ export function RasterTraceReview({ review, inputKey, revision, disabled, onAppl
   const source = <image href={decoded.preview} width={doc.width} height={doc.height} opacity={mode === 'side' ? 1 : sourceOpacity / 100} />;
   const surfaceStyle = { width: `${zoom * 100}%`, height: `${zoom * 100}%` };
   return <div className="drawing-cad-report drawing-trace-review" data-testid="vector-review" onKeyDown={event => event.stopPropagation()}>
+    <p className="drawing-help" data-testid="trace-review-source">{review.sourceName}</p>
     <label className="drawing-cad-field"><span>{t('traceComparison')}</span>
       <select value={mode} data-testid="trace-preview-mode" onChange={event => { center.current = { x: .5, y: .5 }; setMode(event.target.value as typeof mode); }}>
         <option value="side">{t('traceSide')}</option><option value="overlay">{t('traceOverlay')}</option><option value="outline">{t('traceOutline')}</option>
@@ -113,12 +116,15 @@ export function RasterTraceReview({ review, inputKey, revision, disabled, onAppl
     <dl className="drawing-cad-values">
       <dt>{t('traceOriginalSize')}</dt><dd data-testid="trace-original-size">{decoded.originalWidth} × {decoded.originalHeight} px</dd>
       <dt>{t('traceWorkingSize')}</dt><dd data-testid="trace-working-size">{doc.width} × {doc.height} px</dd>
-      <dt>{t('paths')}</dt><dd data-testid="trace-contour-count">{counts.contours}</dd>
+      <dt>{t('traceObjects')}</dt><dd data-testid="trace-object-count">{counts.objects}</dd>
+      <dt>{t('tracePaletteColors')}</dt><dd data-testid="trace-color-count">{counts.colors}</dd>
+      <dt>{t('traceContours')}</dt><dd data-testid="trace-contour-count">{counts.contours}</dd>
       <dt>{t('nodes')}</dt><dd data-testid="trace-node-count">{counts.nodes}</dd>
       <dt>{t('traceCurves')}</dt><dd data-testid="trace-curve-count">{counts.curves}</dd>
       <dt>{t('traceLines')}</dt><dd data-testid="trace-line-count">{counts.lines}</dd>
       <dt>{t('bounds')}</dt><dd>{Number(plan.widthMm.toFixed(3))} × {Number(plan.heightMm.toFixed(3))}</dd>
     </dl>
+    <p className="drawing-help" data-testid="trace-result-grouping">{t(plan.groupResult && counts.objects > 1 ? 'traceGroupedResult' : 'traceSeparateResult')}</p>
     {!!warnings.length && <ul className="drawing-cad-warnings">{warnings.map(warning => <li key={warning}>{t(warning)}</li>)}</ul>}
     {needsAck && <label className="drawing-vector-check"><input type="checkbox" checked={ack} data-testid="trace-review-ack"
       onChange={event => setAck(event.target.checked)} />{t('omissions')}</label>}

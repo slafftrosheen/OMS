@@ -122,7 +122,14 @@ async function harness(run: (value: any) => Promise<void>, withPenBridge = false
   const stopPen = withPenBridge ? pen.installDrawingPenInput(editor) : () => {};
   try {
     await act(async () => { root.render(<Application editor={editor} />); editor.setCurrentTool('cad-freehand'); });
-    const tick = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); }); };
+    const tick = async () => {
+      // Native pointer_move is queued until the next frame; the tool publishes
+      // its preview on the following frame. Elapsed time cannot guarantee that
+      // either callback ran when the event loop is busy.
+      await act(async () => {
+        await new Promise<void>(resolve => env.win.requestAnimationFrame(() => env.win.requestAnimationFrame(() => resolve())));
+      });
+    };
     const makePointer = (name: string, point: { x: number; y: number }, options: any = {}) => {
       const { pointerId = 1, pointerType = 'mouse', isPrimary = true, pressure = .5, tiltX, tiltY, coalesced, ...mouse } = options;
       const event = new MouseEvent(name, { bubbles: true, cancelable: true, button: 0, buttons: name === 'pointerup' ? 0 : 1,

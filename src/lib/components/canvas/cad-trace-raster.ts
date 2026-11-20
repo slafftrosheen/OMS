@@ -1,11 +1,12 @@
 import ImageTracer from 'imagetracerjs';
 import type { CadPoint } from './cad-settings';
-import type { TraceOptions } from './cad-trace';
+import { MAX_TRACE_BOUNDARY_POINTS, type TraceOptions } from './cad-trace-options';
+import { traceBackgroundMask, traceLuminance } from './cad-trace-background';
+export { MAX_TRACE_PIXELS, MAX_TRACE_SIDE, MAX_TRACE_BOUNDARY_POINTS } from './cad-trace-options';
 
 export interface TraceColor { r: number; g: number; b: number; a: number }
 export interface TraceBoundary { points: CadPoint[]; color: number; hole: boolean; children: number[] }
 export interface TraceRasterBoundaries { boundaries: TraceBoundary[]; palette: TraceColor[]; noiseRemoved: boolean }
-export const MAX_TRACE_PIXELS = 2048 * 2048, MAX_TRACE_SIDE = 2048, MAX_TRACE_BOUNDARY_POINTS = 131072;
 const MAX_RAW_CONTOURS = 4096;
 type Bin = TraceColor & { count: number; key: number };
 const colorKey = (r: number, g: number, b: number, a: number) => r * 16777216 + g * 65536 + b * 256 + a;
@@ -16,12 +17,12 @@ const axes = ['r', 'g', 'b', 'a'] as const;
 /** Weighted, deterministic RGBA palette. Grid sampling can miss a small logo
  * accent entirely. Fully transparent RGB never enters the histogram, so it
  * cannot consume a color or produce a white matte around visible artwork. */
-function colorPalette(data: Uint8ClampedArray, count: number, removeWhite: boolean) {
+function colorPalette(data: Uint8ClampedArray, count: number, removed: Uint8Array | null) {
   const bins = new Map<number, Bin>(), exact = new Map<number, number>();
   let exactOverflow = false;
   for (let i = 0; i < data.length; i += 4) {
     const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
-    if (!a || removeWhite && Math.min(r, g, b) >= 245) continue;
+    if (!a || removed?.[i / 4]) continue;
     if (!exactOverflow) {
       const key = colorKey(r, g, b, a); exact.set(key, (exact.get(key) ?? 0) + 1);
       if (exact.size > count) { exactOverflow = true; exact.clear(); }
@@ -81,26 +82,22 @@ function colorPalette(data: Uint8ClampedArray, count: number, removeWhite: boole
 
 export function readTraceRasterBoundaries(input: { width: number; height: number; data: Uint8ClampedArray }, options: TraceOptions): TraceRasterBoundaries {
   const { width, height, data } = input;
-  const quantized = options.mode === 'color' ? colorPalette(data, options.colors, options.removeWhite) : null;
+  const removed = traceBackgroundMask(input, options);
+  const quantized = options.mode === 'color' ? colorPalette(data, options.colors, removed) : null;
   const palette = quantized?.palette ?? [{ r: 0, g: 0, b: 0, a: 255 }, { r: 255, g: 255, b: 255, a: 255 }];
-  // Remove color-mode white before quantization, in source-pixel space. A
-  // white pixel must not survive by merging with gray; conversely retained
-  // near-white tints must not vanish because their palette average is white.
-  const visible = palette.map(color => color.a > 0 && !(options.mode === 'mono' && options.removeWhite && Math.min(color.r, color.g, color.b) >= 245));
   const array = Array.from({ length: height + 2 }, () => Array<number>(width + 2).fill(-1));
   const used = new Set<number>();
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const i = (y * width + x) * 4, a = data[i + 3];
-    if (!a || quantized && options.removeWhite && Math.min(data[i], data[i + 1], data[i + 2]) >= 245) continue;
+    if (!a || removed?.[y * width + x]) continue;
     let index: number;
     if (quantized) index = quantized.exact
       ? quantized.exact.get(colorKey(data[i], data[i + 1], data[i + 2], a))!
       : quantized.bins!.get(binKey(data[i], data[i + 1], data[i + 2], a))!;
     else {
-      const luminance = (.2126 * data[i] + .7152 * data[i + 1] + .0722 * data[i + 2]) * a / 255 + 255 - a;
-      index = luminance < options.threshold ? 0 : 1;
+      index = traceLuminance(data, i) < options.threshold ? 0 : 1;
     }
-    if (visible[index]) { array[y + 1][x + 1] = index; used.add(index); }
+    array[y + 1][x + 1] = index; used.add(index);
   }
   if (!used.size) throw new Error('empty');
   // Count both sides of visible color boundaries before pathscan allocates

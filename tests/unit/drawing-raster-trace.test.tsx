@@ -25,9 +25,9 @@ async function harness(run: (h: any) => Promise<void>) {
   win.Element.prototype.hasPointerCapture = function (id: number) { return captures.get(id) === this; };
   win.Element.prototype.releasePointerCapture = function (id: number) { if (captures.get(id) === this) captures.delete(id); };
   win.HTMLImageElement.prototype.decode = async () => {};
-  const workers: any[] = [], bitmaps: any[] = [], contexts: any[] = [];
+  const workers: any[] = [], bitmaps: any[] = [], contexts: any[] = [], fetches: string[] = [];
   let dimensions = { width: 64, height: 32 }, workerMode: 'auto' | 'hold' = 'auto', workerResult: any;
-  values.fetch = async () => ({ ok: true, blob: async () => new Blob(['png'], { type: 'image/png' }) });
+  values.fetch = async (url: string) => { fetches.push(url); return { ok: true, blob: async () => new Blob(['png'], { type: 'image/png' }) }; };
   values.createImageBitmap = async () => {
     const bitmap = { ...dimensions, closed: false, close() { this.closed = true; } }; bitmaps.push(bitmap); return bitmap;
   };
@@ -57,9 +57,20 @@ async function harness(run: (h: any) => Promise<void>) {
   const vector = await import('../../src/lib/components/canvas/cad-vector');
   const curves = await import('../../src/lib/components/canvas/cad-curves');
   const { CadBezierShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadBezierShape');
+  const toolkitFiles = await import('../../src/lib/components/canvas/toolkit-media-import');
+  const orderFiles = await import('../../src/lib/components/canvas/order-file-documents');
+  // Use the actual attachment factories and native box geometry without
+  // mounting PDF/Svelte card preview components in this raster-specific test.
+  class AttachmentCard extends tl.BaseBoxShapeUtil<any> {
+    static override type = 'document';
+    static override props = { w: tl.T.number, h: tl.T.number, title: tl.T.string, content: tl.T.string, status: tl.T.string,
+      kind: tl.T.string, url: tl.T.string, mime: tl.T.string, fileId: tl.T.string, fit: tl.T.string, opacity: tl.T.number, pdfPage: tl.T.number, previewImage: tl.T.string };
+    getDefaultProps() { return { w: 240, h: 300, title: '', content: '', status: 'ready', kind: 'image', url: '', mime: '', fileId: '', fit: 'contain', opacity: 100, pdfPage: 1, previewImage: '' }; }
+    component() { return null; } indicator() { return null; }
+  }
   const { locale } = await import('svelte-i18n'); locale.set('en');
   const host = document.createElement('div'); host.tabIndex = 0; document.body.append(host);
-  const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil];
+  const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil, AttachmentCard];
   const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
     bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools], getContainer: () => host, initialState: 'select' });
   editor.updateViewportScreenBounds(new tl.Box(0, 0, 800, 600)); editor.updateInstanceState({ isFocused: true });
@@ -92,7 +103,7 @@ async function harness(run: (h: any) => Promise<void>) {
     element.dispatchEvent(new Event('change', { bubbles: true })); }); await tick(); };
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
   try { await run({ editor, tl, host, get, click, select, input, upload, act, tick, render, snapshot, cad, plans, vector, curves, source, review, documentFixture,
-    locale, workers, bitmaps, contexts, dimensions: (width: number, height: number) => { dimensions = { width, height }; },
+    locale, workers, bitmaps, contexts, fetches, toolkitFiles, orderFiles, dimensions: (width: number, height: number) => { dimensions = { width, height }; },
     hold: () => { workerMode = 'hold'; }, result: (value: any) => { workerResult = value; },
     release: () => workers.at(-1)?.onmessage?.({ data: { result: structuredClone(workerResult) } }) }); }
   finally {
@@ -107,6 +118,8 @@ describe('raster tracing source preparation and review', () => {
     const { get, input, click, select, upload, workers, snapshot, host } = h, before = snapshot();
     assert.equal(get('trace-resolution').value, '2048'); assert.equal(get('trace-preserve-corners').checked, true);
     assert.equal(get('trace-smoothing').value, '0.75'); assert.equal(get('trace-noise').value, '0');
+    assert.equal(get('trace-preset').value, 'logo'); assert.equal(get('trace-background').value, 'all');
+    assert.equal(get('trace-group-result').checked, true); assert.equal(host.querySelector('[data-testid="trace-remove-white"]'), null);
     await upload(); await input('trace-smoothing', '');
     assert.equal(get('trace-smoothing').getAttribute('aria-invalid'), 'true'); assert.equal(get('trace-prepare').matches(':disabled'), true);
     await click('trace-prepare'); assert.equal(workers.length, 0);
@@ -119,6 +132,19 @@ describe('raster tracing source preparation and review', () => {
     assert.deepEqual(snapshot(), before);
   }));
 
+  it('uses profiles as a starting point while preserving background, resolution and output choices', async () => harness(async h => {
+    const { upload, select, input, click, get, workers, snapshot } = h, before = snapshot();
+    await upload(); await select('trace-background', 'border'); await select('trace-resolution', '1024');
+    await input('trace-width', '75'); await click('trace-group-result'); await select('trace-preset', 'lineart');
+    assert.equal(get('trace-mode').value, 'mono'); assert.equal(get('trace-threshold').value, '160'); assert.equal(get('trace-smoothing').value, '0.35');
+    assert.equal(get('trace-background').value, 'border'); assert.equal(get('trace-resolution').value, '1024');
+    assert.equal(get('trace-width').value, '75'); assert.equal(get('trace-group-result').checked, false);
+    await input('trace-smoothing', '.5'); assert.equal(get('trace-preset').value, 'custom');
+    await select('trace-preset', 'color'); assert.equal(get('trace-colors').value, '8'); assert.equal(get('trace-background').value, 'border');
+    await click('trace-prepare'); assert.equal(workers.at(-1).posted.options.background, 'border');
+    assert.equal(workers.at(-1).posted.options.mode, 'color'); assert.deepEqual(snapshot(), before);
+  }));
+
   it('aligns bitmap and real curve geometry in the same pixel frame and applies one undoable result', async () => harness(async h => {
     const { upload, click, get, select, host, snapshot, editor, act, curves, documentFixture } = h, before = snapshot();
     await upload(); await click('trace-prepare');
@@ -126,6 +152,7 @@ describe('raster tracing source preparation and review', () => {
     assert.equal(get('trace-result-preview').getAttribute('viewBox'), '0 0 64 32');
     assert.equal(get('trace-result-preview').querySelector('path[fill="#16324f"]').getAttribute('d'), curves.curvePathData(documentFixture().paths[0].contours));
     assert.equal(get('trace-curve-count').textContent, '1'); assert.equal(get('trace-line-count').textContent, '3');
+    assert.equal(get('trace-object-count').textContent, '1'); assert.equal(get('trace-color-count').textContent, '1');
     assert.equal(get('trace-node-count').textContent, '4'); assert.equal(host.querySelector('[data-testid="trace-review-ack"]'), null);
     assert.equal(get('vector-apply').matches(':disabled'), false); assert.deepEqual(snapshot(), before);
     await select('trace-preview-mode', 'outline'); assert.equal(host.querySelector('[data-testid="trace-source-preview"]'), null);
@@ -135,6 +162,130 @@ describe('raster tracing source preparation and review', () => {
     assert.equal(editor.getOnlySelectedShape().type, 'cad-bezier'); assert.equal(host.querySelector('[data-testid="vector-review"]'), null);
     await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
     await act(async () => editor.redo()); assert.deepEqual(snapshot(), after);
+  }));
+
+  it('keeps the inspected view, zoom, opacity and center through a new trace preview', async () => harness(async h => {
+    const { upload, click, get, select, input, hold, release, act, tick, workers, snapshot } = h, before = snapshot();
+    await upload(); await click('trace-prepare'); await select('trace-preview-mode', 'outline'); await select('trace-preview-zoom', '4');
+    await input('trace-source-opacity', '35');
+    const viewport = get('trace-result-viewport');
+    Object.defineProperties(viewport, { clientWidth: { configurable: true, value: 200 }, clientHeight: { configurable: true, value: 200 },
+      scrollWidth: { configurable: true, value: 800 }, scrollHeight: { configurable: true, value: 800 } });
+    await act(async () => { viewport.scrollLeft = 130; viewport.scrollTop = 210; viewport.dispatchEvent(new Event('scroll')); });
+    await input('trace-smoothing', '.5'); hold(); await click('trace-prepare');
+    assert.equal(get('vector-apply').matches(':disabled'), true); assert.equal(get('trace-result-viewport'), viewport);
+    await act(async () => release()); await tick();
+    assert.equal(workers.length, 2); assert.equal(get('trace-preview-mode').value, 'outline'); assert.equal(get('trace-preview-zoom').value, '4');
+    assert.equal(get('trace-source-opacity').value, '35'); assert.equal(get('trace-result-viewport'), viewport);
+    near(viewport.scrollLeft, 130); near(viewport.scrollTop, 210); assert.deepEqual(snapshot(), before);
+  }));
+
+  it('centers the full uploaded image frame and creates editable color groups in one undo step', async () => harness(async h => {
+    const { editor, source, cad, documentFixture, curves, snapshot, upload, click, get, result, dimensions, act } = h;
+    const doc = documentFixture(); doc.width = 128;
+    const second = structuredClone(doc.paths[0]); second.paint.fill = '#cc2255'; second.paint.fillOpacity = .8;
+    second.contours = curves.mapContours(second.contours, (p: any) => ({ x: p.x + 64, y: p.y })); doc.paths.push(second);
+    dimensions(128, 32); result(doc);
+    await act(async () => editor.updateInstanceState({ opacityForNextShape: .25 }));
+    const before = snapshot(), center = editor.getViewportPageBounds().center, scale = 100 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS) / doc.width;
+    const plan = source.prepareRasterTraceFilePlan(editor, cad.DEFAULT_CAD_SETTINGS, doc, 100, 'logo.png', { originalWidth: 128, originalHeight: 32 });
+    near(plan.contours[0].nodes[0].x, center.x + (10 - 64) * scale);
+    near(plan.contours[0].nodes[0].y, center.y + (10 - 16) * scale);
+    assert.deepEqual(snapshot(), before);
+    await upload(); await click('trace-prepare');
+    assert.equal(get('trace-object-count').textContent, '2'); assert.equal(get('trace-color-count').textContent, '2');
+    assert.match(get('trace-result-grouping').textContent, /one group/); await click('vector-apply');
+    const group = editor.getOnlySelectedShape(); assert.equal(group.type, 'group'); assert.equal(group.opacity, 1);
+    assert.match(group.meta.omsObjectName, /logo\.png/);
+    const children = editor.getSortedChildIdsForParent(group.id).map((id: any) => editor.getShape(id));
+    assert.equal(children.length, 2); assert.ok(children.every((shape: any) => shape.type === 'cad-bezier' && shape.opacity === 1));
+    assert.deepEqual(children.map((shape: any) => shape.meta.omsVectorPaint.fill).sort(), ['#16324f', '#cc2255']);
+    assert.deepEqual(children.map((shape: any) => shape.meta.omsVectorPaint.fillOpacity).sort(), [.4, .8]);
+    const after = snapshot(); await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    await act(async () => editor.redo()); assert.deepEqual(snapshot(), after);
+  }));
+
+  it('preserves thin and non-integral original aspect ratios for file and attachment plans without changing working pixels or curves', async () => harness(async h => {
+    const { editor, act, toolkitFiles, source, cad, curves, documentFixture, snapshot } = h;
+    await act(async () => {
+      toolkitFiles.placeToolkitAsset(editor, '00000000-0000-4000-8000-000000000011', {
+        id: '00000000-0000-4000-8000-000000000022', fileName: 'thin.png', mime: 'image/png', bytes: 100,
+      }, { x: 120, y: 80 });
+      editor.select(editor.getCurrentPageShapesSorted().find((shape: any) => shape.type === 'document').id);
+    });
+    const before = snapshot(), center = editor.getViewportPageBounds().center, cardBounds = editor.getShapePageBounds(editor.getOnlySelectedShape());
+    for (const [originalWidth, originalHeight, width, height] of [[50000, 2, 2048, 1], [4096, 997, 2048, 499]]) {
+      const doc = documentFixture(); doc.width = width; doc.height = height;
+      doc.paths[0].contours = curves.mapContours(doc.paths[0].contours, (p: any) => ({ x: p.x * width / 64, y: p.y * height / 32 }));
+      const originalDoc = structuredClone(doc), pixels = new Uint8ClampedArray(width * height * 4).fill(173), originalPixels = pixels.slice();
+      const decoded = { originalWidth, originalHeight, image: { width, height, data: pixels } };
+      const fullWidth = 80 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS), fullHeight = fullWidth * originalHeight / originalWidth;
+      const file = source.prepareRasterTraceFilePlan(editor, cad.DEFAULT_CAD_SETTINGS, doc, 80, 'thin.png', decoded);
+      const attached = source.prepareAttachedRasterTracePlan(editor, cad.DEFAULT_CAD_SETTINGS, doc, 80, decoded);
+      for (const [plan, origin] of [[file, { x: center.x - fullWidth / 2, y: center.y - fullHeight / 2 }],
+        [attached, { x: cardBounds.maxX + 24, y: cardBounds.minY }]] as any) {
+        const actual = plan.contours[0].nodes[0], input = doc.paths[0].contours[0].nodes[0];
+        near(actual.x, origin.x + input.x / width * fullWidth); near(actual.y, origin.y + input.y / height * fullHeight);
+        near(actual.outX, input.outX / width * fullWidth); near(actual.outY, input.outY / height * fullHeight);
+        const last = plan.contours[0].nodes[1], inputLast = doc.paths[0].contours[0].nodes[1];
+        near(last.inX, inputLast.inX / width * fullWidth); near(last.inY, inputLast.inY / height * fullHeight);
+      }
+      assert.deepEqual(doc, originalDoc); assert.deepEqual(pixels, originalPixels); assert.deepEqual(snapshot(), before);
+    }
+    for (const original of [{ originalWidth: 0, originalHeight: 1 }, { originalWidth: 1.5, originalHeight: 1 },
+      { originalWidth: Infinity, originalHeight: 1 }, { originalWidth: 10000, originalHeight: 10000 }]) {
+      assert.throws(() => source.prepareRasterTraceFilePlan(editor, cad.DEFAULT_CAD_SETTINGS, documentFixture(), 80, 'invalid.png', original), /geometry/);
+      assert.throws(() => source.prepareAttachedRasterTracePlan(editor, cad.DEFAULT_CAD_SETTINGS, documentFixture(), 80, original), /geometry/);
+    }
+  }));
+
+  for (const context of ['idea', 'order'] as const) it(`traces an actual ${context} attachment card beside its source without applying card crop or opacity`, async () => harness(async h => {
+    const { editor, tl, act, toolkitFiles, orderFiles, source, cad, documentFixture, upload, click, input, get, host, snapshot, fetches } = h;
+    const fileId = '00000000-0000-4000-8000-000000000022', boardId = '00000000-0000-4000-8000-000000000011';
+    let frame: any;
+    await act(async () => {
+      if (context === 'idea') toolkitFiles.placeToolkitAsset(editor, boardId, { id: fileId, fileName: 'attached-logo.png', mime: 'image/png', bytes: 100 }, { x: 120, y: 80 });
+      else {
+        const frameId = tl.createShapeId('trace-visuals');
+        editor.createShape({ id: frameId, type: 'frame', x: 100, y: 80, rotation: .2, opacity: .5,
+          props: { w: 800, h: 600, name: 'Visuals (PDF/Rasters)' }, meta: { omsFilePocket: 'visuals' } });
+        orderFiles.addOrderFileDocument(editor, { id: fileId, originalName: 'attached-logo.png', mimeType: 'image/png', url: `/api/files/${fileId}/download` }, { x: 150, y: 300 }, 'visuals');
+        frame = editor.getShape(frameId);
+      }
+      const card = editor.getCurrentPageShapesSorted().find((shape: any) => shape.type === 'document');
+      editor.updateShape({ id: card.id, type: 'document', opacity: .6, props: { fit: 'cover', opacity: 30, previewImage: 'https://example.com/thumbnail.png' } });
+      editor.select(card.id); editor.updateInstanceState({ opacityForNextShape: .25 }); editor.mark('attachment-fixture');
+    });
+    const card = editor.getOnlySelectedShape(), original = structuredClone(card), before = snapshot();
+    if (frame) { assert.equal(card.parentId, frame.id); assert.ok(editor.getShapeMask(card.id)); }
+    if (context === 'idea') await upload('retained-file.png');
+    assert.match(get('trace-use-selected').textContent, /Trace attached image/); await click('trace-use-selected');
+    assert.match(get('trace-source-summary').textContent, /attached-logo\.png/);
+    assert.equal(host.querySelector('[data-testid="trace-replace"]'), null); assert.ok(get('trace-width'));
+    if (context === 'idea') {
+      await click('trace-use-file'); assert.match(get('trace-source-summary').textContent, /retained-file\.png/);
+      await click('trace-use-selected');
+    }
+    await input('trace-width', '80');
+    const bounds = editor.getShapePageBounds(card), doc = documentFixture(), plan = source.prepareAttachedRasterTracePlan(editor, cad.DEFAULT_CAD_SETTINGS, doc, 80, { originalWidth: 64, originalHeight: 32 });
+    const scale = 80 / cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS) / doc.width;
+    assert.deepEqual(plan.removeIds, []); assert.deepEqual(plan.sourceIds, [card.id]); assert.equal(plan.placement, undefined);
+    near(plan.contours[0].nodes[0].x, bounds.maxX + 24 + 10 * scale); near(plan.contours[0].nodes[0].y, bounds.minY + 10 * scale);
+    near(plan.shapes[0].meta.omsVectorPaint.fillOpacity, .4); assert.equal(plan.shapes[0].opacity, 1);
+    assert.deepEqual(snapshot(), before); await click('trace-prepare'); assert.equal(fetches.at(-1), card.props.url);
+    assert.ok(!fetches.includes(card.props.previewImage), 'the trace must fetch the original attachment, not a preview');
+    assert.equal(get('trace-original-size').textContent, '64 × 32 px'); assert.deepEqual(snapshot(), before);
+    await click('vector-apply'); const resultShape = editor.getOnlySelectedShape();
+    assert.equal(resultShape.type, 'cad-bezier'); assert.equal(resultShape.parentId, editor.getCurrentPageId());
+    assert.equal(resultShape.opacity, 1); near(resultShape.meta.omsVectorPaint.fillOpacity, .4);
+    assert.deepEqual(editor.getShape(card.id), original); if (frame) assert.deepEqual(editor.getShape(frame.id), frame);
+    assert.equal(get('trace-use-selected').matches(':disabled'), true);
+    assert.equal(get('trace-prepare').matches(':disabled'), context !== 'idea');
+    if (context === 'idea') assert.match(get('trace-source-summary').textContent, /retained-file\.png/);
+    await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    await act(async () => { editor.select(card.id); editor.updateShape({ id: frame?.id ?? card.id, type: frame ? 'frame' : 'document', isLocked: true }); });
+    assert.throws(() => source.selectedAttachedRasterTraceSource(editor), /locked/);
+    assert.equal(get('trace-use-selected').matches(':disabled'), true);
   }));
 
   it('zooms aligned previews together, synchronizes scroll centers and adjusts overlay opacity without editing the drawing', async () => harness(async h => {
@@ -251,14 +402,18 @@ describe('raster tracing source preparation and review', () => {
     const before = snapshot(), original = editor.getShape(id), doc = documentFixture();
     const plan = source.prepareSelectedRasterTracePlan(editor, cad.DEFAULT_CAD_SETTINGS, doc, false);
     assert.deepEqual(snapshot(), before); assert.deepEqual(plan.removeIds, []);
-    near(plan.shapes[0].meta.omsVectorPaint.fillOpacity, .12);
+    near(plan.shapes[0].meta.omsVectorPaint.fillOpacity, .24);
+    assert.deepEqual(plan.placement, { parentId: group, aboveId: id }); assert.equal(plan.shapes[0].opacity, 1);
     const transform = editor.getShapePageTransform(original), expected = transform.applyToPoint({ x: (64 - 10) * 2, y: 10 * 3 });
-    const node = plan.contours[0].nodes[0]; near(node.x, expected.x); near(node.y, expected.y);
+    const node = plan.contours[0].nodes[0], parentTransform = editor.getShapePageTransform(group), pageNode = parentTransform.applyToPoint(node);
+    near(pageNode.x, expected.x); near(pageNode.y, expected.y);
     const control = transform.applyToPoint({ x: (64 - 20) * 2, y: 2 * 3 });
-    near(node.x + node.outX, control.x); near(node.y + node.outY, control.y);
+    const pageControl = parentTransform.applyToPoint({ x: node.x + node.outX, y: node.y + node.outY });
+    near(pageControl.x, control.x); near(pageControl.y, control.y);
     await act(async () => assert.equal(plans.applyCadPlan(editor, plan), true));
     assert.deepEqual(editor.getShape(id), original); const saved = editor.getOnlySelectedShape();
-    assert.equal(saved.type, 'cad-bezier'); assert.equal(saved.parentId, editor.getCurrentPageId());
+    assert.equal(saved.type, 'cad-bezier'); assert.equal(saved.parentId, group);
+    near(saved.meta.omsVectorPaint.fillOpacity * saved.opacity * editor.getShape(group).opacity, .12);
     assert.equal(curves.curvePathData(saved.props.contours), curves.curvePathData(plan.contours));
     await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
   }));
@@ -271,7 +426,8 @@ describe('raster tracing source preparation and review', () => {
     await act(async () => { editor.createShape({ id, type: 'cad-bezier', opacity: .5, props: { contours: [boundary] }, meta: { omsVectorPaint: paint } }); editor.select(id); });
     const before = snapshot(); assert.throws(() => source.prepareSelectedRasterTracePlan(editor, cad.DEFAULT_CAD_SETTINGS, documentFixture(), true), /trace-repeat/);
     assert.deepEqual(snapshot(), before);
-    await click('trace-use-selected'); await click('trace-prepare'); assert.equal(workers.length, 0); assert.match(get('trace-status').textContent, /Repeated material/);
+    assert.equal(get('trace-use-selected').matches(':disabled'), true);
+    await click('trace-use-selected'); await click('trace-prepare'); assert.equal(workers.length, 0); assert.match(get('trace-source-unavailable').textContent, /Repeated material/);
     const plainPaint = structuredClone(paint); delete plainPaint.raster.repeat;
     await act(async () => editor.updateShape({ id, type: 'cad-bezier', meta: { omsVectorPaint: plainPaint } }));
     const plan = source.prepareSelectedRasterTracePlan(editor, cad.DEFAULT_CAD_SETTINGS, documentFixture(), true);
@@ -285,9 +441,9 @@ describe('raster tracing source preparation and review', () => {
   }));
 
   it('counts actual curvature rather than nonzero collinear handles or C path commands', async () => harness(async ({ review, documentFixture }) => {
-    const doc = documentFixture(); assert.deepEqual(review.rasterTraceCounts(doc), { contours: 1, nodes: 4, curves: 1, lines: 3 });
+    const doc = documentFixture(); assert.deepEqual(review.rasterTraceCounts(doc), { objects: 1, colors: 1, contours: 1, nodes: 4, curves: 1, lines: 3 });
     doc.paths[0].contours[0].nodes[0].outY = 0; doc.paths[0].contours[0].nodes[1].inY = 0;
-    assert.deepEqual(review.rasterTraceCounts(doc), { contours: 1, nodes: 4, curves: 0, lines: 4 });
+    assert.deepEqual(review.rasterTraceCounts(doc), { objects: 1, colors: 1, contours: 1, nodes: 4, curves: 0, lines: 4 });
   }));
 
   it('renders EN/RU/LV trace terminology and keeps approximation notices informational', async () => harness(async h => {
