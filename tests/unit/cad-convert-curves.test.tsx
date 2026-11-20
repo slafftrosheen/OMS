@@ -12,7 +12,7 @@ async function harness(run: (h: any) => void | Promise<void>) {
   win.fetch = globalThis.fetch.bind(globalThis);
   const media = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
   win.matchMedia = media;
-  const values: Record<string, unknown> = { matchMedia: media,
+  const values: Record<string, unknown> = { matchMedia: media, IS_REACT_ACT_ENVIRONMENT: true,
     getComputedStyle: win.getComputedStyle.bind(win), requestAnimationFrame: win.requestAnimationFrame.bind(win), cancelAnimationFrame: win.cancelAnimationFrame.bind(win),
     MessageChannel: class extends NativeChannel { constructor() { super(); channels.push(this); } },
     ResizeObserver: class { observe() {} unobserve() {} disconnect() {} } };
@@ -403,5 +403,123 @@ describe('native Bézier node handles', () => {
       editor.undo(); assert.deepEqual(snapshot(), before);
       editor.redo(); assert.deepEqual(snapshot(), after);
     } finally { off(); }
+  }));
+});
+
+
+describe('native node marquee', () => {
+  async function withMarquee(h: any, run: (tools: any) => void) {
+    const { editor, create, contour } = h;
+    const { Box } = h.tl;
+    const { getSelectedCadNodes, setCadNodeEditing } = await import('../../src/lib/components/canvas/cad-node-selection');
+    const { cadNodeMarquee, installCadNodeMarquee } = await import('../../src/lib/components/canvas/cad-node-marquee');
+    const shape = create('cad-bezier', { contours: [contour(Array.from({ length: 300 }, (_, i) => [i * 2, 0]))] },
+      { x: 90, y: 165, rotation: .35 }, {});
+    editor.select(shape.id);
+    editor.updateViewportScreenBounds(new Box(0, 0, 800, 600));
+    editor.mark('node-marquee-fixture');
+    setCadNodeEditing(editor, true);
+    const canvas = document.createElement('div');
+    canvas.className = 'tl-canvas';
+    canvas.dataset.testid = 'canvas';
+    const background = document.createElement('div');
+    background.className = 'tl-background';
+    canvas.appendChild(background);
+    editor.getContainer().appendChild(canvas);
+    const stop = installCadNodeMarquee(editor);
+    const x = (index: number) => editor.pageToScreen(editor.getShapePageTransform(shape).applyToPoint({ x: index * 2, y: 0 })).x;
+    const pointer = (name: string, coordX: number, y: number, shiftKey = false, target: EventTarget = background) => {
+      const event = new window.MouseEvent(name, { bubbles: true, cancelable: true, button: 0, clientX: coordX, clientY: y, shiftKey });
+      Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true }, pointerType: { value: 'mouse' } });
+      target.dispatchEvent(event);
+      return event;
+    };
+    try {
+      run({ editor, shape, x, canvas, pointer, setCadNodeEditing, preview: () => cadNodeMarquee(editor).get(),
+        selected: () => getSelectedCadNodes(editor).map(node => node.nodeIndex) });
+    } finally { stop(); canvas.remove(); }
+  }
+
+  it('selects unsampled anchors of a rotated dense curve, adds in reverse with Shift and leaves history alone', async () => harness(async h => {
+    await withMarquee(h, ({ editor, shape, x, pointer, preview, selected }: any) => {
+      const before = h.snapshot();
+      const handles = editor.getShapeHandles(shape).length;
+      assert.ok(handles < shape.props.contours[0].nodes.length);
+      assert.equal(pointer('pointerdown', x(10) - .5, 120).defaultPrevented, true);
+      pointer('pointermove', x(70) + .5, 260);
+      assert.ok(preview().w > 100);
+      assert.deepEqual(selected(), [0], 'selection is committed only on pointer release');
+      pointer('pointerup', x(70) + .5, 260, false, document.body);
+      assert.equal(preview(), null);
+      assert.deepEqual(selected(), Array.from({ length: 61 }, (_, i) => i + 10));
+      pointer('pointerdown', x(92) + .5, 260, true);
+      pointer('pointerup', x(90) - .5, 120, true);
+      assert.deepEqual(selected().slice(-3), [90, 91, 92]);
+      assert.equal(selected().length, 64);
+      pointer('pointerdown', 650, 120);
+      pointer('pointerup', 650, 120);
+      assert.deepEqual(selected(), []);
+      assert.equal(editor.getOnlySelectedShape()?.id, shape.id);
+      assert.deepEqual(h.snapshot(), before);
+    });
+  }));
+
+  it('renders the marquee with page-space SVG bounds and removes it on cancellation', async () => harness(async h => {
+    const { editor, create, contour } = h;
+    const React = await import('react'), { createRoot } = await import('react-dom/client');
+    const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
+    const { CadNodeSelectionOverlay } = await import('../../src/lib/components/canvas/CadNodeSelectionOverlay');
+    const { cadNodeMarquee } = await import('../../src/lib/components/canvas/cad-node-marquee');
+    const { setCadNodeEditing } = await import('../../src/lib/components/canvas/cad-node-selection');
+    const shape = create('cad-bezier', { contours: [contour([[0, 0], [150, 150]])] }, {}, {});
+    editor.select(shape.id);
+    setCadNodeEditing(editor, true);
+    const host = editor.getContainer(), root = createRoot(host);
+    const query = () => host.querySelector('[data-testid="cad-node-marquee"]');
+    try {
+      await React.act(async () => root.render(<EditorContext.Provider value={editor}>
+        <CadNodeSelectionOverlay />
+      </EditorContext.Provider>));
+      await React.act(async () => cadNodeMarquee(editor).set({ x: 40, y: 50, w: 120, h: 90 }));
+      const rect = query();
+      assert.equal(rect?.getAttribute('x'), '40');
+      assert.equal(rect?.getAttribute('y'), '50');
+      assert.equal(rect?.getAttribute('width'), '120');
+      assert.equal(rect?.getAttribute('height'), '90');
+      await React.act(async () => cadNodeMarquee(editor).set(null));
+      assert.equal(query(), null);
+    } finally { await React.act(async () => root.unmount()); }
+  }));
+
+  it('cancels on Escape, camera changes and lost capture and leaves native handle events alone', async () => harness(async h => {
+    await withMarquee(h, ({ editor, x, canvas, pointer, preview, selected, setCadNodeEditing }: any) => {
+      const start = () => {
+        pointer('pointerdown', x(10) - .5, 120);
+        pointer('pointermove', x(70) + .5, 260);
+        assert.ok(preview());
+      };
+      start();
+      const escape = new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      canvas.dispatchEvent(escape);
+      canvas.dispatchEvent(new window.KeyboardEvent('keyup', { key: 'Escape', bubbles: true, cancelable: true }));
+      assert.equal(escape.defaultPrevented, true);
+      assert.equal(preview(), null);
+      assert.deepEqual(selected(), [0]);
+      start();
+      editor.setCamera({ x: -15, y: 0, z: 1 });
+      pointer('pointerup', x(70), 260);
+      assert.equal(preview(), null);
+      assert.deepEqual(selected(), [0]);
+      start();
+      pointer('lostpointercapture', 0, 0);
+      assert.equal(preview(), null);
+      const handle = document.createElement('div');
+      handle.className = 'tl-handle';
+      canvas.appendChild(handle);
+      assert.equal(pointer('pointerdown', 100, 160, false, handle).defaultPrevented, false);
+      setCadNodeEditing(editor, false);
+      assert.equal(pointer('pointerdown', 100, 160).defaultPrevented, false);
+      assert.deepEqual(selected(), [0]);
+    });
   }));
 });

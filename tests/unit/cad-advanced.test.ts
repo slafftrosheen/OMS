@@ -9,6 +9,8 @@ import {
   cadPointToCanvas
 } from '../../src/lib/components/canvas/cad-settings';
 import {
+  arcContour,
+  contourSegments,
   cubicAt,
   cubicPoints,
   curveBounds,
@@ -189,6 +191,76 @@ describe('CAD region shaping', () => {
     f.editor.bailToMark(f.marks[0].id);
     assert.equal(f.shapes.size, 2);
   });
+  const ellipse = (x: number, y: number, width = 100, height = 100) =>
+    arcContour(x, y, width, height, 0, Math.PI * 2, Math.PI / 2);
+  const curvedSpans = (contours: CadContour[]) => contours.flatMap(contour => [...contourSegments(contour)]).filter(([a, b, c, d]) =>
+    a.x !== b.x || a.y !== b.y || c.x !== d.x || c.y !== d.y
+  );
+
+  it('retains Bézier spans of disjoint rings and holes and exports real DXF splines', () => {
+    const f = fixture(), outside = ellipse(0, 0), hole = ellipse(0, 0, 40, 40), separate = ellipse(310, -80, 45, 25);
+    const a = shape(f, 'ring', [outside, hole]), b = shape(f, 'separate', [separate]);
+    f.editor.setSelectedShapes([a, b]);
+    const plan = prepareCadShaping(f.editor, settings, { ...opts, keepSources: false });
+    assert.ok(plan.warnings.includes('curves-retained'));
+    assert.equal(plan.contours.length, 3);
+    assert.equal(curvedSpans(plan.contours).length, 12);
+    assert.ok(plan.contours.every(contour => contour.nodes.every(node => node.mode === 'smooth')));
+    near(area(plan.contours), area([outside]) - area([hole]) + area([separate]), 1e-6);
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    const entities = new DxfParser().parseSync(buildCadDxf(f.editor, 'selected', settings).text)!.entities;
+    assert.deepEqual(entities.map(entity => entity.type), ['SPLINE', 'SPLINE', 'SPLINE']);
+    assert.ok(entities.every(entity => entity.layer === 'OMS_CLOSED'));
+    const polylines = new DxfParser().parseSync(buildCadDxf(f.editor, 'selected', settings, { curves: 'polyline' }).text)!.entities;
+    assert.deepEqual(polylines.map(entity => entity.type), ['LWPOLYLINE', 'LWPOLYLINE', 'LWPOLYLINE']);
+  });
+
+  it('retains complete spans away from cuts during Trim and Intersect and preserves their control points', () => {
+    const f = fixture(), circle = ellipse(0, 0), circleId = shape(f, 'circle', [circle]);
+    const leftId = shape(f, 'left', [rect(-125, -125, 175, 250)]);
+    const rightId = shape(f, 'right', [rect(50, -125, 75, 250)]);
+    const scaled = { ...settings, scale: 2, originX: 180, originY: -90 };
+    f.editor.setSelectedShapes([circleId, leftId]);
+    const intersection = prepareCadShaping(f.editor, scaled, { ...opts, operation: 'intersect' });
+    f.editor.setSelectedShapes([circleId, rightId]);
+    const trim = prepareCadShaping(f.editor, scaled, { ...opts, operation: 'trim', targetId: circleId });
+    const expected = [...contourSegments(circle)].filter(([a, , , b]) => a.x < -50 || b.x < -50);
+    for (const plan of [intersection, trim]) {
+      assert.ok(plan.warnings.includes('curves-retained'));
+      const actual = curvedSpans(plan.contours);
+      assert.equal(actual.length, 2);
+      for (const [a, b, c, d] of expected) {
+        const found = actual.find(([start, , , end]) => Math.hypot(start.x - a.x, start.y - a.y) < .001 &&
+          Math.hypot(end.x - d.x, end.y - d.y) < .001);
+        const reversed = actual.find(([start, , , end]) => Math.hypot(start.x - d.x, start.y - d.y) < .001 &&
+          Math.hypot(end.x - a.x, end.y - a.y) < .001);
+        assert.ok(found || reversed);
+        const [, first, second] = found ?? [...reversed!].reverse();
+        near(first.x, b.x); near(first.y, b.y);
+        near(second.x, c.x); near(second.y, c.y);
+      }
+      const bounds = curveBounds(plan.contours);
+      near(bounds.x, -100, .001);
+      near(bounds.x + bounds.w, 50, .001);
+      assert.ok(plan.contours[0].nodes.length > 4);
+    }
+    near(area(intersection.contours), area(trim.contours), .2);
+  });
+
+  it('keeps tangent contacts and offsets polygonal where curve restoration is uncertain', () => {
+    const f = fixture(), a = shape(f, 'first', [ellipse(0, 0)]), b = shape(f, 'second', [ellipse(200, 0)]);
+    f.editor.setSelectedShapes([a, b]);
+    const weld = prepareCadShaping(f.editor, settings, opts);
+    const retained = curvedSpans(weld.contours);
+    assert.ok(retained.length > 0 && retained.length < 8);
+    for (const [start, , , end] of retained) for (const point of [start, end])
+      assert.ok(Math.hypot(point.x - 100, point.y) > 1);
+    f.editor.setSelectedShapes([a]);
+    const offset = prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset' });
+    assert.equal(curvedSpans(offset.contours).length, 0);
+    assert.ok(!offset.warnings.includes('curves-retained'));
+  });
+
   it('preserves overlapping glyph regions with non-zero winding during offset', () => {
     const f = fixture(),
       id = shape(f, 'glyphs', [rect(0, 0, 100, 100), rect(50, 0, 100, 100)]);

@@ -110,7 +110,12 @@ export function curveBounds(contours: CadContour[]): { x: number; y: number; w: 
   return Number.isFinite(minX) ? { x: minX, y: minY, w: maxX - minX, h: maxY - minY } : { x: 0, y: 0, w: 0, h: 0 };
 }
 /** Control points within tolerance of the chord segment bound the entire convex hull. */
-export function flattenContours(contours: CadContour[], tolerance: number, limit = CAD_FLATTEN_LIMIT): CadPoint[][] {
+export function flattenContours(
+  contours: CadContour[],
+  tolerance: number,
+  limit = CAD_FLATTEN_LIMIT,
+  recordSpan?: (contour: number, segment: number, first: number, last: number) => void
+): CadPoint[][] {
   if (!Number.isFinite(tolerance) || tolerance <= 0) throw new Error('tolerance');
   let count = 0;
   const distance = (p: CadPoint, a: CadPoint, b: CadPoint) => {
@@ -120,7 +125,7 @@ export function flattenContours(contours: CadContour[], tolerance: number, limit
     const t = length ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length)) : 0;
     return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
   };
-  return contours.map((contour) => {
+  return contours.map((contour, index) => {
     const result: CadPoint[] = [{ x: contour.nodes[0].x, y: contour.nodes[0].y }];
     count++;
     const visit = (p: CadPoint[], depth: number) => {
@@ -134,7 +139,12 @@ export function flattenContours(contours: CadContour[], tolerance: number, limit
       visit(a, depth + 1);
       visit(b, depth + 1);
     };
-    for (const segment of contourSegments(contour)) visit(segment, 0);
+    let segmentIndex = 0;
+    for (const segment of contourSegments(contour)) {
+      const first = result.length - 1;
+      visit(segment, 0);
+      recordSpan?.(index, segmentIndex++, first, result.length - 1);
+    }
     if (contour.closed && Math.hypot(result[0].x - result.at(-1)!.x, result[0].y - result.at(-1)!.y) < 1e-8)
       result.pop();
     return result;

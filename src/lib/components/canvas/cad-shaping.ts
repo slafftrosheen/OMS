@@ -1,7 +1,8 @@
 import ClipperLib from 'clipper-lib';
 import type { Editor } from '@tldraw/tldraw';
 import { cadMmPerPixel, unitMm, type CadSettings } from './cad-settings';
-import { flattenContours, nodeAt, type CadContour } from './cad-curves';
+import { CAD_FLATTEN_LIMIT, flattenContours } from './cad-curves';
+import { restoreShapingCurves, shapingSpan, type Polygon, type PolygonPoint } from './cad-shaping-curves';
 import { cadSelectedShapes, shapeCadContours } from './cad-editing';
 import { assertCadMergeContext, cadReferencePaintWarnings, sourceCurveResult } from './cad-source-result';
 import { makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
@@ -15,7 +16,6 @@ export interface CadShapingOptions {
   targetId?: string;
 }
 const SCALE = 10000;
-type Polygon = Array<{ X: number; Y: number }>;
 function clip(a: Polygon[], b: Polygon[], operation: number, evenOdd = false): Polygon[] {
   const engine = new ClipperLib.Clipper();
   engine.StrictlySimple = true;
@@ -44,20 +44,38 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
   const reference = shapes[target];
   assertCadMergeContext(shapes, reference);
   let vertices = 0;
+  const spans: ReturnType<typeof shapingSpan>[] = [];
+  const toClip = (point: { x: number; y: number }) => ({
+    x: (point.x - settings.originX) * factor * SCALE,
+    y: (settings.originY - point.y) * factor * SCALE
+  });
+  const toPage = (point: PolygonPoint) => ({
+    x: settings.originX + point.X / SCALE / factor,
+    y: settings.originY - point.Y / SCALE / factor
+  });
   const polygons = shapes.map((shape) => {
     const curves = shapeCadContours(editor, shape, tolerance / factor / 8);
     if (curves.some((c) => !c.closed)) throw new CadOperationError('open');
-    const flattened = flattenContours(curves, tolerance / factor / 2);
+    const ranges: Array<Array<{ index: number; first: number; last: number }>> = curves.map(() => []);
+    const flattened = flattenContours(curves, tolerance / factor / 2, CAD_FLATTEN_LIMIT,
+      options.operation === 'offset' ? undefined : (contour, index, first, last) => ranges[contour].push({ index, first, last }));
     const paths = flattened.map((points) =>
       points.map((p) => {
-        if (++vertices > 50000) throw new CadOperationError('limit');
-        const X = Math.round((p.x - settings.originX) * factor * SCALE),
-          Y = Math.round((settings.originY - p.y) * factor * SCALE);
+        if (++vertices > CAD_FLATTEN_LIMIT) throw new CadOperationError('limit');
+        const point = toClip(p), X = Math.round(point.x), Y = Math.round(point.y);
         if (![X, Y].every((n) => Number.isSafeInteger(n) && Math.abs(n) <= 1e12))
           throw new CadOperationError('geometry');
         return { X, Y };
       })
     );
+    paths.forEach((path, ci) => {
+      for (const { index, first, last } of ranges[ci]) {
+        const samples = path.slice(first, last + 1);
+        // flattenContours omits the final duplicate anchor of a closed ring.
+        if (last === path.length) samples.push(path[0]);
+        spans.push(shapingSpan(curves[ci], index, samples, toClip));
+      }
+    });
     // Font outlines retain winding-based holes and overlapping glyphs. Other compounds
     // use even-odd holes. Combine the normalized separate solids with non-zero.
     return clip(paths, [], ClipperLib.ClipType.ctUnion, (shape.props as { fillRule?: string }).fillRule !== 'nonzero');
@@ -86,12 +104,7 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
     offset.Execute(result, distance * SCALE);
   }
   if (!result.length) throw new CadOperationError('empty');
-  const contours: CadContour[] = result.map((path) => ({
-    closed: true,
-    nodes: path.map((p) =>
-      nodeAt({ x: settings.originX + p.X / SCALE / factor, y: settings.originY - p.Y / SCALE / factor })
-    )
-  }));
+  const { contours, restored } = restoreShapingCurves(result, spans, tolerance * SCALE + 2, toPage);
   const ids = shapes.map((s) => s.id);
   return makeCadPlan(editor, settings, contours, {
     sourceIds: ids,
@@ -99,7 +112,7 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
     name: `CAD ${options.operation}`,
     fillRule: 'nonzero',
     shapes: [sourceCurveResult(editor, reference, contours, 'nonzero')],
-    warnings: ['curves-approximated', ...cadReferencePaintWarnings(editor, shapes, reference),
+    warnings: ['curves-approximated', ...(restored ? ['curves-retained'] : []), ...cadReferencePaintWarnings(editor, shapes, reference),
       ...(options.keepSources ? ['sources-overlap'] : [])]
   });
 }

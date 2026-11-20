@@ -2,7 +2,7 @@ import type { Editor } from '@tldraw/tldraw';
 
 // These gestures preview outside the native tool state machine. A second pen
 // or finger must not start another editor mutation while the first is active.
-type DrawingPointerOwner = 'guide' | 'skew' | 'pivot' | 'rotation';
+type DrawingPointerOwner = 'guide' | 'skew' | 'pivot' | 'rotation' | 'nodes';
 const gestures = new WeakMap<Editor, { owner: DrawingPointerOwner; token: symbol }>();
 const keyReleases = new WeakMap<Editor, Map<string, () => void>>();
 
