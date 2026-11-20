@@ -346,6 +346,64 @@ These new browser scenarios are defined and discoverable but were not executed h
 
 Workflow references: [CorelDRAW guidelines](https://product.corel.com/help/CorelDRAW/540111186/Documentation-Windows/CorelDRAW-en/CorelDRAW-Set-up-guidelines.html) and [CorelDRAW Pick tools](https://www.coreldraw.com/en/learn/tutorials/pick-freehand-tools-coreldraw/).
 
+## Repeated Pick clicks, guideline movement and custom rotation centers — 20 November 2026
+
+This pass closes the three Pick workflow gaps listed in the 19 November scope: ordinary repeated clicks can switch the selection handles, ordinary object movement can snap to page guidelines, and the rotation center can be moved directly. The implementation is shared by idea boards and order canvases, with English, Russian and Latvian guidance.
+
+### Switch handles with an ordinary repeated click
+
+Select editable curves or a group of supported curves. Click the selected artwork again without dragging or holding a modifier to switch between the ordinary Pick handles and **Rotate / skew**. A further ordinary click switches back. The property-bar button remains available for immediate, explicit switching.
+
+The click retains the entire current selection, including a selected group or multiple roots. It waits for the editor's own double-click interval before switching modes so genuine double/triple clicks can retain native group and text behavior. A drag, modifier, menu, form focus, changed selection/document/view or another operation cancels a pending switch. Switching handles changes view state and adds no artwork mutation or empty Undo step.
+
+### Snap ordinary Pick movement to guidelines
+
+With **Snap** and **Guidelines** enabled, dragging supported artwork with Pick attracts its left/center/right or top/center/bottom to page guidelines. Multiple objects move as one arrangement, preserving their relative positions and original group parents. Exact curve bounds include cubic extrema and rotated group geometry. The active guideline is highlighted, including when its ordinary display is hidden.
+
+Native object snap targets keep priority on the axis they acquire; a guideline can acquire the other axis. Ctrl temporarily inverts snapping during Pick movement; Shift constrains movement to one axis. Grid behavior stays native. Hidden or locked guidelines remain valid snap targets, independently of their editing locks. The guide tolerance uses the configured screen-pixel distance at the current zoom.
+
+This extends the native translation operation through public editor hooks. It retains drag cancellation, one-step Undo/Redo and Alt-drag duplication. No helper artwork is inserted into the drawing or exports. Work is bounded to 100 selected roots, 500 selected/descendant shapes and the existing 256 guidelines per page. Protected forms, locked selections, bound objects, clipped artwork and frame/container cases are excluded. Their normal native interaction is preserved without adding a guideline correction.
+
+Changing captured geometry or adding/removing a descendant of the moving selection invalidates its guideline correction. The external edit still proceeds, and unrelated creation/deletion does not interrupt snapping. Native Alt rollback can remove its inactive copied subtree after restoring the originals; deleting a member of the active copy instead invalidates the captured geometry.
+
+### Move the rotation center
+
+In **Rotate / skew**, drag the cross-and-ring center to a new point, then drag a corner to rotate around it. Moving the center and previewing a rotation do not write drawing records. The corner preview shows the original and resulting curves and the angle. Release applies the exact existing radial transformation in one Undo operation, preserving supported compound holes, paint, shape IDs and group hierarchy.
+
+For rotation around a custom center, Shift or Ctrl constrains the angle to 15° steps. Focus a corner and use Left/Right for 1° steps, or Shift/Ctrl for 15°. Enter or Space opens the numeric Transformations docker. With the default center, corner rotation continues through the native editor interaction.
+
+Focus the center and use arrow keys to move it by the current physical nudge step; Shift multiplies the step by ten and Ctrl/Command uses one tenth. Home, Enter, Space or double-click resets the center to the selection's default center. Escape cancels a pointer preview. Loss of capture/focus, wheel/scroll, changed page/selection/document/camera/viewport, read-only state or protection changes also cancels an in-flight preview without applying partial geometry.
+
+The custom center is temporary state for the current page and selected IDs. It stays at its page coordinate during transformations, ordinary movement and Undo while that selection remains active; changing the selection or page resets it. It is not saved with the drawing or restored after reload. This fixed-page lifetime is an explicit OMS behavior, not a claim of complete CorelDRAW pivot parity.
+
+Rotate/skew still targets supported editable curves and groups. Convert native text, ordinary shapes and analytic circles/arcs to curves first. Bitmap/material fills, clipped artwork, bindings and protected objects retain the existing curve-engine restrictions. Guidelines remain horizontal/vertical and page-specific; angled and shared master-page guides are outside this pass.
+
+### Validation
+
+| Check | Result |
+| --- | --- |
+| CAD, drawing, canvas-control/workbench/draft and draft-intake regressions | **989 passed, 0 failed** across 72 distinct files |
+| Actual editor/React/DOM cases included in that total | **146 passed**, including 92 new cases: 13 repeated-click, 31 Pick guideline, 44 rotation-center and 4 combined-controller cases |
+| Application Svelte/TypeScript check | **0 errors**; 13 existing warnings in five unrelated Svelte files |
+| ESLint on all 20 changed/new TS/TSX files | **Passed**, no warnings |
+| Production build | **Passed**, with existing Svelte/bundler warnings |
+| Static scan of changed workspace UI; staged whitespace check | **Passed** |
+| Browser test discovery | **43 scenarios** across four files, including the six new scenarios below; discovery is not execution |
+
+Regression files run in separate bounded batches, with each native DOM file in its own process. After the final create/delete guard, the complete Pick guideline suite and combined-controller suite were rerun, followed by application checking, lint and the production build. The native cases also verify unchanged-record snapping after pointer velocity settles, a fast final release, mixed native/guideline axes, rotated parents, empty-Undo prevention, preservation of an existing Redo, and local/remote subtree edits without swallowing those edits.
+
+### Browser acceptance scenarios
+
+Six new Playwright scenarios cover both hosts: repeated-click mode switching without artwork mutation; a moved center with a constrained quarter-turn, preview and Undo; and ordinary Pick guideline snapping with Undo/Redo and drawing reload. The fixtures expose read-only coordinate/inspection helpers; the interactions use actual pointer and keyboard input.
+
+```sh
+npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts drawing-pick-workflows.spec.ts
+```
+
+These scenarios are discoverable but were not executed in a live browser in this pass. The connected Browser extension was unavailable in this session, and the cloud browser could not reach the local fixture. Native editor/React/DOM tests do not certify browser pixel layout, production database persistence or machine output. Earlier browser results and environment restrictions in this document refer to their respective dated passes.
+
+Behavior references: [CorelDRAW Pick and Freehand Pick tools](https://www.coreldraw.com/en/learn/tutorials/pick-freehand-tools-coreldraw/), [CorelDRAW guideline snapping](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Mac/CorelDRAW-en/CorelDRAW-Set-up-guidelines.html), and [CorelDRAW constrained rotation](https://product.corel.com/help/CorelDRAW/540111186/Documentation-Windows/CorelDRAW-en/CorelDRAW-Constrain-objects.html).
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

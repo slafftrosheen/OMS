@@ -11,6 +11,10 @@ import { DrawingGuideOverlay } from './DrawingGuideOverlay';
 import { DrawingPickHandles, DrawingPickSelectionForeground } from './DrawingPickSelectionForeground';
 import { installDrawingSkewMode } from './drawing-pick-skew';
 import { clearDrawingKeyReleases } from './drawing-pointer-gesture';
+import { installDrawingRotationPivot } from './drawing-rotation-pivot';
+import { cancelDrawingRotationPointer } from './drawing-pick-rotation';
+import { installDrawingPickGuideSnapping } from './drawing-pick-guide-snap';
+import { installDrawingPickClickToggle } from './drawing-pick-click-toggle';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
 import {syncCreationFileDocuments} from './order-file-documents';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
@@ -179,8 +183,9 @@ export function CanvasApp({
     const handleMount = (editor: Editor) => {
         installDrawingTextUtil(editor);
         cleanupCadTransformsRef.current?.();
-        const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor);
-        cleanupCadTransformsRef.current = () => { stopTransforms(); stopFonts(); stopSkewMode(); clearDrawingKeyReleases(editor); };
+        const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
+        const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
+        cleanupCadTransformsRef.current = () => { stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 

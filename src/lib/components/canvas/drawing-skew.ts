@@ -104,6 +104,11 @@ export function readSkewSelection(editor: Editor): { count: number; bounds?: Ske
   catch (error) { return { count: 0, error: error instanceof CadOperationError ? error.code : 'failed' }; }
 }
 
+/** Exact page-space curves for the guarded Pick transformation preview. */
+export function readSkewSelectionContours(editor: Editor): CadContour[] {
+  return selection(editor).leaves.flatMap(item => item.pageContours);
+}
+
 function capacity(editor: Editor, shapes: TLShape[], items: SkewItem[], keepOriginal: boolean) {
   if (keepOriginal && editor.getCurrentPageShapeIds().size + shapes.length > editor.options.maxShapesPerPage)
     throw new CadOperationError('limit');

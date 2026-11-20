@@ -11,6 +11,7 @@ import {
 import { readCadSettings, unitLengthToCanvas } from './cad-settings';
 import { requestDrawingUi } from './drawing-ui-requests';
 import { useGuideText } from './guide-copy';
+import { drawingPickGuideSnap } from './drawing-pick-guide-snap';
 
 function guardGuideControlKey(event: React.KeyboardEvent<SVGSVGElement>) {
   if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key) && event.target instanceof Element && event.target.closest('[data-drawing-guide-control]'))
@@ -50,7 +51,7 @@ export function DrawingGuideOverlay() {
   const state = useValue('Document guidelines overlay', () => ({
     pageId: editor.getCurrentPageId(), guides: readDrawingGuides(editor), bounds: editor.getViewportPageBounds(),
     zoom: editor.getZoomLevel(), settings: readCadSettings(editor), selected: selectedDrawingGuide(editor).get(),
-    preview: drawingGuideDrag(editor).get(), canEdit: canDragDrawingGuide(editor),
+    preview: drawingGuideDrag(editor).get(), canEdit: canDragDrawingGuide(editor), pickSnap: drawingPickGuideSnap(editor).get(),
   }), [editor]);
   useEffect(() => () => cancelDrawingGuideDrag(editor, null), [editor]);
   useEffect(() => { if (!state.canEdit) cancelDrawingGuideDrag(editor, 'stale'); }, [editor, state.canEdit, state.pageId]);
@@ -69,6 +70,9 @@ export function DrawingGuideOverlay() {
       </g>)}
       {state.preview?.valid && !state.preview.outside && <line {...lineProps(state.preview)} className="drawing-guide-preview"
         data-testid="drawing-guide-preview" strokeWidth={2 * scale} strokeDasharray={`${6 * scale} ${3 * scale}`} />}
+      {state.pickSnap?.guides.map(guide => <line key={guide.id} {...lineProps(guide)} className="drawing-guide-snap"
+        data-testid="drawing-pick-guide-snap" data-guide-snap-id={guide.id} data-guide-axis={guide.axis}
+        data-guide-anchor={guide.anchor} strokeWidth={2.5 * scale} />)}
     </svg>
     {/* Hit bands sit below the real shape DOM: form fields and embedded media
         must receive their own pointer events where a guideline crosses them. */}

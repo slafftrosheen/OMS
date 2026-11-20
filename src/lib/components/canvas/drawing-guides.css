@@ -10,6 +10,7 @@
 .drawing-guide-line { stroke: var(--color-selected, var(--brand)); pointer-events: none; }
 .drawing-guide-line.is-selected { stroke: var(--ink-primary); }
 .drawing-guide-preview { stroke: var(--color-selected, var(--brand)); pointer-events: none; }
+.drawing-guide-snap { stroke: var(--color-selected, var(--brand)); pointer-events: none; }
 .drawing-guide-hit { stroke: transparent; pointer-events: stroke; touch-action: none; outline: none; }
 .drawing-guide-hit.is-x { cursor: ew-resize; }
 .drawing-guide-hit.is-y { cursor: ns-resize; }

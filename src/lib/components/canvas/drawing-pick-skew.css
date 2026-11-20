@@ -12,3 +12,10 @@
 .drawing-pick-skew-handle > path, .drawing-pick-rotate-handle > path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .drawing-pick-skew-handle:hover .drawing-pick-handle-target, .drawing-pick-rotate-handle:hover .drawing-pick-handle-target { fill: var(--color-selected, #2f66cf); fill-opacity: .12; }
 .drawing-pick-skew-handle:focus-visible .drawing-pick-handle-target { fill: var(--color-background, white); stroke: currentColor; stroke-width: 2; stroke-dasharray: 2 2; }
+.drawing-pick-rotate-handle:focus-visible .drawing-pick-handle-target,
+.drawing-rotation-pivot:focus-visible .drawing-pick-handle-target { fill: var(--color-background, white); stroke: currentColor; stroke-width: 2; stroke-dasharray: 2 2; }
+.drawing-rotation-pivot { pointer-events: all; touch-action: none; cursor: move; outline: none; }
+.drawing-rotation-pivot.is-inactive { pointer-events: none; }
+.drawing-rotation-pivot-ring { fill: var(--color-background, white); stroke: currentColor; stroke-width: 1.5; }
+.drawing-rotation-pivot.is-custom .drawing-rotation-pivot-ring { stroke-width: 2.5; }
+.drawing-rotation-pivot-cross { fill: none; stroke: currentColor; stroke-width: 1.5; }

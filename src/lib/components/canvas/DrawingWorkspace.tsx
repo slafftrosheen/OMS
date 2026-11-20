@@ -22,6 +22,9 @@ import {isDrawingPointerGestureActive} from './drawing-pointer-gesture';
 import {isDrawingSkewMode, setDrawingSkewMode, drawingSkewGesture, drawingSkewNotice} from './drawing-pick-skew';
 import {readSkewSelection} from './drawing-skew';
 import {usePickSkewText} from './pick-skew-copy';
+import {drawingRotationNotice, drawingRotationPreview} from './drawing-pick-rotation';
+import {useRotationPivotText} from './rotation-pivot-copy';
+import {drawingPickGuideSnap} from './drawing-pick-guide-snap';
 import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
 import {DRAWING_UI_REQUEST, isDrawingUiRequest} from './drawing-ui-requests';
@@ -441,6 +444,7 @@ export function DrawingChrome() {
   const objectTreeLabel = useObjectTreeText();
   const guideLabel = useGuideText();
   const pickSkewLabel = usePickSkewText();
+  const rotationLabel = useRotationPivotText();
   const skewLabel = useSkewText();
   const skewErrorText = (code: string) => skewLabel(Object.hasOwn(enSkew, code) ? code as keyof typeof enSkew : 'failed');
   const nodeArrangeLabel = useNodeArrangeText();
@@ -485,10 +489,15 @@ export function DrawingChrome() {
   const skewSelection = useValue('Pick skew eligibility', () => readSkewSelection(editor), [editor]);
   const skewGesture = useValue('Pick skew preview', () => drawingSkewGesture(editor).get(), [editor]);
   const skewNotice = useValue('Pick skew message', () => drawingSkewNotice(editor).get(), [editor]);
+  const rotationPreview = useValue('Custom rotation status', () => drawingRotationPreview(editor).get(), [editor]);
+  const rotationNotice = useValue('Custom rotation notice', () => drawingRotationNotice(editor).get(), [editor]);
+  const pickGuideSnap = useValue('Pick guideline target', () => drawingPickGuideSnap(editor).get(), [editor]);
+  const rotationNoticeText = rotationNotice ? rotationLabel(rotationNotice) : '';
   const guideNoticeText = guideNotice ? guideLabel(guideNotice) : '';
   const skewNoticeText = skewNotice ? skewNotice === 'canceled' ? pickSkewLabel('canceled') : skewErrorText(skewNotice) : '';
   useEffect(() => { if (guideNoticeText) setNotice(guideNoticeText); }, [guideNoticeText]);
   useEffect(() => { if (skewNoticeText) setNotice(skewNoticeText); }, [skewNoticeText]);
+  useEffect(() => { if (rotationNoticeText) setNotice(rotationNoticeText); }, [rotationNoticeText]);
   const [busy, setBusy] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [exportOptions, setExportOptions] = useState<DrawingExportOptions>({ scope: 'selected', scale: 1, background: false, padding: 24 });
@@ -694,7 +703,7 @@ export function DrawingChrome() {
       // Custom page-space controls own their keyboard events. Mark the native
       // event before tldraw's container listener; let the control handle it.
       if (isDrawingPointerGestureActive(editor) || event.target instanceof Element &&
-          event.target.closest('[data-drawing-guide-control],[data-drawing-skew-edge]')) {
+          event.target.closest('[data-drawing-guide-control],[data-drawing-skew-edge],[data-drawing-rotation-pivot],[data-drawing-rotate-corner][data-custom-pivot="true"]')) {
         if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return false;
         (event as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
         if (isDrawingPointerGestureActive(editor)) event.preventDefault();
@@ -1164,7 +1173,7 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={rotationPreview ? rotationLabel(rotationPreview.kind === 'pivot' ? 'help' : 'rotate') : skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>

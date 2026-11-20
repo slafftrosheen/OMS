@@ -6,6 +6,10 @@ import { startDrawingSkewPointer } from './drawing-pick-skew-pointer';
 import { readSkewSelection, skewPoint } from './drawing-skew';
 import { requestDrawingUi } from './drawing-ui-requests';
 import { usePickSkewText } from './pick-skew-copy';
+import { DrawingRotationPivot } from './DrawingRotationPivot';
+import { readDrawingRotationPivot } from './drawing-rotation-pivot';
+import { cancelDrawingRotationPointer, drawingRotationPreview, rotateDrawingAroundPivot, startDrawingRotationPointer } from './drawing-pick-rotation';
+import { useRotationPivotText } from './rotation-pivot-copy';
 
 /** Hide per-node/vertex controls while Pick's rotate/skew mode is active. */
 export function DrawingPickHandles(props: TLHandlesProps) {
@@ -17,17 +21,35 @@ function RotateHandle({ handle, x, y, zoom, turn, label }: {
   handle: TLSelectionHandle; x: number; y: number; zoom: number; turn: number; label: string;
 }) {
   const editor = useEditor();
+  const pivotText = useRotationPivotText();
+  const custom = useValue('Custom corner pivot', () => readDrawingRotationPivot(editor)?.custom ?? false, [editor]);
   const events = useSelectionEvents(handle);
   return <g {...events} onPointerDown={event => {
+    if (custom && event.button === 0) {
+      event.preventDefault(); event.stopPropagation(); (event.nativeEvent as PointerEvent & { isKilled?: boolean }).isKilled = true;
+      startDrawingRotationPointer(editor, event.nativeEvent, event.currentTarget); return;
+    }
     // A lock or readonly update can arrive between render and pointerdown.
     // Native rotation of a group does not itself guard all locked descendants.
     if (readSkewSelection(editor).error || event.button === 0 && !beginDrawingSkewRotation(editor)) {
       event.preventDefault(); event.stopPropagation(); (event.nativeEvent as any).isKilled = true; return;
     }
     events.onPointerDown(event);
-  }} className="drawing-pick-rotate-handle" data-drawing-rotate-corner={handle}
-    transform={`translate(${x} ${y}) scale(${1 / zoom})`} aria-label={label}>
-    <title>{label}</title><circle r={13} className="drawing-pick-handle-target" />
+  }} onKeyDownCapture={event => {
+    if (!custom || ['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return;
+    (event.nativeEvent as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault(); event.stopPropagation();
+      rotateDrawingAroundPivot(editor, (event.key === 'ArrowLeft' ? 1 : -1) * (event.shiftKey || event.ctrlKey ? 15 : 1));
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault(); event.stopPropagation(); requestDrawingUi(editor, { kind: 'panel', action: 'transform' });
+    }
+  }} onKeyUpCapture={event => {
+    if (custom && !['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) (event.nativeEvent as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
+  }} className="drawing-pick-rotate-handle" data-drawing-rotate-corner={handle} data-custom-pivot={custom}
+    role={custom ? 'button' : undefined} tabIndex={custom ? 0 : undefined}
+    transform={`translate(${x} ${y}) scale(${1 / zoom})`} aria-label={custom ? pivotText('rotate') : label}>
+    <title>{custom ? pivotText('rotate') : label}</title><circle r={13} className="drawing-pick-handle-target" />
     <path d="M-5,4 A6,6 0 1,1 4,-5 M4,-5 L-1,-5 M4,-5 L4,0" transform={`rotate(${turn})`} />
   </g>;
 }
@@ -35,14 +57,14 @@ function RotateHandle({ handle, x, y, zoom, turn, label }: {
 export function DrawingPickSelectionForeground(props: TLSelectionForegroundProps) {
   const editor = useEditor(), t = usePickSkewText();
   const cancelPointer = useRef<(() => void) | null>(null);
-  useEffect(() => () => cancelPointer.current?.(), [editor]);
+  useEffect(() => () => { cancelPointer.current?.(); cancelDrawingRotationPointer(editor); }, [editor]);
   const value = useValue('Pick skew foreground', () => {
     const active = isDrawingSkewMode(editor), selection = active ? readSkewSelection(editor) : null;
-    return { active, bounds: selection?.bounds, gesture: drawingSkewGesture(editor).get(), zoom: editor.getZoomLevel(),
+    return { active, bounds: selection?.bounds, gesture: drawingSkewGesture(editor).get(), rotation: drawingRotationPreview(editor).get(), zoom: editor.getZoomLevel(),
       interactive: editor.isIn('select.idle') && !editor.getIsMenuOpen() && !editor.getInstanceState().isReadonly };
   }, [editor]);
   if (!value.active || !value.bounds) return <TldrawSelectionForeground {...props} />;
-  const { bounds, gesture, zoom, interactive } = value, plan = gesture?.plan;
+  const { bounds, gesture, zoom, interactive, rotation } = value, plan = gesture?.plan;
   const openNumeric = () => { cancelPointer.current?.(); requestDrawingUi(editor, { kind: 'panel', action: 'transform' }); };
   const key = (event: React.KeyboardEvent<SVGGElement>, edge: DrawingSkewEdge) => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -61,6 +83,12 @@ export function DrawingPickSelectionForeground(props: TLSelectionForegroundProps
   const cornerGap = 10 / zoom;
   return <svg className="tl-overlays__item tl-selection__fg drawing-pick-skew" data-testid="drawing-pick-skew" aria-label={t('mode')}>
     <rect className="drawing-pick-skew-bounds" x={bounds.x} y={bounds.y} width={bounds.w} height={bounds.h} strokeWidth={1 / zoom} />
+    {rotation?.kind === 'rotate' && !rotation.error && <g className="drawing-pick-skew-preview" data-testid="drawing-pivot-rotation-preview" strokeWidth={1.5 / zoom}>
+      <path className="drawing-pick-skew-source" d={curvePathData(rotation.source)} strokeDasharray={`${4 / zoom} ${3 / zoom}`} />
+      <path className="drawing-pick-skew-result" d={curvePathData(rotation.result)} />
+      <text className="drawing-pick-skew-angle" x={bounds.x + bounds.w / 2} y={bounds.y - 25 / zoom} textAnchor="middle" fontSize={12 / zoom}
+        strokeWidth={3 / zoom} data-testid="drawing-pivot-rotation-angle">{Number(rotation.angle.toFixed(2))}°</text>
+    </g>}
     {plan && <g className="drawing-pick-skew-preview" data-testid="drawing-pick-skew-preview" strokeWidth={1.5 / zoom}>
       <path className="drawing-pick-skew-source" d={curvePathData(plan.items.flatMap(item => item.source))} strokeDasharray={`${4 / zoom} ${3 / zoom}`} />
       <path className="drawing-pick-skew-result" d={curvePathData(plan.items.flatMap(item => item.result))} />
@@ -70,7 +98,7 @@ export function DrawingPickSelectionForeground(props: TLSelectionForegroundProps
       textAnchor="middle" fontSize={12 / zoom} strokeWidth={3 / zoom} data-testid="drawing-pick-skew-angle">
       {Number(gesture.angle.toFixed(2))}°{gesture.limited ? ` · ${t('limit')}` : ''}
     </text>}
-    {interactive && DRAWING_SKEW_EDGES.filter(edge => (edge === 'top' || edge === 'bottom' ? bounds.h : bounds.w) > 1e-8).map(edge => {
+    {interactive && !rotation && DRAWING_SKEW_EDGES.filter(edge => (edge === 'top' || edge === 'bottom' ? bounds.h : bounds.w) > 1e-8).map(edge => {
       const source = drawingSkewHandlePoint(bounds, edge), point = plan ? skewPoint(source, plan.anchor, plan.options.axis, plan.options.angle) : source;
       return <g key={edge} className={`drawing-pick-skew-handle drawing-pick-skew-handle--${edge}`}
         data-drawing-skew-edge={edge} data-testid={`drawing-skew-handle-${edge}`} role="button" tabIndex={gesture ? -1 : 0}
@@ -89,11 +117,12 @@ export function DrawingPickSelectionForeground(props: TLSelectionForegroundProps
           transform={edge === 'left' || edge === 'right' ? 'rotate(90)' : undefined} />
       </g>;
     })}
-    {interactive && !gesture && <>
+    {interactive && !gesture && rotation?.kind !== 'pivot' && <g transform={rotation?.kind === 'rotate' && !rotation.error ? `rotate(${-rotation.angle} ${rotation.point.x} ${rotation.point.y})` : undefined}>
       <RotateHandle handle="top_left_rotate" x={bounds.x - cornerGap} y={bounds.y - cornerGap} zoom={zoom} turn={0} label={t('rotate')} />
       <RotateHandle handle="top_right_rotate" x={bounds.x + bounds.w + cornerGap} y={bounds.y - cornerGap} zoom={zoom} turn={90} label={t('rotate')} />
       <RotateHandle handle="bottom_right_rotate" x={bounds.x + bounds.w + cornerGap} y={bounds.y + bounds.h + cornerGap} zoom={zoom} turn={180} label={t('rotate')} />
       <RotateHandle handle="bottom_left_rotate" x={bounds.x - cornerGap} y={bounds.y + bounds.h + cornerGap} zoom={zoom} turn={270} label={t('rotate')} />
-    </>}
+    </g>}
+    {!gesture && <DrawingRotationPivot interactive={interactive && rotation?.kind !== 'rotate'} />}
   </svg>;
 }

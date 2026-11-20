@@ -2,7 +2,8 @@ import type { Editor } from '@tldraw/tldraw';
 
 // These gestures preview outside the native tool state machine. A second pen
 // or finger must not start another editor mutation while the first is active.
-const gestures = new WeakMap<Editor, { owner: 'guide' | 'skew'; token: symbol }>();
+type DrawingPointerOwner = 'guide' | 'skew' | 'pivot' | 'rotation';
+const gestures = new WeakMap<Editor, { owner: DrawingPointerOwner; token: symbol }>();
 const keyReleases = new WeakMap<Editor, Map<string, () => void>>();
 
 /** A finishing key can remove its focused SVG control or return focus to the
@@ -37,7 +38,7 @@ export function isDrawingPointerGestureActive(editor: Editor): boolean {
   return gestures.has(editor);
 }
 
-export function claimDrawingPointerGesture(editor: Editor, owner: 'guide' | 'skew', pointerId?: number): (() => void) | null {
+export function claimDrawingPointerGesture(editor: Editor, owner: DrawingPointerOwner, pointerId?: number): (() => void) | null {
   if (gestures.has(editor)) return null;
   const token = Symbol(owner);
   gestures.set(editor, { owner, token });
