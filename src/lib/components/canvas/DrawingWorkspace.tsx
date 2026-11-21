@@ -131,7 +131,13 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
     const node = root.current;
     if (!node) return;
     const owner = node.ownerDocument;
-    const update = () => setNativeFullscreen(owner.fullscreenElement === node);
+    let wasFullscreen = false;
+    const update = () => {
+      setNativeFullscreen(owner.fullscreenElement === node);
+      if (wasFullscreen && !owner.fullscreenElement && !node.contains(owner.activeElement))
+        node.querySelector<HTMLButtonElement>('[data-testid="drawing-fullscreen"]')?.focus();
+      wasFullscreen = owner.fullscreenElement === node;
+    };
     owner.addEventListener('fullscreenchange', update);
     return () => owner.removeEventListener('fullscreenchange', update);
   }, []);
@@ -139,6 +145,13 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
     if (!expanded) return;
     const node = root.current;
     const owner = node?.ownerDocument;
+    // A transformed or clipped order panel can contain a fixed-position child.
+    // Move the mounted workspace into the top layer when native fullscreen is unavailable.
+    if (node?.showPopover) {
+      node.setAttribute('popover', 'manual');
+      try { node.showPopover(); }
+      catch { node.removeAttribute('popover'); }
+    }
     const exit = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       event.preventDefault();
@@ -146,7 +159,13 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
       node?.querySelector<HTMLButtonElement>('[data-testid="drawing-fullscreen"]')?.focus();
     };
     owner?.addEventListener('keydown', exit);
-    return () => owner?.removeEventListener('keydown', exit);
+    return () => {
+      owner?.removeEventListener('keydown', exit);
+      if (node?.hasAttribute('popover')) {
+        if (node.matches(':popover-open')) node.hidePopover();
+        node.removeAttribute('popover');
+      }
+    };
   }, [expanded]);
   async function toggleFullscreen() {
     const node = root.current;
@@ -268,19 +287,30 @@ function ToolButton({ label, icon, active, disabled, onClick, children, testId }
 }
 
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
-const toolGroups = [
-  { id: 'select', tools: ['select'] },
-  { id: 'nodes', tools: ['nodes'] },
-  { id: 'hand', tools: ['hand'] },
-  { id: 'curves', tools: ['cad-freehand', 'cad-bezier', 'cad-polyline', 'line', 'draw'], divider: true },
-  { id: 'rectangle', tools: ['rectangle'] },
-  { id: 'ellipse', tools: ['ellipse', 'cad-circle', 'cad-circle-three', 'cad-arc-three'] },
-  { id: 'shapes', tools: ['pentagon', 'triangle', 'diamond', 'star'] },
-  { id: 'text', tools: ['text'], divider: true },
-  { id: 'dimension', tools: ['cad-dimension', 'cad-measure-tools'] },
-  { id: 'annotations', tools: ['arrow', 'highlight', 'frame', 'eraser'] },
-];
-const readOnlyTools = ['select', 'nodes', 'hand', 'cad-measure-tools'];
+const toolCategories = [
+  { id: 'selectTools', groups: [
+    { id: 'select', tools: ['select'] },
+    { id: 'nodes', tools: ['nodes', 'eraser'] },
+    { id: 'hand', tools: ['hand'] },
+  ] },
+  { id: 'drawTools', groups: [
+    { id: 'curves', tools: ['cad-freehand', 'cad-bezier', 'cad-polyline', 'line', 'draw'] },
+    { id: 'rectangle', tools: ['rectangle'] },
+    { id: 'ellipse', tools: ['ellipse', 'cad-circle', 'cad-circle-three', 'cad-arc-three'] },
+    { id: 'shapes', tools: ['pentagon', 'triangle', 'diamond', 'star'] },
+  ] },
+  { id: 'annotateTools', groups: [
+    { id: 'text', tools: ['text'] },
+    { id: 'dimension', tools: ['cad-dimension', 'cad-measure-tools'] },
+    { id: 'annotations', tools: ['arrow', 'highlight', 'frame'] },
+  ] },
+  { id: 'productionTools', groups: [
+    { id: 'paint', tools: ['paint'] },
+    { id: 'clipart', tools: ['clipart'] },
+  ] },
+] satisfies Array<{ id: 'selectTools' | 'drawTools' | 'annotateTools' | 'productionTools'; groups: Array<{ id: string; tools: string[] }> }>;
+const toolGroups = toolCategories.flatMap(category => category.groups);
+const readOnlyTools = ['select', 'nodes', 'hand', 'cad-measure-tools', 'paint', 'clipart'];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = { 'cad-freehand': 'F5', rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
 
@@ -613,10 +643,17 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => tool === 'cad-measure-tools' ? productionLabel('construction') : tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => tool === 'paint' ? vectorLabel('paint') : tool === 'clipart' ? productionLabel('clipart') : tool === 'cad-measure-tools' ? productionLabel('construction') : tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !readOnlyTools.includes(tool)) return;
-    if (tool === 'cad-measure-tools') { setToolGroup(null); context?.setPanel('measure'); return; }
+    if (tool === 'cad-measure-tools' || tool === 'clipart') {
+      closeMenus(true);
+      setToolGroup(null);
+      context?.setPanel(tool === 'clipart' ? 'clipart' : 'measure');
+      return;
+    }
+    if (tool === 'paint') { setToolGroup(null); focusCad('paint'); return; }
+    closeMenus();
     if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
     setDrawingSkewMode(editor, false);
     setCadNodeEditing(editor, false);
@@ -1069,9 +1106,17 @@ export function DrawingChrome() {
   const panelModes = ['properties', 'text', 'pen', 'arrange', 'measure', 'guides', 'snap', 'objects', 'cad', 'clipart'] as const;
   const panelLabel = (mode: Exclude<Panel, null>) => mode === 'clipart' ? productionLabel('clipart') : mode === 'pen' ? penLabel('title') : mode === 'guides' ? guideLabel('title') : mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
   const groupLabel = (group: typeof toolGroups[number]) => {
+    if (group.id === 'nodes') return productionLabel('editShapeTools');
     if (group.id === 'ellipse') return productionLabel('circles');
     if (group.id === 'dimension') return workbenchLabel('measure');
     return group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
+  };
+  const toolActive = (tool: string) => {
+    if (tool === 'nodes') return nodeEditing;
+    if (tool === 'select') return controls.tool === 'select' && !nodeEditing;
+    if (tool === 'clipart') return panel === 'clipart';
+    if (tool === 'cad-measure-tools') return panel === 'measure';
+    return controls.tool === tool;
   };
   const fullscreenLabel = productionLabel(context.fullscreen ? 'exitFullscreen' : 'fullscreen');
   function toggleFullscreen() {
@@ -1158,6 +1203,16 @@ export function DrawingChrome() {
           <button type="button" onClick={openGuides}>{guideLabel('open')}</button>
           <button type="button" onClick={() => { setPanel('clipart'); closeMenus(); }}>{productionLabel('clipart')}</button>
         </div></details>
+        <details className="drawing-menu" data-drawing-menu="tools" open={openMenu === 'tools'}>{menuSummary('tools', productionLabel('tools'))}<div className="drawing-menu-popover drawing-tool-directory">
+          {toolCategories.map(category => <section key={category.id} aria-label={productionLabel(category.id)}>
+            <h3>{productionLabel(category.id)}</h3>
+            {category.groups.flatMap(group => group.tools).map(tool =>
+              <button type="button" key={tool} aria-pressed={toolActive(tool)} disabled={controls.readOnly && !readOnlyTools.includes(tool)} onClick={() => chooseTool(tool)}>
+                <Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}
+              </button>
+            )}
+          </section>)}
+        </div></details>
         <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={context.fullscreen} onClick={toggleFullscreen}>{fullscreenLabel}</button>
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
@@ -1171,6 +1226,12 @@ export function DrawingChrome() {
           <button type="button" onClick={() => { setPanel('pen'); closeMenus(); }} data-testid="drawing-menu-pen">{penLabel('title')}</button>
         </div></details>
       </nav>
+      <div className="drawing-fullscreen-action">
+        <ToolButton icon={context.fullscreen ? 'exit-fullscreen' : 'fullscreen'} testId="drawing-fullscreen"
+          label={fullscreenLabel} active={context.fullscreen} onClick={toggleFullscreen}>
+          <span>{fullscreenLabel}</span>
+        </ToolButton>
+      </div>
     </>)}
     {portal('standard', <>
       <ToolButton icon="import" testId="drawing-import" label={label('import')} disabled={controls.readOnly || busy || !onImport} onClick={() => input.current?.click()} />
@@ -1183,8 +1244,6 @@ export function DrawingChrome() {
       <ToolButton icon="fit-selection" testId="drawing-fit-selection" label={`${actionLabel('fit-selection')} (Shift+F2)`} disabled={!actionEnabled('fit-selection')} onClick={() => command('fit-selection')} />
       <span className="drawing-divider" />
       <ToolButton icon="files" testId="drawing-files" label={vectorLabel('files')} onClick={() => focusCad('files')} />
-      <ToolButton icon={context.fullscreen ? 'exit-fullscreen' : 'fullscreen'} testId="drawing-fullscreen"
-        label={fullscreenLabel} active={context.fullscreen} onClick={toggleFullscreen} />
       <input ref={input} type="file" hidden multiple accept={order
           ? '.pdf,.png,.jpg,.jpeg,.webp,.gif,.cdr,.dxf'
           : 'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a'}
@@ -1229,19 +1288,21 @@ export function DrawingChrome() {
       </>}
     </>)}
     {portal('tools', <div role="toolbar" aria-label={label('toolbox')} aria-orientation="vertical" className="drawing-tools">
-      {toolGroups.map(group => {
-        const current = group.tools.includes(controls.tool) ? controls.tool : (groupTools[group.id] ?? group.tools[0]);
-        return <div className={`drawing-tool-group${group.divider ? ' drawing-tool-group--section' : ''}`} key={group.id}>
-          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current] ? ` (${shortcut[current]})` : ''}`} active={current === 'nodes' ? nodeEditing : current === 'select' ? controls.tool === 'select' && !nodeEditing : group.tools.includes(controls.tool)} disabled={controls.readOnly && !readOnlyTools.includes(current)} onClick={() => chooseTool(current)} testId={`drawing-tool-${current}`} />
+      {toolCategories.map(category => <div className="drawing-tool-section" key={category.id} role="group" aria-label={productionLabel(category.id)}>
+      {category.groups.map(group => {
+        const active = group.tools.find(tool => tool === controls.tool && toolActive(tool)) ?? group.tools.find(toolActive);
+        const current = active ?? groupTools[group.id] ?? group.tools[0];
+        return <div className="drawing-tool-group" key={group.id}>
+          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current] ? ` (${shortcut[current]})` : ''}`} active={toolActive(current)} disabled={controls.readOnly && !readOnlyTools.includes(current)} onClick={() => chooseTool(current)} testId={current === 'paint' ? 'drawing-paint' : `drawing-tool-${current}`} />
           {group.tools.length > 1 && <button type="button" className="drawing-tool-expand" title={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-label={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-expanded={toolGroup === group.id} onClick={event => toggleToolGroup(group, event.currentTarget, event.detail === 0)}
             onKeyDown={event => { if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { event.preventDefault(); event.stopPropagation(); toggleToolGroup(group, event.currentTarget, true); } }} data-testid={`drawing-tools-${group.id}`}>▸</button>}
         </div>;
       })}
-      <div className="drawing-tool-paint"><ToolButton icon="paint" label={vectorLabel('paint')} onClick={() => { setToolGroup(null); focusCad('paint'); }} testId="drawing-paint" /></div>
+      </div>)}
     </div>)}
     {activeToolGroup && hosts.tools && context.root.current && createPortal(<div className="drawing-tool-flyout" role="group" aria-label={groupLabel(activeToolGroup)} style={flyoutPosition}>
       <h3>{groupLabel(activeToolGroup)}</h3>
-      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly && !readOnlyTools.includes(tool)} aria-pressed={controls.tool === tool} title={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
+      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly && !readOnlyTools.includes(tool)} aria-pressed={toolActive(tool)} title={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
     </div>, context.root.current, 'tool-flyout')}
     {portal('rulerOrigin', settings?.unit ?? 'px')}
     {portal('rulerX', <Ruler settings={settings} onGuides={openGuides} />)}{portal('rulerY', <Ruler vertical settings={settings} onGuides={openGuides} />)}
@@ -1263,7 +1324,7 @@ export function DrawingChrome() {
         : mode === 'snap' ? <CadSnapPanel settings={settings}/> : mode === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : mode === 'measure' ? <>
           <MeasurePanel settings={settings} onTool={chooseTool} onDocument={() => focusCad('document')} />
           <CadStraightEdgeTools settings={settings} />
-        </> : mode === 'clipart' ? <CadProductionClipart settings={settings} /> : mode === 'arrange' ? <>
+        </> : mode === 'clipart' ? <CadProductionClipart settings={settings} onSetup={() => focusCad('document')} /> : mode === 'arrange' ? <>
           <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
             {(['transform','align','repeat','radial'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
           </select></label>

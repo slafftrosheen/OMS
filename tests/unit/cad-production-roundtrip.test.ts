@@ -7,7 +7,8 @@ import {fixture} from '../helpers/cad-editor';
 import {CadBezierShapeUtil} from '../../src/lib/components/canvas/shapes/CadBezierShape';
 import {CadPathShapeUtil,CadEllipseShapeUtil,CadArcShapeUtil,CadDimensionShapeUtil} from '../../src/lib/components/canvas/shapes/CadShapes';
 import {DEFAULT_CAD_SETTINGS,writeCadSettings} from '../../src/lib/components/canvas/cad-settings';
-import {prepareCadImport} from '../../src/lib/components/canvas/cad-import';
+import {prepareCadImport,readCadDxf} from '../../src/lib/components/canvas/cad-import';
+import {productionPresetGeometry} from '../../src/lib/components/canvas/cad-production-geometry';
 import {applyCadPlan} from '../../src/lib/components/canvas/cad-plans';
 import {buildCadDxf,serializeCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {prepareCreationCanvas} from '../../src/lib/order/creation-canvas';
@@ -71,4 +72,30 @@ it('reimports and applies a dense polyline export across independent outlines', 
  assert.deepEqual(roundTrip.omitted, []);
  near(roundTrip.widthMm, output.widthMm);
  near(roundTrip.heightMm, output.heightMm);
+});
+
+it('exports custom production templates at the requested millimetre dimensions', () => {
+ const templates = [
+  { id: 'mountingSlot', width: 45, height: 8, closed: 1, open: 0 },
+  { id: 'mountingPlate', width: 180, height: 60, closed: 5, open: 0 },
+  { id: 'mountingRail', width: 150, height: 24, closed: 3, open: 0 },
+  { id: 'cableEntry', width: 32, height: 32, closed: 1, open: 0 },
+  { id: 'signBlank', width: 420, height: 160, closed: 1, open: 0 },
+  { id: 'trimMarks', width: 216, height: 116, closed: 0, open: 8 },
+ ] as const;
+ for (const template of templates) {
+  const geometry = productionPresetGeometry(template.id, template);
+  const result = readCadDxf(DEFAULT_CAD_SETTINGS, serializeCadDxf(geometry).text, {keepCoordinates:true});
+  assert.deepEqual(result.omitted, []);
+  near(result.widthMm, template.width);
+  near(result.heightMm, template.height);
+  assert.equal(result.contours.filter(contour => contour.closed).length, template.closed);
+  assert.equal(result.contours.filter(contour => !contour.closed).length, template.open);
+ }
+ const holes = productionPresetGeometry('mountingPlate', {width:180, height:60}).filter(entity => entity.type === 'circle');
+ assert.deepEqual(holes.map(hole => [hole.center.x, hole.center.y, hole.radius]), [
+  [-80, -20, 3], [-80, 20, 3], [80, -20, 3], [80, 20, 3]
+ ]);
+ assert.deepEqual(productionPresetGeometry('mountingPlate', {width:25, height:40}), []);
+ assert.deepEqual(productionPresetGeometry('mountingSlot', {width:4, height:8}), []);
 });

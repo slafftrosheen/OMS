@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useEditor, useValue, type Editor, type TLShape } from '@tldraw/tldraw';
 import { arcContour, curvePathData, mapContours, nodeAt, validContours, type CadBezierNode, type CadContour } from './cad-curves';
 import { getSelectedCadNodes, isCadNodeEditing } from './cad-node-selection';
@@ -185,17 +185,51 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
   </section>;
 }
 
-export function CadProductionClipart({ settings }: { settings: CadSettings | null }) {
+const clipartCategories = ['mounting', 'signBlanks', 'printMarks'] as const;
+
+function ClipartPreview({ entities, width, height }: {
+  entities: ReturnType<typeof productionPresetGeometry>; width: number; height: number;
+}) {
+  const pad = Math.max(width, height) * 0.08;
+  return <svg viewBox={`${-width / 2 - pad} ${-height / 2 - pad} ${width + pad * 2} ${height + pad * 2}`}
+    fill="none" stroke="currentColor" aria-hidden="true">
+    {entities.map((entity, index) => entity.type === 'circle'
+      ? <circle key={index} cx={entity.center.x} cy={-entity.center.y} r={entity.radius} vectorEffect="non-scaling-stroke" />
+      : <path key={index} d={curvePathData(mapContours([entity.type === 'spline'
+        ? entity.contour : { closed: entity.closed, nodes: entity.points.map(nodeAt) }], p => ({ x: p.x, y: -p.y })))}
+        vectorEffect="non-scaling-stroke" />)}
+  </svg>;
+}
+
+export function CadProductionClipart({ settings, onSetup }: { settings: CadSettings | null; onSetup: () => void }) {
   const editor = useEditor();
   const t = useProductionToolsText();
   const readOnly = useValue('Production clipart read-only', () => editor.getInstanceState().isReadonly, [editor]);
   const [result, setResult] = useState<'created' | 'failed'>();
-  function insert(id: ProductionPreset) {
+  const firstPreset = productionPresets[0];
+  const [category, setCategory] = useState<typeof clipartCategories[number]>(firstPreset.category);
+  const [presetId, setPresetId] = useState<ProductionPreset>(firstPreset.id);
+  const [draft, setDraft] = useState({ width: String(firstPreset.width), height: String(firstPreset.height) });
+  const dimensionError = useId();
+  const preset = productionPresets.find(item => item.id === presetId)!;
+  const width = numeric(draft.width);
+  const square = 'square' in preset;
+  const height = square ? width : numeric(draft.height);
+  const entities = productionPresetGeometry(presetId, { width, height });
+  const canInsert = !!settings && !readOnly && entities.length > 0;
+
+  function selectPreset(id: ProductionPreset) {
+    const next = productionPresets.find(item => item.id === id)!;
+    setPresetId(id);
+    setDraft({ width: String(next.width), height: String(next.height) });
+    setResult(undefined);
+  }
+
+  function insert() {
     const current = readCadSettings(editor);
-    if (!current || editor.getInstanceState().isReadonly) return;
+    if (!current || editor.getInstanceState().isReadonly || !entities.length) return;
     const factor = cadMmPerPixel(current);
     const center = editor.getViewportPageBounds().center;
-    const entities = productionPresetGeometry(id);
     const toLocal = (p: { x: number; y: number }) => ({ x: p.x / factor, y: -p.y / factor });
     const shapes: CadPlannedShape[] = entities.map(entity => {
       switch (entity.type) {
@@ -214,25 +248,44 @@ export function CadProductionClipart({ settings }: { settings: CadSettings | nul
       ? arcContour(entity.center.x, entity.center.y, entity.radius, entity.radius, 0, Math.PI * 2)
       : entity.type === 'spline' ? entity.contour : { closed: entity.closed, nodes: entity.points.map(nodeAt) }),
       p => { const local = toLocal(p); return { x: center.x + local.x, y: center.y + local.y }; });
-    setResult(addGeometry(editor, current, contours, t(id), shapes, shapes.length > 1) ? 'created' : 'failed');
+    setResult(addGeometry(editor, current, contours, t(presetId), shapes, shapes.length > 1) ? 'created' : 'failed');
   }
+
   return <section className="drawing-production-section" aria-label={t('clipart')}>
     <p className="drawing-help">{t(settings ? 'clipartHelp' : 'documentRequired')}</p>
+    {!settings && !readOnly && <button type="button" onClick={onSetup}>{t('setDocumentUnits')}</button>}
+    <div className="drawing-clipart-categories" role="group" aria-label={t('clipartCategories')}>
+      {clipartCategories.map(item => <button type="button" key={item} aria-pressed={category === item}
+        onClick={() => {
+          if (item === category) return;
+          setCategory(item);
+          selectPreset(productionPresets.find(preset => preset.category === item)!.id);
+        }}>{t(item)}</button>)}
+    </div>
     <ul className="drawing-clipart-list">
-      {productionPresets.map(({ id, width, height }) => <li key={id}>
-        <button type="button" disabled={!settings || readOnly} onClick={() => insert(id)} data-testid={`drawing-clipart-${id}`}>
-          <svg viewBox={`${-width / 2 - 2} ${-height / 2 - 2} ${width + 4} ${height + 4}`}
-            fill="none" stroke="currentColor" aria-hidden="true">
-            {productionPresetGeometry(id).map((entity, index) => entity.type === 'circle'
-              ? <circle key={index} cx={entity.center.x} cy={-entity.center.y} r={entity.radius} vectorEffect="non-scaling-stroke" />
-              : <path key={index} d={curvePathData(mapContours([entity.type === 'spline'
-                ? entity.contour : { closed: entity.closed, nodes: entity.points.map(nodeAt) }], p => ({ x: p.x, y: -p.y })))}
-                vectorEffect="non-scaling-stroke" />)}
-          </svg>
-          <span><strong>{t(id)}</strong><small>{width} × {height} mm · {t(`${id}Detail`)}</small></span>
+      {productionPresets.filter(item => item.category === category).map(({ id, width, height }) => <li key={id}>
+        <button type="button" aria-pressed={presetId === id} onClick={() => selectPreset(id)} data-testid={`drawing-clipart-${id}`}>
+          <ClipartPreview entities={productionPresetGeometry(id)} width={width} height={height} />
+          <span><strong>{t(id)}</strong><small>{width} × {height} mm</small></span>
         </button>
       </li>)}
     </ul>
+    <form className="drawing-clipart-form" onSubmit={event => { event.preventDefault(); if (canInsert) insert(); }}>
+      <h4>{t(presetId)}</h4>
+      {entities.length > 0 && <div className="drawing-clipart-preview"><ClipartPreview entities={entities} width={width} height={height} /></div>}
+      <p className="drawing-help">{t(`${presetId}Detail`)}</p>
+      <div className="drawing-clipart-dimensions">
+        {(square ? ['width'] as const : ['width', 'height'] as const).map(axis =>
+          <label key={axis}><span>{t(axis === 'width' ? presetId === 'cableEntry' ? 'diameterMm' : 'widthMm' : 'heightMm')}</span>
+            <input type="number" min="0" step="any" value={draft[axis]} disabled={!settings || readOnly}
+              aria-invalid={!entities.length} aria-describedby={entities.length ? undefined : dimensionError}
+              onChange={event => { setResult(undefined); setDraft(previous => ({ ...previous, [axis]: event.target.value })); }} />
+          </label>
+        )}
+      </div>
+      {!entities.length && <p id={dimensionError} className="drawing-help is-error">{t('invalidClipartSize')}</p>}
+      <button type="submit" className="drawing-clipart-insert" disabled={!canInsert} data-testid="drawing-clipart-insert">{t('insertClipart')}</button>
+    </form>
     {result && <p className={`drawing-help${result === 'failed' ? ' is-error' : ''}`} role={result === 'failed' ? 'alert' : 'status'}>{t(result)}</p>}
   </section>;
 }
