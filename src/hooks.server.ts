@@ -2,6 +2,8 @@
 import { type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev, building } from '$app/environment';
+import { base } from '$app/paths';
+import { resolvePlace } from '$lib/state/place';
 import { createServerClient } from '@supabase/ssr';
 import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
@@ -108,7 +110,10 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 		}
 	}
 
+	const place = resolvePlace(event.url.pathname.slice(base.length), event.url.search);
 	return resolve(event, {
+		transformPageChunk: ({ html }) =>
+			place === 'floor' ? html.replace('data-theme="ByPlace" data-place="office"', 'data-theme="ByPlace" data-place="floor"') : html,
 		filterSerializedResponseHeaders(name) {
 			return name === 'content-range';
 		}

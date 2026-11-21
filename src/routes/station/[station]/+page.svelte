@@ -19,6 +19,7 @@
   import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
   import ChatPane from '$lib/ui/ChatPane.svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import { stationIcon } from '$lib/ui/station-icon';
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
   import { priorityBadge, stageBadge } from '$lib/badges/catalog';
@@ -340,6 +341,11 @@
       .some(value => String(value ?? '').toLocaleLowerCase().includes(q));
   }));
 
+  let nextOrder = $derived(operatorCanAct ? filteredOrders.find(order =>
+    order.status !== 'READY_TO_LOAD' && order.status !== 'ON_HOLD' &&
+    (order.stage?.state === 'QUEUED' || order.stage?.state === 'IN_PROGRESS')
+  ) : undefined);
+
   let queuedCount     = $derived($orders.filter(o => o.stage?.state === 'QUEUED').length);
   let inProgressCount = $derived($orders.filter(o => o.stage?.state === 'IN_PROGRESS').length);
   let blockedCount    = $derived($orders.filter(o => o.stage?.state === 'BLOCKED').length);
@@ -382,7 +388,7 @@
 <div class="station-board-page" data-station={String(station).toUpperCase()}>
   <header class="station-header">
     <div class="header-content">
-      <h1><span class="rf-station-glyph" aria-hidden="true"><Icon name={(['CAD','CNC','EDGE','ASSEMBLY','PAINT','PACKAGING','DELIVERY'].includes(String(station).toUpperCase()) ? `station-${String(station).toLowerCase()}` : 'factory') as any} size="lg" /></span>{station} <span class="station-title-suffix">{$t('stationView.workstation')}</span></h1>
+      <h1><span class="rf-station-glyph" aria-hidden="true"><Icon name={stationIcon(station)} size="lg" /></span>{station} <span class="station-title-suffix">{$t('stationView.workstation')}</span></h1>
       <div class="header-stats">
         <div class="stat" class:active={inProgressCount > 0}>
           <span class="stat-value">{inProgressCount}</span>
@@ -404,7 +410,7 @@
     </div>
 
     <div class="header-actions">
-      <button class="btn btn-primary" onclick={() => $showScanner = true}>
+      <button class="btn" class:btn-primary={!nextOrder} class:btn-outline={!!nextOrder} onclick={() => $showScanner = true}>
         <Icon name="scan-line" size="sm" />
         {$t('stationView.scan_qr', { default: 'Scan QR' })}
       </button>
@@ -508,13 +514,9 @@
       {#if searchQuery}<button class="btn btn-outline" onclick={() => (searchQuery = '')}>{$t('stationView.clearSearch')}</button>{/if}
     </div>
   {:else}
-    {@const nextOrder = operatorCanAct && workingOnOrderId === null
-      ? filteredOrders.find(order => order.status !== 'READY_TO_LOAD' &&
-          (order.stage?.state === 'QUEUED' || order.stage?.state === 'IN_PROGRESS'))
-      : undefined}
     <div class="orders-grid">
       {#each filteredOrders as order (order.id)}
-        <article class="station-order-card" data-stage-state={order.stage?.state} data-next={order.id === nextOrder?.id}>
+        <article class="station-order-card" data-running={order.status !== 'ON_HOLD' && order.stage?.state === 'IN_PROGRESS'} data-next={order.id === nextOrder?.id}>
           <div class="order-header">
             <div>
               <h3>{order.title || $t('productionPlanning.untitled')}</h3>
@@ -557,7 +559,7 @@
           <div class="order-actions">
             {#if order.status === 'READY_TO_LOAD'}
               <p role="status">{$t('stationView.readyForDispatch')}</p>
-              <a href={`${base}/calendar`} class="btn btn-sm btn-primary">{$t('stationView.loadingCalendar')}</a>
+              <a href={`${base}/calendar`} class="btn btn-sm btn-outline">{$t('stationView.loadingCalendar')}</a>
             {/if}
             {#if order.stage?.state === 'QUEUED'}
               <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
@@ -587,7 +589,7 @@
             {/if}
 
             {#if order.stage?.state === 'BLOCKED'}
-              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-outline" onclick={() => updateStageState(order.id, 'IN_PROGRESS')} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="play" size="sm" />
                 {$t('stationView.resume', { default: 'Resume' })}
               </button>

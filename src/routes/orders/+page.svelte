@@ -371,7 +371,7 @@
               <td>{row.due}</td>
               <td class="order-route">
                 {#if row.order?.productionRoute}
-                  <RouteLine stages={row.order.productionRoute} size="sm" />
+                  <RouteLine stages={row.order.productionRoute} paused={row.order.status === 'ON_HOLD'} size="sm" />
                 {:else}
                   <span aria-label={$t('common.unavailable', { default: 'Unavailable' })}>—</span>
                 {/if}

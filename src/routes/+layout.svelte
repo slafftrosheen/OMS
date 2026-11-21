@@ -5,7 +5,7 @@
   import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
   import { page } from '$app/state';
-  import { applyPlace } from '$lib/state/place';
+  import { appearanceThemeColor, applyPlace, resolvePlace } from '$lib/state/place';
   import { onMount } from 'svelte';
   import { goto, replaceState } from '$app/navigation';
 
@@ -71,13 +71,8 @@
   );
   let currentPath   = $derived(page.url.pathname);
 
-  // Browser chrome follows the surface, not the previous blue accent.
-  const themeColors: Record<string, string> = {
-    LightVim:        '#f7f7f8',
-    DarkVim:         '#050505',
-    HighContrastVim: '#000000'
-  };
-  let themeColor = $derived(themeColors[($ui).theme] ?? '#050505');
+  let place = $derived(resolvePlace(page.url.pathname.slice(base.length), page.url.search));
+  let themeColor = $derived(appearanceThemeColor($ui.theme, place));
 
   // Close mobile menu on nav
   function navTo() { mobileMenuOpen = false; }

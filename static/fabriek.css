@@ -38,6 +38,7 @@
 /* ---------- 2. Brand constants (theme-independent) ---------- */
 :root{
   --rf-red:#C8161D; --rf-red-press:#A51118; --rf-oxide:#5C0304;
+  --rf-action-hover:var(--rf-red-press); --rf-on-danger:#FFFFFF;
   --rf-graphite:#1C1D20; --rf-paper:#F3F2EF; --rf-aluminium:#9AA0A6; --rf-lumen:#FFB547;
 
   /* Stations — solid chips carry white text (all ≥4.7:1). Never used for status. */
@@ -134,6 +135,7 @@
   --brand:#C8161D; --brand-2:#E0262D; --accent-1:var(--brand); --accent-2:var(--rf-lumen); --on-brand:#FFFFFF;
   --link:#F3F2EF; --link-underline:#FF7A7A;
   --ok:#5BD08A; --warn:#E6C229; --error:#FF8A70; --danger:var(--error);
+  --rf-on-danger:var(--bg-0);
   --live:#FFB547; --live-ink:#FFB547;
   --fault-stripe:color-mix(in oklab,#FF8A70 26%,transparent);
 
@@ -157,7 +159,7 @@
 
 /* High contrast keeps its own values; only align brand + fonts */
 :root[data-theme="HighContrast"],:root[data-theme="HighContrastVim"]{
-  --brand:#FF6B6B; --on-brand:#000; --live:#FFD27A; --live-ink:#FFD27A; --link:#FFFFFF; --link-underline:#FFD27A;
+  --brand:#FF6B6B; --on-brand:#000; --rf-action-hover:#FF9494; --rf-on-danger:#000; --live:#FFD27A; --live-ink:#FFD27A; --link:#FFFFFF; --link-underline:#FFD27A;
   --fault-stripe:rgba(255,118,102,.45); --canvas-bg:#000; --canvas-grid:rgba(255,255,255,.18); --canvas-grid-major:rgba(255,255,255,.32);
 }
 
@@ -184,10 +186,15 @@ a{color:var(--link);text-decoration-color:var(--link-underline);text-underline-o
 .rf-live-dot{width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 0 12px var(--live)}
 .rf-station{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:var(--radius-sm);color:var(--on-station);
   font-family:var(--font-display);font-weight:600;font-size:var(--text-xs);letter-spacing:var(--tracking-label);text-transform:uppercase}
-.rf-station[data-station="CAD"]{background:var(--st-cad)} .rf-station[data-station="CNC"]{background:var(--st-cnc)}
-.rf-station[data-station="EDGE"]{background:var(--st-edge)} .rf-station[data-station="ASSEMBLY"]{background:var(--st-assembly)}
-.rf-station[data-station="PAINT"]{background:var(--st-paint)} .rf-station[data-station="PACKAGING"]{background:var(--st-packaging)}
-.rf-station[data-station="DELIVERY"]{background:var(--st-delivery)}
+[data-station]{--station-color:var(--rf-graphite)}
+[data-station="CAD"]{--station-color:var(--st-cad)}
+[data-station="CNC"]{--station-color:var(--st-cnc)}
+[data-station="EDGE"],[data-station="BENDING"]{--station-color:var(--st-edge)}
+[data-station="ASSEMBLY"],[data-station="GLUEING"]{--station-color:var(--st-assembly)}
+[data-station="PAINT"]{--station-color:var(--st-paint)}
+[data-station="PACKAGING"]{--station-color:var(--st-packaging)}
+[data-station="DELIVERY"],[data-station="LOGISTICS"]{--station-color:var(--st-delivery)}
+.rf-station[data-station]{background:var(--station-color)}
 .rf-blueprint{background-color:var(--canvas-bg);
   background-image:linear-gradient(var(--canvas-grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--canvas-grid-major) 1px,transparent 1px),
   linear-gradient(var(--canvas-grid) 1px,transparent 1px),linear-gradient(90deg,var(--canvas-grid) 1px,transparent 1px);

@@ -133,10 +133,10 @@
       <a class="planner-link" href={`${base}/production/planner`}>{$t('capacityPlanner.open')}</a>
       <a class="planner-link" href={`${base}/production/performance`}>{$t('productionPerformance.open')}</a>
       <a class="planner-link" href={`${base}/production/exceptions`}>{$t('productionExceptions.open')}</a>
-      <Button variant="outline" onclick={() => (showScanner = true)}>
+      <Button variant="primary" onclick={() => (showScanner = true)}>
         {$t('stationView.scan_qr', { default: 'Scan QR' })}
       </Button>
-      <Button variant="primary" onclick={loadProductionData} disabled={refreshing}>
+      <Button variant="outline" onclick={loadProductionData} disabled={refreshing}>
         {refreshing ? $t('productionPlanning.loading') : $t('common.refresh', { default: 'Refresh' })}
       </Button>
     </div>
@@ -147,7 +147,7 @@
       <span class="board-kpi"><strong>{totals?.orders ?? '—'}</strong><small>{$t('productionPlanning.orders')}</small></span>
       <span class="board-kpi"><strong>{totals?.activeAssignments ?? '—'}</strong><small>{$t('productionPlanning.assignments')}</small></span>
       <span class="board-kpi"><strong>{loadedOnce ? activeStations : '—'}</strong><small>{$t('productionPlanning.activeStations')}</small></span>
-      <span class="board-kpi board-kpi--urgent"><strong>{totals?.overdue ?? '—'}</strong><small>{$t('productionPlanning.overdue')}</small></span>
+      <span class="board-kpi" class:board-kpi--urgent={(totals?.overdue ?? 0) > 0}><strong>{totals?.overdue ?? '—'}</strong><small>{$t('productionPlanning.overdue')}</small></span>
       <span class="board-kpi"><strong>{totals?.knownHours ?? '—'}</strong><small>{$t('productionPlanning.hours')}</small></span>
     </div>
     <div class="board-preferences">
@@ -173,13 +173,13 @@
 
   {#if boardError}
     <div class="error-banner" role="alert">
-      <span>{boardError}. {loadedOnce ? $t('productionPlanning.lastGood') : $t('productionPlanning.retryHint')}</span>
+      <span>{$t('productionPlanning.unavailable')} {loadedOnce ? $t('productionPlanning.lastGood') : $t('productionPlanning.retryHint')}</span>
       <button onclick={loadProductionData} disabled={refreshing}>{$t('productionPlanning.retry')}</button>
     </div>
   {/if}
 
   {#if loading}
-    <div class="stations-grid" aria-label="Loading production stations" aria-busy="true">
+    <div class="stations-grid" aria-label={$t('productionPlanning.loading')} aria-busy="true">
       {#each STATIONS.slice(0, 6) as station (station)}
         <div class="loading-board">
           <Skeleton height="28px" width="45%" />

@@ -5,7 +5,9 @@
   import type {PlanningItem,StationSummary} from '$lib/order/production-planning';
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
-  import { priorityBadge, stageBadge } from '$lib/badges/catalog';
+  import { badgeDescriptor, priorityBadge, stageBadge } from '$lib/badges/catalog';
+  import Icon from '$lib/ui/Icon.svelte';
+  import { stationIcon } from '$lib/ui/station-icon';
 
   let {station,orders=[],summary}:{
     station:string;orders?:PlanningItem[];summary?:StationSummary
@@ -13,15 +15,16 @@
   let stationHref=$derived(`${base}/station/${station.toLowerCase()}`);
 </script>
 
-<section class="station-board" aria-label={`${station} production queue`}
+<section class="station-board" data-station={station} aria-label={`${station} · ${$t('productionPlanning.workstation')}`}
   data-pressure={summary?.pressure ?? 'normal'}>
   <header class="station-header">
     <div class="station-heading">
-      <h2>{station}</h2>
+      <span class="rf-station-glyph"><Icon name={stationIcon(station)} size="md" /></span>
+      <h2>{$t(`stations.${station}`, { default: station })}</h2>
       <span class="count" aria-label={`${summary?.active ?? 0} active stages`}>{summary?.active ?? 0}</span>
     </div>
     <a class="station-link" href={stationHref} aria-label={`Open ${station} workstation`}>
-      {$t('productionPlanning.workstation')} <span aria-hidden="true">↗</span>
+      {$t('productionPlanning.workstation')} <Icon name="arrow-up-right" size="xs" />
     </a>
   </header>
 
@@ -45,7 +48,9 @@
   <div class="orders-list">
     {#each orders as order (order.id)}
       <a class="order-card" href={`${base}/orders/${encodeURIComponent(order.id)}`}
-        aria-label={`Open order ${order.poNumber ?? order.title} at ${station}`}>
+        data-running={!order.paused && order.stageState === 'IN_PROGRESS'}
+        data-held={order.stageState === 'BLOCKED'}
+        aria-label={`${order.poNumber ?? order.title} · ${$t(`stations.${station}`, { default: station })}`}>
         <div class="order-topline">
           <span class="order-po">{order.poNumber ?? $t('productionPlanning.pendingPo')}</span>
           <SemanticBadge badge={priorityBadge(order.priority)} />
@@ -53,7 +58,7 @@
         <h3>{order.title || $t('productionPlanning.untitled')}</h3>
         <p class="client">{order.client || $t('productionPlanning.unknownClient')}</p>
         <div class="order-bottomline">
-          <SemanticBadge badge={stageBadge(order.stageState)} />
+          <SemanticBadge badge={order.paused ? badgeDescriptor('on_hold') : stageBadge(order.stageState)} />
           <span class="due-date">{dueDateLabel(order.dueDate)}</span>
         </div>
         <div class="schedule-badges"><OrderBadges {order} lifecycle={order.paused} priority={false} flags={false} /></div>
@@ -115,7 +120,7 @@
     font-weight: 700;
   }
   .station-link {
-    color: var(--brand);
+    color: var(--ink-1);
     font-weight: 700;
     font-size: .82rem;
     text-decoration: none;

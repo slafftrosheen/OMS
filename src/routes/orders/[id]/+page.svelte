@@ -441,7 +441,7 @@
         <!-- Round 2 · the order's route, CAD → Delivery, always visible under the header. -->
         {#if Array.isArray(order.stages) && order.stages.length > 0}
           <section class="rf-order-route" aria-label={$t('orderDetail.tabs.stages')}>
-            <RouteLine stages={order.stages} size="md" />
+            <RouteLine stages={order.stages} paused={normaliseStatus(order.status) === 'ON_HOLD'} size="md" />
           </section>
         {/if}
 

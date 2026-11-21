@@ -70,7 +70,7 @@ html[data-theme] .rf-bottombar.rf-bottombar{
   background:var(--bg-1); border-top:1px solid var(--border); box-shadow:none; backdrop-filter:none; border-radius:0;
 }
 html[data-theme] .rf-bottombar__item.rf-bottombar__item{ border-radius:var(--radius-sm); font-family:var(--rf-hd); letter-spacing:.04em; text-transform:uppercase }
-html[data-theme] .rf-bottombar__badge.rf-bottombar__badge{ background:var(--brand); color:var(--on-brand); border-radius:var(--radius-xs); font-family:var(--font-mono) }
+html[data-theme] .rf-bottombar__badge.rf-bottombar__badge{ background:var(--ink-0); color:var(--bg-0); border-radius:var(--radius-xs); font-family:var(--font-mono) }
 
 /* Floor shell: the bar becomes part of the machine — graphite, no chrome. */
 html[data-place="floor"] .rf-topbar.rf-topbar{ background:var(--bg-0); border-bottom-color:var(--border) }
@@ -81,7 +81,7 @@ html[data-theme] .rf-btn.rf-btn{
   box-shadow:none; filter:none; background-image:none;
 }
 html[data-theme] .rf-btn.rf-btn[data-variant="primary"]{ background:var(--brand); border-color:var(--brand); color:var(--on-brand) }
-html[data-theme] .rf-btn.rf-btn[data-variant="primary"]:hover:not(:disabled){ background:var(--rf-red-press); border-color:var(--rf-red-press) }
+html[data-theme] .rf-btn.rf-btn[data-variant="primary"]:hover:not(:disabled){ background:var(--rf-action-hover); border-color:var(--rf-action-hover) }
 html[data-theme] .rf-btn.rf-btn:is([data-variant="secondary"],[data-variant="outline"],[data-variant="glass"],[data-variant="tertiary"]){
   background:var(--bg-1); color:var(--ink-0); border-color:var(--border-strong)
 }
@@ -92,7 +92,7 @@ html[data-theme] .rf-btn.rf-btn[data-variant="ghost"]:hover:not(:disabled){ back
 html[data-theme] .rf-btn.rf-btn[data-variant="success"]{ background:var(--ink-0); border-color:var(--ink-0); color:var(--bg-0) }
 /* Danger is destructive: outlined oxide; fills only on hover. */
 html[data-theme] .rf-btn.rf-btn[data-variant="danger"]{ background:transparent; color:var(--error); border-color:var(--error) }
-html[data-theme] .rf-btn.rf-btn[data-variant="danger"]:hover:not(:disabled){ background:var(--error); color:#fff }
+html[data-theme] .rf-btn.rf-btn[data-variant="danger"]:hover:not(:disabled){ background:var(--error); color:var(--rf-on-danger) }
 
 /* Legacy page-level buttons (.btn, .btn-primary …) used on Orders, Station, Inventory */
 html[data-theme] .btn.btn{
@@ -101,14 +101,14 @@ html[data-theme] .btn.btn{
 }
 html[data-theme] .btn.btn:active:not(:disabled){ transform:translateY(1px) }
 html[data-theme] .btn.btn-primary{ background:var(--brand); border:1px solid var(--brand); color:var(--on-brand) }
-html[data-theme] .btn.btn-primary:hover:not(:disabled){ background:var(--rf-red-press) }
+html[data-theme] .btn.btn-primary:hover:not(:disabled){ background:var(--rf-action-hover) }
 html[data-theme] .btn.btn-secondary, html[data-theme] .btn.btn-outline{ background:var(--bg-1); border:1px solid var(--border-strong); color:var(--ink-0) }
 html[data-theme] .btn.btn-outline:hover:not(:disabled), html[data-theme] .btn.btn-secondary:hover:not(:disabled){ border-color:var(--ink-0); background:var(--bg-1) }
 html[data-theme] .btn.btn-ghost{ background:transparent; border:1px solid transparent; color:var(--ink-1) }
 html[data-theme] .btn.btn-success{ background:var(--ink-0); border:1px solid var(--ink-0); color:var(--bg-0) }
 html[data-theme] .btn.btn-warning{ background:var(--bg-1); border:1px solid var(--warn); color:var(--ink-0); box-shadow:inset 4px 0 0 var(--warn) }
 html[data-theme] .btn.btn-danger{ background:transparent; border:1px solid var(--error); color:var(--error) }
-html[data-theme] .btn.btn-danger:hover:not(:disabled){ background:var(--error); color:#fff }
+html[data-theme] .btn.btn-danger:hover:not(:disabled){ background:var(--error); color:var(--rf-on-danger) }
 html[data-theme] .btn.btn-active{ background:var(--ink-0); color:var(--bg-0); border-color:var(--ink-0) }
 html[data-theme] .btn.btn:disabled{ opacity:.42 }
 
@@ -168,7 +168,8 @@ html[data-theme] .semantic-badge.semantic-badge[data-tone="danger"]{
   color:var(--error); border-color:var(--error); padding-left:12px;
   background:var(--hazard) left center/6px 100% no-repeat, var(--error-soft);
 }
-html[data-theme] .semantic-badge.semantic-badge[data-tone="brand"]{ background:var(--brand); border-color:var(--brand); color:var(--on-brand) }
+html[data-theme] .semantic-badge.semantic-badge[data-tone="brand"]{ background:var(--bg-2); border-color:var(--border-strong); color:var(--ink-0) }
+html[data-theme] .semantic-badge.semantic-badge[data-badge="in_progress"]{ background:var(--live-soft); border-color:var(--live-ink); color:var(--live-ink) }
 html[data-theme] .semantic-badge.semantic-badge[data-tone="success"]{ background:var(--ok-soft); border-color:transparent; color:var(--ok-strong) }
 html[data-theme] .semantic-badge.semantic-badge[data-tone="warn"]{ background:var(--warn-soft); border-color:transparent; color:var(--warn-strong) }
 html[data-theme] .semantic-badge.semantic-badge[data-badge*="IN_PROGRESS"],
@@ -272,6 +273,7 @@ html[data-theme] .pagination-current.pagination-current{ background:var(--ink-0)
    Header + route line (CAD → Delivery) + spec sheet + station cards.
    ============================================================ */
 html[data-theme] .order-header.order-header{ border-bottom:1px solid var(--border); padding-bottom:16px; background:none; box-shadow:none }
+html[data-theme] .order-header.order-header::before{ display:none }
 html[data-theme] .order-title.order-title{ font-size:clamp(1.9rem,3.2vw,2.5rem) }
 html[data-theme] .rf-order-route.rf-order-route{
   margin:16px 0 20px; padding:18px 20px 14px; background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md);
@@ -310,7 +312,9 @@ html[data-theme] .board-toolbar.board-toolbar{ border-bottom:1px solid var(--bor
 html[data-theme] .station-board.station-board{
   background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; overflow:hidden;
 }
-html[data-theme] .station-board.station-board .station-header{ border-bottom:1px solid var(--border); box-shadow:inset 0 3px 0 var(--st, var(--border-strong)); padding-top:14px }
+html[data-theme] .station-board.station-board .station-header{ border-bottom:1px solid var(--border); box-shadow:inset 0 4px 0 var(--station-color); padding-top:14px; flex-wrap:wrap }
+html[data-theme] .station-board.station-board .rf-station-glyph{ width:30px; height:30px; flex-shrink:0 }
+html[data-theme] .station-board.station-board .station-heading h2{ font:inherit; overflow-wrap:anywhere }
 html[data-theme] .station-board.station-board .station-heading{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.06em; text-transform:uppercase; font-size:18px }
 html[data-theme] .station-board.station-board .count{ font-family:var(--font-mono); background:var(--bg-3); border-radius:var(--radius-xs); color:var(--ink-0) }
 html[data-theme] .order-card.order-card{
@@ -318,7 +322,9 @@ html[data-theme] .order-card.order-card{
   transition:border-color var(--motion-sm) var(--ease-machine);
 }
 html[data-theme] .order-card.order-card:hover{ border-color:var(--ink-1) }
-html[data-theme] .order-card.order-card:has(.block-reason){ border-left:8px solid transparent; background:var(--hazard) left top/8px 100% no-repeat, var(--bg-2) }
+html[data-theme] .station-board .order-card.order-card[data-running="true"]{ border-color:var(--live) }
+html:is([data-theme="DarkVim"],[data-theme="ByPlace"][data-place="floor"]) .station-board .order-card.order-card[data-running="true"]{ animation:rf-edge-glow 2.4s ease-in-out infinite }
+html[data-theme] .station-board .order-card.order-card[data-held="true"]{ border-left:8px solid transparent; background:var(--hazard) left top/8px 100% no-repeat, var(--bg-2) }
 html[data-theme] .block-reason.block-reason{ color:var(--error); font-weight:600 }
 html[data-theme] .due-date.due-date{ font-family:var(--font-mono); font-size:.85em }
 html[data-theme] .attention.attention, html[data-theme] .oversight.oversight{ background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none }
@@ -330,30 +336,23 @@ html[data-theme] .estimate-note.estimate-note, html[data-theme] .updated.updated
    Gloved-hand targets (56 px), station identity bar, huge counts,
    the one red button = the next action.
    ============================================================ */
-html[data-theme] .station-board-page.station-board-page{ --st:var(--border-strong) }
-html[data-theme] .station-board-page[data-station="CAD"]{ --st:var(--st-cad) }
-html[data-theme] .station-board-page[data-station="CNC"]{ --st:var(--st-cnc) }
-html[data-theme] .station-board-page[data-station="EDGE"]{ --st:var(--st-edge) }
-html[data-theme] .station-board-page[data-station="ASSEMBLY"]{ --st:var(--st-assembly) }
-html[data-theme] .station-board-page[data-station="PAINT"]{ --st:var(--st-paint) }
-html[data-theme] .station-board-page[data-station="PACKAGING"]{ --st:var(--st-packaging) }
-html[data-theme] .station-board-page[data-station="DELIVERY"]{ --st:var(--st-delivery) }
 html[data-theme] .station-board-page.station-board-page .station-header{
-  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:inset 0 4px 0 var(--st); backdrop-filter:none;
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:inset 0 4px 0 var(--station-color); backdrop-filter:none;
 }
 html[data-theme] .station-board-page.station-board-page .station-header h1{ display:flex; align-items:center; gap:12px; font-size:clamp(2.2rem,4vw,3.2rem); text-transform:uppercase; letter-spacing:.03em }
-html[data-theme] .rf-station-glyph.rf-station-glyph{ display:inline-grid; place-items:center; width:48px; height:48px; border-radius:var(--radius-sm); background:var(--st); color:#fff }
+html[data-theme] .rf-station-glyph.rf-station-glyph{ display:inline-grid; place-items:center; width:48px; height:48px; border-radius:var(--radius-sm); background:var(--station-color); color:var(--on-station) }
 html[data-theme] .station-title-suffix.station-title-suffix{ font-family:var(--rf-hd); font-weight:500; font-size:.5em; letter-spacing:var(--tracking-label); color:var(--ink-2) }
 html[data-theme] .station-board-page.station-board-page .stat{ background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:none; min-width:96px }
 html[data-theme] .station-board-page.station-board-page .stat-value{ font-family:var(--rf-hd); font-weight:600; font-size:2.6rem; line-height:1; font-variant-numeric:tabular-nums; color:var(--ink-0) }
 html[data-theme] .station-board-page.station-board-page .stat-label{ font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
 html[data-theme] .station-board-page.station-board-page .stat.active{ border-color:var(--live); box-shadow:inset 0 0 0 1px var(--live), 0 0 18px -6px var(--live) }
-html[data-theme] .station-board-page.station-board-page .stat.active .stat-value{ color:var(--live) }
+html[data-theme] .station-board-page.station-board-page .stat.active .stat-value{ color:var(--live-ink) }
 html[data-theme] .station-board-page.station-board-page .stat.danger{ border-left:8px solid transparent; background:var(--hazard) left top/8px 100% no-repeat, var(--error-soft) }
 html[data-theme] .station-board-page.station-board-page .stat.danger .stat-value{ color:var(--error) }
 html[data-theme] .station-board-page.station-board-page .stat.warning{ box-shadow:inset 0 -3px 0 var(--warn) }
 html[data-theme] .station-board-page.station-board-page .filter-btn{ min-height:var(--rf-floor-target); padding:0 18px; font-size:16px }
 html[data-theme] .station-board-page.station-board-page .station-search input{ min-height:var(--rf-floor-target); font-size:17px }
+html[data-theme] .station-board-page.station-board-page .station-search button{ min-height:var(--rf-floor-target) }
 html[data-theme] .station-order-card.station-order-card{
   background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; backdrop-filter:none;
   animation:rf-power-on var(--motion-lg) steps(1,end) both;
@@ -363,13 +362,15 @@ html[data-theme] .station-order-card.station-order-card .label{ font-family:var(
 html[data-theme] .station-order-card.station-order-card .value{ font-size:16px; color:var(--ink-0) }
 html[data-theme] .station-order-card.station-order-card .value.overdue{ color:var(--error); font-weight:700 }
 /* Running job: the card edge glows Lumen. */
-html[data-theme] .station-order-card.station-order-card[data-stage-state="IN_PROGRESS"]{ border-color:var(--live); animation:rf-edge-glow 2.4s ease-in-out infinite }
+html[data-theme] .station-order-card.station-order-card[data-running="true"]{ border-color:var(--live) }
+html:is([data-theme="DarkVim"],[data-theme="ByPlace"][data-place="floor"]) .station-order-card.station-order-card[data-running="true"]{ animation:rf-edge-glow 2.4s ease-in-out infinite }
 html[data-theme] .station-order-card.station-order-card:has(.blocked-notice){ border-left:10px solid transparent; background:var(--hazard) left top/10px 100% no-repeat, var(--bg-1) }
 html[data-theme] .blocked-notice.blocked-notice{ background:var(--error-soft); border:1px solid var(--error); border-radius:var(--radius-sm); color:var(--error-strong) }
 html[data-theme] .stage-notes.stage-notes{ background:var(--bg-2); border-left:3px solid var(--ink-2); border-radius:var(--radius-xs) }
 html[data-theme] .station-order-card.station-order-card .order-actions .btn{ min-height:var(--rf-floor-target); padding:0 18px; font-size:16px; gap:8px }
 /* The first real action on each card is primary ink; the screen's single red is the next card's Start/Complete. */
 html[data-theme] .orders-grid.orders-grid > .station-order-card[data-next="true"] .order-actions .btn-success:not(:disabled){ background:var(--brand); border-color:var(--brand); color:var(--on-brand) }
+html[data-theme] .orders-grid.orders-grid > .station-order-card[data-next="true"] .order-actions .btn-success:hover:not(:disabled){ background:var(--rf-action-hover); border-color:var(--rf-action-hover) }
 html[data-theme] .station-board-page.station-board-page .header-actions .btn{ min-height:var(--rf-floor-target); padding:0 20px; font-size:16px }
 html[data-theme] .read-only-notice.read-only-notice{ border:1px dashed var(--border-strong); border-radius:var(--radius-sm); color:var(--ink-1) }
 html[data-theme] .station-chat-panel.station-chat-panel{ background:var(--bg-1); border-left:1px solid var(--border); box-shadow:none; backdrop-filter:none }
@@ -395,7 +396,8 @@ html[data-place="floor"] .rf-btn.rf-btn[data-size="lg"]{ min-height:var(--rf-flo
 
 @media (prefers-reduced-motion: reduce){
   html[data-theme] .station-order-card.station-order-card,
-  html[data-theme] .station-order-card.station-order-card[data-stage-state="IN_PROGRESS"],
+  html[data-theme][data-place] .station-order-card.station-order-card[data-running="true"],
+  html[data-theme][data-place] .station-board .order-card.order-card[data-running="true"],
   html[data-theme] .rf-toast.rf-toast,
   html[data-theme] .dash-kicker__led.dash-kicker__led[data-live="true"]{ animation:none }
 }
@@ -413,7 +415,7 @@ html[data-theme] .sku-link.sku-link:hover{ text-decoration:underline; text-decor
 html[data-theme] .material-source.material-source a, html[data-theme] .material-card.material-card a{ color:var(--ink-1); text-decoration:underline; text-decoration-color:var(--border-strong); text-underline-offset:3px }
 html[data-theme] :is(.icon-btn.warn,.btn-icon.btn-danger).icon-btn,
 html[data-theme] .icon-btn.warn.warn, html[data-theme] .btn-icon.btn-danger.btn-danger{ color:var(--ink-2); border-color:var(--border); background:transparent }
-html[data-theme] .icon-btn.warn.warn:hover, html[data-theme] .btn-icon.btn-danger.btn-danger:hover{ color:#fff; background:var(--error); border-color:var(--error) }
+html[data-theme] .icon-btn.warn.warn:hover, html[data-theme] .btn-icon.btn-danger.btn-danger:hover{ color:var(--rf-on-danger); background:var(--error); border-color:var(--error) }
 
 /* Inventory: only real shortages are marked. Untracked items (no minimum) stay calm. */
 html[data-theme] tr.low-stock.low-stock td{ background:var(--warn-soft) }
@@ -469,8 +471,8 @@ html[data-theme] .login-card.login-card{ border:1px solid var(--border-strong); 
 html[data-theme] .logo-icon.rf-login-mark{ width:72px; height:72px; background:none; border-radius:0; box-shadow:none; object-fit:contain; display:block; margin:0 auto 14px }
 html[data-theme] .logo-section.logo-section h1{ font-family:var(--rf-hd); font-weight:600; font-size:28px; letter-spacing:.01em; text-transform:uppercase; color:var(--ink-0); background:none; -webkit-text-fill-color:currentColor }
 html[data-theme] .rf-login-oms{ color:var(--ink-2); font-size:.62em; letter-spacing:var(--tracking-label); vertical-align:.2em }
-html[data-theme] .submit-btn.submit-btn{ background:var(--brand); border-radius:var(--radius-sm); box-shadow:none; font-family:var(--rf-hd); font-weight:600; letter-spacing:.06em; text-transform:uppercase }
-html[data-theme] .submit-btn.submit-btn:hover:not(:disabled){ background:var(--brand-strong); transform:none; box-shadow:none }
+html[data-theme] .submit-btn.submit-btn{ background:var(--brand); color:var(--on-brand); border-radius:var(--radius-sm); box-shadow:none; font-family:var(--rf-hd); font-weight:600; letter-spacing:.06em; text-transform:uppercase }
+html[data-theme] .submit-btn.submit-btn:hover:not(:disabled){ background:var(--rf-action-hover); transform:none; box-shadow:none }
 html[data-theme] .login-card.login-card input:focus{ border-color:var(--ink-0); box-shadow:0 0 0 3px color-mix(in oklab,var(--ink-0) 14%,transparent) }
 html[data-theme] .lang-btn.lang-btn, html[data-theme] .lang-menu.lang-menu{ border-radius:var(--radius-sm); box-shadow:none }
 html[data-theme] .link-btn.link-btn{ color:var(--ink-1); text-decoration:underline; text-decoration-color:var(--border-strong); text-underline-offset:3px }
@@ -507,7 +509,6 @@ html[data-theme] .filter-button.filter-button[aria-pressed="true"], html[data-th
 html[data-theme] .user-avatar.user-avatar, html[data-theme] .message-avatar.message-avatar, html[data-theme] .member-avatar.member-avatar{ background:var(--ink-0); color:var(--bg-0); box-shadow:none; border-radius:var(--radius-sm); font-family:var(--rf-hd); font-weight:600 }
 html[data-theme] .room-item.room-item.active{ background:var(--bg-2); color:var(--ink-0); box-shadow:inset 3px 0 0 var(--ink-0) }
 html[data-theme] .mention-tag.mention-tag{ background:var(--warn-soft); color:var(--ink-0); border-radius:var(--radius-xs); font-weight:600 }
-html[data-theme] .station-badge.station-badge{ border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; background:var(--bg-2); color:var(--ink-1) }
 html[data-theme] .message-input-container.message-input-container{ background:var(--bg-1); backdrop-filter:none; -webkit-backdrop-filter:none; border-top:1px solid var(--border) }
 html[data-theme] .message-input-container textarea:focus, html[data-theme] .message-input-container input:focus{ border-color:var(--ink-0); box-shadow:0 0 0 3px color-mix(in oklab,var(--ink-0) 14%,transparent) }
 html[data-theme] .message-time.message-time{ font-family:var(--font-mono); font-size:11px; color:var(--ink-2) }

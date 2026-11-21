@@ -7,6 +7,7 @@
  * The surface only changes how the drawing is shown — exports always use the light palette.
  */
 import { useSyncExternalStore } from 'react';
+import { isDarkAppearance } from '../../state/place';
 
 export type CanvasSurface = 'paper' | 'blueprint';
 const KEY = 'rf.canvas.surface';
@@ -22,10 +23,7 @@ function readStored(): CanvasSurface | null {
 
 /** Dark page themes: Night shift, high contrast, or By place on a floor screen. */
 export function pageIsDark(root: HTMLElement = document.documentElement): boolean {
-  const theme = root.dataset.theme ?? '';
-  if (!theme) return true; // brand.css default is dark
-  if (theme === 'DarkVim' || theme.startsWith('HighContrast')) return true;
-  return theme === 'ByPlace' && root.dataset.place === 'floor';
+  return isDarkAppearance(root.dataset.theme, root.dataset.place);
 }
 
 export function resolveCanvasSurface(): CanvasSurface {

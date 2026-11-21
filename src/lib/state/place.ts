@@ -11,10 +11,23 @@ export function placeForPath(pathname: string): Place {
   return FLOOR_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/')) ? 'floor' : 'office';
 }
 
-export function applyPlace(pathname: string, search: string) {
-  if (typeof document === 'undefined') return;
-  // ?place=floor|office lets a wall display or tablet pin its place.
+export function resolvePlace(pathname: string, search: string): Place {
   const pinned = new URLSearchParams(search).get('place');
-  document.documentElement.dataset.place =
-    pinned === 'floor' || pinned === 'office' ? pinned : placeForPath(pathname);
+  return pinned === 'floor' || pinned === 'office' ? pinned : placeForPath(pathname);
+}
+
+export function applyPlace(pathname: string, search: string) {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.place = resolvePlace(pathname, search);
+  }
+}
+
+export function isDarkAppearance(theme: string | undefined, place: string | undefined): boolean {
+  return !theme || theme === 'DarkVim' || theme.startsWith('HighContrast') ||
+    (theme === 'ByPlace' && place === 'floor');
+}
+
+export function appearanceThemeColor(theme: string | undefined, place: Place): string {
+  if (theme?.startsWith('HighContrast')) return '#000000';
+  return isDarkAppearance(theme, place) ? '#121316' : '#F3F2EF';
 }

@@ -23,7 +23,7 @@
 
   let recentOrders: any[] = $state([]);
   let hasRunningOrder = $derived(recentOrders.some(order =>
-    Array.isArray(order.stages) && order.stages.some(stage => stage.state === 'IN_PROGRESS')
+    order.status !== 'on_hold' && Array.isArray(order.stages) && order.stages.some(stage => stage.state === 'IN_PROGRESS')
   ));
   let verifiedTotal: number | null = $state(null);
   let liveKpis: { total: number; active: number; today: number; completedToday: number } | null = $state(null);
@@ -205,21 +205,21 @@
     {:else}
       <div class="dash-orders" aria-label={$t('dashboard.orders_snapshot', { default: 'Orders snapshot' })}>
         {#each recentOrders as order (order.id)}
-          <a class="dash-order" href={`${base}/orders/${order.id}`}>
+          <a class="dash-order" class:with-route={Array.isArray(order.stages)} href={`${base}/orders/${encodeURIComponent(order.id)}`}>
             <span class="dash-order__identity">
               <strong>{order.title || order.po_number || '—'}</strong>
               <small>{order.po_number || '—'} · {order.client || '—'}</small>
             </span>
+            {#if Array.isArray(order.stages)}
+              <div class="dash-order__route">
+                <RouteLine stages={order.stages} paused={order.status === 'on_hold'} size="sm" />
+              </div>
+            {/if}
             <span class="dash-order__meta">
               <OrderBadges {order} />
               <small>{$t('orders.due_date', { default: 'Due' })}: {formatDue(order.due_date)}</small>
             </span>
             <Icon name="arrow-right" size="sm" class="dash-order__arrow" />
-            {#if Array.isArray(order.stages)}
-              <div class="dash-order__route">
-                <RouteLine stages={order.stages} size="sm" />
-              </div>
-            {/if}
           </a>
         {/each}
       </div>
@@ -543,13 +543,17 @@
   .dash-order small { color:var(--ink-tertiary); font-size:var(--text-xs); }
   .dash-order__meta { justify-items:end; text-align:right; }
 
-  .dash-order__route { grid-column:1 / -1; min-width:0; margin-top:calc(-1 * var(--space-sm)); }
+  .dash-order__route { grid-column:1 / -1; grid-row:2; min-width:0; }
+  @media (min-width:960px) {
+    .dash-order.with-route { grid-template-columns:minmax(150px,1fr) minmax(230px,1.4fr) minmax(135px,auto) auto; }
+    .dash-order__route { grid-column:2; grid-row:1; }
+  }
   .dash-order :global(.dash-order__arrow) { color:var(--ink-tertiary); }
   .dash-order:hover :global(.dash-order__arrow) { color:var(--ink-0); }
   @media (max-width:640px) {
     .dash-order { grid-template-columns:minmax(0,1fr) auto; gap:var(--space-xs); }
     .dash-order__meta { grid-column:1; grid-row:2; justify-items:start; text-align:left; }
     .dash-order :global(.dash-order__arrow) { grid-column:2; grid-row:1 / span 2; }
-    .dash-order__route { margin-top:0; }
+    .dash-order__route { grid-row:3; }
   }
 </style>

@@ -9,7 +9,7 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
   import Icon from './Icon.svelte';
-  import type { IconName } from './icons';
+  import { stationIcon } from './station-icon';
   import { WORKFLOW_STATIONS } from '$lib/order/workflow';
 
   type StageLike = { station?: string | null; state?: string | null; blocked_reason?: string | null };
@@ -17,23 +17,20 @@
   let {
     stages = [],
     current = null,
+    paused = false,
     size = 'md',
     showLabels = true,
     label = null
   }: {
     stages?: StageLike[] | null;
     current?: string | null;
+    paused?: boolean;
     size?: 'sm' | 'md' | 'floor';
     showLabels?: boolean;
     label?: string | null;
   } = $props();
 
-  const ICON: Record<string, IconName> = {
-    CAD: 'station-cad', CNC: 'station-cnc', EDGE: 'station-edge', ASSEMBLY: 'station-assembly',
-    PAINT: 'station-paint', PACKAGING: 'station-packaging', DELIVERY: 'station-delivery'
-  } as Record<string, IconName>;
-
-  type Node = { code: string; state: string; tone: 'done' | 'live' | 'held' | 'queued' | 'skip' | 'idle'; reason?: string | null };
+  type Node = { code: string; state: string; tone: 'done' | 'live' | 'held' | 'paused' | 'queued' | 'skip' | 'idle'; reason?: string | null };
 
   let nodes = $derived.by((): Node[] => {
     const rows = Array.isArray(stages) ? stages : [];
@@ -48,10 +45,12 @@
       .filter((c) => byCode.has(c) || (WORKFLOW_STATIONS as readonly string[]).includes(c))
       .map((code) => {
         const row = byCode.get(code);
-        const state = String(row?.state ?? (row ? 'NOT_STARTED' : 'SKIPPED')).toUpperCase();
+        const storedState = String(row?.state ?? (row ? 'NOT_STARTED' : 'SKIPPED')).toUpperCase();
+        const state = paused && storedState === 'IN_PROGRESS' ? 'ON_HOLD' : storedState;
         const tone: Node['tone'] =
           state === 'COMPLETED' ? 'done'
           : state === 'IN_PROGRESS' ? 'live'
+          : state === 'ON_HOLD' ? 'paused'
           : state === 'BLOCKED' || state === 'REWORK' ? 'held'
           : state === 'QUEUED' ? 'queued'
           : state === 'SKIPPED' ? 'skip'
@@ -68,7 +67,7 @@
     label ?? `${$t('orderDetail.tabs.stages', { default: 'Route' })}: ${doneCount}/${nodes.filter((n) => n.tone !== 'skip').length}`
   );
   const stationLabel = (code: string) => $t(`stations.${code}`, { default: code });
-  const stateLabel = (state: string) => $t(`orderDetail.stage_status.${state}`, { default: state.replace(/_/g, ' ') });
+  const stateLabel = (state: string) => state === 'ON_HOLD' ? $t('appBadges.on_hold') : $t(`orderDetail.stage_status.${state}`, { default: state.replace(/_/g, ' ') });
 </script>
 
 <div class="rf-routeline" data-size={size} role="list" aria-label={aria} style="--rl-p:{progress}; --n:{nodes.length}">
@@ -79,7 +78,7 @@
       role="listitem"
       data-tone={n.tone}
       data-current={current && current.toUpperCase() === n.code ? 'true' : null}
-      data-station={n.code.toLowerCase()}
+      data-station={n.code}
       title={`${stationLabel(n.code)} · ${stateLabel(n.state)}${n.reason ? ` — ${n.reason}` : ''}`}
     >
       <span class="rf-routeline__pin">
@@ -87,8 +86,10 @@
           <Icon name="check" size={size === 'floor' ? 20 : 14} />
         {:else if n.tone === 'held'}
           <Icon name="alert-triangle" size={size === 'floor' ? 20 : 14} />
+        {:else if n.tone === 'paused'}
+          <Icon name="pause" size={size === 'floor' ? 20 : 14} />
         {:else}
-          <Icon name={ICON[n.code] ?? 'circle-dashed'} size={size === 'floor' ? 20 : 14} />
+          <Icon name={stationIcon(n.code)} size={size === 'floor' ? 20 : 14} />
         {/if}
       </span>
       {#if showLabels}
@@ -140,7 +141,10 @@
     background:var(--live); border-color:var(--live); color:#1C1D20; animation:rf-rl-live 2.4s ease-in-out infinite; }
   .rf-routeline__node[data-tone='live'] .rf-routeline__state{ color:var(--ink-0); font-weight:600 }
   /* Held = fault: oxide + hazard stripe + warning icon. */
-  .rf-routeline__node[data-tone='held'] .rf-routeline__pin{ background:var(--hazard), var(--error); border-color:var(--error); color:#fff }
+  .rf-routeline__node[data-tone='held'] .rf-routeline__pin{ background:var(--error); border-color:var(--error); color:var(--rf-on-danger); overflow:hidden }
+  .rf-routeline__node[data-tone='held'] .rf-routeline__pin::before{ content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--hazard) }
+  .rf-routeline__node[data-tone='paused'] .rf-routeline__pin{
+    background:var(--warn-soft); border-color:var(--warn); color:var(--warn-strong); }
   .rf-routeline__node[data-tone='held'] .rf-routeline__state{ color:var(--error); font-weight:600 }
   .rf-routeline__node[data-current='true'] .rf-routeline__code{ color:var(--ink-0); text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:4px }
 
@@ -150,6 +154,10 @@
     :global(html) .rf-routeline__node[data-tone='live'] .rf-routeline__pin{ animation:none!important; box-shadow:0 0 0 3px var(--live-soft) }
     .rf-routeline__rail[data-live='true']::after{ animation:none; display:none }
     .rf-routeline__fill{ transition:none }
+  }
+  @media (max-width: 600px){
+    .rf-routeline[data-size='md']{ --pin:20px; --rail:2px }
+    .rf-routeline__code{ font-size:10px }
   }
   .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap }
 </style>
