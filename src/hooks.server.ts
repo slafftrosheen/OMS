@@ -110,7 +110,8 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	const place = resolvePlace(event.url.pathname.slice(base.length), event.url.search);
+	// Prerendered pages have no per-request query string.
+	const place = resolvePlace(event.url.pathname.slice(base.length), building ? '' : event.url.search);
 	return resolve(event, {
 		transformPageChunk: ({ html }) =>
 			place === 'floor' ? html.replace('data-theme="ByPlace" data-place="office"', 'data-theme="ByPlace" data-place="floor"') : html,

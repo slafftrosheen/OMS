@@ -4,6 +4,7 @@
   import '$lib/styles/a11y.css';
   import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
+  import { building } from '$app/environment';
   import { page } from '$app/state';
   import { appearanceThemeColor, applyPlace, resolvePlace } from '$lib/state/place';
   import { onMount } from 'svelte';
@@ -71,7 +72,7 @@
   );
   let currentPath   = $derived(page.url.pathname);
 
-  let place = $derived(resolvePlace(page.url.pathname.slice(base.length), page.url.search));
+  let place = $derived(resolvePlace(page.url.pathname.slice(base.length), building ? '' : page.url.search));
   let themeColor = $derived(appearanceThemeColor($ui.theme, place));
 
   // Close mobile menu on nav
