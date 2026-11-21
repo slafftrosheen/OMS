@@ -55,7 +55,9 @@ export function readDxfSpline(pairs: DxfPair[]) {
 export function dxfSplineContours(pairs: DxfPair[], tolerance: number) {
   const data = readDxfSpline(pairs);
   try {
-    return splineContours(data.controls, data.weights, data.knots, data.degree, data.closed, tolerance);
+    return splineContours(data.controls, data.weights, data.knots, data.degree, data.closed, tolerance, {
+      joinCoincidentClosedSpans: true,
+    });
   } catch (error) {
     // Per-entity complexity is reviewable; the document-wide budget remains fatal.
     if ((error as CadOperationError).code === "limit")
