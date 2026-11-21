@@ -4,7 +4,7 @@ import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { openRouterCompleteWithMetadata } from '$lib/server/ai/openrouter';
 import { toolkitModelChoices, resolveToolkitModel, allowOpenRouterWebSearch } from '$lib/server/toolkit/ai-models';
-import {readActiveAiModels} from '$lib/server/ai/active-provider';
+import {readActiveAiModels, readAiRouting} from '$lib/server/ai/active-provider';
 import { parseToolkitModelResponse, normalizeToolkitVisualAssets, normalizeProviderWebSources } from '$lib/server/toolkit/ai-response';
 import { normalizeCards, normalizeLinks } from '$lib/components/canvas/toolkit-context';
 import { boardInsights, normalizeToolkitSkill, TOOLKIT_SKILLS } from '$lib/components/canvas/toolkit-skills';
@@ -13,7 +13,6 @@ import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/
 import { normalizeToolkitScene } from '$lib/components/canvas/toolkit-scene';
 import { CANVAS_ACTION_INSTRUCTIONS } from '$lib/components/canvas/toolkit-actions';
 import { loadSceneVision } from '$lib/server/toolkit/scene-vision';
-import { OPENROUTER_VISION_MODEL } from '$lib/server/config';
 import { normalizeDrawingSnapshot, readToolkitAssistantRequest } from '$lib/server/toolkit/drawing-snapshot';
 
 export const POST: RequestHandler = async (event) => {
@@ -37,11 +36,19 @@ export const POST: RequestHandler = async (event) => {
   const responseLocale = resolveResponseLocale(
     body.language, preference?.locale, request.headers.get('accept-language')
   );
-  const model = resolveToolkitModel(body.model, toolkitModelChoices((await readActiveAiModels()).textModel));
+  const routing = await readAiRouting().catch(() => null);
+  if (!routing) return json({ error: 'AI provider settings unavailable', code: 'PROVIDER_SETTINGS_UNAVAILABLE' }, { status: 503 });
+  if (body.expectedProvider !== undefined && body.expectedProvider !== 'openrouter' && body.expectedProvider !== 'openai')
+    return json({ error: 'Invalid expected provider' }, { status: 400 });
+  if (body.expectedProvider && body.expectedProvider !== routing.provider)
+    return json({ error: 'The active AI provider changed in R&D Settings. Review the new provider before retrying.',
+      code: 'PROVIDER_CHANGED' }, { status: 409 });
+  const models = await readActiveAiModels(routing);
+  const model = resolveToolkitModel(body.model, toolkitModelChoices(models.textModel, undefined, routing.provider));
   if (!model) return json({ error: 'Model is not enabled for Toolkit' }, { status: 400 });
   const skill = normalizeToolkitSkill(body.skill);
   const webMode = body.webMode === 'openrouter' ? 'openrouter' : 'searxng';
-  if (webMode === 'openrouter' && (!allowOpenRouterWebSearch() || skill !== 'research')) {
+  if (webMode === 'openrouter' && (!allowOpenRouterWebSearch(routing.provider) || skill !== 'research')) {
     return json({ error: 'OpenRouter web search is not enabled for this operation' }, { status: 403 });
   }
   const cards = normalizeCards(body.cards);
@@ -123,7 +130,8 @@ into the selected language. The user's message language is NOT the response-lang
       [{ role: 'system', content: system }, { role: 'user', content: vision.parts.length
         ? [{ type: 'text', text: userInput }, ...vision.parts] : userInput }],
       {
-        model: vision.parts.length ? OPENROUTER_VISION_MODEL : model,
+        aiRouting: routing,
+        model: vision.parts.length ? models.visionModel : model,
         temperature: 0.35, maxTokens: 6500, timeoutMs: 90_000, signal: request.signal,
         ...(skill === 'research' && webMode === 'openrouter' ? { maxToolCalls: 2 } : {}),
         ...(skill === 'research' && webMode === 'openrouter'
@@ -143,7 +151,7 @@ into the selected language. The user's message language is NOT the response-lang
       ...parsed, insights,
       // Citation badges are reported by the provider and need independent review.
       sources: [...sources.map(source => ({ ...source, provider: 'searxng' })), ...reported].slice(0, 5),
-      model: completion.model, requestedModel: model,
+      provider: routing.provider, model: completion.model, requestedModel: model,
       scene: scene ? { visibleShapes: scene.shapes.length, totalShapes: scene.totalShapes, truncated: scene.truncated } : null,
       vision: { requested: body.includeImages === true, included: vision.included.length, skipped: vision.skipped.length,
         drawing: !!drawing, drawingShapes: drawing?.shapeIds.length ?? 0, drawingOmitted: drawing?.omitted ?? 0 },

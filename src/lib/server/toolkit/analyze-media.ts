@@ -1,4 +1,5 @@
 import { extractPdfText, PdfSourceError } from '$lib/server/ai/pdf-text';
+import type { AiRouting } from '$lib/server/ai/active-provider';
 import { openRouterCompleteWithMetadata, type OpenRouterMessage } from '$lib/server/ai/openrouter';
 import { renderPdfPageSource } from '$lib/server/order/intake-pdf';
 import { parsePdfPageRange, type PdfPageRange, type PdfPageScope } from '$lib/pdf/page-range';
@@ -7,6 +8,7 @@ import { extractedPdfEvidence, toolkitMediaContent, type ToolkitMediaKind } from
 export { PdfSourceError };
 export interface AnalyzeMediaInput {
   kind: ToolkitMediaKind;
+  aiRouting?: AiRouting;
   filename: string;
   mime: string;
   bytes: Uint8Array;
@@ -63,6 +65,7 @@ export async function analyzeToolkitMedia(input: AnalyzeMediaInput, dependencies
     { role: 'user', content: [{ type: 'text', text: `File: ${input.filename.slice(0, 180)}. User question: ${input.question}` }, ...parts] }
   ];
   const response = await dependencies.complete(messages, {
+    ...(input.aiRouting ? { aiRouting: input.aiRouting } : {}),
     model, maxTokens: 2200, temperature: 0.2, timeoutMs: 120_000, signal: input.signal,
     ...(engine === 'mistral-ocr' ? { plugins: [{ id: 'file-parser', pdf: { engine } }] } : {})
   });

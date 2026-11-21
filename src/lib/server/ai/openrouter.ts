@@ -4,7 +4,7 @@ import {
   OPENROUTER_VISION_MODEL,
   OPENROUTER_TIMEOUT_MS
 } from '$lib/server/config';
-import { activeAiProvider, openAiModels } from './active-provider';
+import { readAiRouting, type AiRouting } from './active-provider';
 import { openAiChatResponse, openAiResponsesBody } from './openai-responses';
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
@@ -17,6 +17,8 @@ export interface OpenRouterMessage {
   images?: string[];
 }
 export interface OpenRouterChatOptions {
+  /** Server-owned routing snapshot for a request that selected provider-specific capabilities. */
+  aiRouting?: AiRouting;
   model?: string;
   messages: OpenRouterMessage[];
   tools?: unknown[];
@@ -58,16 +60,18 @@ export const OPENROUTER_CONFIG: OpenRouterClientConfig = {
   timeoutMs: OPENROUTER_TIMEOUT_MS
 };
 
-async function configuredClientConfig(): Promise<OpenRouterClientConfig> {
+async function configuredClientConfig(routing?: AiRouting): Promise<OpenRouterClientConfig> {
   // Central authorization boundary: production callers cannot reach the
   // external AI provider until R&D enables company-wide data sharing.
   // Read the DB for every request so revocation takes effect immediately.
   const { assertOpenRouterPolicyEnabled } = await import('$lib/server/ai/provider-policy');
   await assertOpenRouterPolicyEnabled();
-  if (activeAiProvider() === 'openai') {
-    const models = openAiModels();
+  const selection = routing ?? await readAiRouting();
+  if (selection.provider === 'openai') {
+    const models = selection.openAI;
+    const { resolveOpenAiApiKey } = await import('./provider-key');
     return { ...OPENROUTER_CONFIG, provider: 'openai', baseUrl: 'https://api.openai.com/v1',
-      defaultModel: models.textModel, visionModel: models.visionModel, apiKey: process.env.OPENAI_API_KEY?.trim() ?? '' };
+      defaultModel: models.textModel, visionModel: models.visionModel, apiKey: await resolveOpenAiApiKey() };
   }
   const { resolveOpenRouterApiKey } = await import('$lib/server/ai/provider-key');
   const {readOpenRouterModels, environmentModelDefaults} = await import('./provider-models');
@@ -145,11 +149,13 @@ export async function openRouterChat(
   fetcher: typeof fetch = fetch
 ): Promise<OpenRouterChatResult> {
   options.signal?.throwIfAborted();
-  const resolvedConfig = config ?? await configuredClientConfig();
+  const resolvedConfig = config ?? await configuredClientConfig(options.aiRouting);
   options.signal?.throwIfAborted();
   const direct = resolvedConfig.provider === 'openai';
+  if (direct && options.plugins?.some(plugin => (plugin as { pdf?: { engine?: unknown } })?.pdf?.engine === 'mistral-ocr'))
+    throw new Error('Paid PDF OCR requires OpenRouter');
   if (!resolvedConfig.apiKey.trim()) throw new Error(direct
-    ? 'OpenAI is not configured: set OPENAI_API_KEY on the server'
+    ? 'OpenAI is not configured: add the system key in R&D Settings or set OPENAI_API_KEY'
     : 'OpenRouter is not configured: add the system key in Settings or set OPENROUTER_API_KEY');
   if (!/^https:\/\//i.test(resolvedConfig.baseUrl)) throw new Error('OPENROUTER_BASE_URL must use HTTPS');
   // Existing OMS tool routes can pass OpenRouter model aliases. The OpenAI

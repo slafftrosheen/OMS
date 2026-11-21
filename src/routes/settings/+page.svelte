@@ -21,10 +21,11 @@
   import TelegramSettings from '$lib/notifications/TelegramSettings.svelte';
   import TelegramAdminSettings from '$lib/notifications/TelegramAdminSettings.svelte';
   import { settingsTabsCopy } from '$lib/settings/settings-tabs-copy';
+  import OpenAiProviderSettings from '$lib/settings/OpenAiProviderSettings.svelte';
   import OpenRouterModels from '$lib/settings/OpenRouterModels.svelte';
   let aiSettings = $state<{
-    configured: boolean; masked: string; source?: string; activeProvider?: 'openrouter' | 'openai';
-    openAI?: { configured: boolean; textModel: string; visionModel: string };
+    configured: boolean; masked: string; source?: string; activeProvider?: 'openrouter' | 'openai'; managedProvider?: boolean;
+    openAI?: { configured: boolean; masked: string; source: string; textModel: string; visionModel: string };
   } | null>(null);
   let openRouterKey = $state('');
   let aiSettingsLoading = $state(false);
@@ -392,11 +393,9 @@
           </div>
         </div>
         {#if aiSettings?.openAI}
-          <div class="setting-group">
-            <p>{$t('settings.provider.activeProvider')} <strong>{aiSettings.activeProvider === 'openai' ? 'OpenAI API' : 'OpenRouter'}</strong></p>
-            <p>OpenAI API · {aiSettings.openAI.configured ? $t('settings.provider.configured') : $t('settings.provider.notConfigured')}</p>
-            <p class="muted">{$t('settings.provider.openAISetup')}</p>
-          </div>
+          <OpenAiProviderSettings activeProvider={aiSettings.activeProvider ?? 'openrouter'}
+            openAI={aiSettings.openAI} managed={aiSettings.managedProvider === true}
+            disabled={aiSettingsLoading || aiSettingsSaving || aiPolicySaving || providerTesting} onSaved={loadOpenRouterSettings} />
         {/if}
         <div class="setting-group ai-policy-group">
           <label class="ai-policy-label">

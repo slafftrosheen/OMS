@@ -44,6 +44,7 @@
   let searchNote = $state('');
   let modelChoices = $state<Array<{id:string;label:string;isDefault:boolean}>>([]);
   let selectedModel = $state('');
+  let canvasProvider = $state<'openai' | 'openrouter' | null>(null);
   let webMode = $state<'searxng' | 'openrouter'>('searxng');
   let paidWebAvailable = $state(false);
   let paidPdfOcrAvailable = $state(false);
@@ -171,6 +172,7 @@
       if (!response.ok) return;
       const data = await response.json();
       if (destroyed) return;
+      canvasProvider = data.provider === 'openai' || data.provider === 'openrouter' ? data.provider : null;
       modelChoices = Array.isArray(data.models) ? data.models.filter((v: any) =>
         typeof v?.id === 'string' && typeof v?.label === 'string').slice(0, 9) : [];
       selectedModel = modelChoices.some(m => m.id === selectedModel)
@@ -639,13 +641,16 @@
           body: JSON.stringify({
              prompt: text, ...context, boardId: activeBoardId, includeImages: sendVisuals, drawing,
              history, skill: requestedSkill, language: $locale,
-             model: selectedModel || undefined,
+             model: selectedModel || undefined, expectedProvider: canvasProvider ?? undefined,
              webMode: requestedSkill === 'research' ? webMode : 'searxng'
            })
         });
         const data = await response.json().catch(() => ({}));
         if (!stillCurrent()) return;
-        if (!response.ok) throw new Error(data.error || tr('canvas.noSuggestions'));
+        if (!response.ok) {
+          if (data.code === 'PROVIDER_CHANGED') await loadModelChoices();
+          throw new Error(data.error || tr('canvas.noSuggestions'));
+        }
         lastUsedModel = typeof data.model === 'string' ? data.model : '';
         webSearchRequests = Number.isSafeInteger(data.webSearchRequests) && data.webSearchRequests >= 0 ? data.webSearchRequests : null;
         searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
@@ -716,7 +721,7 @@
           signal: requestSignal(150_000, signal),
           body: JSON.stringify({
             boardId: originalBoard, assetId: fileId, question,
-            language: $locale, ocr: paidOcr,
+            language: $locale, ocr: paidOcr, expectedProvider: canvasProvider ?? undefined,
             ...(document.props.kind === 'pdf' ? {
               model: selectedModel || undefined, pdfMode: requestedPdfMode,
               ...(requestedPdfPages ? { pdfPages: requestedPdfPages } : {})
@@ -726,6 +731,7 @@
         const result = await response.json().catch(() => ({}));
         if (!stillCurrent()) return;
         if (!response.ok) {
+          if (result.code === 'PROVIDER_CHANGED') await loadModelChoices();
           const retryHeader = response.headers.get('Retry-After');
           const retryValue = result.retryAfter ?? retryHeader;
           const supplied = typeof retryValue === 'string' && !/^\d+(\.\d+)?$/.test(retryValue)
@@ -1343,6 +1349,7 @@
             {/each}
           </select>
           <p>{$t(`toolkit.skills.${skill}Purpose`)}</p>
+          {#if canvasProvider}<p data-testid="canvas-ai-provider">{canvasProvider === 'openai' ? 'OpenAI API' : 'OpenRouter'}</p>{/if}
           {#if modelChoices.length}
             <label for="toolkit-model">{$t('toolkit.canvas.model')}</label>
             <select id="toolkit-model" bind:value={selectedModel} disabled={requesting || analyzingFile}>
