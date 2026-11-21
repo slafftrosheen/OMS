@@ -3,7 +3,7 @@ import {readCadSettings} from './cad-settings';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { useVectorText } from './cad-vector-copy';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useEditor, useValue } from '@tldraw/tldraw';
+import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { useCadAdvancedText } from './cad-advanced-copy';
 import { useCadText, type CadLabel } from './cad-copy';
@@ -275,6 +275,11 @@ function ArcFields({ settings, disabled }: { settings: CadSettings | null; disab
   </details>;
 }
 
+function dxfSourceRevision(editor: Editor): string {
+  return JSON.stringify([editor.getCurrentPage().id, editor.getCurrentPageShapesSorted(),
+    editor.getSelectedShapeIds(), readCadSettings(editor)]);
+}
+
 function DxfExport({ settings }: { settings: CadSettings | null }) {
   const editor = useEditor(); const { label } = useCadText();
   const [scope, setScope] = useState<'selected' | 'all'>('selected');
@@ -287,7 +292,7 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
   const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadLabel | ''>('');
-  const revision = useValue('cad dxf source revision', () => JSON.stringify([editor.getCurrentPage().id, editor.getCurrentPageShapesSorted(), editor.getSelectedShapeIds(), settings]), [editor, settings]);
+  const revision = useValue('cad dxf source revision', () => dxfSourceRevision(editor), [editor]);
   const hasObjects = useValue('cad dxf scope availability', () => scope === 'selected' ? !!editor.getSelectedShapeIds().length : !!editor.getCurrentPageShapeIds().size, [editor, scope]);
   const stale = !!report && (report.revision !== revision || report.scope !== scope || report.optionsKey !== optionsKey);
   const reasonLabels: Record<string, CadLabel> = { unsupported: 'unsupported', text: 'annotation', annotation: 'annotation', form: 'form', invalid: 'invalid', curved: 'curved', clipped: 'clipped', empty: 'empty' };
@@ -298,10 +303,15 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
     try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm }), revision, scope, optionsKey, curves, toleranceMm }); }
     catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
   }
+  const canExport = !!report && !stale && !!report.data.entities && (!report.data.omitted.length || acknowledged);
+  function createFile() {
+    if (!report || !canExport || report.revision !== dxfSourceRevision(editor)) throw new Error('changed');
+    return new Blob([report.data.text], { type: 'application/dxf' });
+  }
   function download() {
-    if (!report || stale || !report.data.entities || report.data.omitted.length && !acknowledged) return;
+    if (!canExport) return;
     try {
-      const url = URL.createObjectURL(new Blob([report.data.text], { type: 'application/dxf' }));
+      const url = URL.createObjectURL(createFile());
       const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'oms-drawing-mm.dxf'; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000); setMessage('exported');
     } catch { setMessage('exportFailed'); }
@@ -337,8 +347,8 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
       </> : <p className="drawing-help">{label('noOmissions')}</p>}
       {stale && <Message text={label('stale')} error />}
       {!report.data.entities && <Message text={label('noEntities')} error />}
-      <button type="button" disabled={stale || !report.data.entities || !!report.data.omitted.length && !acknowledged} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
-      <ProductionSaveButton extension="dxf" disabled={stale || !report.data.entities || !!report.data.omitted.length && !acknowledged} createFile={()=>{if(report.revision!==JSON.stringify([editor.getCurrentPage().id,editor.getCurrentPageShapesSorted(),editor.getSelectedShapeIds(),readCadSettings(editor)]))throw new Error("changed");return new Blob([report.data.text],{type:"application/dxf"});}}/>
+      <button type="button" disabled={!canExport} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
+      <ProductionSaveButton extension="dxf" disabled={!canExport} createFile={createFile} />
     </div>}
     <Message text={message ? label(message) : ''} error={message === 'exportFailed' || message === 'noEntities'} />
   </details>;

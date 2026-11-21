@@ -21,12 +21,15 @@ export const mix = (a: CadPoint, b: CadPoint, t: number): CadPoint => ({
   x: a.x + (b.x - a.x) * t,
   y: a.y + (b.y - a.y) * t
 });
-export function validContours(contours: CadContour[]): boolean {
+export function validContours(
+  contours: CadContour[],
+  { maxContours = 512, maxNodes = CAD_CURVE_NODE_LIMIT }: { maxContours?: number; maxNodes?: number } = {}
+): boolean {
   return (
     Array.isArray(contours) &&
     contours.length > 0 &&
-    contours.length <= 512 &&
-    contours.reduce((n, c) => n + c.nodes.length, 0) <= CAD_CURVE_NODE_LIMIT &&
+    contours.length <= maxContours &&
+    contours.reduce((n, c) => n + c.nodes.length, 0) <= maxNodes &&
     contours.every(
       (c) =>
         typeof c.closed === 'boolean' &&

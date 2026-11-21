@@ -62,6 +62,14 @@ export function assertCadEditable(editor: Editor, ids: string[] = []): void {
     }
   }
 }
+/** The preview of many independent shapes has a separate aggregate budget.
+ * Each persisted Bézier shape still has the ordinary per-object limits. */
+export function validCadPlanContours(contours: CadContour[], shapes?: CadPlannedShape[]): boolean {
+  if (!shapes?.length) return validContours(contours);
+  return validContours(contours, { maxContours: 2000, maxNodes: 20_000 }) &&
+    shapes.every(shape => shape.type !== 'cad-bezier' || validContours(shape.props.contours as CadContour[]));
+}
+
 export function makeCadPlan(
   editor: Editor,
   settings: CadSettings,
@@ -118,7 +126,7 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
     editor.setCurrentTool('select');
     assertCadEditable(editor, plan.sourceIds);
     if (plan.blocked) return false;
-    if (plan.revision !== cadRevision(editor) || !validContours(plan.contours)) return false;
+    if (plan.revision !== cadRevision(editor) || !validCadPlanContours(plan.contours, plan.shapes)) return false;
     if (plan.groupResult !== undefined && typeof plan.groupResult !== 'boolean') return false;
     if (plan.groupName !== undefined && (typeof plan.groupName !== 'string' || !plan.groupName.trim())) return false;
     if (

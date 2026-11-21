@@ -16,6 +16,37 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} builds production vectors and keeps controls in full screen`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    const fullscreen = page.getByTestId('drawing-fullscreen');
+    await fullscreen.click();
+    await expect(page.getByTestId('drawing-workspace')).toHaveAttribute('data-fullscreen', 'true');
+    await page.getByTestId('drawing-tools-dimension').click();
+    await page.getByTestId('drawing-flyout-cad-measure-tools').click();
+    // The standalone fixture starts on a legacy page where CAD units can be activated.
+    const build = page.getByTestId('drawing-create-angled');
+    if (await build.isDisabled()) {
+      await page.getByTestId('drawing-cad-toggle').click();
+      await page.getByTestId('drawing-cad-apply').click();
+      await page.getByTestId('drawing-measure-toggle').click();
+    }
+    await page.getByRole('spinbutton', { name: 'Heading (°)', exact: true }).fill('0');
+    await build.click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path').length).toBe(1);
+    await page.getByRole('combobox', { name: 'Offset side' }).selectOption('both');
+    await page.getByTestId('drawing-create-parallel').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path').length).toBe(3);
+    await expect(page.getByText('Parallel separation', { exact: true })).toBeVisible();
+    await page.getByTestId('drawing-clipart-toggle').click();
+    await page.getByTestId('drawing-clipart-mountingPlate').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-ellipse').length).toBe(4);
+    await fullscreen.click();
+    await expect(page.getByTestId('drawing-workspace')).toHaveAttribute('data-fullscreen', 'false');
+    await page.getByTestId('drawing-files').click();
+    await page.getByTestId('drawing-cad-review').click();
+    await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+  });
   test(`${mode} autosave checkpoints keep committed vertices without stopping a CAD gesture`, async ({ page }) => {
     await page.goto(`/drawing-workspace.html?mode=${mode}&save-draft=1`);
     await expect(page.getByTestId('drawing-tool-select')).toBeVisible();

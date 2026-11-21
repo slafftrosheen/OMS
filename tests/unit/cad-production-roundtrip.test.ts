@@ -9,7 +9,7 @@ import {CadPathShapeUtil,CadEllipseShapeUtil,CadArcShapeUtil,CadDimensionShapeUt
 import {DEFAULT_CAD_SETTINGS,writeCadSettings} from '../../src/lib/components/canvas/cad-settings';
 import {prepareCadImport} from '../../src/lib/components/canvas/cad-import';
 import {applyCadPlan} from '../../src/lib/components/canvas/cad-plans';
-import {buildCadDxf} from '../../src/lib/components/canvas/cad-dxf';
+import {buildCadDxf,serializeCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {prepareCreationCanvas} from '../../src/lib/order/creation-canvas';
 
 const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
@@ -48,4 +48,27 @@ describe('production DXF through order persistence',()=>{
    compare(parsed.entities,reference.entities);
   });
  }
+});
+
+it('reimports and applies a dense polyline export across independent outlines', () => {
+ const { editor, shapes } = fixture();
+ const settings = DEFAULT_CAD_SETTINGS;
+ const entities = Array.from({ length: 6 }, (_, index) => ({
+  type: 'polyline' as const, closed: true,
+  points: Array.from({ length: 768 }, (_, vertex) => {
+   const angle = vertex * 2 * Math.PI / 768;
+   return { x: index * 70 + 30 * Math.cos(angle), y: 30 * Math.sin(angle) };
+  })
+ }));
+ const output = serializeCadDxf(entities);
+ const plan = prepareCadImport(editor, settings, output.text, { keepCoordinates: true });
+ assert.deepEqual(plan.omitted, []);
+ assert.equal(plan.contours.reduce((total, contour) => total + contour.nodes.length, 0), 4608);
+ assert.equal(applyCadPlan(editor, plan), true);
+ assert.equal(shapes.size, 6);
+ const roundTrip = buildCadDxf(editor, 'selected', settings, { curves: 'polyline' });
+ assert.equal(roundTrip.closedContours, 6);
+ assert.deepEqual(roundTrip.omitted, []);
+ near(roundTrip.widthMm, output.widthMm);
+ near(roundTrip.heightMm, output.heightMm);
 });

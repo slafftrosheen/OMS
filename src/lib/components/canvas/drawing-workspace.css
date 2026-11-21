@@ -327,3 +327,60 @@
 .drawing-page-sheet { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
 .drawing-page-sheet rect { fill: var(--bg-1); fill-opacity: .26; stroke: var(--ink-secondary); stroke-width: 1; }
 .drawing-status .drawing-page-navigator { width: clamp(76px, 17%, 184px); min-height: 28px; border: 1px solid var(--border); border-radius: 2px; background: var(--bg-1); font-size: 11px; }
+
+.drawing-workspace:fullscreen,
+.drawing-workspace[data-expanded="true"] {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.drawing-workspace[data-expanded="true"] {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+}
+.drawing-tools .drawing-tool-group--section {
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+.drawing-tool-flyout h3 {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.drawing-production-section { display: grid; gap: 8px; }
+.drawing-production-section h3,
+.drawing-production-section h4 {
+  margin: 0;
+  font-size: 12px;
+}
+.drawing-production-section h3 {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.drawing-clipart-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.drawing-clipart-list button {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-0);
+  text-align: left;
+}
+.drawing-clipart-list svg { width: 48px; height: 32px; color: var(--brand); }
+.drawing-clipart-list strong,
+.drawing-clipart-list small { display: block; }
+.drawing-clipart-list small { color: var(--ink-secondary); }
