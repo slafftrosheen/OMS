@@ -19,7 +19,7 @@ export async function loadDashboard({ fetcher = fetch, basePath = '', signal }: 
     }
   };
   const [orderResponse, kpiResponse, trendResponse] = await Promise.all([
-    read('/api/orders?limit=5'),
+    read('/api/orders?limit=5&include=stages'),
     read('/api/analytics?type=kpis'),
     read('/api/analytics?type=trends&period=30')
   ]);

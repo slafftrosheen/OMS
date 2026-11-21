@@ -1,0 +1,75 @@
+/* ============================================================
+   RÉCLAME FABRIEK OMS — MOTION SYSTEM v0.1
+   Principle: things SWITCH ON like lit letters, MOVE like a CNC gantry
+   (decisive, no bounce) and work FLOWS along the station route.
+   Every animation has a reduced-motion fallback (bottom of file).
+   ============================================================ */
+
+/* 1. POWER-ON — LED strike for new content (cards, panels, toasts) */
+@keyframes rf-power-on{
+  0%{opacity:0;filter:brightness(1.6)}
+  35%{opacity:.85}
+  50%{opacity:.45}
+  70%{opacity:1;filter:brightness(1.25)}
+  100%{opacity:1;filter:none}
+}
+.rf-power-on{animation:rf-power-on var(--motion-lg) steps(1,end) both, rf-fade-settle var(--motion-lg) var(--ease-machine) both}
+@keyframes rf-fade-settle{from{transform:translateY(4px)}to{transform:none}}
+.rf-stagger>*{animation:rf-power-on var(--motion-lg) var(--ease-machine) both;animation-delay:calc(var(--i,0) * 40ms)}
+
+/* 2. GANTRY — panels, drawers, sheets travel on a rail */
+@keyframes rf-gantry-in{from{transform:translateX(var(--rf-from,24px));opacity:0}to{transform:none;opacity:1}}
+@keyframes rf-gantry-up{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+.rf-gantry-in{animation:rf-gantry-in var(--motion-lg) var(--ease-carriage) both}
+.rf-gantry-up{animation:rf-gantry-up var(--motion-lg) var(--ease-carriage) both}
+
+/* 3. LIVE — Lumen breathing for running jobs / online stations */
+@keyframes rf-live{0%,100%{box-shadow:0 0 0 3px var(--live-soft),0 0 6px var(--live)}50%{box-shadow:0 0 0 5px var(--live-soft),0 0 16px var(--live)}}
+.rf-live-dot{animation:rf-live 2.4s ease-in-out infinite}
+@keyframes rf-edge-glow{0%,100%{box-shadow:inset 0 0 0 1px var(--live),0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 1px var(--live),0 0 18px -4px var(--live)}}
+.rf-live-edge{animation:rf-edge-glow 2.4s ease-in-out infinite}
+
+/* 4. ROUTE — order travelling CAD → DELIVERY (progress, stepper) */
+.rf-route{--p:0;position:relative;height:4px;background:var(--bg-3);border-radius:2px;overflow:hidden}
+.rf-route::before{content:"";position:absolute;inset:0;width:calc(var(--p) * 1%);background:var(--ink-0);transition:width var(--motion-xl) var(--ease-carriage)}
+.rf-route::after{content:"";position:absolute;top:0;bottom:0;width:40px;left:calc(var(--p) * 1% - 40px);
+  background:linear-gradient(90deg,transparent,var(--live));animation:rf-sweep 1.6s var(--ease-carriage) infinite}
+@keyframes rf-sweep{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+
+/* 5. CHASE — loading: LED chase across 5 cells (replaces spinners) */
+.rf-chase{display:inline-flex;gap:3px}
+.rf-chase>i{width:6px;height:6px;background:var(--live);opacity:.18;border-radius:1px;animation:rf-chase 1s steps(1,end) infinite}
+.rf-chase>i:nth-child(2){animation-delay:.1s}.rf-chase>i:nth-child(3){animation-delay:.2s}
+.rf-chase>i:nth-child(4){animation-delay:.3s}.rf-chase>i:nth-child(5){animation-delay:.4s}
+@keyframes rf-chase{0%{opacity:1}20%{opacity:.55}40%,100%{opacity:.18}}
+
+/* 6. STAMP — saved / approved / station completed */
+@keyframes rf-stamp{0%{transform:scale(1.35);opacity:0}60%{transform:scale(.96);opacity:1}100%{transform:none}}
+.rf-stamp{animation:rf-stamp var(--motion-lg) var(--ease-machine) both}
+
+/* 7. SCAN — QR / barcode accepted: red laser line sweep then green settle */
+@keyframes rf-scan{0%{top:0;opacity:1}90%{top:calc(100% - 2px);opacity:1}100%{top:calc(100% - 2px);opacity:0}}
+.rf-scan-line{position:absolute;left:0;right:0;height:2px;background:var(--rf-red);box-shadow:0 0 12px var(--rf-red);animation:rf-scan .9s var(--ease-carriage) both}
+
+/* 8. NEXT ACTION — replaces the old halo: one Lumen corner tick, not a glow cloud */
+@keyframes rf-tick{0%,100%{opacity:1}50%{opacity:.35}}
+.rf-next{position:relative}
+.rf-next::after{content:"";position:absolute;top:-3px;right:-3px;width:8px;height:8px;background:var(--live);
+  clip-path:polygon(0 0,100% 0,100% 100%);animation:rf-tick 1.8s ease-in-out infinite}
+
+/* 9. FAULT — a blocked item gets the hazard stripe sliding once, then rests */
+@keyframes rf-hazard-in{from{background-position:-24px 0}to{background-position:0 0}}
+.rf-fault{animation:rf-hazard-in var(--motion-xl) var(--ease-machine) both}
+
+/* 10. Press — every control */
+.rf-press{transition:transform var(--motion-xs) var(--ease-machine),background-color var(--motion-sm) var(--ease-machine)}
+.rf-press:active{transform:translateY(1px)}
+
+/* Reduced motion: no flicker, no travel, no pulse — state still visible */
+@media (prefers-reduced-motion:reduce){
+  .rf-power-on,.rf-stagger>*,.rf-gantry-in,.rf-gantry-up,.rf-stamp,.rf-fault{animation:none!important}
+  .rf-live-dot,.rf-live-edge,.rf-next::after,.rf-route::after{animation:none!important}
+  .rf-chase>i{animation:none!important;opacity:.6}
+  .rf-scan-line{animation:none!important;display:none}
+  .rf-route::before{transition:none}
+}

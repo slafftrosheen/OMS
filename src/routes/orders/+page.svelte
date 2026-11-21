@@ -18,6 +18,7 @@
   import { toCSV, downloadCSV } from '$lib/export/csv';
   const listCopy = $derived(orderListCopy($locale));
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import RouteLine from '$lib/ui/RouteLine.svelte';
   import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
   import { buildOrderBadges, isTerminalOrderStatus, stageBadge } from '$lib/badges/catalog';
   import { currentDay } from '$lib/badges/current-day';
@@ -171,7 +172,7 @@
     if (refreshing) return;
     refreshing = true;
     try {
-      await orderState.load();
+      await orderState.load(true);
       // Keep the last successful table visible during subsequent refreshes.
       if (!orderState.lastError) hasLoadedOnce = true;
     } finally {
@@ -331,6 +332,7 @@
                 {$t('orderLists.headers.due')}
               </button>
             </th>
+            <th class="order-route">{$t('orderDetail.tabs.stages')}</th>
             <th style="width:200px">{$t('orderLists.headers.badges')}</th>
             <th style="width:80px">{$t('common.actions')}</th>
           </tr>
@@ -367,6 +369,13 @@
               <td class="title-cell">{row.title}</td>
               <td>{row.loadingDate ? row.loadingDate : '—'}</td>
               <td>{row.due}</td>
+              <td class="order-route">
+                {#if row.order?.productionRoute}
+                  <RouteLine stages={row.order.productionRoute} size="sm" />
+                {:else}
+                  <span aria-label={$t('common.unavailable', { default: 'Unavailable' })}>—</span>
+                {/if}
+              </td>
               <td>
                 <div class="badges-cell">
                   <OrderBadges order={row.order} />
@@ -387,7 +396,7 @@
             </tr>
             {#if row.expanded}
               <tr class="expanded-row">
-                <td colspan="8">
+                <td colspan="9">
                   <div class="expanded-content">
                     <div class="expanded-section">
                       <h4>{$t('orderLists.headers.stages')}</h4>
@@ -410,7 +419,7 @@
           {/each}
           {#if paginatedRows.length === 0}
             <tr>
-              <td colspan="8" class="empty-message">
+              <td colspan="9" class="empty-message">
                 {#if isLoading}
                   <div class="rf-spinner" style="margin: 0 auto;"></div>
                 {:else if errorMessage}
@@ -508,6 +517,8 @@
 </ErrorBoundary>
 
 <style>
+  .order-route { min-width: 15rem; }
+
   .page-header {
     display: flex;
     justify-content: space-between;

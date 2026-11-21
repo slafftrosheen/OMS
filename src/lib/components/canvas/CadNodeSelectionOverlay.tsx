@@ -34,6 +34,6 @@ export function CadNodeSelectionOverlay() {
       data-testid="cad-node-marquee" fill="var(--color-selected, #4169e1)" fillOpacity={.12} stroke="var(--color-selected, #4169e1)" strokeWidth={scale} strokeDasharray={`${4 * scale} ${3 * scale}`} />}
     <path d={state.path} fill="none" stroke="var(--color-selected, #4169e1)" opacity={0.45} strokeWidth={3*scale}/>
     {state.nodes.map(n=><circle key={n.contourIndex+':'+n.nodeIndex} cx={n.point.x} cy={n.point.y} r={7*scale} fill="none" stroke="var(--color-selected, #4169e1)" strokeWidth={2*scale}/>)}
-    <text x={point.x+11*scale} y={point.y-11*scale} fontSize={12*scale} fill="var(--color-selected, #4169e1)" stroke="white" strokeWidth={3*scale} paintOrder="stroke">{state.contourIndex+1}:{state.nodeIndex+1}</text>
+    <text x={point.x+11*scale} y={point.y-11*scale} fontSize={12*scale} fill="var(--color-selected, #4169e1)" stroke="var(--rf-cv-halo, white)" strokeWidth={3*scale} paintOrder="stroke" className="rf-cv-label">{state.contourIndex+1}:{state.nodeIndex+1}</text>
   </svg>;
 }

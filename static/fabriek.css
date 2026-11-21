@@ -1,0 +1,194 @@
+/* ============================================================
+   RÉCLAME FABRIEK OMS — "FABRIEK" UI LAYER  v0.1  (Round 1 · Foundation)
+   Load AFTER /brand.css (see IMPLEMENTATION.md). Re-maps every existing
+   brand.css token to the Reclame Fabriek identity and adds new tokens.
+   Remove this one <link> to roll back instantly.
+
+   Direction "By place":
+     office screens  → PAPER (light, drafting table)
+     floor screens   → NIGHT SHIFT (dark, lit work)  — stations, board, wall
+   Themes: LightVim = Paper · DarkVim = Night Shift · ByPlace = automatic
+   ============================================================ */
+
+/* ---------- 1. Fonts (self-hosted, OFL) ----------
+   "RF Sans"      = Barlow (Latin + Latvian) → PT Sans for Cyrillic (RU)
+   "RF Condensed" = Barlow Condensed          → PT Sans Narrow for Cyrillic */
+@font-face{font-family:'RF Sans';font-weight:400;font-display:swap;src:url('/fonts/rf/barlow-400-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'RF Sans';font-weight:400;font-display:swap;src:url('/fonts/rf/barlow-400-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'RF Sans';font-weight:500;font-display:swap;src:url('/fonts/rf/barlow-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'RF Sans';font-weight:500;font-display:swap;src:url('/fonts/rf/barlow-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'RF Sans';font-weight:600 700;font-display:swap;src:url('/fonts/rf/barlow-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'RF Sans';font-weight:600 700;font-display:swap;src:url('/fonts/rf/barlow-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'RF Sans';font-weight:400;font-display:swap;src:url('/fonts/rf/pt-sans-400-cyrillic.woff2') format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'RF Sans';font-weight:400;font-display:swap;src:url('/fonts/rf/pt-sans-400-cyrillic-ext.woff2') format('woff2');unicode-range:U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F}
+@font-face{font-family:'RF Sans';font-weight:500;font-display:swap;src:url('/fonts/rf/pt-sans-400-cyrillic.woff2') format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'RF Sans';font-weight:500;font-display:swap;src:url('/fonts/rf/pt-sans-400-cyrillic-ext.woff2') format('woff2');unicode-range:U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F}
+@font-face{font-family:'RF Sans';font-weight:600 700;font-display:swap;src:url('/fonts/rf/pt-sans-700-cyrillic.woff2') format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'RF Sans';font-weight:600 700;font-display:swap;src:url('/fonts/rf/pt-sans-700-cyrillic-ext.woff2') format('woff2');unicode-range:U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F}
+@font-face{font-family:'RF Condensed';font-weight:500;font-display:swap;src:url('/fonts/rf/barlow-condensed-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'RF Condensed';font-weight:500;font-display:swap;src:url('/fonts/rf/barlow-condensed-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'RF Condensed';font-weight:600;font-display:swap;src:url('/fonts/rf/barlow-condensed-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'RF Condensed';font-weight:600;font-display:swap;src:url('/fonts/rf/barlow-condensed-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'RF Condensed';font-weight:700;font-display:swap;src:url('/fonts/rf/barlow-condensed-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'RF Condensed';font-weight:700;font-display:swap;src:url('/fonts/rf/barlow-condensed-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'RF Condensed';font-weight:500;font-display:swap;src:url('/fonts/rf/pt-sans-narrow-700-cyrillic.woff2') format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'RF Condensed';font-weight:600;font-display:swap;src:url('/fonts/rf/pt-sans-narrow-700-cyrillic.woff2') format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'RF Condensed';font-weight:700;font-display:swap;src:url('/fonts/rf/pt-sans-narrow-700-cyrillic.woff2') format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+
+/* ---------- 2. Brand constants (theme-independent) ---------- */
+:root{
+  --rf-red:#C8161D; --rf-red-press:#A51118; --rf-oxide:#5C0304;
+  --rf-graphite:#1C1D20; --rf-paper:#F3F2EF; --rf-aluminium:#9AA0A6; --rf-lumen:#FFB547;
+
+  /* Stations — solid chips carry white text (all ≥4.7:1). Never used for status. */
+  --st-cad:#2F64B0; --st-cnc:#167C7C; --st-edge:#6A4CB0; --st-assembly:#4E7F2E;
+  --st-paint:#A8467C; --st-packaging:#93671D; --st-delivery:#3F5F80; --on-station:#FFFFFF;
+
+  /* Typography */
+  --font-sans:'RF Sans','Barlow','PT Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --font-display:'RF Condensed','Barlow Condensed','PT Sans Narrow','Arial Narrow',var(--font-sans);
+  --font-mono:'JetBrains Mono Variable','JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --tracking-label:0.08em;
+
+  /* Geometry — machined, not bubbly */
+  --radius-xs:2px; --radius-sm:4px; --radius-md:6px; --radius-lg:10px; --radius-xl:14px;
+  --chamfer:6px;              /* signature cut corner (clip-path helper below) */
+  --hairline:1px;
+
+  /* Motion — decisive, mechanical; springs retired (aliased) */
+  --motion-xs:90ms; --motion-sm:140ms; --motion-md:200ms; --motion-lg:280ms; --motion-xl:400ms; --motion-2xl:560ms;
+  --ease-machine:cubic-bezier(.2,0,0,1);       /* fast in, settles hard  */
+  --ease-carriage:cubic-bezier(.6,0,.2,1);     /* CNC gantry travel      */
+  --ease-release:cubic-bezier(.4,0,1,1);       /* exits                  */
+  --ease-standard:var(--ease-machine); --ease-emphasized:var(--ease-carriage);
+  --ease-out:var(--ease-machine); --ease-in:var(--ease-release); --ease-in-out:var(--ease-carriage);
+  --ease-spring-soft:var(--ease-machine); --ease-spring:var(--ease-machine);
+  --ease-spring-elastic:var(--ease-machine); --ease-anticipate:var(--ease-carriage);
+  --transition-fast:var(--motion-sm) var(--ease-machine);
+  --transition-smooth:var(--motion-md) var(--ease-machine);
+  --transition-spring:var(--motion-md) var(--ease-machine);
+
+  /* Retire glass, mesh and aurora: solid machined panels */
+  --glass-material-thin:none; --glass-material-regular:none; --glass-material-thick:none; --glass-blur:none;
+  --aurora:none; --spotlight:none; --depth-glow-md:none; --depth-glow-lg:none;
+  --text-gradient:linear-gradient(90deg,var(--text),var(--text));
+  --gradient-stroke:linear-gradient(var(--border),var(--border));
+  --led-amber:var(--rf-lumen);
+
+  /* Hazard stripe used with every fault/blocked state (never colour alone) */
+  --hazard:repeating-linear-gradient(-45deg,var(--fault-stripe) 0 6px,transparent 6px 12px);
+}
+
+/* ---------- 3. PAPER (light) — office ---------- */
+:root[data-theme="LightVim"],
+:root[data-theme="ByPlace"]:not([data-place="floor"]){
+  --bg-0:#F3F2EF; --bg-1:#FFFFFF; --bg-2:#E9E8E4; --bg-3:#DCDBD6;
+  --surface-0:var(--bg-0); --surface-1:var(--bg-1); --surface-2:var(--bg-2); --surface-3:var(--bg-3);
+  --ink-0:#1C1D20; --ink-1:#34363B; --ink-2:#565A61; --ink-3:#63686F;
+  --text:var(--ink-0); --muted:var(--ink-2);
+  --ink-primary:var(--ink-0); --ink-secondary:var(--ink-1); --ink-tertiary:var(--ink-2); --ink-quaternary:var(--ink-3);
+  --border:#D5D3CD; --border-strong:#B3B1AA;
+  --divider:color-mix(in oklab,var(--ink-0) 9%,transparent); --separator-opaque:#E3E1DC;
+  --focus:#C8161D;
+
+  --brand:#C8161D; --brand-2:#A51118; --accent-1:var(--brand); --accent-2:var(--rf-oxide); --on-brand:#FFFFFF;
+  --link:#1C1D20; --link-underline:#C8161D;
+  --ok:#1D7340; --warn:#7A5B00; --error:#8F1A12; --danger:var(--error);
+  --live:#FFB547; --live-ink:#8A5300;            /* Lumen: running / live */
+  --fault-stripe:color-mix(in oklab,#8F1A12 22%,transparent);
+
+  --brand-soft:color-mix(in oklab,var(--brand) 9%,var(--bg-1)); --brand-strong:#A51118;
+  --ok-soft:color-mix(in oklab,var(--ok) 10%,var(--bg-1)); --ok-strong:#145530;
+  --warn-soft:color-mix(in oklab,#E6C229 22%,var(--bg-1)); --warn-strong:#5C4400;
+  --error-soft:color-mix(in oklab,var(--error) 9%,var(--bg-1)); --error-strong:#6E120C;
+  --live-soft:color-mix(in oklab,var(--live) 22%,var(--bg-1));
+
+  --glass-bg:var(--bg-1); --glass-bg-strong:var(--bg-1); --glass-tint-bg:var(--bg-1); --glass-tint-hover:var(--bg-2);
+  --glass-border:var(--border); --glass-border-highlight:none;
+  --glass-shadow:0 1px 0 rgba(28,29,32,.04),0 6px 18px rgba(28,29,32,.07);
+  --glass-shadow-sm:0 1px 2px rgba(28,29,32,.06); --glass-shadow-md:var(--glass-shadow);
+  --glass-shadow-lg:0 18px 40px rgba(28,29,32,.14),0 2px 6px rgba(28,29,32,.06);
+  --elevation-0:none; --elevation-1:0 1px 0 rgba(28,29,32,.06);
+  --elevation-2:0 1px 0 rgba(28,29,32,.04),0 4px 12px rgba(28,29,32,.07);
+  --elevation-3:0 10px 26px rgba(28,29,32,.11); --elevation-4:0 22px 48px rgba(28,29,32,.16);
+  --shadow-rgb:28 29 32; --grain-opacity:0;
+  --canvas-bg:#F7F6F3; --canvas-grid:color-mix(in oklab,#2F64B0 9%,transparent); --canvas-grid-major:color-mix(in oklab,#2F64B0 17%,transparent);
+  --led-cyan:#167C7C; --led-amber:#8A5300;
+  color-scheme:light;
+}
+
+/* ---------- 4. NIGHT SHIFT (dark) — floor ---------- */
+:root[data-theme="DarkVim"],
+:root[data-theme="ByPlace"][data-place="floor"],
+:root:not([data-theme]){
+  --bg-0:#121316; --bg-1:#1C1D20; --bg-2:#26282C; --bg-3:#33363B;
+  --surface-0:var(--bg-0); --surface-1:var(--bg-1); --surface-2:var(--bg-2); --surface-3:var(--bg-3);
+  --ink-0:#F3F2EF; --ink-1:#D9D8D4; --ink-2:#A9ADB3; --ink-3:#959AA1;
+  --text:var(--ink-0); --muted:var(--ink-2);
+  --ink-primary:var(--ink-0); --ink-secondary:var(--ink-1); --ink-tertiary:var(--ink-2); --ink-quaternary:var(--ink-3);
+  --border:#33363B; --border-strong:#4A4E55;
+  --divider:color-mix(in oklab,white 8%,transparent); --separator-opaque:#2A2C30;
+  --focus:#FFB547;
+
+  /* Red stays a FILL on graphite (white text 5.85:1). Never red text on graphite. */
+  --brand:#C8161D; --brand-2:#E0262D; --accent-1:var(--brand); --accent-2:var(--rf-lumen); --on-brand:#FFFFFF;
+  --link:#F3F2EF; --link-underline:#FF7A7A;
+  --ok:#5BD08A; --warn:#E6C229; --error:#FF8A70; --danger:var(--error);
+  --live:#FFB547; --live-ink:#FFB547;
+  --fault-stripe:color-mix(in oklab,#FF8A70 26%,transparent);
+
+  --brand-soft:color-mix(in oklab,var(--brand) 20%,var(--bg-1)); --brand-strong:#FF7A7A;
+  --ok-soft:color-mix(in oklab,var(--ok) 14%,var(--bg-1)); --ok-strong:#8BE3AD;
+  --warn-soft:color-mix(in oklab,var(--warn) 14%,var(--bg-1)); --warn-strong:#F2D66B;
+  --error-soft:color-mix(in oklab,var(--error) 15%,var(--bg-1)); --error-strong:#FFB09E;
+  --live-soft:color-mix(in oklab,var(--live) 14%,var(--bg-1));
+
+  --glass-bg:var(--bg-1); --glass-bg-strong:var(--bg-1); --glass-tint-bg:var(--bg-1); --glass-tint-hover:var(--bg-2);
+  --glass-border:var(--border); --glass-border-highlight:inset 0 1px 0 rgba(255,255,255,.04);
+  --glass-shadow:0 8px 24px rgba(0,0,0,.45); --glass-shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --glass-shadow-md:var(--glass-shadow); --glass-shadow-lg:0 22px 52px rgba(0,0,0,.6);
+  --elevation-0:none; --elevation-1:0 1px 0 rgba(0,0,0,.35); --elevation-2:0 4px 14px rgba(0,0,0,.42);
+  --elevation-3:0 10px 28px rgba(0,0,0,.5); --elevation-4:0 24px 52px rgba(0,0,0,.62);
+  --shadow-rgb:0 0 0; --grain-opacity:0;
+  --canvas-bg:#16171A; --canvas-grid:rgba(255,255,255,.05); --canvas-grid-major:rgba(255,255,255,.10);
+  --led-cyan:#5FD3D3; --led-amber:#FFB547;
+  color-scheme:dark;
+}
+
+/* High contrast keeps its own values; only align brand + fonts */
+:root[data-theme="HighContrast"],:root[data-theme="HighContrastVim"]{
+  --brand:#FF6B6B; --on-brand:#000; --live:#FFD27A; --live-ink:#FFD27A; --link:#FFFFFF; --link-underline:#FFD27A;
+  --fault-stripe:rgba(255,118,102,.45); --canvas-bg:#000; --canvas-grid:rgba(255,255,255,.18); --canvas-grid-major:rgba(255,255,255,.32);
+}
+
+/* ---------- 5. Base element styling ---------- */
+body{
+  background:var(--bg-0) !important;
+  font-family:var(--font-sans);
+  font-feature-settings:normal;
+  letter-spacing:0;
+}
+h1,h2,h3,.rf-display{font-family:var(--font-display);font-weight:600;letter-spacing:0;line-height:1.05}
+h1{font-size:var(--text-4xl)} h2{font-size:var(--text-3xl)} h3{font-size:var(--text-2xl)}
+h4,h5,h6{font-family:var(--font-sans);font-weight:600;letter-spacing:0}
+.rf-kpi,.rf-number{font-family:var(--font-display);font-weight:600;font-variant-numeric:tabular-nums lining-nums;letter-spacing:0}
+.rf-label,th{font-family:var(--font-display);font-weight:600;font-size:var(--text-xs);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--muted)}
+a{color:var(--link);text-decoration-color:var(--link-underline);text-underline-offset:.18em;text-decoration-thickness:1.5px}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+::selection{background:color-mix(in oklab,var(--rf-lumen) 45%,transparent);color:var(--text)}
+
+/* ---------- 6. Signature utilities ---------- */
+.rf-chamfer{clip-path:polygon(var(--chamfer) 0,100% 0,100% calc(100% - var(--chamfer)),calc(100% - var(--chamfer)) 100%,0 100%,0 var(--chamfer))}
+.rf-rule{display:block;width:32px;height:3px;background:var(--brand)}
+.rf-fault{background-image:var(--hazard)}
+.rf-live-dot{width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 0 12px var(--live)}
+.rf-station{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:var(--radius-sm);color:var(--on-station);
+  font-family:var(--font-display);font-weight:600;font-size:var(--text-xs);letter-spacing:var(--tracking-label);text-transform:uppercase}
+.rf-station[data-station="CAD"]{background:var(--st-cad)} .rf-station[data-station="CNC"]{background:var(--st-cnc)}
+.rf-station[data-station="EDGE"]{background:var(--st-edge)} .rf-station[data-station="ASSEMBLY"]{background:var(--st-assembly)}
+.rf-station[data-station="PAINT"]{background:var(--st-paint)} .rf-station[data-station="PACKAGING"]{background:var(--st-packaging)}
+.rf-station[data-station="DELIVERY"]{background:var(--st-delivery)}
+.rf-blueprint{background-color:var(--canvas-bg);
+  background-image:linear-gradient(var(--canvas-grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--canvas-grid-major) 1px,transparent 1px),
+  linear-gradient(var(--canvas-grid) 1px,transparent 1px),linear-gradient(90deg,var(--canvas-grid) 1px,transparent 1px);
+  background-size:100px 100px,100px 100px,10px 10px,10px 10px}

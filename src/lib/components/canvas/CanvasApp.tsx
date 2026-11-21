@@ -1,4 +1,6 @@
 import { captureCanvasDocument } from './canvas-document';
+import { applyCanvasSurface, watchCanvasSurface } from './canvas-surface';
+import { DrawingGrid } from './DrawingGrid';
 import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
 import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
@@ -91,6 +93,7 @@ const drawingUi = {
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: DrawingContextMenu,
     DebugPanel: null, DebugMenu: null, PageMenu: null,
+    Grid: DrawingGrid,
 };
 
 export interface CanvasAppProps {
@@ -228,17 +231,17 @@ export function CanvasApp({
         // Register listener before templates / callbacks create new shapes.
         if (onEditorReady) onEditorReady(editor);
         {
-            const syncAppearance = () => {
-                const colorScheme = document.documentElement.dataset.theme === 'LightVim' ? 'light' : 'dark';
+            // Round 3: the drawing surface (paper / night blueprint) drives tldraw's colour scheme.
+            // Before, only the old 'LightVim' theme gave a light canvas, so "By place" office pages drew dark.
+            const stopSurface = watchCanvasSurface((surface) => {
+                applyCanvasSurface(surface);
+                const colorScheme = surface === 'blueprint' ? 'dark' : 'light';
                 if (editor.user.getUserPreferences().colorScheme !== colorScheme) {
                     editor.user.updateUserPreferences({ colorScheme });
                 }
-            };
-            syncAppearance();
-            const appearance = new MutationObserver(syncAppearance);
-            appearance.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+            });
             cleanupAppearanceRef.current?.();
-            cleanupAppearanceRef.current = () => appearance.disconnect();
+            cleanupAppearanceRef.current = stopSurface;
         }
         if (toolkitBoardId) {
             cleanupControlsRef.current?.();

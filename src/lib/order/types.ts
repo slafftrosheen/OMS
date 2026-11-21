@@ -196,6 +196,7 @@ export type Order = {
   progress?: Record<Station, number>;
   /** The current state of each production stage. */
   stages: StageMap;
+  productionRoute?: OrderRouteStage[];
   /** A log of all rework cycles for the order. */
   cycles?: StageCycle[];
   /** The name of the default branch, typically 'main'. */
@@ -222,3 +223,5 @@ export type Order = {
 
 // Re-export stage-related types for easy access.
 export type { StageMap, StageCycle, StageState, StationTag };
+
+export type OrderRouteStage = { station: string; state: string };

@@ -209,8 +209,8 @@
 
   <div class="login-card">
     <div class="logo-section">
-      <div class="logo-icon">RF</div>
-      <h1>Reclame OMS</h1>
+      <img class="logo-icon rf-login-mark" src={`${base}/brand/rf-logo-flat-red.svg`} alt="" width="72" height="72" decoding="async" />
+      <h1>Reclame Fabriek <span class="rf-login-oms">OMS</span></h1>
       <p class="subtitle">{$t('auth.subtitle')}</p>
     </div>
     

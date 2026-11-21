@@ -2,7 +2,7 @@ import { derived, get } from 'svelte/store';
 import { ui, normalizeTheme } from '$lib/state/appState.svelte';
 
 // Older links and quick controls use HighContrast; canonical UI state uses HighContrastVim.
-export type ThemeName = 'LightVim' | 'DarkVim' | 'HighContrast';
+export type ThemeName = 'ByPlace' | 'LightVim' | 'DarkVim' | 'HighContrast';
 const selectedTheme = derived(ui, value =>
   value.theme === 'HighContrastVim' ? 'HighContrast' : value.theme
 );

@@ -5,6 +5,7 @@
   import Search from 'lucide-svelte/icons/search';
   import { onMount } from 'svelte';
   import { materials, catalogError, isLoading as inventoryLoading, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import { isShort } from '$lib/inventory/stock-level';
   import {base} from '$app/paths';
   import {currentUser} from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
@@ -47,7 +48,7 @@
     const matchesSearch = (mat.name_en || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mat.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || mat.category === categoryFilter;
-    const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min_stock;
+    const matchesLowStock = !showLowStockOnly || isShort(mat.stock, mat.min_stock);
 
     return matchesSearch && matchesCategory && matchesLowStock;
   }));
@@ -166,7 +167,7 @@
             </span>
           </div>
 
-          {#if material.stock <= material.min_stock}
+          {#if isShort(material.stock, material.min_stock)}
             <div class="low-stock-badge">
               <AlertCircle size={14} />
               {$t('inventory.low_stock') || 'Low Stock'}

@@ -5,11 +5,12 @@
   import Icon from '$lib/ui/Icon.svelte';
   import type { IconName } from '$lib/ui/icons';
 
-  type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
+  type Theme = 'ByPlace' | 'LightVim' | 'DarkVim' | 'HighContrastVim';
 
   const themes: { id: Theme; icon: IconName; label: string }[] = [
-    { id: 'LightVim',        icon: 'sun',      label: 'Light' },
-    { id: 'DarkVim',         icon: 'moon',     label: 'Dark' },
+    { id: 'ByPlace',         icon: 'factory',  label: 'By place' },
+    { id: 'LightVim',        icon: 'sun',      label: 'Paper' },
+    { id: 'DarkVim',         icon: 'moon',     label: 'Night shift' },
     { id: 'HighContrastVim', icon: 'contrast', label: 'High Contrast' },
   ];
 

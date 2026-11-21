@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Factory from 'lucide-svelte/icons/factory';
   import Sun from 'lucide-svelte/icons/sun';
   import Moon from 'lucide-svelte/icons/moon';
   import Contrast from 'lucide-svelte/icons/contrast';
@@ -13,6 +14,7 @@
   };
 
   const options: ThemeOption[] = [
+    { value: 'ByPlace', labelKey: 'header.theme.options.ByPlace', Icon: Factory },
     { value: 'LightVim', labelKey: 'header.theme.options.LightVim', Icon: Sun },
     { value: 'DarkVim', labelKey: 'header.theme.options.DarkVim', Icon: Moon },
     { value: 'HighContrast', labelKey: 'header.theme.options.HighContrast', Icon: Contrast }

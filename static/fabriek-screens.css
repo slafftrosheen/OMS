@@ -1,0 +1,545 @@
+/* ============================================================
+   RECLAME FABRIEK OMS — ROUND 2 · KEY SCREENS  (v0.2)
+   Load AFTER fabriek-components.css. Skins the shared app shell and
+   components, then the six key screens:
+     Launchpad (/)  ·  Orders  ·  Order workspace  ·  Production board
+     Station tablet  ·  Inventory
+   Selectors are prefixed `html[data-theme]` and doubled so they win over
+   Svelte's scoped styles without touching component markup.
+   Visual properties only (colour, type, borders, radii, motion, sizing of
+   touch targets) — layouts and logic stay as they are.
+   Roll back: remove the one <link> in src/app.html.
+
+   Rules carried from Round 1:
+   · One red per screen = the next action.  · Faults = oxide + hazard + icon.
+   · Lumen = running now.  · Station colours = identity, never status.
+   ============================================================ */
+
+:root{
+  --rf-floor-target:56px;          /* gloved-hand touch target on floor screens */
+  --rf-office-target:36px;
+  --rf-hd:var(--font-display);
+}
+
+/* ---------- 0. Shared typography helpers ---------- */
+html[data-theme] :is(h1,h2,h3).page-title.page-title,
+html[data-theme] .page-title.page-title,
+html[data-theme] .order-title.order-title,
+html[data-theme] .dash-hero__title.dash-hero__title,
+html[data-theme] .station-header.station-header h1,
+html[data-theme] .production-header.production-header h1{
+  font-family:var(--rf-hd); font-weight:600; letter-spacing:.005em; text-transform:none; color:var(--ink-0);
+  background:none; -webkit-text-fill-color:currentColor; line-height:1.02;
+}
+html[data-theme] .page-subtitle.page-subtitle,
+html[data-theme] .dash-hero__sub.dash-hero__sub{ font-family:var(--font-sans); color:var(--ink-2); font-size:15px }
+html[data-theme] .rf-section-eyebrow.rf-section-eyebrow,
+html[data-theme] .eyebrow.eyebrow,
+html[data-theme] .dash-kicker.dash-kicker{
+  font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2);
+}
+html[data-theme] .rf-section-head.rf-section-head h2{ font-family:var(--rf-hd); font-weight:600; font-size:24px; letter-spacing:.01em; color:var(--ink-0) }
+html[data-theme] :is(.po-number,.po-cell,.order-po,.sku-link,.num,.mono).po-number,
+html[data-theme] .po-number.po-number, html[data-theme] .po-cell.po-cell, html[data-theme] .order-po.order-po,
+html[data-theme] .sku-link.sku-link, html[data-theme] .mono.mono{ font-family:var(--font-mono); font-size:.86em; letter-spacing:0 }
+
+/* ---------- 1. App shell ---------- */
+html[data-theme] .rf-topbar.rf-topbar{
+  height:56px; background:var(--bg-1); border-bottom:1px solid var(--border); box-shadow:none;
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+}
+html[data-theme] .rf-topbar.rf-topbar.rf-topbar--scrolled{ box-shadow:0 1px 0 var(--border-strong) }
+html[data-theme] .rf-topbar__nav.rf-topbar__nav a{
+  position:relative; height:56px; display:inline-flex; align-items:center; gap:7px; padding:0 12px; border-radius:0;
+  font-family:var(--rf-hd); font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--ink-2); background:transparent; box-shadow:none;
+}
+html[data-theme] .rf-topbar__nav.rf-topbar__nav a:hover{ color:var(--ink-0); background:var(--bg-2) }
+/* Active tab = ink rail, not red: red is reserved for the action on the page. */
+html[data-theme] .rf-topbar__nav.rf-topbar__nav a.active,
+html[data-theme] .rf-topbar__nav.rf-topbar__nav a[aria-current="page"]{ color:var(--ink-0); background:transparent }
+html[data-theme] .rf-topbar__nav.rf-topbar__nav a.active::after{
+  content:""; position:absolute; left:10px; right:10px; bottom:0; height:3px; background:var(--ink-0); border-radius:0;
+}
+html[data-theme] .rf-topbar__divider.rf-topbar__divider{ width:1px; height:22px; background:var(--border-strong) }
+html[data-theme] .rf-mobile-menu.rf-mobile-menu{ background:var(--bg-1); border-right:1px solid var(--border); backdrop-filter:none }
+html[data-theme] .rf-mobile-menu.rf-mobile-menu a{ font-family:var(--rf-hd); font-size:17px; letter-spacing:.04em; text-transform:uppercase; border-radius:var(--radius-sm) }
+html[data-theme] .rf-mobile-menu.rf-mobile-menu a.active{ box-shadow:inset 3px 0 0 var(--ink-0); background:var(--bg-2) }
+
+html[data-theme] .rf-bottombar.rf-bottombar{
+  background:var(--bg-1); border-top:1px solid var(--border); box-shadow:none; backdrop-filter:none; border-radius:0;
+}
+html[data-theme] .rf-bottombar__item.rf-bottombar__item{ border-radius:var(--radius-sm); font-family:var(--rf-hd); letter-spacing:.04em; text-transform:uppercase }
+html[data-theme] .rf-bottombar__badge.rf-bottombar__badge{ background:var(--brand); color:var(--on-brand); border-radius:var(--radius-xs); font-family:var(--font-mono) }
+
+/* Floor shell: the bar becomes part of the machine — graphite, no chrome. */
+html[data-place="floor"] .rf-topbar.rf-topbar{ background:var(--bg-0); border-bottom-color:var(--border) }
+
+/* ---------- 2. Buttons (lib/ui Button + legacy .btn classes) ---------- */
+html[data-theme] .rf-btn.rf-btn{
+  font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; border-radius:var(--radius-sm);
+  box-shadow:none; filter:none; background-image:none;
+}
+html[data-theme] .rf-btn.rf-btn[data-variant="primary"]{ background:var(--brand); border-color:var(--brand); color:var(--on-brand) }
+html[data-theme] .rf-btn.rf-btn[data-variant="primary"]:hover:not(:disabled){ background:var(--rf-red-press); border-color:var(--rf-red-press) }
+html[data-theme] .rf-btn.rf-btn:is([data-variant="secondary"],[data-variant="outline"],[data-variant="glass"],[data-variant="tertiary"]){
+  background:var(--bg-1); color:var(--ink-0); border-color:var(--border-strong)
+}
+html[data-theme] .rf-btn.rf-btn:is([data-variant="secondary"],[data-variant="outline"],[data-variant="glass"],[data-variant="tertiary"]):hover:not(:disabled){ border-color:var(--ink-0) }
+html[data-theme] .rf-btn.rf-btn[data-variant="ghost"]{ background:transparent; border-color:transparent; color:var(--ink-1) }
+html[data-theme] .rf-btn.rf-btn[data-variant="ghost"]:hover:not(:disabled){ background:var(--bg-2); color:var(--ink-0) }
+/* "Success" is a confirm, not an alert: solid ink. */
+html[data-theme] .rf-btn.rf-btn[data-variant="success"]{ background:var(--ink-0); border-color:var(--ink-0); color:var(--bg-0) }
+/* Danger is destructive: outlined oxide; fills only on hover. */
+html[data-theme] .rf-btn.rf-btn[data-variant="danger"]{ background:transparent; color:var(--error); border-color:var(--error) }
+html[data-theme] .rf-btn.rf-btn[data-variant="danger"]:hover:not(:disabled){ background:var(--error); color:#fff }
+
+/* Legacy page-level buttons (.btn, .btn-primary …) used on Orders, Station, Inventory */
+html[data-theme] .btn.btn{
+  font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; border-radius:var(--radius-sm);
+  box-shadow:none; background-image:none; transition:background var(--motion-sm) var(--ease-machine), border-color var(--motion-sm) var(--ease-machine), transform var(--motion-xs) var(--ease-machine);
+}
+html[data-theme] .btn.btn:active:not(:disabled){ transform:translateY(1px) }
+html[data-theme] .btn.btn-primary{ background:var(--brand); border:1px solid var(--brand); color:var(--on-brand) }
+html[data-theme] .btn.btn-primary:hover:not(:disabled){ background:var(--rf-red-press) }
+html[data-theme] .btn.btn-secondary, html[data-theme] .btn.btn-outline{ background:var(--bg-1); border:1px solid var(--border-strong); color:var(--ink-0) }
+html[data-theme] .btn.btn-outline:hover:not(:disabled), html[data-theme] .btn.btn-secondary:hover:not(:disabled){ border-color:var(--ink-0); background:var(--bg-1) }
+html[data-theme] .btn.btn-ghost{ background:transparent; border:1px solid transparent; color:var(--ink-1) }
+html[data-theme] .btn.btn-success{ background:var(--ink-0); border:1px solid var(--ink-0); color:var(--bg-0) }
+html[data-theme] .btn.btn-warning{ background:var(--bg-1); border:1px solid var(--warn); color:var(--ink-0); box-shadow:inset 4px 0 0 var(--warn) }
+html[data-theme] .btn.btn-danger{ background:transparent; border:1px solid var(--error); color:var(--error) }
+html[data-theme] .btn.btn-danger:hover:not(:disabled){ background:var(--error); color:#fff }
+html[data-theme] .btn.btn-active{ background:var(--ink-0); color:var(--bg-0); border-color:var(--ink-0) }
+html[data-theme] .btn.btn:disabled{ opacity:.42 }
+
+/* ---------- 3. Inputs, selects, segmented, tabs ---------- */
+html[data-theme] .rf-field__control.rf-field__control{ border-radius:var(--radius-sm); background:var(--bg-1); border-color:var(--border-strong); box-shadow:none }
+html[data-theme] .rf-field__control.rf-field__control:focus-within{ border-color:var(--ink-0); box-shadow:inset 0 -2px 0 var(--ink-0) }
+html[data-theme] .rf-field__label.rf-field__label{ font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
+html[data-theme] .rf-field__error.rf-field__error{ color:var(--error); padding-left:14px; background:var(--hazard) left center/8px 100% no-repeat }
+
+html[data-theme] .rf-seg.rf-seg{ border-radius:var(--radius-sm); background:var(--bg-2); padding:2px; border:1px solid var(--border) }
+html[data-theme] .rf-seg__item.rf-seg__item{ border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase }
+html[data-theme] .rf-seg__item.rf-seg__item[aria-checked="true"],
+html[data-theme] .rf-seg__item.rf-seg__item[aria-pressed="true"],
+html[data-theme] .rf-seg__item.rf-seg__item[aria-selected="true"]{ background:var(--bg-1); color:var(--ink-0); box-shadow:0 0 0 1px var(--border-strong) }
+
+html[data-theme] .rf-tabs.rf-tabs{ border-bottom:1px solid var(--border); gap:2px; background:transparent; padding:0; border-radius:0 }
+html[data-theme] .rf-tabs__tab.rf-tabs__tab{
+  font-family:var(--rf-hd); font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--ink-2); background:transparent; border-radius:0; border-bottom:3px solid transparent; margin-bottom:-1px; box-shadow:none;
+}
+html[data-theme] .rf-tabs__tab.rf-tabs__tab[aria-selected="true"]{ color:var(--ink-0); border-bottom-color:var(--ink-0); background:transparent }
+html[data-theme] .rf-tabs__badge.rf-tabs__badge{ font-family:var(--font-mono); border-radius:var(--radius-xs); background:var(--bg-3); color:var(--ink-1) }
+
+/* ---------- 4. Cards, KPIs, badges, tables, toasts, modals ---------- */
+html[data-theme] .card.card,
+html[data-theme] .rf-card.rf-card{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; backdrop-filter:none;
+}
+html[data-theme] .rf-kpi.rf-kpi, html[data-theme] .stat-card.stat-card{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; backdrop-filter:none; position:relative; overflow:hidden;
+}
+html[data-theme] :is(.rf-kpi__value,.stat-value,.rf-num).rf-kpi__value,
+html[data-theme] .rf-kpi__value.rf-kpi__value, html[data-theme] .stat-card.stat-card .stat-value{
+  font-family:var(--rf-hd); font-weight:600; font-size:clamp(2rem,3.2vw,2.75rem); line-height:1; letter-spacing:0;
+  font-variant-numeric:tabular-nums; background:none; -webkit-text-fill-color:currentColor; color:var(--ink-0);
+}
+html[data-theme] .rf-kpi__title.rf-kpi__title, html[data-theme] .stat-card.stat-card .stat-title{
+  font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2);
+}
+html[data-theme] .rf-kpi__icon.rf-kpi__icon, html[data-theme] .stat-card.stat-card .stat-icon{
+  background:var(--bg-2); color:var(--ink-1); border-radius:var(--radius-sm); box-shadow:none;
+}
+/* KPI meaning is a 3px top rule, not a tinted card. */
+html[data-theme] .stat-card.stat-card::before{ content:""; position:absolute; inset:0 0 auto 0; height:3px; background:var(--border-strong) }
+html[data-theme] .stat-card.stat-card.stat-primary::before{ background:var(--live) }
+html[data-theme] .stat-card.stat-card.stat-success::before{ background:var(--ok) }
+html[data-theme] .stat-card.stat-card.stat-warning::before{ background:var(--warn) }
+html[data-theme] .stat-card.stat-card.stat-danger::before{ background:var(--hazard), var(--error) }
+
+html[data-theme] .rf-badge.rf-badge, html[data-theme] .semantic-badge.semantic-badge, html[data-theme] .tag.tag:not(button){
+  border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+}
+html[data-theme] .semantic-badge.semantic-badge{ font-size:11.5px; padding:2px 7px }
+html[data-theme] .semantic-badge.semantic-badge[data-size="md"]{ font-size:13px; padding:3px 9px }
+/* Danger badges get the hazard edge — a fault never relies on colour alone. */
+html[data-theme] .semantic-badge.semantic-badge[data-tone="danger"]{
+  color:var(--error); border-color:var(--error); padding-left:12px;
+  background:var(--hazard) left center/6px 100% no-repeat, var(--error-soft);
+}
+html[data-theme] .semantic-badge.semantic-badge[data-tone="brand"]{ background:var(--brand); border-color:var(--brand); color:var(--on-brand) }
+html[data-theme] .semantic-badge.semantic-badge[data-tone="success"]{ background:var(--ok-soft); border-color:transparent; color:var(--ok-strong) }
+html[data-theme] .semantic-badge.semantic-badge[data-tone="warn"]{ background:var(--warn-soft); border-color:transparent; color:var(--warn-strong) }
+html[data-theme] .semantic-badge.semantic-badge[data-badge*="IN_PROGRESS"],
+html[data-theme] .semantic-badge.semantic-badge[data-badge*="in_progress"]{ background:var(--live-soft); border-color:var(--live); color:var(--live-ink) }
+
+html[data-theme] .rf-table-wrap.rf-table-wrap, html[data-theme] .table-wrapper.table-wrapper, html[data-theme] .table-wrap.table-wrap{
+  border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-1); box-shadow:none;
+}
+html[data-theme] .rf-table.rf-table thead th, html[data-theme] .rf-table.rf-table .rf-table__th{
+  background:var(--bg-2); color:var(--ink-2); border-bottom:1px solid var(--border-strong);
+  font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; height:40px;
+}
+html[data-theme] .rf-table.rf-table tbody td, html[data-theme] .rf-table.rf-table .rf-table__td{ border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums }
+html[data-theme] .rf-table.rf-table tbody tr:hover td{ background:var(--bg-2) }
+html[data-theme] .rf-table.rf-table tbody tr:focus-within td{ box-shadow:inset 0 1px 0 var(--ink-0), inset 0 -1px 0 var(--ink-0) }
+
+html[data-theme] .rf-toast.rf-toast{
+  background:var(--rf-graphite); color:var(--rf-paper); border:0; border-left:4px solid var(--rf-aluminium); border-radius:var(--radius-sm);
+  box-shadow:0 8px 24px rgba(0,0,0,.28); backdrop-filter:none; animation:rf-gantry-in var(--motion-lg) var(--ease-carriage) both;
+}
+html[data-theme] .rf-toast.rf-toast .rf-toast__title{ font-family:var(--rf-hd); letter-spacing:.04em; text-transform:uppercase }
+html[data-theme] .rf-toast__bar.rf-toast__bar{ background:var(--live) }
+
+html[data-theme] .rf-modal__panel.rf-modal__panel, html[data-theme] .modal-content.modal-content{
+  background:var(--bg-1); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:0 24px 64px rgba(0,0,0,.35); backdrop-filter:none;
+}
+html[data-theme] .rf-modal__title.rf-modal__title, html[data-theme] .modal-header.modal-header h2, html[data-theme] .modal-header.modal-header h3{
+  font-family:var(--rf-hd); font-weight:600; font-size:22px; letter-spacing:.01em
+}
+
+html[data-theme] .rf-stepper__dot.rf-stepper__dot{ border-radius:var(--radius-xs) }
+html[data-theme] .rf-progress__track.rf-progress__track{ border-radius:2px; background:var(--bg-3) }
+html[data-theme] .rf-progress__fill.rf-progress__fill{ border-radius:2px; background:var(--ink-0) }
+
+html[data-theme] .error-banner.error-banner, html[data-theme] .load-error.load-error, html[data-theme] .stage-progress-alert.stage-progress-alert{
+  border:1px solid var(--error); border-left-width:10px; border-image:none; border-radius:var(--radius-sm);
+  background:var(--error-soft); color:var(--error-strong); border-left-color:transparent;
+  background-image:var(--hazard); background-size:10px 100%; background-repeat:no-repeat; background-position:left top;
+}
+
+/* ============================================================
+   SCREEN 1 · LAUNCHPAD  (/)  — Paper
+   "Today on the floor": the greeting becomes a shift header with a live LED,
+   KPIs are a ruled bar, quick actions are machined tiles.
+   ============================================================ */
+html[data-theme] .dash-hero.dash-hero{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none;
+  background-image:linear-gradient(90deg, var(--ink-0) 0 6px, transparent 6px); overflow:hidden; padding:28px 32px 28px 38px;
+}
+html[data-theme] .dash-hero.dash-hero::before, html[data-theme] .dash-hero.dash-hero::after{ display:none }
+html[data-theme] .dash-hero__title.dash-hero__title{ font-size:clamp(2.2rem,4vw,3.25rem) }
+html[data-theme] .dash-kicker__led.dash-kicker__led{ background:var(--border-strong); border-radius:1px; box-shadow:none }
+html[data-theme] .dash-kicker__led.dash-kicker__led[data-live="true"]{ background:var(--live); animation:rf-live 2.4s ease-in-out infinite }
+html[data-theme] .dash-hero__link.dash-hero__link{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-0) }
+html[data-theme] .dash-stats.dash-stats{ gap:0; border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden; background:var(--bg-1) }
+html[data-theme] .dash-stats.dash-stats > *{ border-radius:0 }
+html[data-theme] .dash-stats.dash-stats .stat-card{ border:0; border-right:1px solid var(--border) }
+html[data-theme] .dash-stats.dash-stats .stat-card:last-child{ border-right:0 }
+html[data-theme] .dash-order.dash-order{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:none;
+  transition:border-color var(--motion-sm) var(--ease-machine), transform var(--motion-sm) var(--ease-machine);
+}
+html[data-theme] .dash-order.dash-order:hover{ border-color:var(--ink-0); transform:translateX(2px) }
+html[data-theme] .dash-order.dash-order strong{ font-family:var(--rf-hd); font-weight:600; font-size:17px; letter-spacing:.01em }
+html[data-theme] .dash-action.dash-action{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; text-align:left;
+  transition:border-color var(--motion-sm) var(--ease-machine);
+}
+html[data-theme] .dash-action.dash-action:hover{ border-color:var(--ink-0); transform:none }
+html[data-theme] .dash-action__icon.dash-action__icon{ background:var(--ink-0); color:var(--bg-0); border-radius:var(--radius-sm); box-shadow:none }
+html[data-theme] .dash-action__title.dash-action__title{ font-family:var(--rf-hd); font-weight:600; font-size:18px; letter-spacing:.02em; text-transform:uppercase }
+html[data-theme] .dash-link.dash-link{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-0) }
+
+/* ============================================================
+   SCREEN 2 · ORDERS  — Paper
+   A drafting ledger: ruled rows, mono PO numbers, stage strip per row.
+   ============================================================ */
+html[data-theme] .page-header.page-header .page-title{ font-size:clamp(2rem,3.4vw,2.6rem) }
+html[data-theme] .orders-card.orders-card{ padding:0; overflow:hidden }
+html[data-theme] .filter-bar.filter-bar{ background:var(--bg-1); border-bottom:1px solid var(--border); padding:12px 16px }
+html[data-theme] .filter-btn.filter-btn{
+  border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+  background:var(--bg-1); border:1px solid var(--border-strong); color:var(--ink-1); box-shadow:none;
+}
+html[data-theme] .filter-btn.filter-btn:hover{ border-color:var(--ink-0); color:var(--ink-0) }
+html[data-theme] .filter-btn.filter-btn.active, html[data-theme] .filter-btn.filter-btn[aria-pressed="true"]{ background:var(--ink-0); border-color:var(--ink-0); color:var(--bg-0) }
+html[data-theme] .search-box.search-box input, html[data-theme] .station-search.station-search input{
+  border-radius:var(--radius-sm); border:1px solid var(--border-strong); background:var(--bg-1); box-shadow:none;
+}
+html[data-theme] .search-box.search-box input:focus, html[data-theme] .station-search.station-search input:focus{ outline:none; border-color:var(--ink-0); box-shadow:inset 0 -2px 0 var(--ink-0) }
+html[data-theme] .order-row.order-row .title-cell{ font-weight:600 }
+html[data-theme] .order-link.order-link{ color:var(--ink-0); text-decoration:none; font-weight:600 }
+html[data-theme] .order-link.order-link:hover{ text-decoration:underline; text-underline-offset:3px }
+html[data-theme] .expanded-row.expanded-row td{ background:var(--bg-2) }
+html[data-theme] .stage-item.stage-item{ border-radius:var(--radius-xs); font-family:var(--rf-hd); letter-spacing:.04em; text-transform:uppercase }
+html[data-theme] .pagination-btn.pagination-btn{ border-radius:var(--radius-xs); font-family:var(--font-mono) }
+html[data-theme] .pagination-current.pagination-current{ background:var(--ink-0); color:var(--bg-0); border-radius:var(--radius-xs) }
+
+/* ============================================================
+   SCREEN 3 · ORDER WORKSPACE  (/orders/[id]) — Paper
+   Header + route line (CAD → Delivery) + spec sheet + station cards.
+   ============================================================ */
+html[data-theme] .order-header.order-header{ border-bottom:1px solid var(--border); padding-bottom:16px; background:none; box-shadow:none }
+html[data-theme] .order-title.order-title{ font-size:clamp(1.9rem,3.2vw,2.5rem) }
+html[data-theme] .rf-order-route.rf-order-route{
+  margin:16px 0 20px; padding:18px 20px 14px; background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md);
+}
+html[data-theme] .lifecycle-banner.lifecycle-banner{
+  background:var(--bg-1); border:1px solid var(--border-strong); border-left:6px solid var(--brand); border-radius:var(--radius-sm); box-shadow:none;
+}
+html[data-theme] .order-specification.order-specification,
+html[data-theme] .sheet-details-card.sheet-details-card{ background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none }
+html[data-theme] .sheet-details-card.sheet-details-card h2,
+html[data-theme] .supporting-heading.supporting-heading{ font-family:var(--rf-hd); font-weight:600; font-size:20px; letter-spacing:.02em; text-transform:uppercase }
+html[data-theme] .sheet-field-grid.sheet-field-grid label{ font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
+html[data-theme] .sheet-field-grid.sheet-field-grid input{
+  font-family:var(--font-sans); font-size:15px; text-transform:none; letter-spacing:0; color:var(--ink-0);
+  background:transparent; border:0; border-bottom:1px solid var(--border-strong); border-radius:0; padding-left:0;
+}
+html[data-theme] .sheet-note-badge.sheet-note-badge{ background:var(--warn-soft); color:var(--warn-strong); border-radius:var(--radius-xs); font-family:var(--rf-hd); letter-spacing:.05em; text-transform:uppercase }
+html[data-theme] .stage-card.stage-card{ border-radius:var(--radius-sm); border:1px solid var(--border); box-shadow:inset 0 3px 0 var(--border-strong); background:var(--bg-1) }
+html[data-theme] .stage-name.stage-name{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.06em; text-transform:uppercase }
+
+/* ============================================================
+   SCREEN 4 · PRODUCTION BOARD  (/production) — Night Shift
+   One column per station, identity colour on the column head,
+   Lumen on running jobs, hazard on held ones.
+   ============================================================ */
+html[data-theme] .production-header.production-header h1{ font-size:clamp(2rem,3.6vw,2.8rem) }
+html[data-theme] .board-kpis.board-kpis{ gap:0; border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden; background:var(--bg-1) }
+html[data-theme] .board-kpi.board-kpi{ background:transparent; border:0; border-right:1px solid var(--border); border-radius:0; box-shadow:none }
+html[data-theme] .board-kpi.board-kpi:last-child{ border-right:0 }
+html[data-theme] .board-kpi.board-kpi strong, html[data-theme] .board-kpi.board-kpi .value{
+  font-family:var(--rf-hd); font-weight:600; font-size:2.4rem; line-height:1; font-variant-numeric:tabular-nums; color:var(--ink-0)
+}
+html[data-theme] .board-kpi.board-kpi--urgent{ background:var(--hazard) left top/8px 100% no-repeat, var(--error-soft) }
+html[data-theme] .board-kpi.board-kpi--urgent strong{ color:var(--error) }
+html[data-theme] .board-toolbar.board-toolbar{ border-bottom:1px solid var(--border) }
+html[data-theme] .station-board.station-board{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; overflow:hidden;
+}
+html[data-theme] .station-board.station-board .station-header{ border-bottom:1px solid var(--border); box-shadow:inset 0 3px 0 var(--st, var(--border-strong)); padding-top:14px }
+html[data-theme] .station-board.station-board .station-heading{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.06em; text-transform:uppercase; font-size:18px }
+html[data-theme] .station-board.station-board .count{ font-family:var(--font-mono); background:var(--bg-3); border-radius:var(--radius-xs); color:var(--ink-0) }
+html[data-theme] .order-card.order-card{
+  background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:none;
+  transition:border-color var(--motion-sm) var(--ease-machine);
+}
+html[data-theme] .order-card.order-card:hover{ border-color:var(--ink-1) }
+html[data-theme] .order-card.order-card:has(.block-reason){ border-left:8px solid transparent; background:var(--hazard) left top/8px 100% no-repeat, var(--bg-2) }
+html[data-theme] .block-reason.block-reason{ color:var(--error); font-weight:600 }
+html[data-theme] .due-date.due-date{ font-family:var(--font-mono); font-size:.85em }
+html[data-theme] .attention.attention, html[data-theme] .oversight.oversight{ background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none }
+html[data-theme] .attention-item.attention-item{ border-left:8px solid transparent; background:var(--hazard) left top/8px 100% no-repeat, var(--bg-2); border-radius:var(--radius-sm) }
+html[data-theme] .estimate-note.estimate-note, html[data-theme] .updated.updated{ font-family:var(--font-mono); font-size:12px; color:var(--ink-2) }
+
+/* ============================================================
+   SCREEN 5 · STATION TABLET  (/station/[station]) — Night Shift
+   Gloved-hand targets (56 px), station identity bar, huge counts,
+   the one red button = the next action.
+   ============================================================ */
+html[data-theme] .station-board-page.station-board-page{ --st:var(--border-strong) }
+html[data-theme] .station-board-page[data-station="CAD"]{ --st:var(--st-cad) }
+html[data-theme] .station-board-page[data-station="CNC"]{ --st:var(--st-cnc) }
+html[data-theme] .station-board-page[data-station="EDGE"]{ --st:var(--st-edge) }
+html[data-theme] .station-board-page[data-station="ASSEMBLY"]{ --st:var(--st-assembly) }
+html[data-theme] .station-board-page[data-station="PAINT"]{ --st:var(--st-paint) }
+html[data-theme] .station-board-page[data-station="PACKAGING"]{ --st:var(--st-packaging) }
+html[data-theme] .station-board-page[data-station="DELIVERY"]{ --st:var(--st-delivery) }
+html[data-theme] .station-board-page.station-board-page .station-header{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:inset 0 4px 0 var(--st); backdrop-filter:none;
+}
+html[data-theme] .station-board-page.station-board-page .station-header h1{ display:flex; align-items:center; gap:12px; font-size:clamp(2.2rem,4vw,3.2rem); text-transform:uppercase; letter-spacing:.03em }
+html[data-theme] .rf-station-glyph.rf-station-glyph{ display:inline-grid; place-items:center; width:48px; height:48px; border-radius:var(--radius-sm); background:var(--st); color:#fff }
+html[data-theme] .station-title-suffix.station-title-suffix{ font-family:var(--rf-hd); font-weight:500; font-size:.5em; letter-spacing:var(--tracking-label); color:var(--ink-2) }
+html[data-theme] .station-board-page.station-board-page .stat{ background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:none; min-width:96px }
+html[data-theme] .station-board-page.station-board-page .stat-value{ font-family:var(--rf-hd); font-weight:600; font-size:2.6rem; line-height:1; font-variant-numeric:tabular-nums; color:var(--ink-0) }
+html[data-theme] .station-board-page.station-board-page .stat-label{ font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
+html[data-theme] .station-board-page.station-board-page .stat.active{ border-color:var(--live); box-shadow:inset 0 0 0 1px var(--live), 0 0 18px -6px var(--live) }
+html[data-theme] .station-board-page.station-board-page .stat.active .stat-value{ color:var(--live) }
+html[data-theme] .station-board-page.station-board-page .stat.danger{ border-left:8px solid transparent; background:var(--hazard) left top/8px 100% no-repeat, var(--error-soft) }
+html[data-theme] .station-board-page.station-board-page .stat.danger .stat-value{ color:var(--error) }
+html[data-theme] .station-board-page.station-board-page .stat.warning{ box-shadow:inset 0 -3px 0 var(--warn) }
+html[data-theme] .station-board-page.station-board-page .filter-btn{ min-height:var(--rf-floor-target); padding:0 18px; font-size:16px }
+html[data-theme] .station-board-page.station-board-page .station-search input{ min-height:var(--rf-floor-target); font-size:17px }
+html[data-theme] .station-order-card.station-order-card{
+  background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none; backdrop-filter:none;
+  animation:rf-power-on var(--motion-lg) steps(1,end) both;
+}
+html[data-theme] .station-order-card.station-order-card h3{ font-family:var(--rf-hd); font-weight:600; font-size:22px; letter-spacing:.01em; color:var(--ink-0) }
+html[data-theme] .station-order-card.station-order-card .label{ font-family:var(--rf-hd); font-weight:600; font-size:12px; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
+html[data-theme] .station-order-card.station-order-card .value{ font-size:16px; color:var(--ink-0) }
+html[data-theme] .station-order-card.station-order-card .value.overdue{ color:var(--error); font-weight:700 }
+/* Running job: the card edge glows Lumen. */
+html[data-theme] .station-order-card.station-order-card[data-stage-state="IN_PROGRESS"]{ border-color:var(--live); animation:rf-edge-glow 2.4s ease-in-out infinite }
+html[data-theme] .station-order-card.station-order-card:has(.blocked-notice){ border-left:10px solid transparent; background:var(--hazard) left top/10px 100% no-repeat, var(--bg-1) }
+html[data-theme] .blocked-notice.blocked-notice{ background:var(--error-soft); border:1px solid var(--error); border-radius:var(--radius-sm); color:var(--error-strong) }
+html[data-theme] .stage-notes.stage-notes{ background:var(--bg-2); border-left:3px solid var(--ink-2); border-radius:var(--radius-xs) }
+html[data-theme] .station-order-card.station-order-card .order-actions .btn{ min-height:var(--rf-floor-target); padding:0 18px; font-size:16px; gap:8px }
+/* The first real action on each card is primary ink; the screen's single red is the next card's Start/Complete. */
+html[data-theme] .orders-grid.orders-grid > .station-order-card[data-next="true"] .order-actions .btn-success:not(:disabled){ background:var(--brand); border-color:var(--brand); color:var(--on-brand) }
+html[data-theme] .station-board-page.station-board-page .header-actions .btn{ min-height:var(--rf-floor-target); padding:0 20px; font-size:16px }
+html[data-theme] .read-only-notice.read-only-notice{ border:1px dashed var(--border-strong); border-radius:var(--radius-sm); color:var(--ink-1) }
+html[data-theme] .station-chat-panel.station-chat-panel{ background:var(--bg-1); border-left:1px solid var(--border); box-shadow:none; backdrop-filter:none }
+
+/* ============================================================
+   SCREEN 6 · INVENTORY — Paper
+   Stock ledger: material swatch, mono SKU, low stock = amber rule,
+   out of stock = hazard.
+   ============================================================ */
+html[data-theme] .group-section.group-section > summary, html[data-theme] .group-summary.group-summary{
+  font-family:var(--rf-hd); font-weight:600; font-size:17px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-0)
+}
+html[data-theme] .sub-summary.sub-summary{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-1) }
+html[data-theme] .color-swatch.color-swatch{ border-radius:var(--radius-xs); box-shadow:inset 0 0 0 1px rgba(0,0,0,.18) }
+html[data-theme] .rf-table.rf-table tr.warn td, html[data-theme] .rf-table.rf-table .warn td{ background:var(--warn-soft) }
+html[data-theme] .rf-table.rf-table tr.warn td:first-child{ box-shadow:inset 4px 0 0 var(--warn) }
+html[data-theme] .icon-btn.icon-btn{ border-radius:var(--radius-sm); border:1px solid transparent; color:var(--ink-1) }
+html[data-theme] .icon-btn.icon-btn:hover{ border-color:var(--border-strong); background:var(--bg-2); color:var(--ink-0) }
+
+/* ---------- 7. Floor sizing for every interactive control ---------- */
+html[data-place="floor"] .rf-btn.rf-btn[data-size="md"],
+html[data-place="floor"] .rf-btn.rf-btn[data-size="lg"]{ min-height:var(--rf-floor-target); font-size:16px; padding-inline:20px }
+
+@media (prefers-reduced-motion: reduce){
+  html[data-theme] .station-order-card.station-order-card,
+  html[data-theme] .station-order-card.station-order-card[data-stage-state="IN_PROGRESS"],
+  html[data-theme] .rf-toast.rf-toast,
+  html[data-theme] .dash-kicker__led.dash-kicker__led[data-live="true"]{ animation:none }
+}
+
+/* ============================================================
+   ROUND 2.1 — fixes from the live screenshots (20.11.2026)
+   ============================================================ */
+
+/* Red was everywhere (PO links, SKUs, vendor links, every delete button).
+   Back to the rule: links and codes are ink; delete turns red only on hover. */
+html[data-theme] .order-link.order-link{ color:var(--ink-0); font-family:var(--font-mono); font-weight:600; text-decoration:none }
+html[data-theme] .order-link.order-link:hover{ text-decoration:underline; text-decoration-color:var(--link-underline); text-underline-offset:3px }
+html[data-theme] .sku-link.sku-link{ color:var(--ink-0); font-weight:600; text-decoration:none }
+html[data-theme] .sku-link.sku-link:hover{ text-decoration:underline; text-decoration-color:var(--link-underline) }
+html[data-theme] .material-source.material-source a, html[data-theme] .material-card.material-card a{ color:var(--ink-1); text-decoration:underline; text-decoration-color:var(--border-strong); text-underline-offset:3px }
+html[data-theme] :is(.icon-btn.warn,.btn-icon.btn-danger).icon-btn,
+html[data-theme] .icon-btn.warn.warn, html[data-theme] .btn-icon.btn-danger.btn-danger{ color:var(--ink-2); border-color:var(--border); background:transparent }
+html[data-theme] .icon-btn.warn.warn:hover, html[data-theme] .btn-icon.btn-danger.btn-danger:hover{ color:#fff; background:var(--error); border-color:var(--error) }
+
+/* Inventory: only real shortages are marked. Untracked items (no minimum) stay calm. */
+html[data-theme] tr.low-stock.low-stock td{ background:var(--warn-soft) }
+html[data-theme] tr.low-stock.low-stock td:first-child{ box-shadow:inset 4px 0 0 var(--warn) }
+html[data-theme] tr.out-of-stock.out-of-stock td{ background:var(--error-soft) }
+html[data-theme] tr.out-of-stock.out-of-stock td:first-child{ background:var(--hazard) left top/8px 100% no-repeat, var(--error-soft); padding-left:18px }
+html[data-theme] tr[data-stock="untracked"] td.stock-low, html[data-theme] tr[data-stock="untracked"] td{ color:var(--ink-1) }
+html[data-theme] .stock-low.stock-low{ color:var(--error); font-weight:700 }
+html[data-theme] tr.low-stock.low-stock .stock-low{ color:var(--warn-strong) }
+
+/* Order sheet (Create draft → Form): each station column wears its identity colour.
+   FORM LOCK (R4): the draft form keeps its original layout, fields, order, sizes and spacing.
+   Only colour, typeface and corners change here. Sizes below match the original metrics. */
+html[data-theme] .section[data-station] > .section-title{ color:#fff; font-family:var(--rf-hd); font-size:12px; letter-spacing:.06em }
+html[data-theme] .section[data-station="CNC"] > .section-title{ background:var(--st-cnc) }
+html[data-theme] .section[data-station="EDGE"] > .section-title{ background:var(--st-edge) }
+html[data-theme] .section[data-station="FRONT"] > .section-title{ background:var(--rf-graphite) }
+html[data-theme] .section[data-station="PAINT"] > .section-title{ background:var(--st-paint) }
+html[data-theme] .section[data-station="ASSEMBLY"] > .section-title{ background:var(--st-assembly) }
+html[data-theme] .section[data-station].collapsed > .section-title{ background:var(--bg-2); color:var(--ink-2); box-shadow:inset 0 3px 0 var(--border-strong) }
+html[data-theme] .profile-card.profile-card{ border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:none }
+html[data-theme] .profile-number.profile-number{ background:var(--ink-0); color:var(--bg-0); border-radius:var(--radius-xs); font-family:var(--font-mono) }
+html[data-theme] .profile-title.profile-title h3{ font-family:var(--rf-hd); font-weight:600 }
+html[data-theme] .creation-sections.creation-sections a{ color:var(--ink-1); text-decoration:none; font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; border-bottom:2px solid transparent }
+html[data-theme] .creation-sections.creation-sections a:hover, html[data-theme] .creation-sections.creation-sections a[aria-current]{ color:var(--ink-0); border-bottom-color:var(--ink-0) }
+html[data-theme] .file-upload-area.file-upload-area{ border:1.5px dashed var(--border-strong); border-radius:var(--radius-md); background:var(--bg-1) }
+html[data-theme] .file-upload-area.file-upload-area:hover{ border-color:var(--ink-0) }
+
+/* Users: square graphite avatars, role tags as machined chips. */
+html[data-theme] .user-avatar.user-avatar{ border-radius:var(--radius-sm); background:var(--ink-0); color:var(--bg-0); font-family:var(--rf-hd) }
+html[data-theme] .role-badge.role-badge, html[data-theme] .station-tag.station-tag, html[data-theme] .status-badge.status-badge{
+  border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; background:var(--bg-2); color:var(--ink-1); border:1px solid var(--border)
+}
+html[data-theme] .user-name.user-name{ font-weight:600 }
+html[data-theme] .user-username.user-username{ font-family:var(--font-mono); font-size:12px; color:var(--ink-2) }
+
+/* Page headers on every office page: drop the magenta flourish, condensed title. */
+html[data-theme] .page-header.page-header h1, html[data-theme] .materials-page.materials-page h1, html[data-theme] .users-page.users-page h1{
+  font-family:var(--rf-hd); font-weight:600; font-size:clamp(2rem,3.4vw,2.6rem); letter-spacing:.005em; color:var(--ink-0); background:none; -webkit-text-fill-color:currentColor
+}
+html[data-theme] .page-header.page-header::before, html[data-theme] .page-header.page-header h1::before{ background:var(--ink-0) }
+
+/* ============================================================
+   ROUND 4 — the rest of the office: My cabinet, Calendar, Chat,
+   Analytics, Settings, Login. Same rules as everywhere else:
+   ink for selection, red for the one action, amber for warnings,
+   hazard stripe + icon for faults, Lumen only for "live".
+   ============================================================ */
+
+/* ---------- Login: the real round mark on Paper, one red button. */
+html[data-theme] .login-container.login-container{ background:var(--bg-0); background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px); background-size:48px 48px; background-position:-1px -1px }
+html[data-theme] .login-card.login-card{ border:1px solid var(--border-strong); border-radius:var(--radius-md); box-shadow:none; background:var(--bg-1); border-top:4px solid var(--ink-0) }
+html[data-theme] .logo-icon.rf-login-mark{ width:72px; height:72px; background:none; border-radius:0; box-shadow:none; object-fit:contain; display:block; margin:0 auto 14px }
+html[data-theme] .logo-section.logo-section h1{ font-family:var(--rf-hd); font-weight:600; font-size:28px; letter-spacing:.01em; text-transform:uppercase; color:var(--ink-0); background:none; -webkit-text-fill-color:currentColor }
+html[data-theme] .rf-login-oms{ color:var(--ink-2); font-size:.62em; letter-spacing:var(--tracking-label); vertical-align:.2em }
+html[data-theme] .submit-btn.submit-btn{ background:var(--brand); border-radius:var(--radius-sm); box-shadow:none; font-family:var(--rf-hd); font-weight:600; letter-spacing:.06em; text-transform:uppercase }
+html[data-theme] .submit-btn.submit-btn:hover:not(:disabled){ background:var(--brand-strong); transform:none; box-shadow:none }
+html[data-theme] .login-card.login-card input:focus{ border-color:var(--ink-0); box-shadow:0 0 0 3px color-mix(in oklab,var(--ink-0) 14%,transparent) }
+html[data-theme] .lang-btn.lang-btn, html[data-theme] .lang-menu.lang-menu{ border-radius:var(--radius-sm); box-shadow:none }
+html[data-theme] .link-btn.link-btn{ color:var(--ink-1); text-decoration:underline; text-decoration-color:var(--border-strong); text-underline-offset:3px }
+
+/* ---------- My cabinet: hours as a machined readout, no red washes. */
+html[data-theme] .workforce-cabinet .wfc-avatar.wfc-avatar{ background:var(--ink-0); color:var(--bg-0); border:0; border-radius:var(--radius-sm); font-family:var(--rf-hd) }
+html[data-theme] .workforce-cabinet .wfc-view-switcher button[aria-current="page"]{ background:var(--ink-0); color:var(--bg-0); border-color:var(--ink-0); box-shadow:none }
+html[data-theme] .workforce-cabinet .wfc-hours-card.wfc-hours-card{ background:var(--bg-1); border-color:var(--border); border-top:3px solid var(--ink-0) }
+html[data-theme] .workforce-cabinet .wfc-hours-number.wfc-hours-number, html[data-theme] .workforce-cabinet .wfc-secondary-number.wfc-secondary-number{ font-family:var(--rf-hd); font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:0; color:var(--ink-0) }
+html[data-theme] .workforce-cabinet .wfc-symbol.wfc-symbol{ background:var(--bg-2); border-radius:var(--radius-sm) }
+html[data-theme] .workforce-cabinet .wfc-policy.wfc-policy{ border-color:var(--border); border-left:3px solid var(--ink-2) }
+html[data-theme] .workforce-cabinet .wfc-chip[data-tone="time"]{ background:var(--bg-2); border-color:var(--border) }
+html[data-theme] .workforce-cabinet .wfc-chip.wfc-chip{ border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.04em }
+html[data-theme] .workforce-cabinet .wfc-calendar-day[data-selected="true"]{ outline:2px solid var(--ink-0) }
+html[data-theme] .workforce-cabinet button.wfc-calendar-day:hover:not(:disabled), html[data-theme] .workforce-cabinet .wfc-button.wfc-button:hover:not(:disabled){ border-color:var(--ink-0) }
+html[data-theme] .workforce-cabinet .wfc-checkbox input{ accent-color:var(--ink-0) }
+html[data-theme] .workforce-cabinet .wfc-message[data-tone="error"]{ border-left:10px solid transparent; border-image:var(--hazard) 0 0 0 10 stretch }
+html[data-theme] .workforce-cabinet .wfc-header h1{ font-family:var(--rf-hd); font-weight:600 }
+
+/* ---------- Calendar: today = graphite date plate, selection = ink frame, deadlines speak amber/red only when late. */
+html[data-theme] .day-cell.day-cell{ border-radius:var(--radius-sm) }
+html[data-theme] .day-cell.day-cell.today{ border-color:var(--ink-0) }
+html[data-theme] .day-cell.day-cell.today .day-number{ background:var(--ink-0); color:var(--bg-0); padding:1px 6px; border-radius:var(--radius-xs); align-self:flex-start }
+html[data-theme] .today-dot.today-dot{ display:none }
+html[data-theme] .day-cell.day-cell.selected{ background:var(--bg-2); border-color:var(--ink-0); box-shadow:inset 0 0 0 1px var(--ink-0) }
+html[data-theme] .day-number.day-number{ font-family:var(--rf-hd); font-weight:600; font-variant-numeric:tabular-nums }
+html[data-theme] .weekdays.weekdays{ font-family:var(--rf-hd); font-weight:600; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
+html[data-theme] .event-item.event-item, html[data-theme] .agenda-order.agenda-order, html[data-theme] .deadline-item.deadline-item{ border-radius:var(--radius-sm) }
+html[data-theme] .calendar-alert.calendar-alert{ border-radius:var(--radius-sm); border-left:10px solid transparent; border-image:var(--hazard) 0 0 0 10 stretch }
+html[data-theme] .agenda-warning.agenda-warning{ background:var(--warn-soft); color:var(--ink-0); border-left:3px solid var(--warn) }
+html[data-theme] .filter-button.filter-button[aria-pressed="true"], html[data-theme] .filter-button.filter-button.active{ background:var(--ink-0); color:var(--bg-0); border-color:var(--ink-0) }
+
+/* ---------- Chat: graphite avatars, ink selection, mentions as amber tags, station rooms wear their colour. */
+html[data-theme] .user-avatar.user-avatar, html[data-theme] .message-avatar.message-avatar, html[data-theme] .member-avatar.member-avatar{ background:var(--ink-0); color:var(--bg-0); box-shadow:none; border-radius:var(--radius-sm); font-family:var(--rf-hd); font-weight:600 }
+html[data-theme] .room-item.room-item.active{ background:var(--bg-2); color:var(--ink-0); box-shadow:inset 3px 0 0 var(--ink-0) }
+html[data-theme] .mention-tag.mention-tag{ background:var(--warn-soft); color:var(--ink-0); border-radius:var(--radius-xs); font-weight:600 }
+html[data-theme] .station-badge.station-badge{ border-radius:var(--radius-xs); font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase; background:var(--bg-2); color:var(--ink-1) }
+html[data-theme] .message-input-container.message-input-container{ background:var(--bg-1); backdrop-filter:none; -webkit-backdrop-filter:none; border-top:1px solid var(--border) }
+html[data-theme] .message-input-container textarea:focus, html[data-theme] .message-input-container input:focus{ border-color:var(--ink-0); box-shadow:0 0 0 3px color-mix(in oklab,var(--ink-0) 14%,transparent) }
+html[data-theme] .message-time.message-time{ font-family:var(--font-mono); font-size:11px; color:var(--ink-2) }
+html[data-theme] .section-label.section-label{ font-family:var(--rf-hd); font-weight:600; letter-spacing:var(--tracking-label); text-transform:uppercase; color:var(--ink-2) }
+
+/* ---------- Analytics: RF icons replace the emoji, KPI numbers in condensed, risks are faults. */
+html[data-theme] .metric-card.metric-card{ border-radius:var(--radius-md); position:relative; border-top:3px solid var(--border-strong) }
+html[data-theme] .metric-icon.metric-icon{ font-size:0; width:44px; height:44px; display:grid; place-items:center; background:var(--bg-2); border-radius:var(--radius-sm); color:var(--ink-0) }
+html[data-theme] .metric-icon[data-tone="live"]{ color:var(--live-ink) }
+html[data-theme] .metric-card:has(.metric-icon[data-tone="live"]){ border-top-color:var(--live) }
+html[data-theme] .metric-card:has(.metric-icon[data-tone="ok"]){ border-top-color:var(--ok) }
+html[data-theme] .metric-card:has(.metric-icon[data-tone="rework"]){ border-top-color:var(--warn) }
+html[data-theme] .metric-value.metric-value{ font-family:var(--rf-hd); font-weight:600; font-size:2.4rem; line-height:1; font-variant-numeric:tabular-nums; color:var(--ink-0) }
+html[data-theme] .metric-label.metric-label{ font-family:var(--rf-hd); font-weight:600; letter-spacing:var(--tracking-label); text-transform:uppercase; font-size:12px; color:var(--ink-2) }
+html[data-theme] .timeframe-btn.timeframe-btn.active{ background:var(--ink-0); color:var(--bg-0) }
+html[data-theme] .risk-item.risk-item{ border-left:10px solid transparent; border-image:var(--hazard) 0 0 0 10 stretch; border-radius:0 }
+html[data-theme] .risk-badge.risk-badge{ background:var(--error-soft); color:var(--ink-0); border:1px solid var(--error); border-radius:var(--radius-xs) }
+html[data-theme] .rework-bar-fill.rework-bar-fill{ background:var(--warn) }
+html[data-theme] .status-dot.status-in_progress{ background:var(--live) }
+html[data-theme] .status-dot.status-queued{ background:var(--ink-2) }
+html[data-theme] .po-number.po-number{ font-family:var(--font-mono); font-weight:600; color:var(--ink-0) }
+html[data-theme] .station-card.station-card h3{ font-family:var(--rf-hd); font-weight:600; letter-spacing:.05em; text-transform:uppercase }
+
+/* ---------- Settings: By place leads the theme picker; ink selection; danger zone keeps its hazard. */
+html[data-theme] .settings-tabbar.settings-tabbar button.active{ background:var(--ink-0); color:var(--bg-0); border-color:var(--ink-0) }
+html[data-theme] .theme-option.theme-option, html[data-theme] .scale-option.scale-option, html[data-theme] .density-option.density-option{ border-radius:var(--radius-sm) }
+html[data-theme] .theme-option.theme-option:hover, html[data-theme] .scale-option.scale-option:hover, html[data-theme] .density-option.density-option:hover{ border-color:var(--ink-0) }
+html[data-theme] .theme-option.theme-option.active, html[data-theme] .scale-option.scale-option.active, html[data-theme] .density-option.density-option.active{ border-color:var(--ink-0); background:var(--bg-2); box-shadow:inset 0 0 0 1px var(--ink-0) }
+html[data-theme] .settings-section.settings-section{ border-radius:var(--radius-md); box-shadow:none }
+html[data-theme] .section-header.section-header h2, html[data-theme] .settings-header.settings-header h1{ font-family:var(--rf-hd); font-weight:600 }
+html[data-theme] .ai-policy-label input{ accent-color:var(--ink-0) }
+html[data-theme] .danger-zone.danger-zone{ border-left:10px solid transparent; border-image:var(--hazard) 0 0 0 10 stretch }
+html[data-theme] .btn-danger.btn-danger{ box-shadow:none }
+html[data-theme] .build-fingerprint.build-fingerprint, html[data-theme] .version-info.version-info code{ font-family:var(--font-mono) }
+html[data-theme] :is(.version-info,.display-options) > summary:focus-visible, html[data-theme] .settings-tabbar button:focus-visible{ outline-color:var(--focus) }

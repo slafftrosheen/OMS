@@ -1,4 +1,5 @@
 import {cadSnapIndicator} from './cad-snap';
+import { setCanvasSurface, useCanvasSurface } from './canvas-surface';
 import {cadConstruction} from './cad-construction';
 import { getSelectedCadNodes, isCadNodeEditing, setCadNodeEditing } from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
@@ -497,6 +498,7 @@ export function DrawingChrome() {
   const [proportional, setProportional] = useState(false);
   const cadSelection = useValue('drawing cad transform', () => settings ? getCadSelection(editor, settings, cadAnchor) : null, [editor, settings, cadAnchor]);
   const isDarkMode = useIsDarkMode();
+  const canvasSurface = useCanvasSurface();
   const styles = useRelevantStyles();
   const controls = useValue('drawing controls', () => captureToolkitControls(editor, editor.getStyleForNextShape(GeoShapeGeoStyle)), [editor]);
   const state = useValue('drawing display', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(), selectedShapes: editor.getSelectedShapes(),
@@ -1090,6 +1092,9 @@ export function DrawingChrome() {
         <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
           <button type="button" aria-pressed={state.snap} onClick={() => command('snap')}>{state.snap ? '✓ ' : ''}{label('snap')}</button>
+          <hr />
+          <button type="button" aria-pressed={canvasSurface === 'blueprint'} title={label('surfaceHint')} onClick={() => { setCanvasSurface(canvasSurface === 'blueprint' ? 'paper' : 'blueprint'); closeMenus(); }} data-testid="drawing-menu-surface">{canvasSurface === 'blueprint' ? '✓ ' : ''}{label('surfaceBlueprint')}</button>
+          <hr />
           <button type="button" onClick={() => { setPanel('snap'); closeMenus(); }} data-testid="drawing-menu-snap-options">{snapLabel('open')}</button>
           <button type="button" aria-pressed={guides.visible} disabled={controls.readOnly || !guides.valid || drawingGuidesBusy(editor)} onClick={toggleGuides} data-testid="drawing-menu-guides-visible">{guides.visible ? '✓ ' : ''}{guideLabel('showGuides')}</button>
           <button type="button" onClick={openGuides} data-testid="drawing-menu-guides">{guideLabel('open')}</button>

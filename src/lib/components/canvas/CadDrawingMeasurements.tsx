@@ -50,7 +50,7 @@ export function CadDrawingMeasurements() {
   return <svg aria-hidden="true" width={1} height={1} data-testid="cad-live-measurement"
     style={{ position: 'absolute', overflow: 'visible', pointerEvents: 'none', zIndex: 1000002 }}>
     <text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={12 * scale}
-      fontFamily="sans-serif" fontWeight={650} fill="var(--ink-primary, #161b22)" stroke="var(--bg-1, white)"
+      className="rf-cv-label" fontFamily="var(--font-display, sans-serif)" fontWeight={650} fill="var(--rf-cv-dim, var(--ink-primary, #161b22))" stroke="var(--rf-cv-halo, var(--bg-1, white))"
       strokeWidth={5 * scale} strokeLinejoin="round" paintOrder="stroke">{text}</text>
   </svg>;
 }

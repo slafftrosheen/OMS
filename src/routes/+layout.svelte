@@ -5,6 +5,7 @@
   import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
   import { page } from '$app/state';
+  import { applyPlace } from '$lib/state/place';
   import { onMount } from 'svelte';
   import { goto, replaceState } from '$app/navigation';
 
@@ -33,6 +34,9 @@
   import { setContext } from 'svelte';
   import { provideAssistantContext } from '$lib/assistant/context';
   import AssistantShell from '$lib/assistant/AssistantShell.svelte';
+
+  // Reclame Fabriek: Paper in the office, Night Shift on the floor (theme "By place").
+  $effect(() => { applyPlace(page.url.pathname.slice(base.length), page.url.search); });
 
   let { children } = $props();
 
@@ -140,7 +144,7 @@
 
       if (lang) setLocale(lang);
       const queryPreferences: Partial<Prefs> = {};
-      if (theme === 'LightVim' || theme === 'DarkVim' || theme === 'HighContrastVim') queryPreferences.theme = theme;
+      if (theme === 'ByPlace' || theme === 'LightVim' || theme === 'DarkVim' || theme === 'HighContrastVim') queryPreferences.theme = theme;
       else if (theme === 'HighContrast') queryPreferences.theme = 'HighContrastVim';
       if (density === 'compact' || density === 'cozy' || density === 'comfortable') queryPreferences.density = density;
       if (font && Number.isFinite(+font)) queryPreferences.fontScale = Math.max(0.85, Math.min(1.3, +font));

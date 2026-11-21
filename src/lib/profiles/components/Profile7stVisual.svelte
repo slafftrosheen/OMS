@@ -600,7 +600,7 @@
   <!-- MAIN GRID -->
   <div class="form-grid">
     <!-- CNC FREZER -->
-    <div class="section">
+    <div class="section" data-station="CNC">
       <div class="section-title"><span><Scissors size={12} /> CNC FREZER</span> {@render noteWarning('CNC_FREZER')}</div>
       <div class="section-content">
         <!-- FACE -->
@@ -743,7 +743,7 @@
     </div>
 
     <!-- BENDER -->
-    <div class="section section-sm">
+    <div class="section section-sm" data-station="EDGE">
       <div class="section-title"><span><Square size={12} /> BENDER</span> {@render noteWarning('BENDER')}</div>
       <div class="section-content">
         <fieldset class="field">
@@ -801,7 +801,7 @@
     </div>
 
     <!-- FRONT (Film) -->
-    <div class="section" class:collapsed={!hasFront}>
+    <div class="section" data-station="FRONT" class:collapsed={!hasFront}>
       <div class="section-title">
         <span><Layers size={12} /> FRONT <span class="hint">(Film)</span></span>
         {@render noteWarning('FRONT')}
@@ -877,7 +877,7 @@
     </div>
 
     <!-- PAINTING -->
-    <div class="section section-lg">
+    <div class="section section-lg" data-station="PAINT">
       <div class="section-title"><span><Paintbrush size={12} /> PAINTING</span> {@render noteWarning('PAINTING')}</div>
       <div class="section-content">
         <div class="paint-grid">
@@ -941,7 +941,7 @@
     </div>
 
     <!-- ASSEMBLING -->
-    <div class="section section-xl">
+    <div class="section section-xl" data-station="ASSEMBLY">
       <div class="section-title"><span><Wrench size={12} /> ASSEMBLING</span> {@render noteWarning('ASSEMBLING')}</div>
       <div class="section-content">
         <div class="assembly-grid-2x2">

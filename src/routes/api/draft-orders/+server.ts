@@ -2,6 +2,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { getPagination } from '$lib/server/pagination';
 import { apiError } from '$lib/server/errors';
+import { readOrderRoutes } from '$lib/server/order/order-routes';
 import { orderFields, canonicalDraftFields, canonicalOrderProfiles } from '$lib/server/order/draft-contract';
 
 /**
@@ -41,6 +42,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
     // Ensure orders is an array
     const ordersArray = Array.isArray(orders) ? orders : [];
+    const routes = locals.user && url.searchParams.get('include') === 'stages'
+      ? await readOrderRoutes(locals.supabase, ordersArray.map(order => order.id))
+      : null;
 
     // Transform to match frontend expectations
     const transformedOrders = ordersArray.map(row => ({
@@ -54,6 +58,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       priority: row.priority || 'normal',
       badges: Array.isArray(row.badges) ? row.badges : [],
       isRD: row.is_rd === true,
+      ...(routes ? { productionRoute: routes.get(row.id) ?? [] } : {}),
       deliveryAddress: row.delivery_address || null,
       deliveryContact: row.delivery_contact || null,
       deliveryPhone: row.delivery_phone || null,

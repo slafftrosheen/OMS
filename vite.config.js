@@ -3,6 +3,10 @@ import { sentrySvelteKit } from '@sentry/sveltekit';
 import { defineConfig } from 'vite';
 import dotenv from 'dotenv';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+// Reclame Fabriek icon set: every lucide-svelte import resolves to the custom glyphs.
+const RF_LUCIDE = fileURLToPath(new URL('./src/lib/ui/rf-icons/lucide/', import.meta.url));
 
 dotenv.config();
 
@@ -36,6 +40,12 @@ const OMS_BUILD_REVISION = currentSourceRevision();
 const OMS_BUILD_TIME = new Date().toISOString();
 
 export default defineConfig({
+  resolve: {
+    alias: [
+      { find: /^lucide-svelte\/icons\/(.+)$/, replacement: `${RF_LUCIDE}$1.svelte` },
+      { find: /^lucide-svelte$/, replacement: `${RF_LUCIDE}index.ts` }
+    ]
+  },
   define: {
     __OMS_BUILD_REVISION__: JSON.stringify(OMS_BUILD_REVISION),
     __OMS_BUILD_TIME__: JSON.stringify(OMS_BUILD_TIME)

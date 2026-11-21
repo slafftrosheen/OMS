@@ -1,62 +1,26 @@
 <script lang="ts">
   /**
-   * Unified icon wrapper around lucide-svelte.
-   *
-   * Usage:
-   *   <Icon name="bell" />
-   *   <Icon name="user" size="lg" />
-   *   <Icon name="check" size={20} stroke={2} label="Completed" />
-   *
-   * Props:
-   *   - name:   IconName    — required, enumerated in $lib/ui/icons.ts
-   *   - size:   keyword | px — 'xs' (12) | 'sm' (16) | 'md' (18, default) | 'lg' (22) | 'xl' (28) | number
-   *   - stroke: number      — stroke width (default 1.5, Apple SF-like)
-   *   - label:  string      — accessibility label. If omitted, icon is aria-hidden.
-   *   - class:  string      — passthrough to the SVG
-   *   - color:  string      — passthrough to Lucide `color` prop; defaults to currentColor
+   * Reclame Fabriek icon — custom 24px set (square caps, chamfered corners, "lit" pixels).
+   * API unchanged: <Icon name="bell" size="lg" stroke={1.75} label="Alerts" />
    */
-  import { icons, resolveIconSize, resolveIconName, type IconName, type IconSize } from './icons';
-
-  type Props = {
-    name: IconName;
-    size?: IconSize;
-    stroke?: number;
-    label?: string;
-    class?: string;
-    color?: string;
-  };
-
-  let {
-    name,
-    size = 'md',
-    stroke = 1.5,
-    label,
-    class: className = '',
-    color
-  }: Props = $props();
-
-  const Component = $derived(icons[resolveIconName(name)]);
-  const resolvedSize = $derived(resolveIconSize(size));
-  const ariaProps = $derived(
-    label
-      ? { 'aria-label': label, role: 'img' as const }
-      : { 'aria-hidden': 'true' as const, focusable: 'false' as const }
-  );
+  import { iconGlyph, resolveIconSize, type IconName, type IconSize } from './icons';
+  type Props = { name: IconName; size?: IconSize; stroke?: number; label?: string; class?: string; color?: string };
+  let { name, size = 'md', stroke = 1.75, label, class: className = '', color }: Props = $props();
+  const g = $derived(iconGlyph(name));
+  const px = $derived(resolveIconSize(size));
 </script>
 
-{#if Component}
-  <Component
-    size={resolvedSize}
-    strokeWidth={stroke}
-    color={color ?? 'currentColor'}
-    class={['rf-icon', className].filter(Boolean).join(' ')}
-    {...ariaProps}
-  />
-{/if}
+<svg
+  xmlns="http://www.w3.org/2000/svg" width={px} height={px} viewBox="0 0 24 24"
+  fill="none" stroke={color ?? 'currentColor'} stroke-width={stroke}
+  stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2"
+  class={['rf-icon', className].filter(Boolean).join(' ')}
+  {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': 'true', focusable: 'false' })}
+>
+  {#if g.s}<path d={g.s} />{/if}
+  {#if g.f}<path d={g.f} fill={color ?? 'currentColor'} stroke="none" />{/if}
+</svg>
 
 <style>
-  :global(.rf-icon) {
-    flex-shrink: 0;
-    vertical-align: middle;
-  }
+  :global(.rf-icon) { flex-shrink: 0; vertical-align: middle; }
 </style>

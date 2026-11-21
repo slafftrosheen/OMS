@@ -2,6 +2,7 @@
   import { base } from '$app/paths';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface AnalyticsData {
     statistics: {
@@ -100,7 +101,7 @@
     <!-- Key Metrics -->
     <section class="metrics-grid">
       <div class="metric-card">
-        <div class="metric-icon">📊</div>
+        <div class="metric-icon" data-tone="total"><Icon name="clipboard-list" size="lg" /></div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.total_orders || 0}</span>
           <span class="metric-label">{$t('analytics.metrics.total', { default: 'Total Orders' })}</span>
@@ -108,7 +109,7 @@
       </div>
 
       <div class="metric-card">
-        <div class="metric-icon">🔵</div>
+        <div class="metric-icon" data-tone="live"><Icon name="activity" size="lg" /></div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.active_orders || 0}</span>
           <span class="metric-label">{$t('analytics.metrics.active', { default: 'Active Orders' })}</span>
@@ -116,7 +117,7 @@
       </div>
 
       <div class="metric-card">
-        <div class="metric-icon">✅</div>
+        <div class="metric-icon" data-tone="ok"><Icon name="check-circle" size="lg" /></div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.completed_orders || 0}</span>
           <span class="metric-label">{$t('analytics.metrics.completed', { default: 'Completed' })}</span>
@@ -124,7 +125,7 @@
       </div>
 
       <div class="metric-card">
-        <div class="metric-icon">⏱️</div>
+        <div class="metric-icon" data-tone="time"><Icon name="clock" size="lg" /></div>
         <div class="metric-content">
           <span class="metric-value">{($analytics.statistics.avg_completion_days || 0).toFixed(1)}</span>
           <span class="metric-label">{$t('analytics.metrics.avg_days', { default: 'Avg Days to Complete' })}</span>
@@ -132,7 +133,7 @@
       </div>
 
       <div class="metric-card">
-        <div class="metric-icon">🔄</div>
+        <div class="metric-icon" data-tone="rework"><Icon name="rework" size="lg" /></div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.total_rework || 0}</span>
           <span class="metric-label">{$t('analytics.metrics.rework', { default: 'Total Rework' })}</span>

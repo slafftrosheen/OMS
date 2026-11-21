@@ -10,7 +10,7 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (!session) {
     // Return defaults for anonymous users
     return json({
-      theme: 'DarkVim',
+      theme: 'ByPlace',
       // Browser-selected login language is unknown to the anonymous endpoint.
       // Do not overwrite localStorage with an invented server preference.
       scale: 'normal',
@@ -41,7 +41,7 @@ export const GET: RequestHandler = async ({ locals }) => {
         .from('user_preferences')
         .insert({
           user_id: userId,
-          theme: 'DarkVim',
+          theme: 'ByPlace',
           locale: 'en',
           scale: 'normal',
           density: 'cozy',

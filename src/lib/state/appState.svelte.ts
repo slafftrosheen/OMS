@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import { queuePreferenceUpdate, subscribePreferences, type Preferences } from '$lib/preferences';
 
 export type Prefs = {
-  theme: 'LightVim' | 'DarkVim' | 'HighContrastVim';
+  theme: 'ByPlace' | 'LightVim' | 'DarkVim' | 'HighContrastVim';
   density: 'compact' | 'cozy' | 'comfortable';
   fontScale: number;
 };
@@ -12,7 +12,9 @@ const densities: Prefs['density'][] = ['compact', 'cozy', 'comfortable'];
 
 export function normalizeTheme(value: unknown): Prefs['theme'] {
   if (value === 'HighContrast' || value === 'HighContrastVim') return 'HighContrastVim';
-  return value === 'LightVim' ? 'LightVim' : 'DarkVim';
+  if (value === 'LightVim' || value === 'DarkVim') return value;
+  // Reclame Fabriek UI: default is "By place" — Paper in the office, Night Shift on the floor.
+  return 'ByPlace';
 }
 
 function readLocal(key: string): string | null {

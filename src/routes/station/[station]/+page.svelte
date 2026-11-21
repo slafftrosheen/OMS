@@ -379,10 +379,10 @@
   <title>{station} — {$t('stationView.workstation')}</title>
 </svelte:head>
 
-<div class="station-board-page">
+<div class="station-board-page" data-station={String(station).toUpperCase()}>
   <header class="station-header">
     <div class="header-content">
-      <h1>{station} <span class="station-title-suffix">{$t('stationView.workstation')}</span></h1>
+      <h1><span class="rf-station-glyph" aria-hidden="true"><Icon name={(['CAD','CNC','EDGE','ASSEMBLY','PAINT','PACKAGING','DELIVERY'].includes(String(station).toUpperCase()) ? `station-${String(station).toLowerCase()}` : 'factory') as any} size="lg" /></span>{station} <span class="station-title-suffix">{$t('stationView.workstation')}</span></h1>
       <div class="header-stats">
         <div class="stat" class:active={inProgressCount > 0}>
           <span class="stat-value">{inProgressCount}</span>
@@ -508,9 +508,13 @@
       {#if searchQuery}<button class="btn btn-outline" onclick={() => (searchQuery = '')}>{$t('stationView.clearSearch')}</button>{/if}
     </div>
   {:else}
+    {@const nextOrder = operatorCanAct && workingOnOrderId === null
+      ? filteredOrders.find(order => order.status !== 'READY_TO_LOAD' &&
+          (order.stage?.state === 'QUEUED' || order.stage?.state === 'IN_PROGRESS'))
+      : undefined}
     <div class="orders-grid">
       {#each filteredOrders as order (order.id)}
-        <article class="station-order-card">
+        <article class="station-order-card" data-stage-state={order.stage?.state} data-next={order.id === nextOrder?.id}>
           <div class="order-header">
             <div>
               <h3>{order.title || $t('productionPlanning.untitled')}</h3>
@@ -537,7 +541,7 @@
 
           {#if order.stage?.state==='BLOCKED'||order.stage?.state==='REWORK'}
             <div class="blocked-notice" role="status">
-              <strong>{$t('productionPacket.held')}</strong>
+              <strong><Icon name="alert-triangle" size="sm" /> {$t('productionPacket.held')}</strong>
               {#if order.stage?.blocked_reason}
                 <p>{order.stage.blocked_reason}</p>
               {/if}

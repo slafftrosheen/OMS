@@ -11,8 +11,9 @@ describe('independent dashboard panels', () => {
       return new Promise<Response>(done => resolve.push(done));
     } });
     expect(calls.length).toBe(3);
+    expect(calls[0].url).toBe('/oms/api/orders?limit=5&include=stages');
     expect(calls.every(call => call.url.startsWith('/oms/api/') && call.signal === controller.signal)).toBe(true);
-    resolve[0](Response.json({ count: 26, data: [{ id: 'uuid', poNumber: 'PO-10', clientName: 'Client', status: 'IN_PRODUCTION', priority: 2, badges: ['RD'], loadingDate: '2026-10-22' }] }));
+    resolve[0](Response.json({ count: 26, data: [{ id: 'uuid', poNumber: 'PO-10', clientName: 'Client', status: 'IN_PRODUCTION', priority: 2, badges: ['RD'], loadingDate: '2026-10-22', stages: [{ station: 'CNC', state: 'IN_PROGRESS' }] }] }));
     resolve[1](Response.json({ data: { orders: { total: 26, active: 12, today: 3, completedToday: 1 } } }));
     resolve[2](Response.json({ data: { dates: ['2026-10-22'], total: [3] } }));
     const result = await pending;
@@ -20,6 +21,7 @@ describe('independent dashboard panels', () => {
     expect(result.orders[0].id).toBe('uuid');
     expect(result.orders[0].po_number).toBe('PO-10');
     expect(result.orders[0].badges).toEqual(['RD']);
+    expect(result.orders[0].stages).toEqual([{ station: 'CNC', state: 'IN_PROGRESS' }]);
     expect(result.orders[0].priority).toBe(2);
     expect(result.kpis?.active).toBe(12);
     expect(result.trends?.total).toEqual([3]);

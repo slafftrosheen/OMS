@@ -26,6 +26,7 @@
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
     import Modal from "$lib/components/ui/Modal.svelte";
     import OrderTimeline from "$lib/order/OrderTimeline.svelte";
+    import RouteLine from "$lib/ui/RouteLine.svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
     import { can, normaliseStatus } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
@@ -436,6 +437,13 @@
                 {/if}
             </div>
         </header>
+
+        <!-- Round 2 · the order's route, CAD → Delivery, always visible under the header. -->
+        {#if Array.isArray(order.stages) && order.stages.length > 0}
+          <section class="rf-order-route" aria-label={$t('orderDetail.tabs.stages')}>
+            <RouteLine stages={order.stages} size="md" />
+          </section>
+        {/if}
 
         <!-- The original draft production form remains the primary order surface. -->
         {#if draftSheet}

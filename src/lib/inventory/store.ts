@@ -1,3 +1,4 @@
+import { isShort } from './stock-level';
 import { get, writable } from 'svelte/store';
 import {base} from '$app/paths';
 import type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
@@ -353,7 +354,7 @@ export async function move(materialId: string, kind: MovementKind, qty: number, 
 
   if (result && options.accept?.() !== false) {
     const material = getMaterial(materialId);
-    if (material && material.stock <= material.min_stock) {
+    if (material && isShort(material.stock, material.min_stock)) {
       Promise.all([
         import('$lib/stores/toast'),
         import('$lib/notify/bus')
@@ -374,7 +375,7 @@ export function movementsForMaterial(materialId: string) {
 
 // Use a function instead of derived to avoid initialization order issues
 export function getLowStockMaterials(): Material[] {
-  return get(materials).filter((m) => m.stock <= m.min_stock);
+  return get(materials).filter((m) => isShort(m.stock, m.min_stock));
 }
 
 export function listLowStock() {

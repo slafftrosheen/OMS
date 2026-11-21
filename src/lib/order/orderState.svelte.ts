@@ -47,7 +47,7 @@ export class OrderState {
     this.loading = false;
   }
 
-  async load() {
+  async load(includeRoute = false) {
     this.loadController?.abort();
     const controller = new AbortController();
     this.loadController = controller;
@@ -55,7 +55,7 @@ export class OrderState {
     this.loading = true;
     this.lastError = null;
     try {
-      const rows = await fetchOrderListRows({ basePath: base, signal: controller.signal });
+      const rows = await fetchOrderListRows({ basePath: base, signal: controller.signal, includeRoute });
       if (version === this.loadVersion) this.orders = rows;
     } catch (err) {
       if (controller.signal.aborted || version !== this.loadVersion) return;

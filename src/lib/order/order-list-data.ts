@@ -15,7 +15,9 @@ export function normalizeOrderListRow(d: Record<string, any>): Order {
     badges: [...new Set((Array.isArray(d.badges) ? d.badges : []).filter((b: unknown): b is Badge =>
       typeof b === 'string' && allowedBadges.has(b)))],
     priority: d.priority == null ? undefined : String(d.priority), fields: d.fields ?? [], materials: d.materials ?? [],
-    stages: d.stages ?? blankStages(), isDraft: status === 'DRAFT' || status === 'PENDING_REVIEW',
+    stages: d.stages ?? blankStages(),
+    ...(Array.isArray(d.productionRoute) ? { productionRoute: d.productionRoute } : {}),
+    isDraft: status === 'DRAFT' || status === 'PENDING_REVIEW',
     profiles: d.profiles ?? [], isRD: d.isRD === true || d.isRd === true || d.is_rd === true,
     rdNotes: string(d.notes ?? d.rdNotes), redo: d.redo ?? [], redoReasons: d.redoReasons ?? {},
     redoStage: d.redoStage ?? '', redoReason: d.redoReason ?? '', progress: d.progress ?? {}, cycles: d.cycles ?? [],
@@ -25,10 +27,11 @@ export function normalizeOrderListRow(d: Record<string, any>): Order {
 }
 
 /** Publish only a complete set, so list badges and totals cannot disagree with the calendar. */
-export async function fetchOrderListRows(options: CalendarFetchOptions = {}): Promise<Order[]> {
+export async function fetchOrderListRows(options: CalendarFetchOptions & { includeRoute?: boolean } = {}): Promise<Order[]> {
   const rows = new Map<string, Order>();
+  const include = options.includeRoute ? '&include=stages' : '';
   for (let page = 1; page <= 100; page += 1) {
-    const payload = await fetchCalendarJson(`/api/draft-orders?limit=100&page=${page}`, options);
+    const payload = await fetchCalendarJson(`/api/draft-orders?limit=100&page=${page}${include}`, options);
     const result = payload as { data?: unknown; pagination?: { hasMore?: boolean; totalPages?: number } } | null;
     const items = Array.isArray(payload) ? payload : result?.data;
     if (!Array.isArray(items)) throw new Error('Invalid order list response');

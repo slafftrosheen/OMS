@@ -3,6 +3,7 @@
 // in the system. The 'orders' table may not exist or may be a view.
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { readOrderRoutes } from '$lib/server/order/order-routes';
 
 // GET: List orders with optional filters
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -11,6 +12,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   const { supabase } = locals;
 
+  const includeStages = url.searchParams.get('include') === 'stages';
   const status = url.searchParams.get('status');
   const station = url.searchParams.get('station');
   const search = url.searchParams.get('search');
@@ -76,8 +78,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       throw error(500, 'Failed to fetch orders');
     }
 
+    const orderRows = data ?? [];
+    const stagesByOrder = includeStages
+      ? await readOrderRoutes(supabase, orderRows.map(order => order.id))
+      : null;
+
     // Transform snake_case to camelCase for frontend
-    const transformedData = (data || []).map(order => ({
+    const transformedData = orderRows.map(order => ({
       id: order.id,
       poNumber: order.po_number,
       clientName: order.client,
@@ -91,6 +98,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       deliveryContact: order.delivery_contact,
       deliveryPhone: order.delivery_phone,
       deliveryPresetId: order.delivery_preset_id,
+      ...(stagesByOrder ? { stages: stagesByOrder.get(order.id) ?? [] } : {}),
       profileCount: 0, // Will be populated separately if needed
       createdAt: order.created_at,
       updatedAt: order.updated_at

@@ -1,401 +1,269 @@
-// Centralized icon registry — every icon used across OMS resolves here.
-// Uses lucide-svelte subpath imports so Vite tree-shakes unused icons.
-//
-// When you need an icon not in the list, add its kebab-case name to
-// IconName and import it in the `icons` record below. Keep the list
-// alphabetized for merge-friendliness.
-
-import Activity from 'lucide-svelte/icons/activity';
-import GitPullRequest from 'lucide-svelte/icons/git-pull-request';
-import AlertCircle from 'lucide-svelte/icons/alert-circle';
-import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
-import ArrowLeft from 'lucide-svelte/icons/arrow-left';
-import ArrowRight from 'lucide-svelte/icons/arrow-right';
-import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
-import ArrowUpRight from 'lucide-svelte/icons/arrow-up-right';
-import BadgeCheck from 'lucide-svelte/icons/badge-check';
-import BarChart3 from 'lucide-svelte/icons/bar-chart-3';
-import BarChart2 from 'lucide-svelte/icons/bar-chart-2';
-import Beaker from 'lucide-svelte/icons/beaker';
-import Bell from 'lucide-svelte/icons/bell';
-import BellOff from 'lucide-svelte/icons/bell-off';
-import BellRing from 'lucide-svelte/icons/bell-ring';
-import Book from 'lucide-svelte/icons/book';
-import BookOpen from 'lucide-svelte/icons/book-open';
-import BookmarkPlus from 'lucide-svelte/icons/bookmark-plus';
-import Bot from 'lucide-svelte/icons/bot';
-import Box from 'lucide-svelte/icons/box';
-import Boxes from 'lucide-svelte/icons/boxes';
-import Building from 'lucide-svelte/icons/building-2';
-import Calendar from 'lucide-svelte/icons/calendar';
-import CalendarDays from 'lucide-svelte/icons/calendar-days';
-import CalendarCheck from 'lucide-svelte/icons/calendar-check';
-import Camera from 'lucide-svelte/icons/camera';
-import CameraOff from 'lucide-svelte/icons/camera-off';
-import Check from 'lucide-svelte/icons/check';
-import CheckSquare from 'lucide-svelte/icons/check-square';
-import CheckCheck from 'lucide-svelte/icons/check-check';
-import CheckCircle from 'lucide-svelte/icons/check-circle-2';
-import ChevronDown from 'lucide-svelte/icons/chevron-down';
-import ChevronLeft from 'lucide-svelte/icons/chevron-left';
-import ChevronRight from 'lucide-svelte/icons/chevron-right';
-import ChevronUp from 'lucide-svelte/icons/chevron-up';
-import ChevronsUpDown from 'lucide-svelte/icons/chevrons-up-down';
-import ClipboardCheck from 'lucide-svelte/icons/clipboard-check';
-import ClipboardList from 'lucide-svelte/icons/clipboard-list';
-import Clock from 'lucide-svelte/icons/clock';
-import Cog from 'lucide-svelte/icons/cog';
-import Columns from 'lucide-svelte/icons/columns-3';
-import Command from 'lucide-svelte/icons/command';
-import Contrast from 'lucide-svelte/icons/contrast';
-import Copy from 'lucide-svelte/icons/copy';
-import Download from 'lucide-svelte/icons/download';
-import Edit from 'lucide-svelte/icons/pencil';
-import Edit2 from 'lucide-svelte/icons/pencil-line';
-import ExternalLink from 'lucide-svelte/icons/external-link';
-import Eye from 'lucide-svelte/icons/eye';
-import EyeOff from 'lucide-svelte/icons/eye-off';
-import Factory from 'lucide-svelte/icons/factory';
-import File from 'lucide-svelte/icons/file';
-import FilePlus from 'lucide-svelte/icons/file-plus';
-import FileText from 'lucide-svelte/icons/file-text';
-import Filter from 'lucide-svelte/icons/filter';
-import FolderOpen from 'lucide-svelte/icons/folder-open';
-import Globe from 'lucide-svelte/icons/globe';
-import Grid from 'lucide-svelte/icons/grid-3x3';
-import GripVertical from 'lucide-svelte/icons/grip-vertical';
-import Hash from 'lucide-svelte/icons/hash';
-import HelpCircle from 'lucide-svelte/icons/help-circle';
-import Home from 'lucide-svelte/icons/home';
-import Image from 'lucide-svelte/icons/image';
-import Inbox from 'lucide-svelte/icons/inbox';
-import Info from 'lucide-svelte/icons/info';
-import Kanban from 'lucide-svelte/icons/kanban-square';
-import Key from 'lucide-svelte/icons/key';
-import Languages from 'lucide-svelte/icons/languages';
-import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
-import LayoutGrid from 'lucide-svelte/icons/layout-grid';
-import Link from 'lucide-svelte/icons/link';
-import Loader from 'lucide-svelte/icons/loader-circle';
-import Loader2 from 'lucide-svelte/icons/loader-2';
-import RotateCcw from 'lucide-svelte/icons/rotate-ccw';
-import Cpu from 'lucide-svelte/icons/cpu';
-import Lock from 'lucide-svelte/icons/lock';
-import LogIn from 'lucide-svelte/icons/log-in';
-import LogOut from 'lucide-svelte/icons/log-out';
-import Mail from 'lucide-svelte/icons/mail';
-import MapPin from 'lucide-svelte/icons/map-pin';
-import Maximize from 'lucide-svelte/icons/maximize-2';
-import Menu from 'lucide-svelte/icons/menu';
-import MessageSquare from 'lucide-svelte/icons/message-square';
-import Minimize from 'lucide-svelte/icons/minimize-2';
-import Minus from 'lucide-svelte/icons/minus';
-import MinusCircle from 'lucide-svelte/icons/minus-circle';
-import Monitor from 'lucide-svelte/icons/monitor';
-import Moon from 'lucide-svelte/icons/moon';
-import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
-import MoreVertical from 'lucide-svelte/icons/more-vertical';
-import Package from 'lucide-svelte/icons/package';
-import PackageCheck from 'lucide-svelte/icons/package-check';
-import PackagePlus from 'lucide-svelte/icons/package-plus';
-import PackageSearch from 'lucide-svelte/icons/package-search';
-import Paintbrush from 'lucide-svelte/icons/paintbrush';
-import Palette from 'lucide-svelte/icons/palette';
-import Paperclip from 'lucide-svelte/icons/paperclip';
-import Phone from 'lucide-svelte/icons/phone';
-import Play from 'lucide-svelte/icons/play';
-import Plug from 'lucide-svelte/icons/plug';
-import Plus from 'lucide-svelte/icons/plus';
-import PlusCircle from 'lucide-svelte/icons/plus-circle';
-import Printer from 'lucide-svelte/icons/printer';
-import QrCode from 'lucide-svelte/icons/qr-code';
-import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-import Rows from 'lucide-svelte/icons/rows-3';
-import Ruler from 'lucide-svelte/icons/ruler';
-import Save from 'lucide-svelte/icons/save';
-import ScanBarcode from 'lucide-svelte/icons/scan-barcode';
-import Search from 'lucide-svelte/icons/search';
-import Send from 'lucide-svelte/icons/send';
-import Settings from 'lucide-svelte/icons/settings';
-import Shield from 'lucide-svelte/icons/shield';
-import Slash from 'lucide-svelte/icons/slash';
-import Smile from 'lucide-svelte/icons/smile';
-import Sparkles from 'lucide-svelte/icons/sparkles';
-import Square from 'lucide-svelte/icons/square';
-import Star from 'lucide-svelte/icons/star';
-import StickyNote from 'lucide-svelte/icons/sticky-note';
-import Sun from 'lucide-svelte/icons/sun';
-import Tag from 'lucide-svelte/icons/tag';
-import Trash from 'lucide-svelte/icons/trash';
-import Trash2 from 'lucide-svelte/icons/trash-2';
-import TrendingUp from 'lucide-svelte/icons/trending-up';
-import Truck from 'lucide-svelte/icons/truck';
-import Type from 'lucide-svelte/icons/type';
-import Upload from 'lucide-svelte/icons/upload';
-import User from 'lucide-svelte/icons/user';
-import UserPlus from 'lucide-svelte/icons/user-plus';
-import Users from 'lucide-svelte/icons/users';
-import Wifi from 'lucide-svelte/icons/wifi';
-import WifiOff from 'lucide-svelte/icons/wifi-off';
-import X from 'lucide-svelte/icons/x';
-import XCircle from 'lucide-svelte/icons/x-circle';
-import ZapIcon from 'lucide-svelte/icons/zap';
-import ZoomIn from 'lucide-svelte/icons/zoom-in';
-import ZoomOut from 'lucide-svelte/icons/zoom-out';
-// Reclame AI Lab additions
-import Library from 'lucide-svelte/icons/library';
-import Network from 'lucide-svelte/icons/network';
-import ListChecks from 'lucide-svelte/icons/list-checks';
-import Wrench from 'lucide-svelte/icons/wrench';
-import Eraser from 'lucide-svelte/icons/eraser';
-import UploadCloud from 'lucide-svelte/icons/upload-cloud';
-import RefreshCcw from 'lucide-svelte/icons/refresh-ccw';
-import Archive from 'lucide-svelte/icons/archive';
-import Volume2 from 'lucide-svelte/icons/volume-2';
-import Mic from 'lucide-svelte/icons/mic';
-import Lightbulb from 'lucide-svelte/icons/lightbulb';
-import Drill from 'lucide-svelte/icons/drill';
-import PackageX from 'lucide-svelte/icons/package-x';
-import Sliders from 'lucide-svelte/icons/sliders';
-import Code from 'lucide-svelte/icons/code';
-import MicOff from 'lucide-svelte/icons/mic-off';
-import VolumeX from 'lucide-svelte/icons/volume-x';
-import StopCircle from 'lucide-svelte/icons/stop-circle';
-import Video from 'lucide-svelte/icons/video';
-import Headphones from 'lucide-svelte/icons/headphones';
-import SkipForward from 'lucide-svelte/icons/skip-forward';
-import SkipBack from 'lucide-svelte/icons/skip-back';
-import Pause from 'lucide-svelte/icons/pause';
-import CircleAlert from 'lucide-svelte/icons/circle-alert';
-import Layers from 'lucide-svelte/icons/layers';
-import Workflow from 'lucide-svelte/icons/workflow';
-import Hammer from 'lucide-svelte/icons/hammer';
-import Scissors from 'lucide-svelte/icons/scissors';
-import Wand from 'lucide-svelte/icons/wand-sparkles';
-import Bookmark from 'lucide-svelte/icons/bookmark';
-import History from 'lucide-svelte/icons/history';
-import Inspect from 'lucide-svelte/icons/inspect';
-import Compass from 'lucide-svelte/icons/compass';
-import Gauge from 'lucide-svelte/icons/gauge';
-import Radar from 'lucide-svelte/icons/radar';
-import ScanLine from 'lucide-svelte/icons/scan-line';
-import Move from 'lucide-svelte/icons/move';
-import Smartphone from 'lucide-svelte/icons/smartphone';
-import Brush from 'lucide-svelte/icons/brush';
-import Database from 'lucide-svelte/icons/database';
-import CloudUpload from 'lucide-svelte/icons/cloud-upload';
-import CloudDownload from 'lucide-svelte/icons/cloud-download';
-import Share2 from 'lucide-svelte/icons/share-2';
-import Reply from 'lucide-svelte/icons/reply';
-import AtSign from 'lucide-svelte/icons/at-sign';
-import Hash2 from 'lucide-svelte/icons/hash';
-import Ban from 'lucide-svelte/icons/ban';
+// Centralized icon registry — Reclame Fabriek custom set (replaces lucide).
+// Same public API as before: icons, iconAliases, IconName, resolveIconName,
+// iconSizes, IconSize, resolveIconSize. Glyph data lives in ./rf-icons/data.ts.
+import { RF_ICONS } from './rf-icons/data';
 
 export const icons = {
-  'activity': Activity,
-  'alert-circle': AlertCircle,
-  'alert-triangle': AlertTriangle,
-  'arrow-left': ArrowLeft,
-  'arrow-right': ArrowRight,
-  'arrow-right-left': ArrowRightLeft,
-  'arrow-up-right': ArrowUpRight,
-  'badge-check': BadgeCheck,
-  'bar-chart': BarChart3,
-  'bar-chart-3': BarChart3,
-  'bar-chart-2': BarChart2,
-  'beaker': Beaker,
-  'bell': Bell,
-  'bell-off': BellOff,
-  'bell-ring': BellRing,
-  'book': Book,
-  'book-open': BookOpen,
-  'bookmark-plus': BookmarkPlus,
-  'bot': Bot,
-  'box': Box,
-  'boxes': Boxes,
-  'building': Building,
-  'building-2': Building,
-  'calendar': Calendar,
-  'calendar-days': CalendarDays,
-  'calendar-check': CalendarCheck,
-  'camera': Camera,
-  'camera-off': CameraOff,
-  'check': Check,
-  'check-square': CheckSquare,
-  'check-check': CheckCheck,
-  'check-circle': CheckCircle,
-  'chevron-down': ChevronDown,
-  'chevron-left': ChevronLeft,
-  'chevron-right': ChevronRight,
-  'chevron-up': ChevronUp,
-  'chevrons-up-down': ChevronsUpDown,
-  'clipboard-check': ClipboardCheck,
-  'clipboard-list': ClipboardList,
-  'clock': Clock,
-  'cog': Cog,
-  'columns': Columns,
-  'command': Command,
-  'contrast': Contrast,
-  'copy': Copy,
-  'download': Download,
-  'edit': Edit,
-  'edit-2': Edit2,
-  'external-link': ExternalLink,
-  'eye': Eye,
-  'eye-off': EyeOff,
-  'factory': Factory,
-  'file': File,
-  'file-plus': FilePlus,
-  'file-text': FileText,
-  'filter': Filter,
-  'folder-open': FolderOpen,
-  'globe': Globe,
-  'git-pull-request': GitPullRequest,
-  'grid': Grid,
-  'grip-vertical': GripVertical,
-  'hash': Hash,
-  'help-circle': HelpCircle,
-  'home': Home,
-  'image': Image,
-  'inbox': Inbox,
-  'info': Info,
-  'kanban': Kanban,
-  'key': Key,
-  'languages': Languages,
-  'layout-dashboard': LayoutDashboard,
-  'layout-grid': LayoutGrid,
-  'link': Link,
-  'loader': Loader,
-  'loader-2': Loader2,
-  'lock': Lock,
-  'log-in': LogIn,
-  'log-out': LogOut,
-  'mail': Mail,
-  'map-pin': MapPin,
-  'maximize': Maximize,
-  'menu': Menu,
-  'message-square': MessageSquare,
-  'minimize': Minimize,
-  'minus': Minus,
-  'minus-circle': MinusCircle,
-  'monitor': Monitor,
-  'moon': Moon,
-  'more-horizontal': MoreHorizontal,
-  'more-vertical': MoreVertical,
-  'package': Package,
-  'package-check': PackageCheck,
-  'package-plus': PackagePlus,
-  'package-search': PackageSearch,
-  'cpu': Cpu,
-  'paintbrush': Paintbrush,
-  'palette': Palette,
-  'rotate-ccw': RotateCcw,
-  'paperclip': Paperclip,
-  'phone': Phone,
-  'play': Play,
-  'plug': Plug,
-  'plus': Plus,
-  'plus-circle': PlusCircle,
-  'printer': Printer,
-  'qr-code': QrCode,
-  'refresh-cw': RefreshCw,
-  'rows': Rows,
-  'ruler': Ruler,
-  'save': Save,
-  'scan-barcode': ScanBarcode,
-  'search': Search,
-  'send': Send,
-  'settings': Settings,
-  'shield': Shield,
-  'slash': Slash,
-  'smile': Smile,
-  'sparkles': Sparkles,
-  'square': Square,
-  'star': Star,
-  'sticky-note': StickyNote,
-  'sun': Sun,
-  'tag': Tag,
-  'trash': Trash,
-  'trash-2': Trash2,
-  'trending-up': TrendingUp,
-  'truck': Truck,
-  'type': Type,
-  'upload': Upload,
-  'user': User,
-  'user-plus': UserPlus,
-  'users': Users,
-  'wifi': Wifi,
-  'wifi-off': WifiOff,
-  'x': X,
-  'x-circle': XCircle,
-  'zap': ZapIcon,
-  'library': Library,
-  'network': Network,
-  'list-checks': ListChecks,
-  'wrench': Wrench,
-  'eraser': Eraser,
-  'upload-cloud': UploadCloud,
-  'refresh-ccw': RefreshCcw,
-  'archive': Archive,
-  'volume-2': Volume2,
-  'mic': Mic,
-  'lightbulb': Lightbulb,
-  'drill': Drill,
-  'package-x': PackageX,
-  'sliders': Sliders,
-  'code': Code,
-  'mic-off': MicOff,
-  'volume-x': VolumeX,
-  'stop-circle': StopCircle,
-  'video': Video,
-  'headphones': Headphones,
-  'skip-forward': SkipForward,
-  'skip-back': SkipBack,
-  'pause': Pause,
-  'circle-alert': CircleAlert,
-  'layers': Layers,
-  'workflow': Workflow,
-  'hammer': Hammer,
-  'scissors': Scissors,
-  'wand-sparkles': Wand,
-  'bookmark': Bookmark,
-  'history': History,
-  'inspect': Inspect,
-  'compass': Compass,
-  'gauge': Gauge,
-  'radar': Radar,
-  'scan-line': ScanLine,
-  'move': Move,
-  'smartphone': Smartphone,
-  'brush': Brush,
-  'database': Database,
-  'cloud-upload': CloudUpload,
-  'cloud-download': CloudDownload,
-  'share-2': Share2,
-  'reply': Reply,
-  'at-sign': AtSign,
-  'ban': Ban,
-  'zoom-in': ZoomIn,
-  'zoom-out': ZoomOut
+  'activity': true,
+  'alert-circle': true,
+  'alert-triangle': true,
+  'archive': true,
+  'arrow-left': true,
+  'arrow-right': true,
+  'arrow-right-left': true,
+  'arrow-up': true,
+  'arrow-up-right': true,
+  'assets': true,
+  'at-sign': true,
+  'badge-check': true,
+  'ban': true,
+  'bar-chart': true,
+  'bar-chart-2': true,
+  'bar-chart-3': true,
+  'beaker': true,
+  'bell': true,
+  'bell-off': true,
+  'bell-ring': true,
+  'blocked': true,
+  'book': true,
+  'book-open': true,
+  'bookmark': true,
+  'bookmark-plus': true,
+  'bot': true,
+  'box': true,
+  'box-letter': true,
+  'boxes': true,
+  'brush': true,
+  'building': true,
+  'building-2': true,
+  'cable': true,
+  'calendar': true,
+  'calendar-check': true,
+  'calendar-days': true,
+  'calendar-off': true,
+  'calendar-x': true,
+  'camera': true,
+  'camera-off': true,
+  'capacity': true,
+  'chat': true,
+  'check': true,
+  'check-check': true,
+  'check-circle': true,
+  'check-circle-2': true,
+  'check-square': true,
+  'chevron-down': true,
+  'chevron-left': true,
+  'chevron-right': true,
+  'chevron-up': true,
+  'chevrons-up-down': true,
+  'circle': true,
+  'circle-alert': true,
+  'circle-dashed': true,
+  'clipboard-check': true,
+  'clipboard-list': true,
+  'clock': true,
+  'clock-3': true,
+  'cloud-download': true,
+  'cloud-upload': true,
+  'code': true,
+  'cog': true,
+  'columns': true,
+  'columns-3': true,
+  'command': true,
+  'compass': true,
+  'component': true,
+  'contrast': true,
+  'controller': true,
+  'copy': true,
+  'cpu': true,
+  'dashboard': true,
+  'database': true,
+  'dimension': true,
+  'download': true,
+  'drill': true,
+  'droplets': true,
+  'edit': true,
+  'edit-2': true,
+  'edit-pencil': true,
+  'eraser': true,
+  'error': true,
+  'external-link': true,
+  'eye': true,
+  'eye-off': true,
+  'factory': true,
+  'file': true,
+  'file-plus': true,
+  'file-spreadsheet': true,
+  'file-text': true,
+  'filter': true,
+  'flame': true,
+  'folder-open': true,
+  'gauge': true,
+  'git-pull-request': true,
+  'globe': true,
+  'grid': true,
+  'grid-3x3': true,
+  'grip-vertical': true,
+  'hammer': true,
+  'hash': true,
+  'headphones': true,
+  'help-circle': true,
+  'history': true,
+  'home': true,
+  'image': true,
+  'inbox': true,
+  'info': true,
+  'inspect': true,
+  'inventory': true,
+  'kanban': true,
+  'kanban-square': true,
+  'key': true,
+  'languages': true,
+  'laser': true,
+  'layers': true,
+  'layout-dashboard': true,
+  'layout-grid': true,
+  'led-module': true,
+  'led-neon': true,
+  'library': true,
+  'lightbox': true,
+  'lightbulb': true,
+  'link': true,
+  'link-2': true,
+  'list-checks': true,
+  'loader': true,
+  'loader-2': true,
+  'loader-circle': true,
+  'lock': true,
+  'lock-keyhole': true,
+  'log-in': true,
+  'log-out': true,
+  'login': true,
+  'logout': true,
+  'mail': true,
+  'map-pin': true,
+  'maximize': true,
+  'maximize-2': true,
+  'menu': true,
+  'message-square': true,
+  'mic': true,
+  'mic-off': true,
+  'minimize': true,
+  'minimize-2': true,
+  'minus': true,
+  'minus-circle': true,
+  'monitor': true,
+  'moon': true,
+  'more-horizontal': true,
+  'more-vertical': true,
+  'move': true,
+  'network': true,
+  'notification': true,
+  'orders': true,
+  'package': true,
+  'package-check': true,
+  'package-plus': true,
+  'package-search': true,
+  'package-x': true,
+  'paintbrush': true,
+  'palette': true,
+  'paperclip': true,
+  'pause': true,
+  'pen-tool': true,
+  'pencil': true,
+  'pencil-line': true,
+  'phone': true,
+  'play': true,
+  'plug': true,
+  'plus': true,
+  'plus-circle': true,
+  'power': true,
+  'printer': true,
+  'products': true,
+  'profile-section': true,
+  'psu': true,
+  'pylon': true,
+  'qr-code': true,
+  'radar': true,
+  'refresh-ccw': true,
+  'refresh-cw': true,
+  'reply': true,
+  'reservation': true,
+  'rework': true,
+  'rotate-ccw': true,
+  'route': true,
+  'router-bit': true,
+  'rows': true,
+  'rows-3': true,
+  'ruler': true,
+  'save': true,
+  'scan-barcode': true,
+  'scan-line': true,
+  'scissors': true,
+  'search': true,
+  'send': true,
+  'settings': true,
+  'settings-2': true,
+  'share-2': true,
+  'sheet-material': true,
+  'shield': true,
+  'shield-check': true,
+  'shift': true,
+  'skip-back': true,
+  'skip-forward': true,
+  'slash': true,
+  'sliders': true,
+  'smartphone': true,
+  'smile': true,
+  'sparkles': true,
+  'square': true,
+  'star': true,
+  'station-assembly': true,
+  'station-cad': true,
+  'station-cnc': true,
+  'station-delivery': true,
+  'station-edge': true,
+  'station-packaging': true,
+  'station-paint': true,
+  'stations': true,
+  'sticky-note': true,
+  'stop-circle': true,
+  'success': true,
+  'sun': true,
+  'tag': true,
+  'trash': true,
+  'trash-2': true,
+  'trending-down': true,
+  'trending-up': true,
+  'truck': true,
+  'type': true,
+  'upload': true,
+  'upload-cloud': true,
+  'user': true,
+  'user-plus': true,
+  'users': true,
+  'video': true,
+  'volume-2': true,
+  'volume-x': true,
+  'wand-sparkles': true,
+  'warning': true,
+  'weld': true,
+  'wifi': true,
+  'wifi-off': true,
+  'workflow': true,
+  'wrench': true,
+  'x': true,
+  'x-circle': true,
+  'zap': true,
+  'zoom-in': true,
+  'zoom-out': true
 } as const;
 
-// Legacy aliases — kept so pre-existing callers (e.g. src/lib/brand/TopNav.svelte)
-// keep working. New code should prefer canonical kebab-case names from `icons`.
 export const iconAliases = {
-  'orders': 'clipboard-list',
-  'inventory': 'boxes',
-  'assets': 'package',
-  'stations': 'building',
-  'products': 'package',
-  'warning': 'alert-triangle',
-  'error': 'x-circle',
-  'success': 'check-circle',
-  'dashboard': 'layout-dashboard',
-  'chat': 'message-square',
-  'notification': 'bell',
-  'logout': 'log-out',
-  'login': 'log-in',
-  'edit-pencil': 'edit'
+  'orders': 'clipboard-list', 'inventory': 'boxes', 'assets': 'package', 'stations': 'factory',
+  'products': 'package', 'warning': 'alert-triangle', 'error': 'x-circle', 'success': 'check-circle',
+  'dashboard': 'layout-dashboard', 'chat': 'message-square', 'notification': 'bell',
+  'logout': 'log-out', 'login': 'log-in', 'edit-pencil': 'edit'
 } as const satisfies Record<string, keyof typeof icons>;
 
 export type IconName = keyof typeof icons | keyof typeof iconAliases;
@@ -405,18 +273,12 @@ export function resolveIconName(name: IconName): keyof typeof icons {
   return name as keyof typeof icons;
 }
 
-// Size keyword → pixel value (mirrors --icon-size-* tokens in brand.css
-// at the base font-scale of 1.0; the wrapper never reads CSS vars).
-export const iconSizes = {
-  xs: 12,
-  sm: 16,
-  md: 18,
-  lg: 22,
-  xl: 28
-} as const;
+export function iconGlyph(name: IconName) {
+  return RF_ICONS[resolveIconName(name)] ?? RF_ICONS['help-circle'];
+}
 
+export const iconSizes = { xs: 12, sm: 16, md: 18, lg: 22, xl: 28 } as const;
 export type IconSize = keyof typeof iconSizes | number;
-
 export function resolveIconSize(size: IconSize | undefined): number {
   if (typeof size === 'number') return size;
   if (size && size in iconSizes) return iconSizes[size as keyof typeof iconSizes];

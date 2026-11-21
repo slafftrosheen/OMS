@@ -1,0 +1,211 @@
+/* ============================================================
+   RECLAME FABRIEK OMS — ROUND 3 · CANVAS & CAD  (v0.3)
+   Load AFTER fabriek-screens.css. Skins OMS Draw (Create draft → Drawing,
+   Toolkit board) and sets the two drawing surfaces:
+
+     html[data-canvas="paper"]      Drafting paper   (default in the office)
+     html[data-canvas="blueprint"]  Night blueprint  (View → Night blueprint)
+
+   Only the drawing area changes (viewport, page sheet, rulers, grid, selection,
+   snaps, cursors). Menus and panels follow the page theme. Exports and prints
+   always use the light palette.
+
+   Interaction colours, with reasons:
+     Selection & guides  paper → CAD blue #2F64B0 (the canvas is the CAD station's tool)
+                         blueprint → Lumen #FFB547 (light on dark, never on paper)
+     Snap target         paper → Fabriek Red #C8161D · blueprint → #FF7A7A
+                         (the only red on the canvas: "your click lands here")
+   Roll back: remove the one <link> in src/app.html.
+   ============================================================ */
+
+/* ---------- 1. Surface tokens ---------- */
+html, html[data-canvas="paper"]{
+  --rf-cv-bg:#ECEBE6;            /* pasteboard around the sheet */
+  --rf-cv-sheet:#FFFFFF;         /* the drawing sheet            */
+  --rf-cv-sheet-edge:#9AA0A6;
+  --rf-cv-ink:#1C1D20;
+  --rf-cv-ink-2:#565A61;
+  --rf-cv-halo:#FFFFFF;          /* text halo behind live labels */
+  --rf-grid-minor:rgba(28,29,32,.07);
+  --rf-grid-major:rgba(28,29,32,.17);
+  --rf-cv-select:#2F64B0;
+  --rf-cv-select-fill:rgba(47,100,176,.10);
+  --rf-cv-snap:#C8161D;
+  --rf-cv-guide:rgba(47,100,176,.75);
+  --rf-cv-dim:#1C1D20;           /* dimension lines + figures    */
+  --rf-ruler-bg:#FFFFFF; --rf-ruler-ink:#565A61; --rf-ruler-edge:#D5D3CD;
+}
+html[data-canvas="blueprint"]{
+  --rf-cv-bg:#121316;
+  --rf-cv-sheet:#1C1D20;
+  --rf-cv-sheet-edge:#5E636A;
+  --rf-cv-ink:#F3F2EF;
+  --rf-cv-ink-2:#B9BEC4;
+  --rf-cv-halo:#121316;
+  --rf-grid-minor:rgba(154,160,166,.10);
+  --rf-grid-major:rgba(154,160,166,.24);
+  --rf-cv-select:#FFB547;
+  --rf-cv-select-fill:rgba(255,181,71,.10);
+  --rf-cv-snap:#FF7A7A;
+  --rf-cv-guide:rgba(255,181,71,.70);
+  --rf-cv-dim:#F3F2EF;
+  --rf-ruler-bg:#1C1D20; --rf-ruler-ink:#B9BEC4; --rf-ruler-edge:#33363B;
+}
+
+/* tldraw reads these on its container. Doubled class beats the workspace's own rule. */
+html[data-canvas] .tl-container.tl-container{
+  --color-background:var(--rf-cv-bg);
+  --color-grid:var(--rf-grid-major);
+  --color-selected:var(--rf-cv-select);
+  --color-selection-stroke:var(--rf-cv-select);
+  --color-selection-fill:var(--rf-cv-select-fill);
+  --color-brush-fill:var(--rf-cv-select-fill);
+  --color-brush-stroke:var(--rf-cv-select);
+  --color-accent:var(--rf-cv-snap);
+  --color-focus:var(--rf-cv-select);
+  --color-primary:var(--rf-cv-select);
+  --color-text-shadow:var(--rf-cv-halo);
+  --color-panel:var(--bg-1);
+  --color-text:var(--ink-0);
+  /* Cursors: RF crosshair for drawing tools, chamfered arrow for select. Black with white halo — reads on both surfaces. */
+  --tl-cursor-cross:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><g fill='none' stroke-linecap='square'><path d='M16 2v10M16 20v10M2 16h10M20 16h10' stroke='white' stroke-width='3'/><path d='M16 2v10M16 20v10M2 16h10M20 16h10' stroke='%231C1D20' stroke-width='1'/><rect x='14' y='14' width='4' height='4' stroke='white' stroke-width='3'/><rect x='14' y='14' width='4' height='4' stroke='%23C8161D' stroke-width='1'/></g></svg>") 16 16, crosshair;
+  --tl-cursor-default:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M9 5v19l4.6-4.4 3.3 7.4 3.2-1.4-3.2-7.3H23z' fill='%231C1D20' stroke='white' stroke-width='1.6' stroke-linejoin='bevel'/></svg>") 9 5, default;
+}
+
+/* Drafting grid lines (DrawingGrid.tsx) */
+.rf-grid .rf-grid-minor{ fill:none; stroke:var(--rf-grid-minor); stroke-width:1 }
+.rf-grid .rf-grid-major{ fill:none; stroke:var(--rf-grid-major); stroke-width:1 }
+
+/* Snap indicators: crisp hairline + square snap points (not round dots). */
+html[data-canvas] .tl-container .tl-snap-indicator{ stroke:var(--rf-cv-snap); stroke-width:calc(1px * var(--tl-scale)) }
+html[data-canvas] .tl-container .tl-snap-point{ stroke:var(--rf-cv-snap); stroke-width:calc(1.25px * var(--tl-scale)) }
+/* Selection: thin precise frame, square handles. */
+html[data-canvas] .tl-container .tl-selection__fg__outline{ stroke:var(--rf-cv-select); stroke-width:calc(1px * var(--tl-scale)) }
+html[data-canvas] .tl-container .tl-corner-handle, html[data-canvas] .tl-container .tl-rotate-corner{ stroke:var(--rf-cv-select); fill:var(--rf-cv-sheet); rx:0; ry:0 }
+html[data-canvas] .tl-container .tl-handle__bg{ fill:var(--rf-cv-sheet) }
+html[data-canvas] .tl-container .tl-handle__fg{ stroke:var(--rf-cv-select) }
+html[data-canvas] .tl-container .tl-brush__default{ stroke:var(--rf-cv-select); stroke-dasharray:calc(4px * var(--tl-scale)) calc(3px * var(--tl-scale)); fill:var(--rf-cv-select-fill) }
+
+/* Page sheet: white sheet with an aluminium edge and crop marks feel on paper; dark sheet on blueprint. */
+html[data-canvas] .drawing-page-sheet rect{ fill:var(--rf-cv-sheet); fill-opacity:1; stroke:var(--rf-cv-sheet-edge); stroke-width:1 }
+html[data-canvas="paper"] .drawing-page-sheet{ filter:drop-shadow(0 1px 0 rgba(28,29,32,.10)) drop-shadow(0 6px 16px rgba(28,29,32,.08)) }
+html[data-canvas="blueprint"] .drawing-page-sheet{ filter:drop-shadow(0 0 0 transparent) }
+
+/* User guides follow the selection family, dashed. */
+html[data-canvas] .drawing-guide-line, html[data-canvas] .drawing-guide-preview{ stroke:var(--rf-cv-guide); stroke-dasharray:6 4 }
+html[data-canvas] .drawing-guide-snap{ stroke:var(--rf-cv-snap) }
+html[data-canvas] .drawing-guide-line.is-selected{ stroke:var(--rf-cv-ink); stroke-dasharray:none }
+
+/* Rulers belong to the drawing area → they follow the surface. */
+html[data-canvas] .drawing-workspace .drawing-ruler{ background:var(--rf-ruler-bg); color:var(--rf-ruler-ink) }
+html[data-canvas] .drawing-workspace .drawing-ruler-x{ border-bottom-color:var(--rf-ruler-edge) }
+html[data-canvas] .drawing-workspace .drawing-ruler-y{ border-right-color:var(--rf-ruler-edge) }
+html[data-canvas] .drawing-workspace .drawing-ruler-origin{ background:var(--rf-ruler-bg); color:var(--rf-ruler-ink); border-color:var(--rf-ruler-edge); font-family:var(--font-mono) }
+html[data-canvas] .drawing-workspace .drawing-ruler text{ font-family:var(--font-mono); font-size:9px; letter-spacing:0 }
+html[data-canvas] .drawing-workspace .drawing-ruler path{ stroke-width:.75 }
+
+/* ---------- 2. Workspace chrome (follows the page theme) ---------- */
+.drawing-workspace.drawing-workspace{
+  --drawing-rail:46px; border-radius:var(--radius-md); background:var(--bg-2); border-color:var(--border);
+  font-family:var(--font-sans);
+}
+.drawing-workspace .drawing-commands{ background:var(--bg-1); border-bottom:1px solid var(--border) }
+.drawing-workspace .drawing-title{
+  font-family:var(--font-display); font-weight:700; font-size:14px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-0);
+  display:inline-flex; align-items:center; gap:7px;
+}
+.drawing-workspace .drawing-title::before{ content:""; width:10px; height:10px; background:var(--st-cad); border-radius:1px }
+.drawing-workspace .drawing-title span{ font-family:var(--font-mono); font-size:10px; letter-spacing:0; text-transform:none; color:var(--ink-2) }
+.drawing-workspace .drawing-menu summary{ font-size:13px; border-radius:var(--radius-xs) }
+.drawing-workspace .drawing-menu[open] > summary{ background:var(--ink-0); color:var(--bg-0) }
+.drawing-workspace .drawing-menu-popover, .drawing-workspace .drawing-tool-flyout, .drawing-viewport .tlui-menu{
+  border:1px solid var(--border-strong); border-radius:var(--radius-sm); box-shadow:0 12px 32px rgba(0,0,0,.18); background:var(--bg-1)
+}
+.drawing-workspace .drawing-menu-popover button{ font-size:13px }
+.drawing-workspace .drawing-menu-popover hr{ margin:2px 0 }
+/* Menu toggles (✓ Grid, ✓ Snap, ✓ Night blueprint): no pink fill, just weight. */
+.drawing-workspace .drawing-menu-popover [aria-pressed="true"]{ background:transparent; color:var(--ink-0); font-weight:600 }
+.drawing-viewport .tlui-menu .tlui-button__menu[data-highlighted]{ background:var(--bg-2) }
+
+/* Active state = ink, everywhere (was brand-soft pink). */
+.drawing-workspace .is-active, .drawing-workspace [aria-pressed="true"]{ background:var(--bg-2); color:var(--ink-0) }
+.drawing-workspace .drawing-button{ border-radius:var(--radius-xs) }
+.drawing-workspace .drawing-button.is-active, .drawing-workspace .drawing-toolbox .drawing-button[aria-pressed="true"]{
+  background:var(--ink-0); border-color:var(--ink-0); color:var(--bg-0)
+}
+.drawing-workspace .drawing-button:hover:not(:disabled):not(.is-active){ background:var(--bg-2) }
+
+/* Tool rail: machined column, active tool is a solid ink key with a CAD-blue edge. */
+.drawing-workspace .drawing-toolbox{ background:var(--bg-1); border-right:1px solid var(--border) }
+.drawing-workspace .drawing-tools{ gap:2px; padding:6px 0 }
+.drawing-workspace .drawing-tool-group{ width:38px; min-height:38px }
+.drawing-workspace .drawing-tool-group .drawing-button{ width:36px; min-height:36px }
+.drawing-workspace .drawing-tool-group .drawing-button.is-active{ box-shadow:inset 3px 0 0 var(--st-cad) }
+.drawing-workspace .drawing-tool-expand{ width:9px; height:9px; right:2px; bottom:2px; font-size:0; background:transparent;
+  border-right:2px solid var(--ink-2); border-bottom:2px solid var(--ink-2); border-radius:0 }
+.drawing-workspace .drawing-tool-flyout button{ border-radius:var(--radius-xs); font-size:13px }
+.drawing-workspace .drawing-tool-flyout kbd{ font-family:var(--font-mono); font-size:11px; border:1px solid var(--border); border-radius:2px; padding:1px 5px }
+.drawing-workspace .drawing-tool-paint{ border-top-color:var(--border) }
+
+/* Property bar: small-caps captions, mono numbers. */
+.drawing-workspace .drawing-properties, .drawing-workspace .drawing-standard{ background:var(--bg-1) }
+.drawing-workspace .drawing-property-field > span, .drawing-workspace .drawing-property-caption, .drawing-workspace .drawing-tool-name, .drawing-workspace .drawing-number span{
+  font-family:var(--font-display); font-weight:600; font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-2)
+}
+.drawing-workspace .drawing-number input,
+.drawing-workspace .drawing-properties .drawing-property-field input[type="number"]{
+  font-family:var(--font-mono); font-size:12px; font-variant-numeric:tabular-nums; background:var(--bg-1); border-color:var(--border-strong); border-radius:var(--radius-xs)
+}
+.drawing-workspace :is(.drawing-number input, .drawing-property-field input, .drawing-property-field select, .drawing-style-fields select, .drawing-zoom select):focus{
+  outline:none; border-color:var(--ink-0); box-shadow:inset 0 -2px 0 var(--st-cad)
+}
+.drawing-workspace .drawing-unit{ font-family:var(--font-mono); font-size:11px; color:var(--ink-2) }
+.drawing-workspace .drawing-annotations button{
+  font-family:var(--font-display); font-weight:600; font-size:12px; letter-spacing:.05em; text-transform:uppercase;
+  background:var(--bg-1); border-color:var(--border-strong); border-radius:var(--radius-xs)
+}
+.drawing-workspace .drawing-divider{ background:var(--border) }
+
+/* Docker (Properties, Text, Pen, Arrange, Measure, Guidelines, Snap, Objects) */
+.drawing-workspace .drawing-docker{ background:var(--bg-1) }
+.drawing-workspace .drawing-docker-title{ min-height:40px }
+.drawing-workspace .drawing-docker-title strong{ font-family:var(--font-display); font-weight:600; font-size:15px; letter-spacing:.06em; text-transform:uppercase }
+.drawing-workspace .drawing-docker-rail{ background:var(--bg-1) }
+.drawing-workspace .drawing-docker-tab span{ font-family:var(--font-display); font-weight:600; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2) }
+.drawing-workspace .drawing-docker-tab[aria-pressed="true"]{ background:var(--bg-2); box-shadow:inset 3px 0 0 var(--ink-0) }
+.drawing-workspace .drawing-docker-tab[aria-pressed="true"] span{ color:var(--ink-0) }
+.drawing-workspace .drawing-style-fields > label, .drawing-workspace .drawing-style-fields .drawing-font-picker label{ font-size:12px; color:var(--ink-1) }
+.drawing-workspace .drawing-style-fields select{ border-radius:var(--radius-xs); border-color:var(--border-strong); background:var(--bg-1) }
+.drawing-workspace .drawing-help{ font-size:12px }
+.drawing-workspace .drawing-shortcuts summary, .drawing-workspace details > summary{ font-family:var(--font-display); font-weight:600; letter-spacing:.05em; text-transform:uppercase; font-size:12px }
+
+/* Colour column: square chips, hairline gaps, pressed = ink double ring. */
+.drawing-workspace .drawing-palette{ background:var(--bg-1) }
+.drawing-workspace .drawing-swatches{ gap:3px; padding:6px 4px }
+.drawing-workspace .drawing-swatches button{ width:20px; height:20px; min-height:20px; border-radius:2px; border:1px solid rgba(0,0,0,.18) }
+.drawing-workspace .drawing-swatches button[aria-pressed="true"]{ outline:2px solid var(--ink-0); outline-offset:2px }
+
+/* Status bar: coordinates and zoom in mono. */
+.drawing-workspace .drawing-status{ background:var(--bg-1) }
+.drawing-workspace .drawing-status-text{ font-family:var(--font-mono); font-size:11px; color:var(--ink-2) }
+.drawing-workspace .drawing-status > button{ font-family:var(--font-display); font-weight:600; font-size:12px; letter-spacing:.05em; text-transform:uppercase; border-radius:var(--radius-xs) }
+.drawing-workspace .drawing-status > button[aria-pressed="true"]{ background:var(--ink-0); color:var(--bg-0); border-color:var(--ink-0) }
+.drawing-workspace .drawing-zoom select{ font-family:var(--font-mono); border-radius:var(--radius-xs) }
+
+/* Objects panel + CAD panels */
+.drawing-workspace .drawing-object-row{ border-radius:var(--radius-xs) }
+.drawing-workspace .drawing-object-row[aria-selected="true"], .drawing-workspace .drawing-object-row.is-active{ background:var(--bg-2); box-shadow:inset 3px 0 0 var(--st-cad) }
+.drawing-workspace .drawing-cad-section h3, .drawing-workspace .drawing-arrange-section h3{ font-family:var(--font-display); font-weight:600; font-size:13px; letter-spacing:.06em; text-transform:uppercase }
+.drawing-workspace .drawing-cad-message, .drawing-workspace .drawing-property-error, .drawing-workspace .drawing-point-error{
+  color:var(--error); padding-left:12px; background:var(--hazard) left center/6px 100% no-repeat
+}
+.drawing-workspace .drawing-production-save{ font-family:var(--font-display); letter-spacing:.05em; text-transform:uppercase }
+
+/* Live measurement / construction labels (CadDrawingMeasurements, CadConstructionOverlay) */
+.rf-cv-label{ font-family:var(--font-display); font-weight:600; letter-spacing:.02em; font-variant-numeric:tabular-nums }
+
+/* Reduced motion & forced colours */
+@media (forced-colors: active){
+  html[data-canvas] .tl-container .tl-snap-indicator, html[data-canvas] .tl-container .tl-snap-point{ stroke:Highlight }
+  .rf-grid .rf-grid-minor, .rf-grid .rf-grid-major{ stroke:GrayText }
+}

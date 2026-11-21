@@ -9,6 +9,7 @@
   import LineChart from '$lib/components/analytics/LineChart.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import RouteLine from '$lib/ui/RouteLine.svelte';
   import { tokenColor } from '$lib/utils/tokenColor';
   import { t, locale } from 'svelte-i18n';
   import { loadDashboard } from '$lib/dashboard/data';
@@ -21,6 +22,9 @@
   const assistant = getAssistantContext();
 
   let recentOrders: any[] = $state([]);
+  let hasRunningOrder = $derived(recentOrders.some(order =>
+    Array.isArray(order.stages) && order.stages.some(stage => stage.state === 'IN_PROGRESS')
+  ));
   let verifiedTotal: number | null = $state(null);
   let liveKpis: { total: number; active: number; today: number; completedToday: number } | null = $state(null);
   let ordersError = $state(false);
@@ -110,7 +114,7 @@
 <!-- Hero / greeting -->
 <header class="dash-hero rf-aurora">
   <div class="dash-hero__copy">
-    <span class="dash-kicker"><span class="dash-kicker__led" aria-hidden="true"></span>{greeting}</span>
+    <span class="dash-kicker"><span class="dash-kicker__led" data-live={hasRunningOrder} aria-hidden="true"></span>{greeting}</span>
     <h1 class="dash-hero__title">
       {$currentUser?.username || 'Operator'}
     </h1>
@@ -210,7 +214,12 @@
               <OrderBadges {order} />
               <small>{$t('orders.due_date', { default: 'Due' })}: {formatDue(order.due_date)}</small>
             </span>
-            <Icon name="arrow-right" size="sm" />
+            <Icon name="arrow-right" size="sm" class="dash-order__arrow" />
+            {#if Array.isArray(order.stages)}
+              <div class="dash-order__route">
+                <RouteLine stages={order.stages} size="sm" />
+              </div>
+            {/if}
           </a>
         {/each}
       </div>
@@ -534,11 +543,13 @@
   .dash-order small { color:var(--ink-tertiary); font-size:var(--text-xs); }
   .dash-order__meta { justify-items:end; text-align:right; }
 
-  .dash-order :global(svg) { color:var(--ink-tertiary); }
-  .dash-order:hover :global(svg) { color:var(--brand); }
+  .dash-order__route { grid-column:1 / -1; min-width:0; margin-top:calc(-1 * var(--space-sm)); }
+  .dash-order :global(.dash-order__arrow) { color:var(--ink-tertiary); }
+  .dash-order:hover :global(.dash-order__arrow) { color:var(--ink-0); }
   @media (max-width:640px) {
     .dash-order { grid-template-columns:minmax(0,1fr) auto; gap:var(--space-xs); }
     .dash-order__meta { grid-column:1; grid-row:2; justify-items:start; text-align:left; }
-    .dash-order :global(svg) { grid-column:2; grid-row:1 / span 2; }
+    .dash-order :global(.dash-order__arrow) { grid-column:2; grid-row:1 / span 2; }
+    .dash-order__route { margin-top:0; }
   }
 </style>

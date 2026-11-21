@@ -3,16 +3,7 @@
   import { TERMS } from '$lib/order/names';
   import type { StationTag } from '$lib/order/stages';
   import Icon from '$lib/ui/Icon.svelte';
-  import PenTool from 'lucide-svelte/icons/pen-tool';
-  import Settings2 from 'lucide-svelte/icons/settings-2';
-  import Sparkles from 'lucide-svelte/icons/sparkles';
-  import Component from 'lucide-svelte/icons/component';
-  import Flame from 'lucide-svelte/icons/flame';
-  import Paintbrush from 'lucide-svelte/icons/paintbrush';
-  import PackageCheck from 'lucide-svelte/icons/package-check';
-  import ShieldCheck from 'lucide-svelte/icons/shield-check';
-  import Truck from 'lucide-svelte/icons/truck';
-  import CircleDashed from 'lucide-svelte/icons/circle-dashed';
+  import type { IconName } from '$lib/ui/icons';
 
   interface Props {
     station?: StationTag | null | undefined;
@@ -23,42 +14,44 @@
 
   let { station = null, label = null, size = 'sm', tone = 'default' }: Props = $props();
 
-  const icons: Record<StationTag, typeof PenTool> = {
-    CAD: PenTool,
-    CNC: Settings2,
-    SANDING: Sparkles,
-    BENDING: Component,
-    WELDING: Flame,
-    PAINT: Paintbrush,
-    ASSEMBLY: PackageCheck,
-    QC: ShieldCheck,
-    LOGISTICS: Truck,
-    FILM_COATING: CircleDashed,
-    GLUEING: CircleDashed
-  };
+  // Round 2: every station gets its own RF glyph and its identity colour (--st-*). Identity only — never status.
+  const icons: Record<string, IconName> = {
+    CAD: 'station-cad', CNC: 'station-cnc', EDGE: 'station-edge', ASSEMBLY: 'station-assembly',
+    PAINT: 'station-paint', PACKAGING: 'station-packaging', DELIVERY: 'station-delivery',
+    SANDING: 'sparkles', BENDING: 'component', WELDING: 'weld', QC: 'shield-check',
+    LOGISTICS: 'truck', FILM_COATING: 'layers', GLUEING: 'droplets'
+  } as Record<string, IconName>;
 
-  let icon = $derived(station ? icons[station] ?? CircleDashed : CircleDashed);
+  let icon = $derived<IconName>((station ? icons[String(station).toUpperCase()] : undefined) ?? ('circle-dashed' as IconName));
   let text = $derived(label ?? (station ? $t(TERMS.stations[station]) : ''));
   let show = $derived(Boolean(station || label));
   let sizeClass = $derived(size === 'md' ? 'station-badge--md' : 'station-badge--sm');
 </script>
 
 {#if show}
-  {@const SvelteComponent = icon}
   <span class={`station-badge ${sizeClass}`} data-tone={tone} data-station={station || 'generic'}>
-    <SvelteComponent size={size === 'md' ? 16 : 14} aria-hidden="true" />
+    <Icon name={icon} size={size === 'md' ? 16 : 14} />
     <span class="station-badge__label">{text}</span>
   </span>
 {/if}
 
 <style>
-  .station-badge{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:.75rem; font-weight:600; background:color-mix(in oklab,var(--bg-2) 70%, transparent); border:1px solid color-mix(in oklab,var(--border) 85%, transparent); color:var(--muted); letter-spacing:.01em; }
-  .station-badge--md{ font-size:.8rem; padding:6px 12px }
-  .station-badge :global(svg){ flex:0 0 auto }
-  .station-badge[data-tone='highlight']{ background:color-mix(in oklab,var(--accent-2) 30%, transparent); color:var(--accent-2); border-color:color-mix(in oklab,var(--accent-2) 50%, transparent) }
-  .station-badge[data-station='LOGISTICS']{ color:var(--info); border-color:color-mix(in oklab,var(--info) 40%, transparent) }
-  .station-badge[data-station='QC']{ color:var(--ok); border-color:color-mix(in oklab,var(--ok) 45%, transparent) }
-  .station-badge[data-station='WELDING']{ color:var(--danger); border-color:color-mix(in oklab,var(--danger) 40%, transparent) }
-  .station-badge[data-station='PAINT']{ color:color-mix(in oklab,var(--accent-1) 55%, var(--accent-2)); border-color:color-mix(in oklab,var(--accent-1) 45%, transparent) }
+  /* Machined chip: square-ish, condensed caps, station identity on a 3px leading bar.
+     tone=highlight → solid station colour with white text (all ≥ 4.7:1). */
+  .station-badge{ --st:var(--ink-2); display:inline-flex; align-items:center; gap:6px; padding:3px 8px 3px 6px;
+    border-radius:var(--radius-sm); font-family:var(--font-display); font-size:.78rem; font-weight:600;
+    letter-spacing:var(--tracking-label); text-transform:uppercase; line-height:1.2;
+    background:var(--bg-1); border:1px solid var(--border); box-shadow:inset 3px 0 0 var(--st); color:var(--ink-0); }
+  .station-badge--md{ font-size:.86rem; padding:5px 11px 5px 9px }
+  .station-badge :global(svg){ flex:0 0 auto; color:var(--st) }
+  .station-badge[data-tone='highlight']{ background:var(--st); border-color:var(--st); color:var(--on-station, #fff); box-shadow:none }
+  .station-badge[data-tone='highlight'] :global(svg){ color:currentColor }
+  .station-badge[data-station='CAD']{ --st:var(--st-cad) }
+  .station-badge[data-station='CNC']{ --st:var(--st-cnc) }
+  .station-badge[data-station='EDGE']{ --st:var(--st-edge) }
+  .station-badge[data-station='ASSEMBLY']{ --st:var(--st-assembly) }
+  .station-badge[data-station='PAINT']{ --st:var(--st-paint) }
+  .station-badge[data-station='PACKAGING']{ --st:var(--st-packaging) }
+  .station-badge[data-station='DELIVERY'],.station-badge[data-station='LOGISTICS']{ --st:var(--st-delivery) }
   .station-badge__label{ white-space:nowrap }
 </style>

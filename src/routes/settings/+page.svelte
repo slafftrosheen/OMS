@@ -12,6 +12,7 @@
   import Sun from 'lucide-svelte/icons/sun';
   import Moon from 'lucide-svelte/icons/moon';
   import Contrast from 'lucide-svelte/icons/contrast';
+  import Factory from 'lucide-svelte/icons/factory';
   import Type from 'lucide-svelte/icons/type';
   import Languages from 'lucide-svelte/icons/languages';
   import Palette from 'lucide-svelte/icons/palette';
@@ -172,7 +173,7 @@
 
   onMount(() => { void loadOpenRouterSettings(); void loadAiPolicy(); });
 
-  type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
+  type Theme = 'ByPlace' | 'LightVim' | 'DarkVim' | 'HighContrastVim';
   type Density = 'compact' | 'cozy' | 'comfortable';
 
   let currentTheme: Theme = $state('DarkVim');
@@ -186,6 +187,7 @@
   }));
 
   const themes: { id: Theme; icon: any }[] = [
+    { id: 'ByPlace', icon: Factory },
     { id: 'LightVim', icon: Sun },
     { id: 'DarkVim', icon: Moon },
     { id: 'HighContrastVim', icon: Contrast }

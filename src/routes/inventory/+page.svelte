@@ -10,6 +10,7 @@
   import { getAssistantContext } from '$lib/assistant/context';
   import { createScreenReadScope, inventoryListScreenContext, screenOwnerKey, type InventoryEditorSnapshot } from '$lib/assistant/operational-context';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
+  import { stockLevel, isShort } from '$lib/inventory/stock-level';
   import Tabs from '$lib/ui/Tabs.svelte';
   import ItemModal from '$lib/inventory/ItemModal.svelte';
   import ImportCSV from '$lib/inventory/ImportCSV.svelte';
@@ -69,7 +70,7 @@
     const result = await loadMaterials({ signal: request.signal, accept: () => request.accepts(accountScope) });
     if (!request.accepts(accountScope)) return;
     loadedScope = owner; list = result;
-    low = result.filter(row => row.stock <= row.min_stock);
+    low = result.filter(row => isShort(row.stock, row.min_stock));
   }
   $effect(() => {
     const owner = accountScope;
@@ -280,7 +281,7 @@
                 </thead>
                 <tbody>
                   {#each sub.items as it (it.id)}
-                    <tr class:low-stock={it.stock <= it.min_stock}>
+                    <tr class:low-stock={stockLevel(it.stock, it.min_stock) === 'low'} class:out-of-stock={stockLevel(it.stock, it.min_stock) === 'out'} data-stock={stockLevel(it.stock, it.min_stock)}>
                       <td data-label={$t('inventory.headers.sku')}>
                         <a href={`${base}/inventory/${it.id}`} class="sku-link">
                           {#if it.hex_color}
@@ -291,7 +292,7 @@
                       </td>
                       <td data-label={$t('inventory.headers.name')}>{it.name_en || it.code}</td>
                       <td data-label={$t('inventory.headers.unit')}>{it.unit}</td>
-                      <td data-label={$t('inventory.headers.stock')} class:stock-low={it.stock <= it.min_stock}>{it.stock}</td>
+                      <td data-label={$t('inventory.headers.stock')} class:stock-low={isShort(it.stock, it.min_stock)}>{it.stock}</td>
                       <td data-label={$t('inventory.headers.minimum')}>{it.min_stock}</td>
                       <td data-label={$t('inventory.headers.location')}>{it.location || '—'}</td>
                       <td class="actions-cell">

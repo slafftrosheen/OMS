@@ -16,7 +16,7 @@ export const load = async ({ url }) => {
     const th = params.get('theme');
     if (th === 'HighContrastVim') {
       theme.set('HighContrast');
-    } else if (th && ['LightVim', 'DarkVim', 'HighContrast'].includes(th)) {
+    } else if (th && ['ByPlace', 'LightVim', 'DarkVim', 'HighContrast'].includes(th)) {
       theme.set(th as ThemeName);
     }
 
