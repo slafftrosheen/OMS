@@ -2,7 +2,7 @@ import { validVectorPaint } from './cad-paint';
 import { createShapeId, getIndicesBetween, type Editor, type TLParentId, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { cadMmPerPixel, validateCadSettings, type CadSettings } from './cad-settings';
-import { curveBounds, validContours, type CadContour } from './cad-curves';
+import { CAD_PLAN_GEOMETRY_LIMITS, curveBounds, validContours, type CadContour } from './cad-curves';
 import { retainCadSourceGroups } from './cad-source-groups';
 
 export class CadOperationError extends Error {
@@ -66,7 +66,7 @@ export function assertCadEditable(editor: Editor, ids: string[] = []): void {
  * Each persisted Bézier shape still has the ordinary per-object limits. */
 export function validCadPlanContours(contours: CadContour[], shapes?: CadPlannedShape[]): boolean {
   if (!shapes?.length) return validContours(contours);
-  return validContours(contours, { maxContours: 2000, maxNodes: 20_000 }) &&
+  return validContours(contours, CAD_PLAN_GEOMETRY_LIMITS) &&
     shapes.every(shape => shape.type !== 'cad-bezier' || validContours(shape.props.contours as CadContour[]));
 }
 
@@ -76,7 +76,7 @@ export function makeCadPlan(
   contours: CadContour[],
   options: Partial<CadPlan> = {}
 ): CadPlan {
-  if (!validateCadSettings(settings) || !validContours(contours)) throw new CadOperationError('geometry');
+  if (!validateCadSettings(settings) || !validCadPlanContours(contours, options.shapes)) throw new CadOperationError('geometry');
   const bounds = curveBounds(contours),
     factor = cadMmPerPixel(settings);
   return {

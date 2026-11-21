@@ -14,7 +14,9 @@ export interface CadContour {
   nodes: CadBezierNode[];
 }
 export const CAD_CURVE_NODE_LIMIT = 4096,
+  CAD_CURVE_CONTOUR_LIMIT = 512,
   CAD_FLATTEN_LIMIT = 50000;
+export const CAD_PLAN_GEOMETRY_LIMITS = { maxContours: 2000, maxNodes: 20_000 } as const;
 // Editor vectors also carry pressure (z). Saved CAD nodes have a strict 2D schema.
 export const nodeAt = (p: CadPoint): CadBezierNode => ({ x: p.x, y: p.y, inX: 0, inY: 0, outX: 0, outY: 0, mode: 'corner' });
 export const mix = (a: CadPoint, b: CadPoint, t: number): CadPoint => ({
@@ -23,7 +25,7 @@ export const mix = (a: CadPoint, b: CadPoint, t: number): CadPoint => ({
 });
 export function validContours(
   contours: CadContour[],
-  { maxContours = 512, maxNodes = CAD_CURVE_NODE_LIMIT }: { maxContours?: number; maxNodes?: number } = {}
+  { maxContours = CAD_CURVE_CONTOUR_LIMIT, maxNodes = CAD_CURVE_NODE_LIMIT }: { maxContours?: number; maxNodes?: number } = {}
 ): boolean {
   return (
     Array.isArray(contours) &&

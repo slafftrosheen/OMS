@@ -99,9 +99,9 @@ export function serializeVectorDocument(
   if (paths.some(p => p.paint.raster?.external)) throw new Error("asset-fetch");
   const bounds = frame ?? { x: left, y: top, w: right - left, h: bottom - top };
   const padding = frame ? 0 : 0.01, width = bounds.w + 2 * padding, height = bounds.h + 2 * padding;
-  if (width > MAX_PRINT_POINTS || height > MAX_PRINT_POINTS) throw new Error("page-limit");
-  const pdf = format === "pdf",
-    body: string[] = frame ? ["q", `0 0 ${num(width)} ${num(height)} re W n`] : [],
+  const pdf = format === "pdf";
+  if (pdf && (width > MAX_PRINT_POINTS || height > MAX_PRINT_POINTS)) throw new Error("page-limit");
+  const body: string[] = frame ? ["q", `0 0 ${num(width)} ${num(height)} re W n`] : [],
     shadings: string[] = [],
     images: string[] = [],
     extraObjects: string[] = [];

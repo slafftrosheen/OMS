@@ -18,6 +18,8 @@ import {
   traceSegments,
 } from "../../src/lib/components/canvas/cad-trace";
 import {
+  CAD_CURVE_NODE_LIMIT,
+  validContours,
   curveBounds,
   nodeAt,
   cubicAt,
@@ -237,6 +239,51 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
     const b = curveBounds(result.paths.flatMap((p) => p.contours));
     near(b.w, 72, 0.01);
     near(b.h, 72, 0.01);
+  });
+  it("round-trips a full-size EPS with more than 4096 nodes in one opaque stroke", async () => {
+    const commands = Array.from({ length: 250 }, (_, index) => {
+      const x = 100 + (index % 25) * 900;
+      const y = 100 + Math.floor(index / 25) * 800;
+      const points = Array.from({ length: 20 }, (_, node) => {
+        const angle = (2 * Math.PI * node) / 20;
+        return `${(x + 80 * Math.cos(angle)).toFixed(4)} ${(y + 80 * Math.sin(angle)).toFixed(4)} ${node === 0 ? "moveto" : "lineto"}`;
+      });
+      return [...points, "closepath"].join("\n");
+    }).join("\n");
+    const source = [
+      "%!PS-Adobe-3.0 EPSF-3.0",
+      "%%BoundingBox: 0 0 22000 7400", "%%EndComments",
+      "0.5 setlinewidth", "newpath", commands, "stroke", "showpage", "%%EOF"
+    ].join("\n");
+    const readEps = async (text: string) =>
+      (await readPdf(new Uint8Array(await convertVectorFile(new TextEncoder().encode(text), 1)))).result;
+    const doc = await readEps(source);
+    assert.deepEqual(doc.warnings, []);
+    assert.deepEqual([doc.width, doc.height], [22000, 7400]);
+    assert.equal(doc.paths.length, 2);
+    assert.ok(doc.paths.every(p => validContours(p.contours) && p.paint.fill === "none"));
+    const contours = doc.paths.flatMap(p => p.contours);
+    assert.equal(contours.length, 250);
+    assert.ok(contours.reduce((n, c) => n + c.nodes.length, 0) > CAD_CURVE_NODE_LIMIT);
+
+    const f = fixture();
+    const plan = prepareVectorImport(f.editor, DEFAULT_CAD_SETTINGS, doc, doc.width * 25.4 / 72, { x: 0, y: 0 }, "Production EPS");
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    assert.equal(f.shapes.size, 2);
+    const eps = prepareVectorExport(f.editor, DEFAULT_CAD_SETTINGS, "all", "eps");
+    assert.deepEqual(eps.omitted, []);
+    const exported = await readEps(eps.text);
+    assert.deepEqual(exported.warnings, []);
+    const reopened = exported.paths.flatMap(p => p.contours);
+    assert.equal(reopened.length, contours.length);
+    assert.ok(reopened.every(c => c.closed));
+    const originalBounds = curveBounds(contours), exportedBounds = curveBounds(reopened);
+    near(exportedBounds.w, originalBounds.w, 0.1);
+    near(exportedBounds.h, originalBounds.h, 0.1);
+    assert.throws(() => serializeVectorDocument(doc.paths, "pdf"), /page-limit/);
+
+    // The same compound path may contain holes when filled and must stay intact.
+    await assert.rejects(readEps(source.replace("\nstroke\n", "\neofill\n")), /limit/);
   });
   it("outlines actual PDF text instead of skipping text silently", async () => {
     const pdf = new jsPDF({ unit: "pt" });
