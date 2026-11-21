@@ -7,9 +7,10 @@ import {fixture} from '../helpers/cad-editor';
 import {CadBezierShapeUtil} from '../../src/lib/components/canvas/shapes/CadBezierShape';
 import {CadPathShapeUtil,CadEllipseShapeUtil,CadArcShapeUtil,CadDimensionShapeUtil} from '../../src/lib/components/canvas/shapes/CadShapes';
 import {DEFAULT_CAD_SETTINGS,writeCadSettings} from '../../src/lib/components/canvas/cad-settings';
-import {prepareCadImport} from '../../src/lib/components/canvas/cad-import';
+import {prepareCadImport,readCadDxf} from '../../src/lib/components/canvas/cad-import';
+import {productionPresetGeometry} from '../../src/lib/components/canvas/cad-production-geometry';
 import {applyCadPlan} from '../../src/lib/components/canvas/cad-plans';
-import {buildCadDxf} from '../../src/lib/components/canvas/cad-dxf';
+import {buildCadDxf,serializeCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {prepareCreationCanvas} from '../../src/lib/order/creation-canvas';
 
 const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
@@ -48,4 +49,53 @@ describe('production DXF through order persistence',()=>{
    compare(parsed.entities,reference.entities);
   });
  }
+});
+
+it('reimports and applies a dense polyline export across independent outlines', () => {
+ const { editor, shapes } = fixture();
+ const settings = DEFAULT_CAD_SETTINGS;
+ const entities = Array.from({ length: 6 }, (_, index) => ({
+  type: 'polyline' as const, closed: true,
+  points: Array.from({ length: 768 }, (_, vertex) => {
+   const angle = vertex * 2 * Math.PI / 768;
+   return { x: index * 70 + 30 * Math.cos(angle), y: 30 * Math.sin(angle) };
+  })
+ }));
+ const output = serializeCadDxf(entities);
+ const plan = prepareCadImport(editor, settings, output.text, { keepCoordinates: true });
+ assert.deepEqual(plan.omitted, []);
+ assert.equal(plan.contours.reduce((total, contour) => total + contour.nodes.length, 0), 4608);
+ assert.equal(applyCadPlan(editor, plan), true);
+ assert.equal(shapes.size, 6);
+ const roundTrip = buildCadDxf(editor, 'selected', settings, { curves: 'polyline' });
+ assert.equal(roundTrip.closedContours, 6);
+ assert.deepEqual(roundTrip.omitted, []);
+ near(roundTrip.widthMm, output.widthMm);
+ near(roundTrip.heightMm, output.heightMm);
+});
+
+it('exports custom production templates at the requested millimetre dimensions', () => {
+ const templates = [
+  { id: 'mountingSlot', width: 45, height: 8, closed: 1, open: 0 },
+  { id: 'mountingPlate', width: 180, height: 60, closed: 5, open: 0 },
+  { id: 'mountingRail', width: 150, height: 24, closed: 3, open: 0 },
+  { id: 'cableEntry', width: 32, height: 32, closed: 1, open: 0 },
+  { id: 'signBlank', width: 420, height: 160, closed: 1, open: 0 },
+  { id: 'trimMarks', width: 216, height: 116, closed: 0, open: 8 },
+ ] as const;
+ for (const template of templates) {
+  const geometry = productionPresetGeometry(template.id, template);
+  const result = readCadDxf(DEFAULT_CAD_SETTINGS, serializeCadDxf(geometry).text, {keepCoordinates:true});
+  assert.deepEqual(result.omitted, []);
+  near(result.widthMm, template.width);
+  near(result.heightMm, template.height);
+  assert.equal(result.contours.filter(contour => contour.closed).length, template.closed);
+  assert.equal(result.contours.filter(contour => !contour.closed).length, template.open);
+ }
+ const holes = productionPresetGeometry('mountingPlate', {width:180, height:60}).filter(entity => entity.type === 'circle');
+ assert.deepEqual(holes.map(hole => [hole.center.x, hole.center.y, hole.radius]), [
+  [-80, -20, 3], [-80, 20, 3], [80, -20, 3], [80, 20, 3]
+ ]);
+ assert.deepEqual(productionPresetGeometry('mountingPlate', {width:25, height:40}), []);
+ assert.deepEqual(productionPresetGeometry('mountingSlot', {width:4, height:8}), []);
 });

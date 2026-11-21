@@ -4,7 +4,7 @@
 // local Ollama nodes and Python inference sidecars are not used.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { activeAiProvider, isActiveAiConfigured } from './active-provider';
+import { activeAiProvider, isActiveAiConfigured, readAiRouting } from './active-provider';
 import type { AiNode, Capability, ModelTag } from '$lib/server/config';
 import { OPENROUTER_MODEL } from '$lib/server/config';
 import { openRouterChat, openRouterComplete, openRouterError } from '$lib/server/ai/openrouter';
@@ -12,13 +12,14 @@ import { openRouterChat, openRouterComplete, openRouterError } from '$lib/server
 const OPENROUTER_NODE: AiNode = { idx: 0, label: 'openrouter', host: 'api.openrouter.ai', port: 443, caps: ['reasoning', 'vision', 'coder'], weight: 1, vramGb: 0 };
 const OPENAI_NODE: AiNode = { ...OPENROUTER_NODE, label: 'openai', host: 'api.openai.com' };
 export async function listNodeStates() {
-    const configured = await isActiveAiConfigured();
-    const node = pickNode();
+    const routing = await readAiRouting();
+    const configured = await isActiveAiConfigured(routing);
+    const node = pickNode(routing.provider);
     return [{ label: node.label, host: node.host, port: 443, caps: node.caps, inflight: 0, lastSeen: Date.now(), lastStatus: configured ? 'up' as const : 'down' as const, warmModels: [], weight: 1, vramGb: 0 }];
 }
 export async function refreshSwarmHealth(): Promise<void> { /* no probing until an inference request */ }
 export function nodeLoad(): number { return 0; }
-export function pickNode(_opts?: unknown): AiNode { return activeAiProvider() === 'openai' ? OPENAI_NODE : OPENROUTER_NODE; }
+export function pickNode(provider = activeAiProvider()): AiNode { return provider === 'openai' ? OPENAI_NODE : OPENROUTER_NODE; }
 export function startSwarmHealthLoop(): void { /* no local nodes */ }
 export function stopSwarmHealthLoop(): void { /* no local nodes */ }
 
@@ -44,9 +45,10 @@ export interface ChatResult {
 export async function swarmChat(opts: ChatOptions): Promise<ChatResult> {
     const requested = opts.model?.primary;
     const model = requested?.startsWith('openrouter/') || requested?.includes('/') ? requested : OPENROUTER_MODEL;
-    const result = await openRouterChat({ model, messages: opts.messages as any, tools: opts.tools, stream: opts.stream, temperature: opts.temperature, timeoutMs: opts.timeoutMs });
+    const routing = await readAiRouting();
+    const result = await openRouterChat({ aiRouting: routing, model, messages: opts.messages as any, tools: opts.tools, stream: opts.stream, temperature: opts.temperature, timeoutMs: opts.timeoutMs });
     if (!result.response.ok) throw openRouterError(result.response, await result.response.text().catch(() => ''));
-    return { node: pickNode(), model: result.model, response: result.response };
+    return { node: pickNode(routing.provider), model: result.model, response: result.response };
 }
 
 export { openRouterComplete };

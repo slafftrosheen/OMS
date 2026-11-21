@@ -33,3 +33,28 @@ export function getVaultCredentialValue(data: unknown): string | null {
 export function redactCredential(text: string, credential: string): string {
   return credential ? text.replaceAll(credential, '[redacted]') : text;
 }
+
+export type AiProvider = 'openrouter' | 'openai';
+
+export function isOpenAiModelId(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9._-]{2,149}$/i.test(value);
+}
+
+export function parseAiProviderChange(input: unknown) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (Object.keys(value).some(key => !['provider', 'textModel', 'visionModel', 'apiKey', 'removeKey'].includes(key))) return null;
+  const provider = value.provider;
+  if (provider !== 'openrouter' && provider !== 'openai') return null;
+  const textModel = typeof value.textModel === 'string' ? value.textModel.trim() : null;
+  const visionModel = typeof value.visionModel === 'string' ? value.visionModel.trim() : null;
+  if (!isOpenAiModelId(textModel) || !isOpenAiModelId(visionModel)) return null;
+  if (value.removeKey !== undefined && typeof value.removeKey !== 'boolean') return null;
+  if (value.apiKey !== undefined && value.removeKey === true) return null;
+  let apiKey: string | null = null;
+  if (value.apiKey !== undefined) {
+    try { apiKey = normalizeOpenRouterKey(value.apiKey); } catch { return null; }
+    if (!/^sk-[A-Za-z0-9_-]+$/.test(apiKey)) return null;
+  }
+  return { provider, textModel, visionModel, apiKey, removeKey: value.removeKey === true };
+}

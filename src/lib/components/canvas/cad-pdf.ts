@@ -6,6 +6,9 @@ import {
   type VectorRaster,
 } from "./cad-appearance";
 import {
+  CAD_CURVE_CONTOUR_LIMIT,
+  CAD_CURVE_NODE_LIMIT,
+  CAD_PLAN_GEOMETRY_LIMITS,
   nodeAt,
   curveBounds,
   validContours,
@@ -93,14 +96,21 @@ export function pdfOperatorsToVectors(
   let contours: CadContour[] = [],
     current: CadContour | undefined,
     pendingClip: "evenodd" | "nonzero" | null = null,
-    total = 0;
+    pathNodes = 0, total = 0, totalContours = 0;
+  const addPathNode = () => {
+    if (++pathNodes > CAD_PLAN_GEOMETRY_LIMITS.maxNodes ||
+        contours.length > CAD_PLAN_GEOMETRY_LIMITS.maxContours)
+      throw new Error("limit");
+  };
   const point = (x: number, y: number) => transform(state.matrix, x, y);
   const move = (p: Point) => {
     current = { closed: false, nodes: [nodeAt(p)] };
     contours.push(current);
+    addPathNode();
   };
   const line = (p: Point) => {
     if (!current) throw new Error("format");
+    addPathNode();
     current.nodes.push(nodeAt(p));
   };
   const cubic = (a: Point, b: Point, c: Point) => {
@@ -111,6 +121,7 @@ export function pdfOperatorsToVectors(
     last.outY = a.y - last.y;
     next.inX = b.x - c.x;
     next.inY = b.y - c.y;
+    addPathNode();
     current.nodes.push(next);
   };
   const close = () => {
@@ -125,6 +136,7 @@ export function pdfOperatorsToVectors(
       first.inX = last.inX;
       first.inY = last.inY;
       current.nodes.pop();
+      pathNodes--;
     }
   };
   const containsRect = (clip: Clip, cs: CadContour[], padding = 0) => {
@@ -153,15 +165,18 @@ export function pdfOperatorsToVectors(
   const end = () => {
     if (pendingClip) {
       // PDF implicitly closes open subpaths when clipping.
+      const clip = contours
+        .filter((c) => c.nodes.length >= 2)
+        .map((c) => ({ ...c, closed: true }));
+      if (clip.length && !validContours(clip)) throw new Error("limit");
       state.clips.push({
-        contours: structuredClone(contours)
-          .filter((c) => c.nodes.length >= 2)
-          .map((c) => ({ ...c, closed: true })),
+        contours: structuredClone(clip),
         fillRule: pendingClip,
       });
       if (state.clips.length > 32) throw new Error("limit");
     }
     pendingClip = null;
+    pathNodes = 0;
     contours = [];
     current = undefined;
   };
@@ -208,10 +223,39 @@ export function pdfOperatorsToVectors(
       .map((c) => structuredClone(c));
     if (!paint.clips.length) delete paint.clips;
     if (!validAppearance(paint)) throw new Error("limit");
-    total += cs.reduce((n, c) => n + c.nodes.length, 0);
-    if (total > 4096 || paths.length >= 512 || !validContours(cs))
+    const count = cs.reduce((n, c) => n + c.nodes.length, 0);
+    total += count;
+    totalContours += cs.length;
+    if (total > CAD_PLAN_GEOMETRY_LIMITS.maxNodes ||
+        totalContours > CAD_PLAN_GEOMETRY_LIMITS.maxContours)
       throw new Error("limit");
-    paths.push({ contours: structuredClone(cs), fillRule: rule, paint });
+
+    let batches = [cs];
+    if (count > CAD_CURVE_NODE_LIMIT || cs.length > CAD_CURVE_CONTOUR_LIMIT) {
+      // Splitting a compound fill changes holes and winding. Splitting translucent
+      // strokes changes overlap opacity. Keep those paint operations intact.
+      if (paint.fill !== "none" || paint.gradient || paint.raster ||
+          paint.stroke === "none" || paint.strokeOpacity !== 1)
+        throw new Error("limit");
+      batches = [];
+      let batch: CadContour[] = [], nodes = 0;
+      for (const contour of cs) {
+        const length = contour.nodes.length;
+        if (length > CAD_CURVE_NODE_LIMIT) throw new Error("limit");
+        if (nodes + length > CAD_CURVE_NODE_LIMIT || batch.length === CAD_CURVE_CONTOUR_LIMIT) {
+          batches.push(batch);
+          batch = [];
+          nodes = 0;
+        }
+        batch.push(contour);
+        nodes += length;
+      }
+      batches.push(batch);
+    }
+    if (paths.length + batches.length > 512 ||
+        batches.some(batch => !validContours(batch))) throw new Error("limit");
+    for (const batch of batches)
+      paths.push({ contours: structuredClone(batch), fillRule: rule, paint: structuredClone(paint) });
   };
   const image = (key: any, matrix = state.matrix) => {
     const raster = resources?.images?.get(key);
@@ -353,8 +397,6 @@ export function pdfOperatorsToVectors(
             close();
           } else throw new Error("format");
         }
-        if (contours.reduce((n, c) => n + c.nodes.length, 0) > 4096)
-          throw new Error("limit");
         break;
       }
       case "closePath":

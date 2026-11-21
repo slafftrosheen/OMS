@@ -29,7 +29,7 @@ import {
 import {
   assertCadEditable,
   cadRevision,
-  CadOperationError,
+  CadOperationError, validCadPlanContours,
   type CadPlan,
   type CadPlannedShape,
 } from "./cad-plans";
@@ -701,7 +701,7 @@ export function readCadDxf(
     const projected=projectDxfRecords(parsed.entities,parsed.blocks,options.projection,0.002/(options.unit?unitMm(options.unit):(known[parsed.units]?.[1]??1)),parsed.hiddenLayers,parsed.layers);
     omitted.push(...projected.omitted);walk(projected.records,root,[]);extraWarnings.add('import-3d-projection');
   } else walk(parsed.entities, root, []);
-  if (shapes.length > 2000 || (contours.length && !validContours(contours)))
+  if (shapes.length > 2000 || (contours.length && !validCadPlanContours(contours, shapes)))
     throw new CadOperationError("limit");
   let finalContours = contours;
   const bounds = plannedBounds(shapes);
@@ -717,7 +717,7 @@ export function readCadDxf(
       shape.y += dy;
     }
   }
-  if (finalContours.length && !validContours(finalContours))
+  if (finalContours.length && !validCadPlanContours(finalContours, shapes))
     throw new CadOperationError("geometry");
   return {
     contours: finalContours,

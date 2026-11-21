@@ -7,7 +7,7 @@ import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { OpenRouterHttpError } from '$lib/server/ai/openrouter';
 import { analyzeToolkitMedia, PdfSourceError } from '$lib/server/toolkit/analyze-media';
 import { resolveToolkitModel, toolkitModelChoices } from '$lib/server/toolkit/ai-models';
-import {readActiveAiModels, activeAiProvider} from '$lib/server/ai/active-provider';
+import {readActiveAiModels, readAiRouting} from '$lib/server/ai/active-provider';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 import { parsePdfPageRange, type PdfPageRange } from '$lib/pdf/page-range';
 
@@ -38,7 +38,15 @@ export const POST: RequestHandler = async (event) => {
       (body.pdfMode !== undefined && !['auto', 'text', 'visual'].includes(body.pdfMode))) {
     throw error(400, 'Select a valid Canvas image/PDF and a bounded question');
   }
-  const allowPaidOcr = activeAiProvider() === 'openrouter' && process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
+  const routing = await readAiRouting().catch(() => null);
+  if (!routing) return json({ error: 'AI provider settings unavailable', code: 'PROVIDER_SETTINGS_UNAVAILABLE' }, { status: 503 });
+  if (body.expectedProvider !== undefined && body.expectedProvider !== 'openrouter' && body.expectedProvider !== 'openai')
+    return json({ error: 'Invalid expected provider' }, { status: 400 });
+  if (body.expectedProvider && body.expectedProvider !== routing.provider)
+    return json({ error: 'The active AI provider changed in R&D Settings. Review the new provider before retrying.',
+      code: 'PROVIDER_CHANGED' }, { status: 409 });
+  const providerName = routing.provider === 'openai' ? 'OpenAI' : 'OpenRouter';
+  const allowPaidOcr = routing.provider === 'openrouter' && process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
   if (body.ocr === true && !allowPaidOcr) throw error(403, 'Paid PDF OCR is disabled by the OMS administrator');
   let pdfPages: PdfPageRange | undefined;
   try { pdfPages = parsePdfPageRange(body.pdfPages, body.pdfMode === 'visual' ? 10 : 40); }
@@ -97,16 +105,16 @@ This is analysis ONLY: never claim you edited Canvas, saved anything or verified
 If any content is unreadable, state the limitation instead of filling gaps with guesses.
 ${responseLanguageInstruction(locale)}`;
   try {
-    const models = await readActiveAiModels();
-    const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model, toolkitModelChoices(models.textModel)) : null;
+    const models = await readActiveAiModels(routing);
+    const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model, toolkitModelChoices(models.textModel, undefined, routing.provider)) : null;
     if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
     const result = await analyzeToolkitMedia({
-      kind, filename: asset.file_name, mime: asset.mime_type, bytes, system, question,
+      kind, filename: asset.file_name, mime: asset.mime_type, bytes, system, question, aiRouting: routing,
       textModel: pdfModel ?? models.textModel, visionModel: models.visionModel,
       pdfMode: body.pdfMode ?? 'auto', pdfPages, paidOcr: engine === 'mistral-ocr',
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(140_000)])
     });
-    return json({ assetId: asset.id, kind, fileName: asset.file_name, ...result }, { headers: noStore });
+    return json({ assetId: asset.id, kind, fileName: asset.file_name, provider: routing.provider, ...result }, { headers: noStore });
   } catch (err) {
     if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499, headers: noStore });
     if (err instanceof PdfSourceError || isHttpError(err, 422) || isHttpError(err, 400)) {
@@ -123,7 +131,7 @@ ${responseLanguageInstruction(locale)}`;
       : /OpenRouter completion failed \(HTTP (\d{3})\)/.exec(detail)?.[1];
     const retryAfter = err instanceof OpenRouterHttpError ? err.retryAfterSeconds : null;
     const policyDenied = /policy|data sharing|disabled/i.test(detail);
-    const settingsUnavailable = /model settings unavailable/i.test(detail);
+    const settingsUnavailable = /(model|provider) settings unavailable/i.test(detail);
     const unconfigured = /not configured|API key/i.test(detail);
     const timedOut = /timeout|timed out|TimeoutError/i.test(detail) ||
       (err instanceof Error && err.name === 'TimeoutError');
@@ -142,21 +150,21 @@ ${responseLanguageInstruction(locale)}`;
     });
     return json({
       error: code === 'PROVIDER_REJECTED_DOCUMENT'
-        ? 'OpenRouter rejected this document or parser/model combination. Try another configured PDF-capable model.'
+        ? `${providerName} rejected this document or parser/model combination. Check the configured model in R&D Settings.`
         : code === 'PROVIDER_SETTINGS_UNAVAILABLE'
-          ? 'OpenRouter model settings could not be loaded. Check the database connection and apply the model-settings migration before choosing models in R&D settings.'
+          ? `${providerName} model settings could not be loaded. Check the database and migrations.`
         : code === 'PROVIDER_UNAVAILABLE'
-          ? 'No OpenRouter provider is available for the configured model. Choose another available model in R&D settings; free model capacity can be exhausted.'
+          ? `${providerName} is unavailable for the configured model. Check the model in R&D Settings.`
         : code === 'PROVIDER_POLICY_DISABLED'
-          ? 'OpenRouter sharing is disabled in R&D settings.'
+          ? `${providerName} sharing is disabled in R&D Settings.`
           : code === 'PROVIDER_TIMEOUT'
             ? 'Document analysis timed out. Try a smaller PDF.'
             : code === 'PROVIDER_RATE_LIMIT'
-              ? 'OpenRouter rate limit or free quota reached. Check account limits; repeated attempts also consume quota.'
+              ? `${providerName} rate limit or quota reached. Check the account limits.`
               : code === 'PROVIDER_NOT_CONFIGURED' || code === 'PROVIDER_AUTH_FAILURE'
-                ? 'OpenRouter credentials are missing or rejected. Check R&D settings.'
-                : 'Document analysis is unavailable. Check the OpenRouter model and parser configuration.',
-      code, source: upstreamStatus ? 'openrouter' : 'oms',
+                ? `${providerName} credentials are missing or rejected. Check R&D Settings.`
+                : `Document analysis is unavailable. Check the ${providerName} model and parser configuration.`,
+      code, source: upstreamStatus ? routing.provider : 'oms',
       upstreamStatus: upstreamStatus ? Number(upstreamStatus) : null,
       retryAfter
     }, {

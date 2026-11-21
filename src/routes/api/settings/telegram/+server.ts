@@ -3,7 +3,7 @@ import { getTelegramSettings, telegramEnvironment } from '$lib/server/notificati
 import { normalizeTelegramSettingsInput, publicTelegramSettings, telegramConfigFromSettings } from '$lib/server/notifications/telegram-settings';
 import { TelegramServiceError, dispatchTelegramDeliveries } from '$lib/server/notifications/telegram-service';
 import { telegramErrorResponse, telegramPrivateHeaders } from '$lib/server/notifications/telegram-http';
-import { telegramApi } from '$lib/server/notifications/telegram';
+import { telegramApi, telegramAppButton } from '$lib/server/notifications/telegram';
 import { dispatchTelegramBotReplies, telegramCommandMenu } from '$lib/server/notifications/telegram-bot';
 import { readTelegramReceiverStatus, withTelegramWebhookLease } from '$lib/server/notifications/telegram-receiver-admin';
 import { TelegramReceiverError } from '$lib/server/notifications/telegram-polling';
@@ -84,20 +84,35 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   try {
     const userId = await requireAdmin(locals);
     const body = await readBody(request);
-    if (!body || Object.keys(body).some(key => key !== 'action') || !['receiverStatus', 'probe', 'registerWebhook', 'removeWebhook', 'syncCommands', 'dispatch', 'retryFailures'].includes(body.action)) throw new TelegramServiceError('invalid_request', 400);
+    if (!body || Object.keys(body).some(key => key !== 'action') || !['receiverStatus', 'probe', 'registerWebhook', 'removeWebhook', 'syncCommands', 'syncAppMenu', 'dispatch', 'retryFailures'].includes(body.action)) throw new TelegramServiceError('invalid_request', 400);
     const { record, db } = await getTelegramSettings();
     if (body.action === 'receiverStatus') return json({ receiver: await readTelegramReceiverStatus(db) }, { headers: telegramPrivateHeaders });
     if (!record.botToken) throw new TelegramServiceError('not_configured');
     const config = telegramConfigFromSettings({ ...record, options: { ...record.options, enabled: true } }, telegramEnvironment());
+    const appUrl = telegramAppButton({ appUrl: record.options.appUrl || null }, 'Open OMS')?.web_app?.url ?? null;
+    if (body.action === 'syncAppMenu') {
+      if (!appUrl) throw new TelegramServiceError('mini_app_requires_https', 400);
+      const menu = await telegramApi(record, 'setChatMenuButton', { menu_button: {
+        type: 'web_app', text: 'Open OMS', web_app: { url: appUrl }
+      } });
+      if (!menu.ok || menu.result !== true) throw new TelegramServiceError('provider_unavailable');
+      await audit(db, userId, 'telegram_app_menu_published');
+      return json({ ok: true, appMenuSynced: true }, { headers: telegramPrivateHeaders });
+    }
     const polling = record.options.connectionMode === 'polling';
     const expectedUrl = !polling && record.options.appUrl ? `${record.options.appUrl}/api/telegram/webhook` : null;
     if (body.action === 'probe') {
       const bot = await telegramApi(record, 'getMe');
       if (!bot.ok || bot.result?.is_bot !== true || typeof bot.result?.username !== 'string') throw new TelegramServiceError('provider_unavailable');
-      const webhook = await telegramApi(record, 'getWebhookInfo');
+      const [webhook, menu] = await Promise.all([
+        telegramApi(record, 'getWebhookInfo'),
+        telegramApi(record, 'getChatMenuButton')
+      ]);
       return json({ ok: true, connectionMode: record.options.connectionMode ?? 'webhook', botUsername: bot.result.username,
         botMatches: String(bot.result.id) === record.botToken.split(':')[0] && bot.result.username.toLowerCase() === record.options.botUsername.toLowerCase(),
         receiver: await readTelegramReceiverStatus(db),
+        appMenu: { available: !!appUrl, checked: menu.ok,
+          matches: !!appUrl && menu.ok && menu.result?.type === 'web_app' && menu.result?.web_app?.url === appUrl },
         webhook: webhook.ok ? { registered: !!webhook.result?.url, matches: polling ? !webhook.result?.url : webhook.result?.url === expectedUrl,
           pending: Number(webhook.result?.pending_update_count) || 0, hasError: !polling && !!webhook.result?.last_error_date,
           lastErrorAt: !polling && webhook.result?.last_error_date ? new Date(webhook.result.last_error_date * 1000).toISOString() : null } : null
@@ -144,8 +159,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
       const synced = await telegramApi(config, 'setMyCommands', { commands: telegramCommandMenu(config, locale || 'en'), language_code: locale, scope: { type: 'all_private_chats' } });
       if (!synced.ok) commandsSynced = false;
     }
-    const menu=await telegramApi(config,'setChatMenuButton',{menu_button:config.appUrl?.startsWith('https://')?
-      {type:'web_app',text:'Open OMS',web_app:{url:config.appUrl.replace(/\/$/,'')+'/telegram'}}:{type:'commands'}});
+    const menu = await telegramApi(config, 'setChatMenuButton', { menu_button: appUrl
+      ? { type: 'web_app', text: 'Open OMS', web_app: { url: appUrl } } : { type: 'commands' } });
     commandsSynced=commandsSynced&&menu.ok;
     return json({ ok: true, commandsSynced, appMenuSynced:menu.ok }, { headers: telegramPrivateHeaders });
   } catch (error) { return adminError(error); }

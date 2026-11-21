@@ -2,6 +2,7 @@
  import {onMount,type Snippet} from 'svelte';
  import {locale} from 'svelte-i18n';
  import {base} from '$app/paths';
+ import {goto} from '$app/navigation';
  import {page} from '$app/state';
  import {currentUser} from '$lib/auth/authState.svelte';
  import {notificationStore} from '$lib/stores/notifications';
@@ -15,13 +16,40 @@
  const tabs:Array<{id:'home'|'notifications'|'chats'|'control';href:string;icon:IconName}>=[{id:'home',href:'/telegram',icon:'home'},{id:'notifications',href:'/notifications',icon:'bell'},
   {id:'chats',href:'/chat',icon:'message-square'},{id:'control',href:'/telegram?tab=control',icon:'settings'}];
  $effect(()=>{const id=$currentUser?.id;if(id)return notificationStore.connect(id);});
+ type TelegramBackButton = {
+  show:()=>void; hide:()=>void; onClick:(callback:()=>void)=>void; offClick:(callback:()=>void)=>void;
+ };
+ type TelegramWebApp = {ready:()=>void;expand:()=>void;BackButton?:TelegramBackButton};
+ let backButton=$state.raw<TelegramBackButton|null>(null);
+ const backHome=()=>{void goto(base+'/telegram');};
+ $effect(()=>{
+  if(!backButton)return;
+  if(['/telegram','/chat','/notifications'].includes(path))backButton.hide();
+  else backButton.show();
+ });
  onMount(()=>{
-  // Telegram data is used only for presentation; OMS session/RLS owns authorization.
-  let disposed=false;
-  const setup=()=>{if(disposed)return;const app=(window as any).Telegram?.WebApp;app?.ready();app?.expand();};
-  if((window as any).Telegram?.WebApp)setup();
-  else {const script=document.createElement('script');script.src='https://telegram.org/js/telegram-web-app.js';script.async=true;script.onload=setup;document.head.append(script);}
-  return ()=>{disposed=true;};
+  // The native controls affect presentation. The signed-in OMS account owns authorization.
+  const webApp=()=>(window as Window & {Telegram?:{WebApp?:TelegramWebApp}}).Telegram?.WebApp;
+  let script=document.querySelector<HTMLScriptElement>('#oms-telegram-sdk');
+  function setup(){
+   const app=webApp();
+   if(!app)return;
+   app.ready();app.expand();
+   backButton=app.BackButton??null;
+   backButton?.onClick(backHome);
+  }
+  if(webApp())setup();
+  else {
+   if(!script){
+    script=document.createElement('script');
+    script.id='oms-telegram-sdk';script.src='https://telegram.org/js/telegram-web-app.js';script.async=true;
+    script.addEventListener('load',setup,{once:true});document.head.append(script);
+   }else script.addEventListener('load',setup,{once:true});
+  }
+  return ()=>{
+   script?.removeEventListener('load',setup);
+   backButton?.offClick(backHome);backButton?.hide();
+  };
  });
 </script>
 <div class="telegram-app">

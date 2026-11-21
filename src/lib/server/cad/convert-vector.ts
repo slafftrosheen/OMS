@@ -3,7 +3,9 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-export const VECTOR_FILE_LIMIT = 12 * 1024 * 1024;
+import { dosEpsSection, VECTOR_FILE_LIMIT, vectorPayloadKind } from "../../components/canvas/cad-vector-file";
+
+export { VECTOR_FILE_LIMIT };
 let active = 0;
 export class VectorConversionError extends Error {
   constructor(
@@ -16,27 +18,17 @@ export class VectorConversionError extends Error {
 /** DOS EPS may wrap PostScript with TIFF/WMF previews. Only its bounded PS section
  * reaches the interpreter; preview bytes are never treated as executable input. */
 export function unwrapEps(bytes: Uint8Array): Uint8Array {
-  if (
-    bytes[0] !== 0xc5 ||
-    bytes[1] !== 0xd0 ||
-    bytes[2] !== 0xd3 ||
-    bytes[3] !== 0xc6
-  )
-    return bytes;
-  if (bytes.length < 30) throw new VectorConversionError("format", 415);
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const offset = view.getUint32(4, true),
-    length = view.getUint32(8, true);
-  if (offset < 30 || length < 16 || offset + length > bytes.length)
+  try {
+    const section = dosEpsSection(bytes);
+    return section ? bytes.subarray(section.start, section.end) : bytes;
+  } catch {
     throw new VectorConversionError("format", 415);
-  return bytes.subarray(offset, offset + length);
+  }
 }
 export function vectorFileKind(bytes: Uint8Array): "pdf" | "eps" {
-  const magic = Buffer.from(unwrapEps(bytes).subarray(0, 32)).toString(
-    "latin1",
-  );
-  if (magic.startsWith("%PDF-")) return "pdf";
-  if (magic.startsWith("%!PS-Adobe-") && magic.includes("EPSF-")) return "eps";
+  const payload = unwrapEps(bytes);
+  const kind = vectorPayloadKind(payload);
+  if (kind && (payload === bytes || kind === "eps")) return kind;
   throw new VectorConversionError("format", 415);
 }
 /** Local, bounded conversion. Never accepts URLs, shell commands or caller-supplied flags. */

@@ -3,8 +3,8 @@ import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '$lib/server/config';
 import { readOpenRouterModels } from '$lib/server/ai/provider-models';
-import { resolveOpenRouterApiKey } from '$lib/server/ai/provider-key';
-import { activeAiProvider, openAiModels } from '$lib/server/ai/active-provider';
+import { resolveOpenRouterApiKey, storedOpenAiApiKey } from '$lib/server/ai/provider-key';
+import { readAiRouting } from '$lib/server/ai/active-provider';
 import { canManageOpenRouterKey, maskSecret, normalizeOpenRouterKey, redactCredential } from '$lib/server/ai/provider-settings';
 
 function database() {
@@ -25,10 +25,13 @@ export const GET: RequestHandler = async ({ locals }) => {
   const accessError = denied(locals);
   if (accessError) return accessError;
   try {
-    const key = await resolveOpenRouterApiKey();
-    const models = await readOpenRouterModels();
+    const [key, models, routing] = await Promise.all([resolveOpenRouterApiKey(), readOpenRouterModels(), readAiRouting()]);
+    const openAiVaultKey = routing.managed ? await storedOpenAiApiKey().catch(() => null) : null;
+    const openAiEnvKey = process.env.OPENAI_API_KEY?.trim();
     return json({ provider: 'openrouter', model: models.textModel, visionModel: models.visionModel,
-      activeProvider: activeAiProvider(), openAI: { configured: !!process.env.OPENAI_API_KEY?.trim(), ...openAiModels() },
+      activeProvider: routing.provider, managedProvider: routing.managed,
+      openAI: { ...maskSecret(openAiVaultKey || openAiEnvKey), ...routing.openAI,
+        source: openAiVaultKey ? 'vault' : openAiEnvKey ? 'environment' : 'none' },
       ...maskSecret(key), source: key ? (process.env.OPENROUTER_API_KEY?.trim() ? 'environment-or-vault' : 'vault') : 'none' },
       { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {

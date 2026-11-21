@@ -27,6 +27,8 @@ export function telegramErrorResponse(error: unknown): Response {
     invalid_settings: 'Check the Telegram settings, public HTTPS address and credential formats.',
     incomplete_settings: 'Complete the bot username, API token, public address and both different secrets before enabling Telegram.',
     settings_unavailable: 'Telegram settings are unavailable. Check the database and apply the Telegram settings migration.',
+    mini_app_requires_https: 'The Telegram Mini App menu requires an HTTPS application URL.',
+    workspace_unavailable: 'Today’s workspace is temporarily unavailable. Check the Telegram workspace migration.',
     provider_unavailable: 'Telegram did not accept this request. Check the saved bot credential and try again.'
   };
   return json({ error: messages[code] ?? 'Telegram is temporarily unavailable. Please try again.', code }, {

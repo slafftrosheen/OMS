@@ -234,7 +234,7 @@ export function telegramAppButton(config:Pick<TelegramConfig,'appUrl'>,text:stri
 
 /** Fixed Telegram origin and method allowlist; never returns token-bearing errors. */
 export async function telegramApi(config: Pick<TelegramConfig, 'botToken'>,
-  method: 'getMe' | 'getWebhookInfo' | 'setWebhook' | 'deleteWebhook' | 'setMyCommands' | 'setChatMenuButton' | 'answerCallbackQuery',
+  method: 'getMe' | 'getWebhookInfo' | 'setWebhook' | 'deleteWebhook' | 'setMyCommands' | 'getChatMenuButton' | 'setChatMenuButton' | 'answerCallbackQuery',
   body: Record<string, unknown> = {}, fetcher: typeof fetch = fetch): Promise<{ ok: boolean; result?: any; code?: number }> {
   try {
     const response = await fetcher(`https://api.telegram.org/bot${config.botToken}/${method}`, {

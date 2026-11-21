@@ -1,3 +1,4 @@
+import { vectorUploadPayload } from "./cad-vector-file";
 import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fill';
 import {useSolidFillText} from './solid-fill-copy';
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
@@ -34,7 +35,6 @@ type Props = {
   focusSequence?: number;
 };
 type Review = { plan: CadPlan; key: string; original?: string; originalContours?: CadPlan['contours']; previewBounds?: ReturnType<typeof curveBounds> };
-const limit = 12 * 1024 * 1024;
 function Field({
   label,
   children,
@@ -279,21 +279,18 @@ export function VectorImport({ settings, revision, disabled }: Props) {
           onClick={() =>
             void work.run(async (signal) => {
               setReview(undefined);
-              if (!file || !settings || file.size > limit)
-                throw new Error("limit");
-              const before = cadRevision(editor),
-                data = new Uint8Array(await file.arrayBuffer());
-              const isPdf =
-                new TextDecoder().decode(data.slice(0, 5)) === "%PDF-";
-              let bytes = data,
-                selectedPage = Number(page);
-              if (!isPdf || outline) {
+              if (!file || !settings) return;
+              const before = cadRevision(editor);
+              const { body, kind } = await vectorUploadPayload(file);
+              let bytes: Uint8Array;
+              let selectedPage = kind === "eps" ? 1 : Number(page);
+              if (kind === "eps" || outline) {
                 const response = await fetch(
                   `/api/canvas/convert-vector?page=${selectedPage}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/octet-stream" },
-                    body: file,
+                    body,
                     signal,
                   },
                 );
@@ -305,6 +302,8 @@ export function VectorImport({ settings, revision, disabled }: Props) {
                 }
                 bytes = new Uint8Array(await response.arrayBuffer());
                 selectedPage = 1;
+              } else {
+                bytes = new Uint8Array(await body.arrayBuffer());
               }
               const { readVectorPdf } = await import("./cad-pdf-client");
               const result = await readVectorPdf(bytes, selectedPage, signal, {mode,dpi,name:file.name,store:resource=>storeCanvasImage(editor,resource,signal)});

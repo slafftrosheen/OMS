@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { decodeDxf } from '../../src/lib/components/canvas/cad-dxf-decode';
 import { readDxfSpline } from '../../src/lib/components/canvas/cad-dxf-spline';
 import { readCadDxf, splineContour } from '../../src/lib/components/canvas/cad-import';
-import { cubicAt, cubicPoints } from '../../src/lib/components/canvas/cad-curves';
+import { contourSegments, cubicAt, cubicPoints } from '../../src/lib/components/canvas/cad-curves';
 import { hatchContours } from '../../src/lib/components/canvas/cad-dxf-geometry';
 import { DEFAULT_CAD_SETTINGS as settings, cadMmPerPixel } from '../../src/lib/components/canvas/cad-settings';
 import type { DxfPair } from '../../src/lib/components/canvas/cad-dxf-decode';
@@ -24,6 +24,18 @@ const failure = (pairs: DxfPair[], reason: string) => {
   assert.equal(result.blocked,false);
 };
 const replace = (code: number, value: string) => controlPairs.map(([c,v]) => [c,c===code?value:v] as DxfPair);
+
+const clampedCubics = (spans: number[][][], flags = 11): DxfPair[] => {
+  const knots = Array.from({length: spans.length + 1}, (_, i) => Array(4).fill(i)).flat();
+  return [[70,String(flags)],[71,'3'],[72,String(knots.length)],[73,String(spans.length * 4)],[74,'0'],
+    ...knots.map(k => [40,String(k)] as DxfPair),
+    ...spans.flat().flatMap(([x,y]) => [[10,String(x)],[20,String(y)]] as DxfPair[])];
+};
+const closedChain = [
+  [[0,0],[4,-3],[17,-4],[20,0]],
+  [[20,0],[24,5],[13,15],[10,20]],
+  [[10,20],[4,18],[-3,5],[0,0]],
+];
 
 describe('DXF SPLINE records and isolated import failures',()=>{
   it('imports equivalent ASCII and R13+ binary spline fixtures with the same review and geometry',()=>{
@@ -46,6 +58,34 @@ describe('DXF SPLINE records and isolated import failures',()=>{
     assert.equal(contour.nodes.length,2);
     assert.ok(Math.abs(contour.nodes[0].outX*mm-10)<1e-10);
     assert.ok(Math.abs(contour.nodes[0].outY*mm+20)<1e-10);
+  });
+  it('imports a closed chain of fully repeated cubic knot spans with exact independent handles',()=>{
+    const result=plan(clampedCubics(closedChain));
+    assert.deepEqual(result.omitted,[]);
+    assert.deepEqual(result.warnings,[]);
+    assert.equal(result.shapes?.length,2);
+    const contour=result.contours[0], mm=cadMmPerPixel(settings);
+    assert.equal(contour.closed,true);
+    const spans=[...contourSegments(contour)];
+    assert.equal(spans.length,closedChain.length);
+    spans.forEach((span,i)=>span.forEach(({x,y},j)=>{
+      const [originalX,originalY]=closedChain[i][j];
+      assert.ok(Math.hypot(x*mm-originalX,-y*mm-originalY)<1e-10);
+    }));
+  });
+  it('keeps coincident full-knot spans separate on open splines and rejects a broken closed chain',()=>{
+    assert.equal(plan(clampedCubics(closedChain,8)).contours.length,4);
+    const broken=structuredClone(closedChain);
+    broken[1][0][0]+=0.01;
+    failure(clampedCubics(broken),'spline-closure');
+  });
+  it('preserves distinct closed loops sharing an anchor',()=>{
+    const result=plan(clampedCubics([
+      [[0,0],[8,12],[8,-12],[0,0]],
+      [[0,0],[-8,-12],[-8,12],[0,0]],
+    ]));
+    assert.deepEqual(result.omitted,[]);
+    assert.deepEqual(result.contours.map(contour=>contour.closed),[true,true,false]);
   });
   it('accepts absent counts and absent all-unit weights',()=>{
     const parsed=readDxfSpline(controlPairs.filter(([c])=>![72,73,74].includes(c)));

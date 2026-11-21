@@ -6,12 +6,12 @@ import { activeAiProvider, openAiModels } from '$lib/server/ai/active-provider';
 
 export interface ToolkitModelChoice { id: string; label: string; isDefault: boolean; }
 const MODEL_ID = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:+-]*$/i;
-export function toolkitModelChoices(defaultModel = OPENROUTER_MODEL, configured = process.env.OPENROUTER_TOOLKIT_MODELS ?? ''): ToolkitModelChoice[] {
-  if (activeAiProvider() === 'openai') {
-    const { textModel } = openAiModels();
+export function toolkitModelChoices(defaultModel?: string, configured = process.env.OPENROUTER_TOOLKIT_MODELS ?? '', provider = activeAiProvider()): ToolkitModelChoice[] {
+  if (provider === 'openai') {
+    const textModel = defaultModel ?? openAiModels().textModel;
     return [{ id: textModel, label: textModel, isDefault: true }];
   }
-  const candidates = [defaultModel, ...configured.split(/[;,\n]/)];
+  const candidates = [defaultModel ?? OPENROUTER_MODEL, ...configured.split(/[;,\n]/)];
   const unique = new Set<string>();
   for (const raw of candidates) {
     const id = raw.trim();
@@ -30,6 +30,6 @@ export function resolveToolkitModel(value: unknown, choices = toolkitModelChoice
   if (value === undefined || value === null || value === '') return choices[0]?.id ?? null;
   return typeof value === 'string' && choices.some(entry => entry.id === value) ? value : null;
 }
-export function allowOpenRouterWebSearch(): boolean {
-  return activeAiProvider() === 'openrouter' && process.env.OPENROUTER_TOOLKIT_WEB_SEARCH === 'true';
+export function allowOpenRouterWebSearch(provider = activeAiProvider()): boolean {
+  return provider === 'openrouter' && process.env.OPENROUTER_TOOLKIT_WEB_SEARCH === 'true';
 }

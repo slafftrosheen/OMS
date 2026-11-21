@@ -16,6 +16,70 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} builds production vectors and keeps controls in full screen`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    const fullscreen = page.getByTestId('drawing-fullscreen');
+    await fullscreen.click();
+    await expect(page.getByTestId('drawing-workspace')).toHaveAttribute('data-fullscreen', 'true');
+    await page.getByTestId('drawing-tools-dimension').click();
+    await page.getByTestId('drawing-flyout-cad-measure-tools').click();
+    // The standalone fixture starts on a legacy page where CAD units can be activated.
+    const build = page.getByTestId('drawing-create-angled');
+    if (await build.isDisabled()) {
+      await page.getByTestId('drawing-cad-toggle').click();
+      await page.getByTestId('drawing-cad-apply').click();
+      await page.getByTestId('drawing-measure-toggle').click();
+    }
+    await page.getByRole('spinbutton', { name: 'Heading (°)', exact: true }).fill('0');
+    await build.click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path').length).toBe(1);
+    await page.getByRole('combobox', { name: 'Offset side' }).selectOption('both');
+    await page.getByTestId('drawing-create-parallel').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path').length).toBe(3);
+    await expect(page.getByText('Parallel separation', { exact: true })).toBeVisible();
+    await page.locator('[data-drawing-menu="tools"] > summary').click();
+    const toolDirectory = page.locator('[data-drawing-menu="tools"]');
+    await expect(toolDirectory.getByRole('heading', { name: 'Draw and construct' })).toBeVisible();
+    await toolDirectory.getByRole('button', { name: 'Production clipart', exact: true }).click();
+    await page.getByTestId('drawing-clipart-mountingPlate').click();
+    const clipart = page.locator('.drawing-clipart-form');
+    await clipart.getByRole('spinbutton', { name: 'Width (mm)', exact: true }).fill('20');
+    await expect(clipart.getByTestId('drawing-clipart-insert')).toBeDisabled();
+    await clipart.getByRole('spinbutton', { name: 'Width (mm)', exact: true }).fill('180');
+    await clipart.getByTestId('drawing-clipart-insert').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-ellipse').length).toBe(4);
+    const plate = (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path' && s.props.closed).at(-1);
+    const plateXs = plate.props.points.map((point: any) => point.x);
+    expect((Math.max(...plateXs) - Math.min(...plateXs)) * 25.4 / 96).toBeCloseTo(180, 4);
+    await fullscreen.click();
+    await expect(page.getByTestId('drawing-workspace')).toHaveAttribute('data-fullscreen', 'false');
+    await page.getByTestId('drawing-files').click();
+    await page.getByTestId('drawing-cad-review').click();
+    await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+  });
+  test(`${mode} expands past a clipped embed when native fullscreen is unavailable`, async ({ page }) => {
+    await page.setViewportSize({ width: 1120, height: 740 });
+    await page.addInitScript(() => Object.defineProperty(document, 'fullscreenEnabled', { value: false }));
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    const workspace = page.getByTestId('drawing-workspace');
+    await workspace.evaluate(node => Object.assign(node.parentElement!.style, {
+      transform: 'translate(24px, 16px)', overflow: 'hidden',
+    }));
+    const fullscreen = page.getByTestId('drawing-fullscreen');
+    await fullscreen.click();
+    await expect(workspace).toHaveAttribute('data-fullscreen', 'true');
+    await expect(page.locator('[data-testid="drawing-workspace"]:popover-open')).toBeVisible();
+    const bounds = await workspace.boundingBox();
+    expect(bounds?.x).toBeCloseTo(0);
+    expect(bounds?.y).toBeCloseTo(0);
+    expect(bounds?.width).toBeCloseTo(1120);
+    expect(bounds?.height).toBeCloseTo(740);
+    await fullscreen.press('Escape');
+    await expect(workspace).toHaveAttribute('data-fullscreen', 'false');
+    await expect(workspace).not.toHaveAttribute('popover', 'manual');
+    await expect(fullscreen).toBeFocused();
+  });
   test(`${mode} autosave checkpoints keep committed vertices without stopping a CAD gesture`, async ({ page }) => {
     await page.goto(`/drawing-workspace.html?mode=${mode}&save-draft=1`);
     await expect(page.getByTestId('drawing-tool-select')).toBeVisible();

@@ -14,6 +14,11 @@ test('Telegram tabs open real notifications, chat sending and role-aware control
   const request=r.request(),path=new URL(request.url()).pathname;
   if(request.method()!=='GET')writes.push({path,body:request.postDataJSON()});
   if(path==='/api/auth')return r.fulfill({json:{user:{id:'account-a',username:'manager',displayName:'Manager',role:'RD',stations:[]}}});
+  if(path==='/api/telegram/workspace')return r.fulfill({json:{
+    date:'2026-11-21',timezone:'Europe/Riga',
+    orders:[{id:'12345678-1234-1234-1234-123456789abc',po_number:'PO-42',title:'Lobby sign',status:'IN_PRODUCTION',due_today:true,loading_today:true}],
+    events:[{id:'event-1',kind:'other',title:'Workshop coordination'}]
+  }});
   if(path==='/api/preferences')return r.fulfill({json:{theme:'LightVim',locale:'en',density:'cozy'}});
   if(path==='/api/chat')return r.fulfill({json:[{id:'general',name:'General',kind:'channel'}]});
   if(path==='/api/users')return r.fulfill({json:[{id:'account-a',name:'Manager',displayName:'Manager'}]});
@@ -27,6 +32,10 @@ test('Telegram tabs open real notifications, chat sending and role-aware control
  await expect(page.locator('.rf-topbar')).toHaveCount(0);
  const nav=page.locator('.app-tabs');
  await expect(nav.locator('svg')).toHaveCount(4);
+ await expect(page.getByRole('heading',{name:'Today',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:/PO-42/})).toHaveAttribute('href','/orders/12345678-1234-1234-1234-123456789abc');
+ await expect(page.getByText('Loading today',{exact:true})).toBeVisible();
+ await expect(page.getByText('Workshop coordination',{exact:true})).toBeVisible();
  await expect(page.getByText('Drawing needs review',{exact:true})).toBeVisible();
  await expect(nav.locator('.count')).toHaveText('1');
  await page.screenshot({path:'.local/qa/telegram-home.png',fullPage:true});

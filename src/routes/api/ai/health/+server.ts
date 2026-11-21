@@ -1,20 +1,22 @@
 // AI diagnostics are independent of core /api/health readiness.
 // GET never sends a paid inference request; RD may explicitly POST to probe.
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { activeAiProvider, isActiveAiConfigured, readActiveAiModels } from '$lib/server/ai/active-provider';
+import { readAiRouting, isActiveAiConfigured, readActiveAiModels } from '$lib/server/ai/active-provider';
 import { openRouterChat } from '$lib/server/ai/openrouter';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
 
 export const GET: RequestHandler = async ({ locals }) => {
     if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401, headers: noStore });
-    const configured = await isActiveAiConfigured().catch(() => false);
-    let models;
-    try { models = await readActiveAiModels(); }
+    let routing, models;
+    try {
+      routing = await readAiRouting();
+      models = await readActiveAiModels(routing);
+    }
     catch { return json({error: 'AI model settings unavailable'}, {status: 503, headers: noStore}); }
     return json({
-        service: activeAiProvider(),
-        configured,
+        service: routing.provider,
+        configured: await isActiveAiConfigured(routing).catch(() => false),
         model: models.textModel,
         visionModel: models.visionModel,
         connectivity: 'not_tested',
@@ -30,10 +32,12 @@ export const POST: RequestHandler = async ({ locals, request, url }) => {
     if (origin && origin !== url.origin)
         return json({ error: 'Cross-origin provider probe denied' }, { status: 403, headers: noStore });
     const start = Date.now();
-    let service: ReturnType<typeof activeAiProvider> | 'unavailable' = 'unavailable';
+    let service: 'openrouter' | 'openai' | 'unavailable' = 'unavailable';
     try {
-        service = activeAiProvider();
+        const routing = await readAiRouting();
+        service = routing.provider;
         const { response, model } = await openRouterChat({
+            aiRouting: routing,
             messages: [{ role: 'user', content: 'Reply only OK.' }],
             stream: false,
             temperature: 0,

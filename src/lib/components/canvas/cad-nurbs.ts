@@ -83,9 +83,31 @@ function chordDistance(p: CadPoint, a: CadPoint, b: CadPoint): number {
   return Math.hypot(p.x - a.x - along * ux, p.y - a.y - along * uy);
 }
 
+/** A closed DXF outline can store each cubic as an independently clamped
+ * span. Join only an ordered chain with identical junctions. Existing loops
+ * and genuine discontinuities keep their separate contours. */
+function joinClosedSplineChain(contours: CadContour[]): void {
+  const same = (a: CadPoint, b: CadPoint) => a.x === b.x && a.y === b.y;
+  if (contours.length < 2 || contours.some(({ nodes }, i) => {
+    const end = nodes[nodes.length - 1];
+    const next = contours[i + 1];
+    return same(nodes[0], end) || (next !== undefined && !same(end, next.nodes[0]));
+  })) return;
+
+  const [first, ...rest] = contours;
+  for (const { nodes: [start, ...tail] } of rest) {
+    const seam = first.nodes[first.nodes.length - 1];
+    seam.outX = start.outX;
+    seam.outY = start.outY;
+    first.nodes.push(...tail);
+  }
+  contours.length = 1;
+}
+
 /** Editable exact cubics for polynomial degree 1-3; conservative bounded
  * polylines for positive rational and higher-degree curves. Repeated knots of
- * multiplicity degree+1 start a new contour instead of adding a false bridge. */
+ * multiplicity degree+1 delimit separate spans, with an opt-in for closed
+ * DXF chains whose spans already meet. */
 export function splineContours(
   controls: CadPoint[],
   weights: number[] | undefined,
@@ -93,6 +115,7 @@ export function splineContours(
   degree: number,
   closed: boolean,
   tolerance: number,
+  options: { joinCoincidentClosedSpans?: boolean } = {},
 ): SplineContours {
   if (!Number.isInteger(degree) || degree < 1 || degree > MAX_DEGREE)
     fail("spline-degree", "Spline degree must be between 1 and 16.");
@@ -177,6 +200,7 @@ export function splineContours(
     } else approximate(polygon, 0);
   }
   if (closed) {
+    if (exact && options.joinCoincidentClosedSpans) joinClosedSplineChain(contours);
     // Closing a DXF entity must never draw a straight bridge between distant
     // endpoints. Only a numerically coincident seam can be merged.
     const scale = Math.max(1, ...controls.flatMap((p) => [Math.abs(p.x), Math.abs(p.y)]));

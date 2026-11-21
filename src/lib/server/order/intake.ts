@@ -1,4 +1,4 @@
-import { activeAiProvider } from '$lib/server/ai/active-provider';
+import { readAiRouting, type AiRouting } from '$lib/server/ai/active-provider';
 /** OMS-R13: proposals only. This endpoint never updates an order or its files. */
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
@@ -261,6 +261,7 @@ function validateIntakeModel(model: string) {
 }
 
 interface IntakeSource {
+  aiRouting?: AiRouting;
   parts: Array<Record<string, unknown>>;
   engine: string | null;
   model: string;
@@ -287,10 +288,11 @@ async function prepareIntakeSource(bytes: Uint8Array, filename: string, mime: st
     const scope = `Source scope: PDF pages ${pages.start}–${pages.end} of ${pages.total}. Use the original page numbers; do not infer content from omitted pages.`;
     return {parts: [{type:'text',text:scope}, ...parts], pages, model: OPENROUTER_VISION_MODEL, engine: 'page-images'};
   }
-  if (activeAiProvider() === 'openai') {
+  const aiRouting = await readAiRouting();
+  if (aiRouting.provider === 'openai') {
     if (mode === 'ocr') throw error(403, 'This OCR mode requires OpenRouter');
     return { parts: [toolkitMediaContent(filename, mime, bytes)],
-      model: OPENROUTER_VISION_MODEL, engine: 'openai-native', pages: null };
+      model: OPENROUTER_VISION_MODEL, engine: 'openai-native', pages: null, aiRouting };
   }
   const paid = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
   if (mode === 'ocr' && !paid) throw error(403, 'Paid OCR is disabled by the administrator');
@@ -302,7 +304,7 @@ async function prepareIntakeSource(bytes: Uint8Array, filename: string, mime: st
     throw error(400, err instanceof Error ? err.message : 'Invalid PDF mode');
   }
   return {parts: [toolkitMediaContent(filename, mime, bytes)],
-    model: mode === 'native' ? pdfModel : orderIntakeTextModel(), engine, pages: null};
+    model: mode === 'native' ? pdfModel : orderIntakeTextModel(), engine, pages: null, aiRouting};
 }
 
 /** Shared provider boundary. Uses the same Vault/environment key and sharing policy as OMS chat. */
@@ -315,6 +317,7 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
     ];
     const signal = AbortSignal.any([event.request.signal, AbortSignal.timeout(INTAKE_PROVIDER_TIMEOUT_MS)]);
     const options = {
+      ...(source.aiRouting ? { aiRouting: source.aiRouting } : {}),
       model, temperature:0.1, maxTokens:6500, timeoutMs:INTAKE_PROVIDER_TIMEOUT_MS, signal,
       ...(parserEngine&&!['page-images','openai-native'].includes(parserEngine)?{plugins:[{id:'file-parser',pdf:{engine:parserEngine}}]}:{})
     };

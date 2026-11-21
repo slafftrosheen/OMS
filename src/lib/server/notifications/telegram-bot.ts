@@ -1,3 +1,4 @@
+import { isTelegramOrderId, telegramOrderLaunchPath } from '$lib/telegram/launch';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_TELEGRAM_OPTIONS, type TelegramCommandName } from '$lib/notifications/telegram-options';
 import { formatTelegramMessage, sendTelegramMessage, telegramAppButton, telegramRetryAt, type TelegramConfig, type TelegramInlineButton } from './telegram';
@@ -69,8 +70,8 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
     }
     case 'orders': case 'order':
       text = `${l.orders}\n\n${rows.length ? rows.join('\n\n') : l.empty}${payload.kind === 'orders' ? `\n\n${l.limited}` : ''}`;
-      if (options.commandsEnabled&&options.commands.includes('order'))orders.forEach(order=>{if(/^[0-9a-f-]{36}$/i.test(order.id))keyboard.push([{text:(value(order.po_number)||value(order.title)||l.orders).slice(0,60),callback_data:`oms:order:${order.id}`}]);});
-      if (orders.length === 1 && config.appUrl && /^[0-9a-f-]{36}$/i.test(orders[0].id)) keyboard.push([{ text: l.open, url: `${config.appUrl}/orders/${orders[0].id}` }]);
+      if (options.commandsEnabled&&options.commands.includes('order'))orders.forEach(order=>{if(isTelegramOrderId(order.id))keyboard.push([{text:(value(order.po_number)||value(order.title)||l.orders).slice(0,60),callback_data:`oms:order:${order.id}`}]);});
+
       break;
     case 'notifications': {
       const notifications: any[] = Array.isArray(payload.notifications) ? payload.notifications.slice(0, 5) : [];
@@ -91,7 +92,12 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
     default: text = l.empty;
   }
   if(payload.kind!=='help'){
-    const app=telegramAppButton(config,l.open);if(app)keyboard.push([app]);
+    const destination = payload.kind === 'order' ? telegramOrderLaunchPath(orders[0]?.id)
+      : payload.kind === 'orders' ? '/telegram?view=orders'
+      : ['notifications', 'read'].includes(payload.kind) ? '/telegram?view=notifications'
+      : ['pause', 'resume'].includes(payload.kind) ? '/telegram?tab=control' : '/telegram';
+    const app = telegramAppButton(config, l.open, destination ?? '/telegram');
+    if (app) keyboard.push([app]);
     if(options.commandsEnabled&&options.commands.includes('help'))keyboard.push([{text:l.help,callback_data:'oms:help'}]);
   }
   return { text: formatTelegramMessage({ title: text }, null).text, keyboard };
