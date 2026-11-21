@@ -5,6 +5,18 @@ import { answerTelegramQuestion, dispatchTelegramBotReplies, formatTelegramBotRe
 import { dispatchTelegramDeliveries } from '../../src/lib/server/notifications/telegram-service';
 
 const config: TelegramConfig = { botToken:'123456:abcdefghijklmnopqrstuvwxyz',botUsername:'OMS_notify_bot',webhookSecret:'s'.repeat(32),deliverySecret:'d'.repeat(32),appUrl:'https://oms.example.test',options:{...DEFAULT_TELEGRAM_OPTIONS,enabled:true,aiEnabled:true} };
+
+describe('Telegram Mini App reply links', () => {
+  it('links an individual order, list and inbox to their authenticated workspace destinations', () => {
+    const id = '12345678-1234-1234-1234-123456789abc';
+    const order = formatTelegramBotReply({kind:'order',orders:[{id,title:'Panel'}]},config);
+    expect(order.keyboard.flat().some(button=>button.web_app?.url===config.appUrl+'/telegram?view=order&id='+id)).toBe(true);
+    for (const [kind, view] of [['orders','orders'],['notifications','notifications'],['read','notifications']]) {
+      const reply = formatTelegramBotReply({kind},config);
+      expect(reply.keyboard.flat().some(button=>button.web_app?.url===config.appUrl+'/telegram?view='+view)).toBe(true);
+    }
+  });
+});
 const command=(text:string)=>({update_id:100,message:{date:1792660000,text,chat:{id:1234,type:'private'},from:{id:1234,is_bot:false}}});
 
 describe('Bidirectional Telegram command parsing',()=>{

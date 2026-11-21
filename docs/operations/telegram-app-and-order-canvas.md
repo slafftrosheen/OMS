@@ -2,7 +2,7 @@
 
 The bot home message now offers buttons for opening OMS, chats, controls, today, orders, notifications, the assistant, and pause/resume. Buttons use the existing private-chat identity, command allowlist, account link and database authorization. Commands remain compatible. Notification messages retain their original record link and add an app launcher.
 
-For an HTTPS application URL, **Settings → Telegram → Update bot app menu** registers Telegram's persistent **Open OMS** Mini App menu with `setChatMenuButton`. The existing registration and command-sync actions update it together; a failure is surfaced as partial synchronization. HTTP installations receive ordinary links instead, as required by the [Telegram Mini App API](https://core.telegram.org/bots/api#webappinfo). Deploy the application before synchronizing the menu. No live bot settings are changed merely by committing this code.
+For an HTTPS application URL, **Settings → Telegram → Connection & keys → Publish bot menu** registers Telegram's persistent **Open OMS** Mini App menu with `setChatMenuButton`. The existing registration and command-sync actions update it together; a failure is surfaced as partial synchronization. HTTP installations receive ordinary links instead, as required by the [Telegram Mini App API](https://core.telegram.org/bots/api#webappinfo). Deploy the application before synchronizing the menu. No live bot settings are changed merely by committing this code.
 
 `/telegram` opens a compact workspace with Home, Notifications, Chats and Controls tabs. The tabs use the actual OMS notification store, realtime subscription and chat page, including history, sending, rooms and voice controls. Controls link to role-appropriate existing order, review, calendar, inventory, production and work screens. Telegram preferences reuse the same account linking, pause/resume, category, preview and personal AI controls as Settings.
 
@@ -21,3 +21,20 @@ Form application remains local. Save uses the ordinary draft revision guard, the
 Run `TZ=UTC npm test`, `npm run test:unit`, `npm run check`, `npm run build`, and the Playwright configurations `playwright.production-intake.config.ts`, `playwright.telegram-app.config.ts`, and `playwright.order-canvas.config.ts` under `tests/ui`. Browser tests use controlled service responses; they do not send messages to real teammates or mutate the live Telegram bot.
 
 Verified on 2026-11-09: 110 application tests, 1,173 unit tests, two isolated database migration tests, all five private PDF fixture checks, and 36 Chromium scenarios (33 intake, one Telegram workspace, two canvas) passed. The browser scenarios cover real-page upload entry points, upload-only and upload-and-analyze behavior, preview switching, explicit review, stale-edit protection, chat sending, notification read/pause actions, persistent canvas uploads, native form editing, annotation restore, and read-only controls. Svelte check reported zero errors and the same 14 existing warnings; focused ESLint had no errors, and the production Node build completed. Mobile/light and mobile/dark screens were inspected. These tests use controlled service responses; live provider inference, Telegram transport and deployment acceptance remain separate release checks.
+
+## Prepare for the next test
+
+Apply pending migrations through `scripts/supabase-migrate.sh`, then deploy the application. This batch uses:
+
+| Migration | Purpose |
+| --- | --- |
+| `20261122000001_oms_ai_provider_settings.sql` | R&D provider selection, OpenAI models and encrypted key |
+| `20261122000002_telegram_workspace_today.sql` | Signed-in Mini App overview using the existing OMS row-level permissions |
+
+Existing Canvas templates use the existing drawing and file-pocket schema. Apply older pending migrations in their normal order.
+
+Open **Settings → Telegram → Connection & keys** as R&D. Save the HTTPS OMS address, then use **Publish bot menu** or **Sync commands**. Use **Probe** to verify the actual Telegram menu URL. An HTTP address supports the existing ordinary links and private polling; Telegram's Mini App menu requires HTTPS.
+
+Use **Open OMS** in a private bot chat. Sign into OMS if prompted. **Today** shows orders due or loading on the Riga calendar day and that day's events. Open a bot order response and verify it lands on the correct order with the Mini App navigation present. The mini app keeps the existing OMS roles, order review workflow and personal notification preferences.
+
+Run `tests/db/telegram-workspace.sql` after migration to check RPC access. Verify with two OMS accounts that each sees only rows allowed by its normal Orders and Calendar permissions. In R&D Settings → AI, verify that the stored provider, model IDs, and masked OpenAI key persist after refresh.

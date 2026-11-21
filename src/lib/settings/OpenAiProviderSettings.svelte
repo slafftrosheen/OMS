@@ -16,6 +16,8 @@
   let key = $state('');
   let removeKey = $state(false);
   let busy = $state(false);
+  const dirty = $derived(provider !== activeProvider || textModel.trim() !== openAI.textModel ||
+    visionModel.trim() !== openAI.visionModel || !!key.trim() || removeKey);
   let result = $state<'saved' | 'invalid' | 'failed'>();
   $effect(() => {
     provider = activeProvider;
@@ -24,7 +26,7 @@
   });
 
   async function save() {
-    if (!managed || disabled || busy) return;
+    if (!managed || disabled || busy || !dirty) return;
     busy = true;
     result = undefined;
     try {
@@ -73,7 +75,7 @@
         <label>{copy.textModel}<input bind:value={textModel} maxlength="150" spellcheck="false" required /></label>
         <label>{copy.visionModel}<input bind:value={visionModel} maxlength="150" spellcheck="false" required /></label>
       </div>
-      <button class="rf-btn" type="submit">{busy ? copy.saving : copy.save}</button>
+      <button class="rf-btn" type="submit" disabled={!dirty}>{busy ? copy.saving : copy.save}</button>
     </fieldset>
   </form>
   {#if result}<p role={result === 'saved' ? 'status' : 'alert'}>{copy[result]}</p>{/if}

@@ -3,6 +3,7 @@
   import { t, locale } from 'svelte-i18n';
   import { base } from '$app/paths';
   import { DEFAULT_TELEGRAM_OPTIONS, TELEGRAM_COMMANDS, TELEGRAM_CATEGORIES, type TelegramOptions, type TelegramAdminStatus, type TelegramCommandName } from './telegram-options';
+  import { telegramAppCopy } from '$lib/telegram/app-copy';
   import { telegramReceiverCopy } from './telegram-receiver-copy';
 
   let status = $state<TelegramAdminStatus | null>(null);
@@ -45,6 +46,7 @@
   let dirty = $derived(JSON.stringify(options) !== baseline || !!botToken || !!webhookSecret || !!deliverySecret);
   let disabled = $derived(!!busy || !status?.available);
   let copy = $derived(telegramReceiverCopy($locale));
+  let appCopy = $derived(telegramAppCopy($locale));
   let polling = $derived(options.connectionMode === 'polling');
 
   async function request(method = 'GET', body?: unknown, timeoutMs = 20000) {
@@ -61,6 +63,7 @@
   function showError(cause: unknown) {
     const code = cause instanceof Error ? cause.message : '';
     if (code === 'migration_required') { error = copy.migration; return; }
+    if (code === 'mini_app_requires_https') { error = appCopy.menuHttp; return; }
     if (code === 'receiver_conflict') { error = copy.receiverBusy; return; }
     if (code === 'runtime_changed') { error = copy.changed; return; }
     if (code === 'incomplete_settings' && polling) { error = copy.incomplete; return; }
@@ -110,6 +113,13 @@
       const data = await request('POST', { action }, 55000);
       if (!alive) return;
       if (action === 'probe') { probe = data; if (status && data.receiver) status.receiver = data.receiver; }
+      if (action === 'syncAppMenu') {
+        if (data.appMenuSynced) {
+          message = appCopy.menuSynced;
+          if (probe) probe = { ...probe, appMenu: { available: true, checked: true, matches: true } };
+        } else { error = appCopy.menuSyncFailed; }
+        return;
+      }
       message = $t(prefix + (data.commandsSynced === false ? 'commandsPartial' : `results.${action}`), { count: data.requeued ?? 0 });
       if (action === 'dispatch' || action === 'retryFailures') {
         const refreshed = await request();
@@ -233,6 +243,18 @@
       <h3 id="telegram-provider-actions">{$t(prefix + 'setup')}</h3>
       <p class="muted">{polling ? copy.setup : $t(prefix + 'setupHint')}</p>
       {#if !polling}<dl class="endpoints"><div><dt>{$t(prefix + 'webhookUrl')}</dt><dd><code>{status.webhookUrl || '—'}</code></dd></div><div><dt>{$t(prefix + 'dispatchUrl')}</dt><dd><code>{status.dispatchUrl || '—'}</code></dd></div></dl>{/if}
+      <div class="app-menu-settings">
+        <h4>{appCopy.menu}</h4>
+        {#if !status.options.appUrl?.startsWith('https://')}<p class="muted">{appCopy.menuHttp}</p>{/if}
+        {#if probe?.appMenu?.available && probe.appMenu.checked}
+          <p role="status">{probe.appMenu.matches ? appCopy.menuMatches : appCopy.menuMismatch}</p>
+        {/if}
+        <div class="actions">
+          <a href={base+'/telegram'}>{appCopy.open}</a>
+          <button type="button" disabled={disabled || dirty || !status.credentials.botToken.configured || !status.options.appUrl?.startsWith('https://')}
+            onclick={() => run('syncAppMenu')}>{appCopy.syncMenu}</button>
+        </div>
+      </div>
       <div class="actions">
         <button type="button" disabled={disabled || dirty || !status.credentials.botToken.configured} onclick={() => run('probe')}>{$t(prefix + 'probe')}</button>
         {#if !polling}<button type="button" disabled={disabled || dirty || !status.configured || !status.options.enabled} onclick={() => run('registerWebhook')}>{$t(prefix + 'registerWebhook')}</button>{/if}
@@ -258,6 +280,9 @@
   .admin-tabs button.active { background:var(--brand-soft);border-color:var(--brand);font-weight:650; }
   .admin-tabs button:focus-visible {outline:2px solid var(--brand);outline-offset:3px;}
 
+  .app-menu-settings { display:grid; gap:8px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; }
+  .app-menu-settings h4 { margin:0; }
+  .app-menu-settings .actions a { min-height:44px; display:inline-flex; align-items:center; }
   .telegram-admin { min-width:0; display:grid; gap:var(--space-md,16px); }
   .admin-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
   h2,h3,p { margin:0; } h2 { font-size:1.15rem; } h3 { font-size:1rem; }
