@@ -4,7 +4,7 @@ import { validCadPoint, type CadPoint } from './cad-settings';
 
 export const CAD_DIMENSION_SOURCE_LIMIT = 256;
 export const CAD_RADIAL_DIMENSION_KINDS = ['radius', 'diameter'] as const;
-export const CAD_DIMENSION_KINDS = ['horizontal', 'vertical', 'aligned', ...CAD_RADIAL_DIMENSION_KINDS] as const;
+export const CAD_DIMENSION_KINDS = ['horizontal', 'vertical', 'aligned', 'angular', ...CAD_RADIAL_DIMENSION_KINDS] as const;
 export type CadRadialDimensionKind = typeof CAD_RADIAL_DIMENSION_KINDS[number];
 export type CadDimensionKind = typeof CAD_DIMENSION_KINDS[number];
 
@@ -16,9 +16,9 @@ export interface CadDimensionLink {
   sourceIds: string[];
   path?: { vertices: number; closed: boolean };
 }
-type Endpoints = { start: CadPoint; end: CadPoint };
+type Endpoints = { start: CadPoint; end: CadPoint; angleSweep?: number };
 type DimensionSource = TLShape & {
-  props: { endX: number; endY: number; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null };
+  props: { endX: number; endY: number; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null; angleSweep?: number | null };
 };
 
 export function dimensionSources(editor: Editor, ids: TLShapeId[]): TLShape[] {
@@ -55,6 +55,55 @@ export function circularDimensionPoints(source: TLShape): { center: CadPoint; ri
   return { center: { x: w / 2, y: height / 2 }, rim: { x: w, y: height / 2 } };
 }
 
+function straightEdge(editor: Editor, shape: TLShape): CadPoint[] | null {
+  const props = shape.props as { points: CadPoint[] | Record<string, CadPoint>; closed?: boolean; spline?: string };
+  const points = shape.type === 'cad-path' && !props.closed && Array.isArray(props.points) ? props.points
+    : shape.type === 'line' && props.spline === 'line' ? Object.values(props.points) : [];
+  if (points.length !== 2) return null;
+  const transform = editor.getShapePageTransform(shape);
+  return points.map(p => transform.applyToPoint(p));
+}
+
+function angleAt(vertex: CadPoint, a: CadPoint, b: CadPoint): Endpoints | null {
+  const ax = a.x - vertex.x, ay = a.y - vertex.y, bx = b.x - vertex.x, by = b.y - vertex.y;
+  const aLength = Math.hypot(ax, ay), bLength = Math.hypot(bx, by);
+  if (Math.min(aLength, bLength) < 1e-8) return null;
+  const angleSweep = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+  if (Math.abs(angleSweep) < 1e-8) return null;
+  const ratio = Math.min(aLength, bLength) / aLength;
+  return { start: vertex, end: { x: vertex.x + ax * ratio, y: vertex.y + ay * ratio }, angleSweep };
+}
+
+export function angularDimensionPoints(editor: Editor, sources: TLShape[]): Endpoints | null {
+  if (sources.length === 1) {
+    const source = sources[0];
+    const transform = editor.getShapePageTransform(source);
+    if (source.type === 'cad-arc') {
+      const { radius, startAngle, endAngle } = source.props as { radius: number; startAngle: number; endAngle: number };
+      const sweep = (endAngle - startAngle) * Math.PI / 180;
+      if (!(radius > 0 && sweep >= 1e-8 && sweep < 2 * Math.PI)) return null;
+      const angle = startAngle * Math.PI / 180;
+      return {
+        start: transform.applyToPoint({ x: 0, y: 0 }),
+        end: transform.applyToPoint({ x: radius * Math.cos(angle), y: -radius * Math.sin(angle) }),
+        angleSweep: -sweep,
+      };
+    }
+    const { points, closed } = source.props as { points?: CadPoint[]; closed?: boolean };
+    if (source.type !== 'cad-path' || closed || points?.length !== 3) return null;
+    const [a, vertex, b] = points.map(p => transform.applyToPoint(p));
+    return angleAt(vertex, a, b);
+  }
+  if (sources.length !== 2) return null;
+  const first = straightEdge(editor, sources[0]), second = straightEdge(editor, sources[1]);
+  if (!first || !second) return null;
+  for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) {
+    if (Math.hypot(first[a].x - second[b].x, first[a].y - second[b].y) <= 1e-7)
+      return angleAt(first[a], first[1 - a], second[1 - b]);
+  }
+  return null;
+}
+
 export function resolveDimensionLink(editor: Editor, link: CadDimensionLink, pageId: string): Endpoints | null {
   const sources: TLShape[] = [];
   for (const id of link.sourceIds) {
@@ -63,9 +112,13 @@ export function resolveDimensionLink(editor: Editor, link: CadDimensionLink, pag
       return null;
     sources.push(source);
   }
-  let start: CadPoint, end: CadPoint;
+  let start: CadPoint, end: CadPoint, angleSweep: number | undefined;
   const radial = radialDimensionKind(link.kind);
-  if (radial) {
+  if (link.kind === 'angular') {
+    const points = !link.path && angularDimensionPoints(editor, sources);
+    if (!points) return null;
+    ({ start, end, angleSweep } = points);
+  } else if (radial) {
     if (sources.length !== 1 || link.path) return null;
     const points = circularDimensionPoints(sources[0]);
     if (!points) return null;
@@ -92,18 +145,18 @@ export function resolveDimensionLink(editor: Editor, link: CadDimensionLink, pag
   if (!validCadPoint(start) || !validCadPoint(end) ||
       !validCadPoint({ x: end.x - start.x, y: end.y - start.y }) ||
       Math.hypot(end.x - start.x, end.y - start.y) < 1e-8) return null;
-  return { start, end };
+  return { start, end, ...(angleSweep === undefined ? {} : { angleSweep }) };
 }
 
 export function getDimensionEndpoints(editor: Editor, shape: DimensionSource) {
   const { endX, endY, link } = shape.props;
   const radialKind = link ? radialDimensionKind(link.kind) : shape.props.radialKind ?? null;
-  const fallback = { start: { x: 0, y: 0 }, end: { x: endX, y: endY }, radialKind };
+  const fallback = { start: { x: 0, y: 0 }, end: { x: endX, y: endY }, radialKind, angleSweep: shape.props.angleSweep ?? null };
   if (!link) return { ...fallback, status: 'free' as const };
   const pageId = editor.getAncestorPageId(shape);
   const points = pageId && resolveDimensionLink(editor, link, pageId);
   if (!points) return { ...fallback, status: 'broken' as const };
-  return { start: editor.getPointInShapeSpace(shape, points.start), end: editor.getPointInShapeSpace(shape, points.end), radialKind, status: 'linked' as const };
+  return { start: editor.getPointInShapeSpace(shape, points.start), end: editor.getPointInShapeSpace(shape, points.end), radialKind, angleSweep: points.angleSweep ?? null, status: 'linked' as const };
 }
 
 export type { DimensionSource };

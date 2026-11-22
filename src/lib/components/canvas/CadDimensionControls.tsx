@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { useCadText } from './cad-copy';
 import { createCadDimension, detachCadDimension, relinkCadDimension } from './cad-geometry';
-import { CAD_DIMENSION_KINDS, CAD_DIMENSION_SOURCE_LIMIT, circularDimensionPoints, dimensionSources, getDimensionEndpoints, radialDimensionKind, type CadDimensionKind, type DimensionSource } from './cad-dimension-links';
+import { CAD_DIMENSION_KINDS, CAD_DIMENSION_SOURCE_LIMIT, angularDimensionPoints, circularDimensionPoints, dimensionSources, getDimensionEndpoints, radialDimensionKind, type CadDimensionKind, type DimensionSource } from './cad-dimension-links';
 import type { CadSettings } from './cad-settings';
 import { captureToolkitControls } from './toolkit-controls';
 
@@ -19,7 +19,8 @@ export function CadDimensionControls({ settings }: { settings: CadSettings | nul
     return {
       selection: ids.join(' '), count: sources.length, dimensionCount: dimensions.length,
       status: dimension && getDimensionEndpoints(editor, dimension).status,
-      kind: dimension?.props.link?.kind ?? dimension?.props.radialKind,
+      kind: dimension?.props.link?.kind ?? dimension?.props.radialKind ?? (dimension?.props.angleSweep ? 'angular' as const : undefined),
+      angular: !!angularDimensionPoints(editor, sources),
       circular: sources.length === 1 && !!circularDimensionPoints(sources[0]),
       editable: captureToolkitControls(editor).canEditSelection &&
         !sources.some(shape => ['order-details', 'order-address', 'profile-7st'].includes(shape.type)),
@@ -27,7 +28,8 @@ export function CadDimensionControls({ settings }: { settings: CadSettings | nul
   }, [editor]);
   if (!state.count && !state.dimensionCount) return null;
   const preferred = direction ?? state.kind ?? 'horizontal';
-  const kind = radialDimensionKind(preferred) && !state.circular ? 'horizontal' : preferred;
+  const available = (kind: CadDimensionKind) => kind === 'angular' ? state.angular : !radialDimensionKind(kind) || state.circular;
+  const kind = available(preferred) ? preferred : 'horizontal';
   const canCreate = !state.dimensionCount && !!state.count && !!settings;
   const canRelink = state.dimensionCount === 1 && !!state.count;
   const overLimit = state.count > CAD_DIMENSION_SOURCE_LIMIT;
@@ -44,9 +46,10 @@ export function CadDimensionControls({ settings }: { settings: CadSettings | nul
         <span>{label('dimensionKind')}</span>
         <select value={kind} onChange={event => setDirection(event.target.value as CadDimensionKind)}>
           {CAD_DIMENSION_KINDS.map(value =>
-            <option key={value} value={value} disabled={!!radialDimensionKind(value) && !state.circular}>{label(value)}</option>)}
+            <option key={value} value={value} disabled={!available(value)}>{label(value)}</option>)}
         </select>
       </label>
+      {kind === 'angular' && <p className="drawing-help">{label('dimensionAngularHelp')}</p>}
       {radialDimensionKind(kind) && <p className="drawing-help">{label('dimensionRadialHelp')}</p>}
       {canCreate && <>
         <label className="drawing-cad-check"><input type="checkbox" checked={linked} onChange={event => setLinked(event.target.checked)} />

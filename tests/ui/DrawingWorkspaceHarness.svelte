@@ -200,6 +200,17 @@
           editor.zoomToSelection();
         }
       },
+      dimensionArcSample: (endAngle: number, pick = false) => {
+        const id = 'shape:dimension-arc-sample', page = editor.getCurrentPage();
+        if (!readCadSettings(editor)) editor.updatePage({ id: page.id, meta: { ...page.meta, omsCad: DEFAULT_CAD_SETTINGS } });
+        const props = { radius: unitLengthToCanvas(55, readCadSettings(editor)!), startAngle: 0, endAngle, color: 'black' };
+        if (editor.getShape(id)) editor.updateShape({ id, type: 'cad-arc', props });
+        else {
+          editor.createShape({ id, type: 'cad-arc', x: 0, y: 0, props });
+          editor.setSelectedShapes([id]); editor.zoomToSelection();
+        }
+        if (pick) editor.setSelectedShapes([id]);
+      },
       selectSheetSample: () => {
         const cad = readCadSettings(editor);
         if (!cad || cad.unit !== 'mm') throw new Error('Set the sheet size in millimetres first');

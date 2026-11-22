@@ -141,6 +141,41 @@ describe('CAD physical coordinates and saved settings', () => {
     assert.equal(manual.radialKind, 'radius');
     near(manual.end.x, 70);
   });
+  it('measures a reflex arc and freezes its sweep on detachment', () => {
+    const { editor, only } = fixture();
+    editor.createShape({ id: 'shape:reflex', type: 'cad-arc', rotation: Math.PI / 3,
+      props: { radius: 80, startAngle: 45, endAngle: 315 } });
+    editor.setSelectedShapes(['shape:reflex']);
+    assert.equal(createCadDimension(editor, defaults, 'angular'), true);
+    const dimension = only();
+    near(getDimensionEndpoints(editor, dimension).angleSweep!, -3 * Math.PI / 2);
+    editor.updateShape({ id: 'shape:reflex', type: 'cad-arc', props: { endAngle: 225 } });
+    near(getDimensionEndpoints(editor, dimension).angleSweep!, -Math.PI);
+    assert.equal(detachCadDimension(editor), true);
+    editor.deleteShapes(['shape:reflex']);
+    assert.equal(getDimensionEndpoints(editor, only()).status, 'free');
+    near(getDimensionEndpoints(editor, only()).angleSweep!, -Math.PI);
+  });
+  it('tracks the shared endpoint of two edges and an open CAD corner', () => {
+    const { editor, only } = fixture();
+    const edge = (id: string, points: Array<{x: number; y: number}>) =>
+      editor.createShape({ id, type: 'cad-path', props: { points, closed: false } });
+    const vertex = { x: 0, y: 0 };
+    edge('shape:leg-a', [vertex, { x: 100, y: 0 }]);
+    edge('shape:leg-b', [vertex, { x: 0, y: 80 }]);
+    editor.setSelectedShapes(['shape:leg-a', 'shape:leg-b']);
+    assert.equal(createCadDimension(editor, defaults, 'angular'), true);
+    const dimension = only();
+    near(getDimensionEndpoints(editor, dimension).angleSweep!, Math.PI / 2);
+    editor.updateShape({ id: 'shape:leg-b', type: 'cad-path', x: 1 });
+    assert.equal(getDimensionEndpoints(editor, dimension).status, 'broken');
+    edge('shape:corner', [{ x: 80, y: 0 }, vertex, { x: 40, y: 40 }]);
+    editor.setSelectedShapes([dimension.id, 'shape:corner']);
+    assert.equal(relinkCadDimension(editor, 'angular'), true);
+    near(getDimensionEndpoints(editor, only()).angleSweep!, Math.PI / 4);
+    editor.updateShape({ id: 'shape:corner', type: 'cad-path', props: { closed: true } });
+    assert.equal(getDimensionEndpoints(editor, only()).status, 'broken');
+  });
   it('preserves physical size across units and converts Y-up independently of view zoom', () => {
     for (const unit of ['mm', 'cm', 'm', 'in'] as const) for (const scale of [0.1, 1, 10, 100]) {
       const settings = { ...defaults, unit, scale, originX: 13, originY: 27 };

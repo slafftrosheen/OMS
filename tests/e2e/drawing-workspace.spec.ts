@@ -16,6 +16,32 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} can dimension an arc sweep and export it on a named production layer`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionArcSample(90));
+    await page.getByTestId('drawing-measure-toggle').click();
+    const controls = page.getByTestId('drawing-dimension-links');
+    await controls.getByRole('combobox', { name: 'Dimension type' }).selectOption('angular');
+    await controls.getByRole('button', { name: 'Add dimension', exact: true }).click();
+    const angle = page.locator('[data-angular-dimension="true"]');
+    await expect(angle.getByText('90.00°', { exact: true })).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionArcSample(270));
+    await expect(angle.getByText('270.00°', { exact: true })).toBeVisible();
+
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionArcSample(270, true));
+    await page.getByTestId('drawing-objects-toggle').click();
+    const layers = page.getByTestId('drawing-production-layers');
+    await layers.getByText('Production layers', { exact: true }).click();
+    await layers.getByRole('combobox', { name: 'Layer for selection' }).selectOption('bend');
+    await page.getByTestId('drawing-files').click();
+    await page.getByRole('combobox', { name: 'Cutting layers', exact: true }).selectOption('production');
+    await page.getByRole('combobox', { name: 'Layers to export' }).selectOption('bend');
+    await page.getByTestId('drawing-cad-review').click();
+    await expect(page.getByTestId('drawing-dxf-preview').locator('[data-dxf-layer="OMS_JOB_BEND"]')).toBeAttached();
+    await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+  });
   test(`${mode} diameter annotations follow circles and keep their style when detached`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

@@ -86,7 +86,10 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
                 <dt>{copy.sourceRevision}</dt><dd><code title={release.revision}>{release.revision.slice(0, 12)}</code></dd>
                 <dt>{copy.scope}</dt><dd>{copy[release.scope]}</dd>
                 <dt>{copy.curveMode}</dt><dd>{release.curves === 'spline' ? 'SPLINE' : `LWPOLYLINE · ${release.toleranceMm} mm`}</dd>
-                <dt>{copy.cuttingLayers}</dt><dd>{release.colorLayers ? copy.byColor : copy.standard}</dd>
+                <dt>{copy.cuttingLayers}</dt><dd>{release.productionLayers
+                  ? release.productionLayers.layerName ?? copy.enabledProductionLayers
+                  : release.colorLayers ? copy.byColor : copy.standard}</dd>
+                {release.productionLayers && <><dt>{copy.filteredByLayer}</dt><dd>{release.productionLayers.filtered}</dd></>}
                 <dt>{copy.sharedCuts}</dt><dd>{release.commonLines ? copy.enabled : copy.disabled}</dd>
                 <dt>{copy.omissions}</dt><dd>{release.omitted}</dd>
               </dl>

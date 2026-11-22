@@ -3,6 +3,7 @@ import { describe, it } from 'vitest';
 import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
 import { buildDxfCommonLines } from '../../src/lib/components/canvas/cad-dxf-common-lines';
 import { buildCadDxf, CadDxfError, serializeCadDxf, type DxfEntity } from '../../src/lib/components/canvas/cad-dxf';
+import { addProductionLayer, assignProductionLayer, productionDxfNames, readProductionLayers, updateProductionLayer } from '../../src/lib/components/canvas/cad-production-layers';
 import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
 import { fixture } from '../helpers/cad-editor';
 
@@ -12,6 +13,51 @@ function box(x: number, y: number, w: number, h: number, rgb = '#112233'): DxfEn
 }
 
 describe('DXF cut preview', () => {
+  it('exports enabled production layers separately and scopes the preview and cut lengths to one layer', () => {
+    const { editor, state } = fixture();
+    const make = (id: string, x: number) => editor.createShape({ id, type: 'cad-path', x, props: {
+      points: [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 20 }, { x: 0, y: 20 }], closed: true,
+    } });
+    make('shape:left', 0); make('shape:right', 30); make('shape:reference', 60); make('shape:unassigned', 90);
+    const baseline = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS);
+    const assign = (shapeId: string, layerId: string) => {
+      editor.setSelectedShapes([shapeId]); assert.equal(assignProductionLayer(editor, layerId), true);
+    };
+    assign('shape:left', 'cut'); assign('shape:right', 'engrave'); assign('shape:reference', 'reference');
+    assert.equal(buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS).text, baseline.text);
+    const all = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: {}, commonLines: true, includePreview: true });
+    assert.equal(all.filteredByLayer, 2);
+    assert.equal(all.sharedEdges, 0);
+    assert.deepEqual(all.layers.map(layer => layer.name), ['OMS_JOB_CUT', 'OMS_JOB_ENGRAVE']);
+    const cut = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: { only: 'cut' }, includePreview: true });
+    assert.equal(cut.filteredByLayer, 3);
+    assert.equal(cut.entities, 1);
+    assert.equal(cut.preview?.layers[0].name, 'OMS_JOB_CUT');
+    assert.ok(cut.cutLengths?.byLayer.OMS_JOB_CUT);
+    assert.throws(() => buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: { only: 'reference' } }), CadDxfError);
+    assign('shape:right', 'cut');
+    const merged = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: {}, commonLines: true, includePreview: true });
+    assert.equal(merged.sharedEdges, 1);
+    assert.deepEqual(merged.layers.map(layer => layer.name), ['OMS_JOB_CUT']);
+    state.isReadonly = true;
+    assert.equal(assignProductionLayer(editor, 'bend'), false);
+  });
+
+  it('keeps production layer changes undoable and gives colliding DXF names distinct identifiers', () => {
+    const { editor, marks } = fixture();
+    assert.equal(addProductionLayer(editor, 'Griešana'), true);
+    assert.equal(addProductionLayer(editor, 'Griesana'), true);
+    const layers = readProductionLayers(editor);
+    const names = productionDxfNames(layers);
+    assert.equal(names.get(layers.at(-2)!.id), 'OMS_JOB_GRIESANA');
+    assert.equal(names.get(layers.at(-1)!.id), 'OMS_JOB_GRIESANA_2');
+    const mark = marks.length;
+    assert.equal(updateProductionLayer(editor, 'cut', { name: 'Router', includeInDxf: false }), true);
+    assert.equal(readProductionLayers(editor).find(layer => layer.id === 'cut')?.includeInDxf, false);
+    editor.bailToMark(marks[mark].id);
+    assert.deepEqual(readProductionLayers(editor).find(layer => layer.id === 'cut'), { id: 'cut', name: 'Cut', includeInDxf: true });
+  });
+
   it('uses the emitted layers and lengths for a partially shared section without changing DXF bytes', () => {
     const parts = [box(0, 0, 30, 40), box(30, 4, 20, 10)];
     const output = buildDxfCommonLines(parts);

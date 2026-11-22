@@ -1,3 +1,4 @@
+import { productionDxfNames, productionLayerId, readProductionLayers } from './cad-production-layers';
 import { validVectorPaint } from './cad-paint';
 import { rectangularClipContainsBounds } from './cad-appearance';
 import { dxfColor } from './cad-dxf-geometry';
@@ -21,6 +22,7 @@ export interface CadDxfResult {
   widthMm: number; heightMm: number;
   layers: CadDxfLayer[];
   sharedEdges: number;
+  filteredByLayer?: number;
   passesRemoved: number;
   preview?: DxfPreview;
   cutLengths?: DxfCutLengths;
@@ -31,7 +33,7 @@ export type DxfEntity = (
   { type: 'polyline'; points: CadPoint[]; closed: boolean } |
   { type: 'circle'; center: CadPoint; radius: number } |
   { type: 'ellipse'; center: CadPoint; major: CadPoint; ratio: number } |
-  { type: 'arc'; center: CadPoint; radius: number; start: number; end: number }) & { rgb?: string; commonLine?: true };
+  { type: 'arc'; center: CadPoint; radius: number; start: number; end: number }) & { rgb?: string; commonLine?: true; productionLayer?: string };
 const MAX_ENTITIES = 4000, MAX_VERTICES = 100_000, MAX_MM = 100_000_000;
 
 function dxfVertexCount(entity: DxfEntity): number {
@@ -200,7 +202,7 @@ function cuttingColor(shape: TLShape): string | undefined {
   if (paint.fill.startsWith('#') && paint.fillOpacity > 0 && !paint.gradient && !paint.raster) return paint.fill.toUpperCase();
 }
 
-interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean; includePreview?: boolean }
+interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean; includePreview?: boolean; productionLayers?: { only?: string } }
 
 export interface DxfCapturedScope { pageId: string; shapeIds: readonly TLShapeId[] }
 export type DxfExportScope = 'selected' | 'all' | DxfCapturedScope;
@@ -224,10 +226,22 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
   const ids = dxfSourceIds(editor, scope);
   if (ids.length > MAX_ENTITIES * 2) throw new CadDxfError('limit');
   const entities: DxfEntity[] = [], omitted: CadDxfResult['omitted'] = [];
-  let vertices = 0;
+  const production = options.productionLayers;
+  if (production && options.colorLayers) throw new CadDxfError('invalid');
+  const pageLayers = production ? readProductionLayers(editor) : [];
+  const names = productionDxfNames(pageLayers);
+  const enabled = new Set(pageLayers.filter(layer => layer.includeInDxf).map(layer => layer.id));
+  if (production?.only && !enabled.has(production.only)) throw new CadDxfError('invalid');
+  let vertices = 0, filteredByLayer = 0;
   for (const id of new Set(ids)) {
     const shape = editor.getShape(id as TLShapeId);
     if (!shape || ['group', 'frame'].includes(shape.type)) continue;
+    const assignedLayer = production ? productionLayerId(shape) : undefined;
+    if (production && (!assignedLayer || !enabled.has(assignedLayer) || production.only && production.only !== assignedLayer)) {
+      filteredByLayer++;
+      continue;
+    }
+    const productionLayer = assignedLayer ? names.get(assignedLayer) : undefined;
     try {
       const result = cadShapeDxfGeometry(editor, shape, settings);
       const source = result.entities ?? (result.entity ? [result.entity] : []);
@@ -241,7 +255,7 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
             ? flattenForDxf(original.contour, tolerance) : original;
           outputVertices += dxfVertexCount(entity);
           if (outputVertices > MAX_VERTICES) throw new CadDxfError('limit');
-          return rgb ? { ...entity, rgb } : entity;
+          return rgb || productionLayer ? { ...entity, ...(rgb ? { rgb } : {}), ...(productionLayer ? { productionLayer } : {}) } : entity;
         });
         entities.push(...output);
         vertices = outputVertices;
@@ -252,9 +266,10 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
     }
     if (entities.length > MAX_ENTITIES) throw new CadDxfError('limit');
   }
+  const layerReport = production ? { filteredByLayer } : {};
   if (!entities.length) {
-    if (!omitted.length) throw new CadDxfError('empty');
-    return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [], sharedEdges: 0, passesRemoved: 0 };
+    if (!omitted.length && !filteredByLayer) throw new CadDxfError('empty');
+    return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [], sharedEdges: 0, passesRemoved: 0, ...layerReport };
   }
   let output = { entities, sharedEdges: 0, passesRemoved: 0 };
   if (options.commonLines) {
@@ -266,7 +281,7 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
   }
   const dxf = serializeCadDxf(output.entities, options);
   const closedContours = output.entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
-  return { ...dxf, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted,
+  return { ...dxf, ...layerReport, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted,
     sharedEdges: output.sharedEdges, passesRemoved: output.passesRemoved };
 }
 
@@ -301,11 +316,12 @@ export function serializeCadDxf(
   };
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const bound = (x: number, y: number) => { finite(x); finite(y); minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
-  const startEntity = (type: string, subclass: string, closed: boolean, color?: string, commonLine = false) => {
-    const base = commonLine ? 'OMS_SHARED' : closed ? 'OMS_CLOSED' : 'OMS_OPEN';
-    const rgb = colorLayers ? color?.toUpperCase() : undefined;
+  const startEntity = (type: string, subclass: string, closed: boolean, original: DxfEntity) => {
+    const base = original.commonLine ? 'OMS_SHARED' : closed ? 'OMS_CLOSED' : 'OMS_OPEN';
+    const rgb = colorLayers && !original.productionLayer ? original.rgb?.toUpperCase() : undefined;
     if (rgb !== undefined && !/^#[0-9A-F]{6}$/.test(rgb)) throw new CadDxfError('invalid');
-    const name = rgb ? `${base}_${rgb.slice(1)}` : base;
+    if (original.productionLayer && !/^OMS_JOB_[A-Z0-9_]+$/.test(original.productionLayer)) throw new CadDxfError('invalid');
+    const name = original.productionLayer ?? (rgb ? `${base}_${rgb.slice(1)}` : base);
     const layer = layers.get(name) ?? { name, rgb, entities: 0 };
     layer.entities++;
     layers.set(name, layer);
@@ -326,23 +342,23 @@ export function serializeCadDxf(
       const knots = [0, 0, 0, 0];
       for (let i = 1; i < segments.length; i++) knots.push(i, i, i);
       knots.push(segments.length, segments.length, segments.length, segments.length);
-      layer = startEntity('SPLINE', 'AcDbSpline', contour.closed, original.rgb);
+      layer = startEntity('SPLINE', 'AcDbSpline', contour.closed, original);
       add(body, 210, 0, 220, 0, 230, 1, 70, contour.closed ? 9 : 8, 71, 3, 72, knots.length, 73, controls.length, 74, 0);
       for (const knot of knots) add(body, 40, knot);
       for (const p of controls) add(body, 10, p.x, 20, p.y, 30, 0);
       const b = curveBounds([contour]); bound(b.x, b.y); bound(b.x + b.w, b.y + b.h);
     } else if (e.type === 'polyline') {
       if (e.points.length === 2 && !e.closed) {
-        layer = startEntity('LINE', 'AcDbLine', false, original.rgb, original.commonLine);
+        layer = startEntity('LINE', 'AcDbLine', false, original);
         add(body, 10, e.points[0].x, 20, e.points[0].y, 30, 0, 11, e.points[1].x, 21, e.points[1].y, 31, 0);
       } else {
-        layer = startEntity('LWPOLYLINE', 'AcDbPolyline', e.closed, original.rgb); add(body, 90, e.points.length, 70, e.closed ? 1 : 0);
+        layer = startEntity('LWPOLYLINE', 'AcDbPolyline', e.closed, original); add(body, 90, e.points.length, 70, e.closed ? 1 : 0);
         for (const p of e.points) add(body, 10, p.x, 20, p.y);
       }
       for (const p of e.points) bound(p.x, p.y);
     } else if (e.type === 'circle' || e.type === 'arc') {
       validPoint(e.center); positive(e.radius);
-      layer = startEntity(e.type === 'circle' ? 'CIRCLE' : 'ARC', 'AcDbCircle', e.type === 'circle', original.rgb);
+      layer = startEntity(e.type === 'circle' ? 'CIRCLE' : 'ARC', 'AcDbCircle', e.type === 'circle', original);
       add(body, 10, e.center.x, 20, e.center.y, 30, 0, 40, e.radius);
       if (e.type === 'arc') {
         const start = normAngle(finite(e.start)), end = normAngle(finite(e.end));
@@ -357,7 +373,7 @@ export function serializeCadDxf(
     } else {
       validPoint(e.center); validPoint(e.major); positive(Math.hypot(e.major.x, e.major.y));
       if (!Number.isFinite(e.ratio) || e.ratio <= 0 || e.ratio > 1) throw new CadDxfError('invalid');
-      layer = startEntity('ELLIPSE', 'AcDbEllipse', true, original.rgb);
+      layer = startEntity('ELLIPSE', 'AcDbEllipse', true, original);
       add(body, 10, e.center.x, 20, e.center.y, 30, 0, 11, e.major.x, 21, e.major.y, 31, 0, 40, e.ratio, 41, 0, 42, Math.PI * 2);
       const dx = Math.hypot(e.major.x, e.major.y * e.ratio), dy = Math.hypot(e.major.y, e.major.x * e.ratio);
       bound(e.center.x - dx, e.center.y - dy); bound(e.center.x + dx, e.center.y + dy);

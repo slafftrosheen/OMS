@@ -216,8 +216,9 @@ export function MeasurePanel({settings,onTool,onDocument}:{settings:CadSettings|
   {measurement.sweep!==undefined&&<><dt>{t('sweep')}</dt><dd>{measurement.sweep.toFixed(settings?.precision??2)}°</dd></>}
   {!dimension&&measurement.omitted>0&&<><dt>{t('omittedMeasure')}</dt><dd>{measurement.omitted}</dd></>}
   {points&&points.status!=='broken'&&dimension&&<>
-    <dt>{t(points.radialKind ?? 'distance')}</dt><dd>{length(Math.hypot(points.end.x-points.start.x,points.end.y-points.start.y))}</dd>
-    {!points.radialKind&&<><dt>{t('angle')}</dt><dd>{((-Math.atan2(points.end.y-points.start.y,points.end.x-points.start.x)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(2)}°</dd></>}
+    {points.angleSweep ? <><dt>{t('angle')}</dt><dd>{(Math.abs(points.angleSweep)*180/Math.PI).toFixed(settings?.precision??2)}°</dd></>
+      : <><dt>{t(points.radialKind ?? 'distance')}</dt><dd>{length(Math.hypot(points.end.x-points.start.x,points.end.y-points.start.y))}</dd></>}
+    {!points.angleSweep&&!points.radialKind&&<><dt>{t('angle')}</dt><dd>{((-Math.atan2(points.end.y-points.start.y,points.end.x-points.start.x)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(2)}°</dd></>}
   </>}
  </dl><CadDimensionControls settings={settings}/><p className="drawing-help">{t('lengthHint')}</p>{state.shape?.type==='cad-arc'&&<p className="drawing-help">{t('arcHandles')}</p>}<div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-arc-three')}>{t('arcThree')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle-three')}>{t('circleThree')}</button></div></>;
 }

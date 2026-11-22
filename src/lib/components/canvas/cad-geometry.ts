@@ -216,25 +216,25 @@ export function createCadDimension(editor: Editor, settings: CadSettings, kind: 
   const link = makeDimensionLink(sources, kind);
   const points = resolveDimensionLink(editor, link, pageId);
   if (!points) return false;
-  const { start, end } = points;
+  const { start, end, angleSweep } = points;
   const radialKind = radialDimensionKind(kind);
   return drawingTransaction(editor, () => {
     const id = createShapeId();
     editor.createShape({ id, type: 'cad-dimension', parentId: pageId, x: start.x, y: start.y,
-      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24, ...(linked ? { link } : radialKind ? { radialKind } : {}) } });
+      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24, ...(linked ? { link } : radialKind ? { radialKind } : {}), ...(angleSweep === undefined ? {} : { angleSweep }) } });
     if (!editor.getShape(id)) throw new Error('Dimension was not created');
     editor.setSelectedShapes([id]);
   });
 }
 
-function updateDimensionReference(editor: Editor, shape: DimensionSource, start: CadPoint, end: CadPoint, link: CadDimensionLink | null): boolean {
+function updateDimensionReference(editor: Editor, shape: DimensionSource, start: CadPoint, end: CadPoint, link: CadDimensionLink | null, angleSweep: number | null): boolean {
   const origin = editor.getPointInParentSpace(shape, start);
   const localStart = editor.getPointInShapeSpace(shape, start), localEnd = editor.getPointInShapeSpace(shape, end);
   const delta = { x: localEnd.x - localStart.x, y: localEnd.y - localStart.y };
   if (!validCadPoint(origin) || !validCadPoint(delta)) return false;
   const radialKind = link ? null : getDimensionEndpoints(editor, shape).radialKind;
   return drawingTransaction(editor, () => {
-    editor.updateShape({ id: shape.id, type: 'cad-dimension', x: origin.x, y: origin.y, props: { endX: delta.x, endY: delta.y, link, radialKind } });
+    editor.updateShape({ id: shape.id, type: 'cad-dimension', x: origin.x, y: origin.y, props: { endX: delta.x, endY: delta.y, link, radialKind, angleSweep } });
     editor.setSelectedShapes([shape.id]);
   });
 }
@@ -248,7 +248,7 @@ export function relinkCadDimension(editor: Editor, kind: CadDimensionKind): bool
   if (!sources.length || sources.length > CAD_DIMENSION_SOURCE_LIMIT) return false;
   const link = makeDimensionLink(sources, kind);
   const points = resolveDimensionLink(editor, link, editor.getCurrentPageId());
-  return !!points && updateDimensionReference(editor, dimensions[0], points.start, points.end, link);
+  return !!points && updateDimensionReference(editor, dimensions[0], points.start, points.end, link, points.angleSweep ?? null);
 }
 
 export function detachCadDimension(editor: Editor): boolean {
@@ -256,8 +256,8 @@ export function detachCadDimension(editor: Editor): boolean {
   const shape = editor.getOnlySelectedShape();
   if (shape?.type !== 'cad-dimension') return false;
   const dimension = shape as DimensionSource;
-  const { start, end, status } = getDimensionEndpoints(editor, dimension);
+  const { start, end, status, angleSweep } = getDimensionEndpoints(editor, dimension);
   if (status !== 'linked') return false;
   const transform = editor.getShapePageTransform(dimension);
-  return updateDimensionReference(editor, dimension, transform.applyToPoint(start), transform.applyToPoint(end), null);
+  return updateDimensionReference(editor, dimension, transform.applyToPoint(start), transform.applyToPoint(end), null, angleSweep);
 }

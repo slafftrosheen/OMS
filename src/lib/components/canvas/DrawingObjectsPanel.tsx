@@ -4,6 +4,7 @@ import { drawingObjectAlias, drawingObjectName, renameDrawingObject } from './dr
 import { toggleDrawingObjectLock } from './drawing-commands';
 import { applyDrawingObjectOrder, canReorderDrawingObjects, captureDrawingObjectStack, drawingObjectAncestors, drawingObjectTree, prepareDrawingObjectOrder, reorderDrawingObjects, selectDrawingObject, type DrawingObjectOrderOperation, type DrawingObjectRow, type ObjectSelectionOptions, type ObjectStackAction } from './drawing-object-tree';
 import { useObjectTreeText } from './object-tree-copy';
+import { CadProductionLayers } from './CadProductionLayers';
 import './drawing-objects.css';
 
 const sessions = new WeakMap<Editor, { page: string; search: string; collapsed: Set<TLShapeId> }>();
@@ -93,6 +94,7 @@ export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: numbe
   };
   const hiddenSelected = state.selected.filter(id => !ids.includes(id)).length;
   return <section className="drawing-objects-panel" data-testid="drawing-objects-panel" onKeyDown={event => event.stopPropagation()}>
+    <CadProductionLayers />
     <p className="drawing-help" aria-live="polite">{t('count').replace('{total}', String(state.shapes.length)).replace('{selected}', String(state.selected.length))}{hiddenSelected > 0 && <> · {t('hidden').replace('{count}', String(hiddenSelected))}</>}</p>
     <label className="drawing-object-search"><span>{t('search')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
     <div className="drawing-tree-actions">

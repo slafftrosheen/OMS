@@ -12,7 +12,7 @@ export class DxfCommonLineLimitError extends RangeError {}
 
 type Axis = 'x' | 'y';
 type Interval = [number, number];
-type Edge = { entity: number; segment: number; a: CadPoint; b: CadPoint; rgb?: string };
+type Edge = { entity: number; segment: number; a: CadPoint; b: CadPoint; rgb?: string; productionLayer?: string };
 type Line = { axis: Axis; slope: number; offset: number };
 type Group = { line: Line; anchor: CadPoint; edges: Edge[] };
 type Cut = { axis: Axis; intervals: Interval[] };
@@ -33,7 +33,7 @@ function straightEdges(entities: DxfEntity[]) {
       const b = nodes[(segment + 1) % nodes.length];
       if (a.outX || a.outY || b.inX || b.inY ||
           Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= MATCH_MM) continue;
-      edges.push({ entity, segment, a, b, rgb: source.rgb });
+      edges.push({ entity, segment, a, b, rgb: source.rgb, productionLayer: source.productionLayer });
       extent = Math.max(extent, Math.abs(a.x), Math.abs(a.y), Math.abs(b.x), Math.abs(b.y));
     }
   }
@@ -65,7 +65,7 @@ function groupEdges(edges: Edge[], extent: number) {
   let comparisons = 0;
   for (const edge of edges) {
     const lines = lineParameters(edge);
-    const bucketKey = (axis: Axis, s: number, d: number) => `${axis}:${s}:${d}:${edge.rgb ?? ''}`;
+    const bucketKey = (axis: Axis, s: number, d: number) => `${axis}:${s}:${d}:${edge.rgb ?? ''}:${edge.productionLayer ?? ''}`;
     const accepted = lines.some(({ axis, slope, offset }) => {
       const s = Math.floor(slope / SLOPE_TOLERANCE), d = Math.floor(offset / offsetStep);
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
@@ -152,7 +152,9 @@ function overlapIntervals(start: number, end: number, coverage: Interval[]): Int
   return start < end ? intervals : intervals.reverse();
 }
 
-function openRuns(source: CadBezierNode[], cuts: Map<number, Cut>, rgb?: string): DxfEntity[] {
+function openRuns(source: CadBezierNode[], cuts: Map<number, Cut>, entity: DxfEntity): DxfEntity[] {
+  const { rgb, productionLayer } = entity;
+  const appearance = { rgb, ...(productionLayer ? { productionLayer } : {}) };
   const nodes: CadBezierNode[] = [], removed: number[] = [];
   for (const [segment, a] of source.entries()) {
     nodes.push(a);
@@ -179,8 +181,8 @@ function openRuns(source: CadBezierNode[], cuts: Map<number, Cut>, rgb?: string)
     run[intervening].outX = run[intervening].outY = 0;
     const curved = run.some(n => n.inX || n.inY || n.outX || n.outY);
     runs.push(curved
-      ? { type: 'spline', contour: { nodes: run, closed: false }, rgb }
-      : { type: 'polyline', points: run.map(copyPoint), closed: false, rgb });
+      ? { type: 'spline', contour: { nodes: run, closed: false }, ...appearance }
+      : { type: 'polyline', points: run.map(copyPoint), closed: false, ...appearance });
   }
   return runs;
 }
@@ -195,8 +197,9 @@ export function buildDxfCommonLines(entities: DxfEntity[]) {
   for (const group of groupEdges(edges, extent)) {
     const coverage: Interval[] = [];
     visitSharedIntervals(group, (from, to, _active, passes) => {
+      const productionLayer = group.edges[0].productionLayer;
       shared.push({ type: 'polyline', points: [pointOnLine(group, from), pointOnLine(group, to)],
-        closed: false, rgb: group.edges[0].rgb, commonLine: true });
+        closed: false, rgb: group.edges[0].rgb, commonLine: true, ...(productionLayer ? { productionLayer } : {}) });
       passesRemoved += passes;
       const last = coverage.at(-1);
       if (last?.[1] === from) last[1] = to;
@@ -218,7 +221,7 @@ export function buildDxfCommonLines(entities: DxfEntity[]) {
   return {
     entities: [...shared, ...entities.flatMap((entity, i) => {
       const segments = cuts.get(i);
-      return segments ? openRuns(contours.get(i)!, segments, entity.rgb) : [entity];
+      return segments ? openRuns(contours.get(i)!, segments, entity) : [entity];
     })],
     sharedEdges: shared.length, passesRemoved,
   };

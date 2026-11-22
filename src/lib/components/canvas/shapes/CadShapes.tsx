@@ -20,7 +20,7 @@ const pointsValidator = T.arrayOf(T.object({ x: bounded, y: bounded })).check(p 
 export type CadPathShape = TLBaseShape<'cad-path', { points: CadPoint[]; closed: boolean; color: TLDefaultColorStyle }>;
 export type CadEllipseShape = TLBaseShape<'cad-ellipse', { w: number; h: number; color: TLDefaultColorStyle }>;
 export type CadArcShape = TLBaseShape<'cad-arc', { radius: number; startAngle: number; endAngle: number; color: TLDefaultColorStyle }>;
-export type CadDimensionShape = TLBaseShape<'cad-dimension', { endX: number; endY: number; offset: number; decorationScale: number; color: TLDefaultColorStyle; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null }>;
+export type CadDimensionShape = TLBaseShape<'cad-dimension', { endX: number; endY: number; offset: number; decorationScale: number; color: TLDefaultColorStyle; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null; angleSweep?: number | null }>;
 const vectors = (points: CadPoint[]) => points.map(p => new Vec(p.x, p.y));
 function pathData(points: CadPoint[], closed: boolean) { return points.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') + (closed ? ' Z' : ''); }
 function color(editor: Editor, value: TLDefaultColorStyle) { return getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() })[value].solid; }
@@ -194,13 +194,25 @@ const dimensionLinkValidator = T.object({
 });
 
 function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
-  const { start, end, status, radialKind } = getDimensionEndpoints(editor, shape);
+  const { start, end, status, radialKind, angleSweep } = getDimensionEndpoints(editor, shape);
   const dx = end.x - start.x, dy = end.y - start.y;
   const length = Math.hypot(dx, dy), divisor = length || 1;
   const normal = { x: -dy / divisor, y: dx / divisor };
   const { offset, decorationScale } = shape.props;
   const shift = (p: CadPoint, distance: number) => ({ x: p.x + normal.x * distance, y: p.y + normal.y * distance });
   const tick = 5 * decorationScale;
+  if (angleSweep) {
+    const from = Math.atan2(dy, dx);
+    const radius = Math.max(8 * decorationScale, length + offset), segments = Math.ceil(Math.abs(angleSweep) / (Math.PI / 24));
+    const at = (fraction: number, distance: number) => ({
+      x: start.x + Math.cos(from + fraction * angleSweep) * distance,
+      y: start.y + Math.sin(from + fraction * angleSweep) * distance,
+    });
+    const arc = Array.from({ length: segments + 1 }, (_, i) => at(i / segments, radius));
+    const extension = Math.max(length, radius + tick);
+    return { start, end, length, normal, status, radialKind, angleSweep, midpoint: at(0.5, radius),
+      lines: [[start, at(0, extension)], [start, at(1, extension)], arc] };
+  }
   if (radialKind) {
     const advance = (p: CadPoint, distance: number) => ({
       x: p.x + dx / divisor * distance, y: p.y + dy / divisor * distance,
@@ -213,13 +225,13 @@ function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
     const elbow = shift(advance(end, 12 * decorationScale), offset);
     const tail = advance(elbow, 16 * decorationScale);
     const other = radialKind === 'diameter' ? arrowAt(start, 1) : [shift(start, -tick), shift(start, tick)];
-    return { start, end, length, normal, status, radialKind, midpoint: tail,
+    return { start, end, length, normal, status, radialKind, angleSweep, midpoint: tail,
       lines: [[start, end], [end, elbow, tail], arrowAt(end, -1), other] };
   }
   const a = shift(start, offset), b = shift(end, offset);
   const extension = offset + Math.sign(offset) * 8 * decorationScale;
   return {
-    start, end, length, normal, status, radialKind, midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    start, end, length, normal, status, radialKind, angleSweep, midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
     lines: [[start, shift(start, extension)], [end, shift(end, extension)], [a, b],
       [shift(a, -tick), shift(a, tick)], [shift(b, -tick), shift(b, tick)]],
   };
@@ -227,13 +239,14 @@ function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
 function DimensionSvg({ shape, editor }: { shape: CadDimensionShape; editor: Editor }) {
   const { label } = useCadText();
   const settings = useValue('CAD measurement settings', () => readCadSettings(editor), [editor]);
-  const { length, lines, midpoint, status, radialKind } = useValue('CAD dimension geometry', () => dimensionLayout(editor, shape), [editor, shape]);
+  const { length, lines, midpoint, status, radialKind, angleSweep } = useValue('CAD dimension geometry', () => dimensionLayout(editor, shape), [editor, shape]);
   const broken = status === 'broken';
   const ink = broken ? 'var(--status-warning, #b45309)' : color(editor, shape.props.color);
   const prefix = radialKind === 'radius' ? 'R ' : radialKind === 'diameter' ? 'Ø ' : '';
-  const measurement = settings ? `${canvasLengthToUnit(length, settings).toFixed(settings.precision)} ${settings.unit}` : `${length.toFixed(2)} px`;
+  const measurement = angleSweep ? `${(Math.abs(angleSweep) * 180 / Math.PI).toFixed(settings?.precision ?? 2)}°`
+    : settings ? `${canvasLengthToUnit(length, settings).toFixed(settings.precision)} ${settings.unit}` : `${length.toFixed(2)} px`;
   const value = broken ? label('dimensionBroken') : prefix + measurement;
-  return <g data-dimension-state={status} data-radial-dimension={radialKind ?? undefined} fill="none" stroke={ink} strokeWidth={1}>
+  return <g data-dimension-state={status} data-radial-dimension={radialKind ?? undefined} data-angular-dimension={angleSweep ? 'true' : undefined} fill="none" stroke={ink} strokeWidth={1}>
     {lines.map((points, i) => <path key={i} d={pathData(points, false)} strokeDasharray={broken ? '4 3' : undefined} />)}
     <text x={midpoint.x} y={midpoint.y - 6 * shape.props.decorationScale} textAnchor="middle" stroke="none" fill={ink} fontSize={14 * shape.props.decorationScale} fontFamily="sans-serif">{value}</text>
   </g>;
@@ -241,7 +254,11 @@ function DimensionSvg({ shape, editor }: { shape: CadDimensionShape; editor: Edi
 export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   static override type = 'cad-dimension' as const;
   static override props = { endX: bounded, endY: bounded, offset: bounded, decorationScale: positive, color: DefaultColorStyle,
-    link: T.optional(T.nullable(dimensionLinkValidator)), radialKind: T.optional(T.nullable(T.literalEnum(...CAD_RADIAL_DIMENSION_KINDS))) };
+    link: T.optional(T.nullable(dimensionLinkValidator)), radialKind: T.optional(T.nullable(T.literalEnum(...CAD_RADIAL_DIMENSION_KINDS))),
+    angleSweep: T.optional(T.nullable(T.number.check(value => {
+      if (!Number.isFinite(value) || Math.abs(value) < 1e-8 || Math.abs(value) >= 2 * Math.PI)
+        throw new Error('Invalid angle dimension sweep');
+    }))) };
   override getDefaultProps(): CadDimensionShape['props'] { return { endX: 100, endY: 0, offset: 24, decorationScale: 1, color: 'blue' }; }
   override isAspectRatioLocked = () => true;
   override canResize = (shape: CadDimensionShape) => !shape.props.link;
@@ -250,7 +267,8 @@ export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   override onTranslate = (initial: CadDimensionShape) => initial.props.link ? { id: initial.id, type: initial.type, x: initial.x, y: initial.y } : undefined;
   override onResize: TLOnResizeHandler<CadDimensionShape> = (shape, { scaleX, scaleY }) => shape.props.link ? undefined : ({ props: {
     endX: shape.props.endX * scaleX, endY: shape.props.endY * scaleY,
-    offset: shape.props.offset * Math.abs(scaleX) * Math.sign(scaleX * scaleY),
+    offset: shape.props.offset * Math.abs(scaleX) * (shape.props.angleSweep ? 1 : Math.sign(scaleX * scaleY)),
+    ...(shape.props.angleSweep ? { angleSweep: shape.props.angleSweep * Math.sign(scaleX * scaleY) } : {}),
     decorationScale: shape.props.decorationScale * Math.abs(scaleX)
   } });
   override getGeometry(shape: CadDimensionShape) {
@@ -270,10 +288,12 @@ export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   }
   override onHandleDrag: TLOnHandleDragHandler<CadDimensionShape> = (shape, { handle }) => {
     if (this.editor.getInstanceState().isReadonly || this.editor.isShapeOrAncestorLocked(shape)) return;
-    const { start, normal, status } = dimensionLayout(this.editor, shape);
+    const { start, length, normal, status, angleSweep } = dimensionLayout(this.editor, shape);
     if (status === 'broken' || status === 'linked' && handle.id !== 'offset') return;
     if (handle.id === 'offset') {
-      return { id: shape.id, type: shape.type, props: { offset: normal.x * (handle.x - start.x) + normal.y * (handle.y - start.y) } };
+      const x = handle.x - start.x, y = handle.y - start.y;
+      const offset = angleSweep ? Math.hypot(x, y) - length : normal.x * x + normal.y * y;
+      return { id: shape.id, type: shape.type, props: { offset } };
     }
     if (!this.editor.inputs.shiftKey) handle = { ...handle, ...snapCadHandle(this.editor, shape, handle) };
     if (handle.id === 'end') return { id: shape.id, type: shape.type, props: { endX: handle.x, endY: handle.y } };

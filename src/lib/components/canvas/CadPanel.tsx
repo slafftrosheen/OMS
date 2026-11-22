@@ -1,3 +1,4 @@
+import { readProductionLayers } from './cad-production-layers';
 import sha256 from 'crypto-js/sha256.js';
 import { createUuid } from '$lib/utils/id';
 import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
@@ -293,16 +294,22 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
   const details = useRef<HTMLDetailsElement>(null);
   const [scope, setScope] = useState<DxfScopeChoice>('selected');
   const [curves, setCurves] = useState<'spline' | 'polyline'>('spline');
-  const [colorLayers, setColorLayers] = useState(false);
+  const [layerMode, setLayerMode] = useState<'standard' | 'color' | 'production'>('standard');
+  const [productionTarget, setProductionTarget] = useState('');
+  const colorLayers = layerMode === 'color';
+  const productionLayers = useValue('DXF production layers', () => readProductionLayers(editor), [editor]);
+  const enabledLayers = productionLayers.filter(layer => layer.includeInDxf);
+  const productionLayer = enabledLayers.find(layer => layer.id === productionTarget);
   const [commonLines, setCommonLines] = useState(false);
   const [tolerance, setTolerance] = useState('0.01');
   const toleranceErrorId = useId();
   const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
-  const validOptions = curves === 'spline' || validTolerance;
-  const optionsKey = JSON.stringify([curves, tolerance, colorLayers, commonLines]);
+  const validTarget = layerMode !== 'production' || !productionTarget || !!productionLayer;
+  const validOptions = (curves === 'spline' || validTolerance) && validTarget;
+  const optionsKey = JSON.stringify([curves, tolerance, layerMode, productionTarget, commonLines]);
   const [report, setReport] = useState<{
     data: ReturnType<typeof buildCadDxf>; revision: string; selectionKey: string; source: DxfExportScope;
-    optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; colorLayers: boolean; commonLines: boolean;
+    optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; commonLines: boolean;
     release: CanvasDxfRelease;
   } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -332,15 +339,17 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
     setAcknowledged(false); setMessage('');
     const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
     try {
-      const data = buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true });
+      const production = layerMode === 'production' ? { only: productionTarget || undefined } : undefined;
+      const data = buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true, productionLayers: production });
       const page = editor.getCurrentPage();
       const release: CanvasDxfRelease = {
         reviewId: createUuid(), revision: sha256(revision).toString(), pageId: page.id,
         pageName: page.name.slice(0, 80).trim() || page.id.slice(0, 80),
         scope, curves, toleranceMm: curves === 'spline' ? null : toleranceMm,
         colorLayers, commonLines, omitted: data.omitted.length,
+        ...(production ? { productionLayers: { layerName: productionLayer?.name ?? null, filtered: data.filteredByLayer ?? 0 } } : {}),
       };
-      setReport({ data, revision, selectionKey, source, optionsKey, curves, toleranceMm, colorLayers, commonLines, release });
+      setReport({ data, revision, selectionKey, source, optionsKey, curves, toleranceMm, commonLines, release });
     }
     catch (error) {
       setReport(null);
@@ -382,10 +391,19 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       <Field label={label('exportTolerance')}><input type="number" min="0.001" max="1" step="any" value={tolerance} disabled={curves === 'spline'} aria-invalid={curves === 'polyline' && !validTolerance} aria-describedby={curves === 'polyline' && !validTolerance ? toleranceErrorId : undefined} onChange={event => { setTolerance(event.target.value); setAcknowledged(false); setMessage(''); }} /></Field>
       <p className="drawing-help">{label(curves === 'spline' ? 'splineExportHelp' : 'polylineExportHelp')}</p>
       {curves === 'polyline' && !validTolerance && <p id={toleranceErrorId} className="drawing-help is-error" role="alert">{label('exportToleranceInvalid')}</p>}
-      <Field label={label('dxfLayers')}><select value={colorLayers ? 'color' : 'standard'} onChange={event => { setColorLayers(event.target.value === 'color'); setAcknowledged(false); setMessage(''); }}>
+      <Field label={label('dxfLayers')}><select value={layerMode} onChange={event => { setLayerMode(event.target.value as typeof layerMode); setAcknowledged(false); setMessage(''); }}>
         <option value="standard">{label('dxfStandardLayers')}</option>
         <option value="color">{label('dxfColorLayers')}</option>
+        <option value="production">{label('productionLayers')}</option>
       </select></Field>
+      {layerMode === 'production' && <>
+        <Field label={label('productionTarget')}><select value={productionTarget} aria-invalid={!validTarget}
+          onChange={event => { setProductionTarget(event.target.value); setAcknowledged(false); setMessage(''); }}>
+          <option value="">{label('productionAllEnabled')}</option>
+          {productionLayers.map(layer => <option key={layer.id} value={layer.id} disabled={!layer.includeInDxf}>{layer.name}</option>)}
+        </select></Field>
+        <p className="drawing-help">{label(validTarget ? 'productionDxfHelp' : 'productionTargetUnavailable')}</p>
+      </>}
       {colorLayers && <p className="drawing-help">{label('dxfColorLayersHelp')}</p>}
       <label className="drawing-cad-check"><input type="checkbox" checked={commonLines} onChange={event => { setCommonLines(event.target.checked); setAcknowledged(false); setMessage(''); }} />
         <span>{label('dxfCommonLines')}</span>
@@ -402,7 +420,10 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         <dt>{label('entities')}</dt><dd>{report.data.entities}</dd>
         <dt>{label('closedContours')}</dt><dd>{report.data.closedContours}</dd>
         <dt>{label('openContours')}</dt><dd>{report.data.openContours}</dd>
-        <dt>{label('dxfLayers')}</dt><dd>{label(report.colorLayers ? 'dxfColorLayers' : 'dxfStandardLayers')}</dd>
+        <dt>{label('dxfLayers')}</dt><dd>{report.release.productionLayers
+          ? report.release.productionLayers.layerName ?? label('productionAllEnabled')
+          : label(report.release.colorLayers ? 'dxfColorLayers' : 'dxfStandardLayers')}</dd>
+        {report.data.filteredByLayer !== undefined && <><dt>{label('productionFiltered')}</dt><dd>{report.data.filteredByLayer}</dd></>}
         {report.commonLines && <>
           <dt>{label('dxfSharedEdges')}</dt><dd>{report.data.sharedEdges}</dd>
           <dt>{label('dxfPassesRemoved')}</dt><dd>{report.data.passesRemoved}</dd>
@@ -411,7 +432,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         {cutLengths && <><dt>{label('dxfCutLength')}</dt><dd>{cutLengthLabel(cutLengths.totalMm)}</dd></>}
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
-      {(cutLengths || report.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
+      {(cutLengths || report.release.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
         <summary>{label(cutLengths ? 'dxfLayerCutLengths' : 'dxfLayerContents')} ({report.data.layers.length})</summary>
         <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => {
           const length = cutLengths?.byLayer[layer.name];
