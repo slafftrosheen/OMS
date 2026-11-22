@@ -58,15 +58,60 @@ describe('DXF common-line export', () => {
     assert.match(serializeCadDxf(output.entities).text, /\r\nSPLINE\r\n/);
   });
 
-  it('leaves open, partial, differently segmented, curved and nearby geometry intact', () => {
-    const original = box(0, 0, 30, 20), partial = box(30, 5, 20, 10), nearby = box(30.0001, 0, 20, 20);
-    const open: Polyline = { type: 'polyline', closed: false, points: [{ x: 30, y: 0 }, { x: 30, y: 20 }] };
-    const split = box(30, 0, 20, 20);
+  it('cuts only the shared sections of one long edge and keeps all unshared gaps', () => {
+    const large = box(0, 0, 30, 40), lower = box(30, 4, 20, 10), upper = box(30, 24, 10, 10);
+    const output = buildDxfCommonLines([large, lower, upper]);
+    assert.deepEqual([output.sharedEdges, output.passesRemoved], [2, 2]);
+    const vertical = (items: DxfEntity[]) => items.flatMap(e => e.type === 'polyline'
+      ? e.points.slice(1).flatMap((p, i) => {
+          const a = e.points[i];
+          return a.x === 30 && p.x === 30 ? [[Math.min(a.y, p.y), Math.max(a.y, p.y)]] : [];
+        })
+      : []).sort((a, b) => a[0] - b[0]);
+    assert.deepEqual(vertical(output.entities.filter(e => e.commonLine)), [[4, 14], [24, 34]]);
+    assert.deepEqual(vertical(output.entities.filter(e => !e.commonLine)), [[0, 4], [14, 24], [34, 40]]);
+    const dxf = serializeCadDxf(output.entities);
+    assert.deepEqual([dxf.widthMm, dxf.heightMm], [50, 40]);
+    assert.equal(dxf.layers.find(l => l.name === 'OMS_SHARED')?.entities, 2);
+  });
+
+  it('splits a shared straight line at the junction of two shorter parts', () => {
+    const output = buildDxfCommonLines([box(0, 0, 30, 40), box(30, 0, 20, 14), box(30, 14, 20, 26)]);
+    assert.deepEqual([output.sharedEdges, output.passesRemoved], [3, 3]);
+    const edges = output.entities.filter(e => e.commonLine).map(e => e.type === 'polyline' ? e.points : []);
+    assert.deepEqual(edges, [
+      [{ x: 30, y: 0 }, { x: 30, y: 14 }],
+      [{ x: 30, y: 14 }, { x: 30, y: 40 }],
+      [{ x: 30, y: 14 }, { x: 50, y: 14 }],
+    ]);
+  });
+
+  it('matches differently segmented and reversed sides across a rotated layout', () => {
+    const straight = box(0, 0, 30, 20), split = box(30, 0, 20, 20);
     split.points.push({ x: 30, y: 10 });
+    split.points.reverse();
+    const transform = ({ x, y }: { x: number; y: number }) => ({
+      x: 10_000 + (x - y) * Math.SQRT1_2,
+      y: -15_000 + (x + y) * Math.SQRT1_2,
+    });
+    const input = [straight, split].map(part => ({ ...part, points: part.points.map(transform) }));
+    const output = buildDxfCommonLines(input);
+    const seams = output.entities.filter((e): e is Polyline => e.type === 'polyline' && e.commonLine === true);
+    assert.deepEqual([output.sharedEdges, output.passesRemoved], [2, 2]);
+    const projected = seams.map(({ points: [a,b] }) => Math.hypot(b.x - a.x, b.y - a.y));
+    assert.ok(projected.every(length => Math.abs(length - 10) < 1e-8));
+    const before = serializeCadDxf(input), after = serializeCadDxf(output.entities);
+    assert.ok(Math.abs(before.widthMm - after.widthMm) < 1e-8 && Math.abs(before.heightMm - after.heightMm) < 1e-8);
+  });
+
+  it('leaves point contacts, other colors, open paths, curves and nearby geometry intact', () => {
+    const original = box(0, 0, 30, 20), nearby = box(30.0001, 0, 20, 20);
+    const pointContact = box(30, 20, 20, 20), differentColor = box(30, 5, 20, 10, '#102030');
+    const open: Polyline = { type: 'polyline', closed: false, points: [{ x: 30, y: 0 }, { x: 30, y: 20 }] };
     const curvedNodes = box(30, 0, 20, 20).points.map(nodeAt);
     curvedNodes[3].outX = curvedNodes[0].inX = 4;
     const curved: DxfEntity = { type: 'spline', contour: { nodes: curvedNodes, closed: true } };
-    for (const unrelated of [partial, nearby, open, split, curved]) {
+    for (const unrelated of [nearby, pointContact, differentColor, open, curved]) {
       const input = [original, unrelated];
       const output = buildDxfCommonLines(input);
       assert.equal(output.entities, input);

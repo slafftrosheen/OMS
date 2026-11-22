@@ -2,44 +2,169 @@ import { nodeAt, type CadBezierNode } from './cad-curves';
 import type { DxfEntity } from './cad-dxf';
 import type { CadPoint } from './cad-settings';
 
-// One nanometre in model-space millimetres absorbs rotation and inverse
-// transform roundoff without using the curve flattening tolerance.
+// Model-space roundoff tolerances, independent of curve flattening.
 const MATCH_MM = 1e-6;
-type IndexedPoint = { point: CadPoint; id: number };
-type Edge = { entity: number; segment: number };
-type MatchedEdge = { a: CadPoint; b: CadPoint; rgb?: string; uses: Edge[] };
+const SLOPE_TOLERANCE = 1e-8;
+const MAX_COMPARISONS = 2_000_000;
+const MAX_SPLIT_INTERVALS = 100_000;
 
-const near = (a: CadPoint, b: CadPoint) => Math.abs(a.x - b.x) <= MATCH_MM && Math.abs(a.y - b.y) <= MATCH_MM;
+type Axis = 'x' | 'y';
+type Interval = [number, number];
+type Edge = { entity: number; segment: number; a: CadPoint; b: CadPoint; rgb?: string };
+type Line = { axis: Axis; slope: number; offset: number };
+type Group = { line: Line; anchor: CadPoint; edges: Edge[] };
+type Cut = { axis: Axis; intervals: Interval[] };
+
+const other = (axis: Axis): Axis => axis === 'x' ? 'y' : 'x';
 const copyPoint = ({ x, y }: CadPoint) => ({ x, y });
 
-function indexEndpoints() {
-  const cells = new Map<string, IndexedPoint>();
-  const exact = new Map<string, number>();
-  let nextId = 0;
-  return (point: CadPoint) => {
-    const key = `${point.x},${point.y}`;
-    const cached = exact.get(key);
-    if (cached !== undefined) return cached;
-    const x = Math.floor(point.x / MATCH_MM), y = Math.floor(point.y / MATCH_MM);
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-      const entry = cells.get(`${x + dx},${y + dy}`);
-      if (entry && near(point, entry.point)) {
-        exact.set(key, entry.id);
-        return entry.id;
-      }
+function straightEdges(entities: DxfEntity[]) {
+  const contours = new Map<number, CadBezierNode[]>();
+  const edges: Edge[] = [];
+  let extent = 0;
+  for (const [entity, source] of entities.entries()) {
+    const nodes = source.type === 'polyline' && source.closed ? source.points.map(nodeAt)
+      : source.type === 'spline' && source.contour.closed ? source.contour.nodes : undefined;
+    if (!nodes) continue;
+    contours.set(entity, nodes);
+    for (const [segment, a] of nodes.entries()) {
+      const b = nodes[(segment + 1) % nodes.length];
+      if (a.outX || a.outY || b.inX || b.inY ||
+          Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= MATCH_MM) continue;
+      edges.push({ entity, segment, a, b, rgb: source.rgb });
+      extent = Math.max(extent, Math.abs(a.x), Math.abs(a.y), Math.abs(b.x), Math.abs(b.y));
     }
-    cells.set(`${x},${y}`, { point, id: nextId });
-    exact.set(key, nextId);
-    return nextId++;
-  };
+  }
+  return { contours, edges, extent };
 }
 
-function openRuns(nodes: CadBezierNode[], cuts: number[], rgb?: string): DxfEntity[] {
-  const size = nodes.length;
-  cuts.sort((a, b) => a - b);
-  const runs: DxfEntity[] = [];
-  for (const [i, cut] of cuts.entries()) {
-    const start = (cut + 1) % size, end = cuts[(i + 1) % cuts.length];
+function lineParameters({ a, b }: Edge): Line[] {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const main: Axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+  const describe = (axis: Axis): Line => {
+    const slope = (b[other(axis)] - a[other(axis)]) / (b[axis] - a[axis]);
+    return { axis, slope, offset: a[other(axis)] - slope * a[axis] };
+  };
+  // An alternate bounded slope keeps nearly diagonal lines in the same group
+  // when rounding makes different spans choose different dominant axes.
+  return Math.min(Math.abs(dx), Math.abs(dy)) * 2 >= Math.max(Math.abs(dx), Math.abs(dy))
+    ? [describe(main), describe(other(main))] : [describe(main)];
+}
+
+function pointOnLine(group: Group, position: number): CadPoint {
+  const { line: { axis, slope }, anchor } = group;
+  const secondary = anchor[other(axis)] + (position - anchor[axis]) * slope;
+  return axis === 'x' ? { x: position, y: secondary } : { x: secondary, y: position };
+}
+
+function groupEdges(edges: Edge[], extent: number) {
+  const offsetStep = 4 * MATCH_MM + 2 * SLOPE_TOLERANCE * extent;
+  const groups: Group[] = [], buckets = new Map<string, Array<{ group: Group; slope: number }>>();
+  let comparisons = 0;
+  for (const edge of edges) {
+    const lines = lineParameters(edge);
+    const bucketKey = (axis: Axis, s: number, d: number) => `${axis}:${s}:${d}:${edge.rgb ?? ''}`;
+    const accepted = lines.some(({ axis, slope, offset }) => {
+      const s = Math.floor(slope / SLOPE_TOLERANCE), d = Math.floor(offset / offsetStep);
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+        for (const entry of buckets.get(bucketKey(axis, s + i, d + j)) ?? []) {
+          if (++comparisons > MAX_COMPARISONS) throw new RangeError('DXF common-line comparison limit');
+          if (Math.abs(slope - entry.slope) > SLOPE_TOLERANCE) continue;
+          const { group } = entry, main = group.line.axis, secondary = other(main);
+          if ([edge.a, edge.b].every(p => Math.abs(pointOnLine(group, p[main])[secondary] - p[secondary]) <= MATCH_MM)) {
+            group.edges.push(edge);
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+    if (accepted) continue;
+    const group = { line: lines[0], anchor: edge.a, edges: [edge] };
+    groups.push(group);
+    for (const { axis, slope, offset } of lines) {
+      const key = bucketKey(axis, Math.floor(slope / SLOPE_TOLERANCE), Math.floor(offset / offsetStep));
+      const entries = buckets.get(key) ?? [];
+      entries.push({ group, slope });
+      buckets.set(key, entries);
+    }
+  }
+  return groups;
+}
+
+/** Sweep overlapping spans once. Track distinct contours separately from
+ * edge count so a self-overlapping contour cannot create a shared cut. */
+function sharedIntervals(group: Group, shared: DxfEntity[]) {
+  const axis = group.line.axis;
+  const events = group.edges.flatMap(({ a, b, entity }) => [
+    { position: Math.min(a[axis], b[axis]), entity, delta: 1 },
+    { position: Math.max(a[axis], b[axis]), entity, delta: -1 },
+  ]).sort((a, b) => a.position - b.position);
+  const active = new Map<number, number>();
+  const coverage: Interval[] = [];
+  let previous = events[0].position, activeEdges = 0, passesRemoved = 0;
+  for (let i = 0; i < events.length;) {
+    const { position } = events[i];
+    if (active.size > 1) {
+      shared.push({ type: 'polyline', points: [pointOnLine(group, previous), pointOnLine(group, position)],
+        closed: false, rgb: group.edges[0].rgb, commonLine: true });
+      passesRemoved += activeEdges - 1;
+      const last = coverage.at(-1);
+      if (last?.[1] === previous) last[1] = position;
+      else coverage.push([previous, position]);
+    }
+    // Endpoints close enough to represent the same junction share one event.
+    while (i < events.length && events[i].position - position <= MATCH_MM) {
+      const { entity, delta } = events[i++];
+      const count = (active.get(entity) ?? 0) + delta;
+      if (count) active.set(entity, count);
+      else active.delete(entity);
+      activeEdges += delta;
+    }
+    previous = position;
+  }
+  return { coverage, passesRemoved };
+}
+
+function overlapIntervals(start: number, end: number, coverage: Interval[]): Interval[] {
+  const lo = Math.min(start, end), hi = Math.max(start, end);
+  let left = 0, right = coverage.length;
+  while (left < right) {
+    const mid = Math.floor((left + right) / 2);
+    if (coverage[mid][1] <= lo) left = mid + 1;
+    else right = mid;
+  }
+  const intervals: Interval[] = [];
+  for (let i = left; i < coverage.length && coverage[i][0] < hi; i++) {
+    let from = Math.max(lo, coverage[i][0]), to = Math.min(hi, coverage[i][1]);
+    if (to - from <= MATCH_MM && (from > lo || to < hi)) continue;
+    if (from - lo <= MATCH_MM) from = lo;
+    if (hi - to <= MATCH_MM) to = hi;
+    intervals.push(start < end ? [from, to] : [to, from]);
+  }
+  return start < end ? intervals : intervals.reverse();
+}
+
+function openRuns(source: CadBezierNode[], cuts: Map<number, Cut>, rgb?: string): DxfEntity[] {
+  const nodes: CadBezierNode[] = [], removed: number[] = [];
+  for (const [segment, a] of source.entries()) {
+    nodes.push(a);
+    const cut = cuts.get(segment);
+    if (!cut) continue;
+    const b = source[(segment + 1) % source.length], axis = cut.axis;
+    const insert = (position: number) => {
+      const t = (position - a[axis]) / (b[axis] - a[axis]);
+      nodes.push(nodeAt({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) }));
+    };
+    for (const [from, to] of cut.intervals) {
+      if (from !== a[axis]) insert(from);
+      removed.push(nodes.length - 1);
+      if (to !== b[axis]) insert(to);
+    }
+  }
+  const size = nodes.length, runs: DxfEntity[] = [];
+  for (const [i, cut] of removed.entries()) {
+    const start = (cut + 1) % size, end = removed[(i + 1) % removed.length];
     const intervening = (end - start + size) % size;
     if (!intervening) continue;
     const run = Array.from({ length: intervening + 1 }, (_, offset) => ({ ...nodes[(start + offset) % size] }));
@@ -53,47 +178,27 @@ function openRuns(nodes: CadBezierNode[], cuts: number[], rgb?: string): DxfEnti
   return runs;
 }
 
-/** Coalesce complete straight edges between closed contours on the same
- * cutting color. Curves, isolated outlines and open artwork keep their
- * geometry. The resulting file has separate shared lines and perimeter runs. */
+/** Keep one line over intervals used by multiple closed contours on the
+ * same cutting color. Preserve unshared runs and their existing curve handles. */
 export function buildDxfCommonLines(entities: DxfEntity[]) {
-  const indexPoint = indexEndpoints();
-  const contours = new Map<number, CadBezierNode[]>();
-  const matches = new Map<string, MatchedEdge[]>();
-  for (const [entity, source] of entities.entries()) {
-    const nodes = source.type === 'polyline' && source.closed ? source.points.map(nodeAt)
-      : source.type === 'spline' && source.contour.closed ? source.contour.nodes : undefined;
-    if (!nodes) continue;
-    contours.set(entity, nodes);
-    for (const [segment, first] of nodes.entries()) {
-      const last = nodes[(segment + 1) % nodes.length];
-      if (first.outX || first.outY || last.inX || last.inY || near(first, last)) continue;
-      const firstId = indexPoint(first), lastId = indexPoint(last);
-      if (firstId === lastId) continue;
-      const [a, b] = firstId < lastId ? [first, last] : [last, first];
-      const key = `${Math.min(firstId, lastId)}:${Math.max(firstId, lastId)}:${source.rgb ?? ''}`;
-      const bucket = matches.get(key) ?? [];
-      // The spatial index only proposes matches. Compare the actual endpoints
-      // to the exported edge so a chain of near points cannot bridge a gap.
-      const match = bucket.find(edge => near(a, edge.a) && near(b, edge.b));
-      if (match) match.uses.push({ entity, segment });
-      else {
-        bucket.push({ a, b, rgb: source.rgb, uses: [{ entity, segment }] });
-        matches.set(key, bucket);
-      }
-    }
-  }
+  const { contours, edges, extent } = straightEdges(entities);
   const shared: DxfEntity[] = [];
-  const cuts = new Map<number, number[]>();
-  let passesRemoved = 0;
-  for (const bucket of matches.values()) for (const edge of bucket) {
-    if (edge.uses.every(use => use.entity === edge.uses[0].entity)) continue;
-    shared.push({ type: 'polyline', points: [copyPoint(edge.a), copyPoint(edge.b)], closed: false, rgb: edge.rgb, commonLine: true });
-    passesRemoved += edge.uses.length - 1;
-    for (const { entity, segment } of edge.uses) {
-      const cut = cuts.get(entity) ?? [];
-      cut.push(segment);
-      cuts.set(entity, cut);
+  const cuts = new Map<number, Map<number, Cut>>();
+  let passesRemoved = 0, intervalsProcessed = 0;
+  for (const group of groupEdges(edges, extent)) {
+    if (group.edges.every(edge => edge.entity === group.edges[0].entity)) continue;
+    const result = sharedIntervals(group, shared);
+    passesRemoved += result.passesRemoved;
+    if (!result.coverage.length) continue;
+    const axis = group.line.axis;
+    for (const { a, b, entity, segment } of group.edges) {
+      const intervals = overlapIntervals(a[axis], b[axis], result.coverage);
+      if (!intervals.length) continue;
+      intervalsProcessed += intervals.length;
+      if (intervalsProcessed > MAX_SPLIT_INTERVALS) throw new RangeError('DXF common-line split limit');
+      const bySegment = cuts.get(entity) ?? new Map();
+      bySegment.set(segment, { axis, intervals });
+      cuts.set(entity, bySegment);
     }
   }
   if (!shared.length) return { entities, sharedEdges: 0, passesRemoved: 0 };
