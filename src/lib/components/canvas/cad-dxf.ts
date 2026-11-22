@@ -1,7 +1,7 @@
 import { validVectorPaint } from './cad-paint';
 import { rectangularClipContainsBounds } from './cad-appearance';
 import { dxfColor } from './cad-dxf-geometry';
-import { buildDxfCommonLines } from './cad-dxf-common-lines';
+import { buildDxfCommonLines, DxfCommonLineLimitError } from './cad-dxf-common-lines';
 import { measureDxfCutLengths, type DxfCutLengths } from './cad-dxf-cut-lengths';
 import { buildDxfPreview, type DxfPreview, type DxfPreviewSource } from './cad-dxf-preview';
 import { vectorPaint } from './cad-vector';
@@ -12,7 +12,7 @@ import { CAD_MAX_COORDINATE, cadMmPerPixel, validateCadSettings, type CadPoint, 
 import { contourSegments, curveBounds, flattenContours, mapContours, nodeAt, validContours, type CadContour } from './cad-curves';
 
 export class CadDxfError extends Error {
-  constructor(public code: 'empty' | 'invalid' | 'limit' | 'settings') { super(code); this.name = 'CadDxfError'; }
+  constructor(public code: 'empty' | 'invalid' | 'limit' | 'common-lines-limit' | 'settings') { super(code); this.name = 'CadDxfError'; }
 }
 export type CadDxfOmission = 'unsupported' | 'text' | 'curved' | 'clipped' | 'invalid';
 export interface CadDxfResult {
@@ -33,6 +33,17 @@ export type DxfEntity = (
   { type: 'ellipse'; center: CadPoint; major: CadPoint; ratio: number } |
   { type: 'arc'; center: CadPoint; radius: number; start: number; end: number }) & { rgb?: string; commonLine?: true };
 const MAX_ENTITIES = 4000, MAX_VERTICES = 100_000, MAX_MM = 100_000_000;
+
+function dxfVertexCount(entity: DxfEntity): number {
+  if (entity.type === 'polyline') return entity.points.length;
+  if (entity.type === 'spline') {
+    const { closed, nodes } = entity.contour;
+    // The first anchor is followed by three control points per cubic span.
+    return 1 + 3 * (nodes.length - (closed ? 0 : 1));
+  }
+  return 0;
+}
+
 const POLYGONS = new Set(['rectangle', 'triangle', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'trapezoid', 'rhombus']);
 const normAngle = (n: number) => ((n % 360) + 360) % 360;
 function finite(n: number) { if (!Number.isFinite(n) || Math.abs(n) > MAX_MM) throw new CadDxfError('invalid'); return n; }
@@ -228,8 +239,7 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
         const output = source.map(original => {
           const entity = original.type === 'spline' && options.curves === 'polyline'
             ? flattenForDxf(original.contour, tolerance) : original;
-          outputVertices += entity.type === 'polyline' ? entity.points.length : entity.type === 'spline'
-            ? entity.contour.nodes.length * 3 + 1 : 1;
+          outputVertices += dxfVertexCount(entity);
           if (outputVertices > MAX_VERTICES) throw new CadDxfError('limit');
           return rgb ? { ...entity, rgb } : entity;
         });
@@ -246,7 +256,14 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
     if (!omitted.length) throw new CadDxfError('empty');
     return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [], sharedEdges: 0, passesRemoved: 0 };
   }
-  const output = options.commonLines ? buildDxfCommonLines(entities) : { entities, sharedEdges: 0, passesRemoved: 0 };
+  let output = { entities, sharedEdges: 0, passesRemoved: 0 };
+  if (options.commonLines) {
+    try { output = buildDxfCommonLines(entities); }
+    catch (error) {
+      if (error instanceof DxfCommonLineLimitError) throw new CadDxfError('common-lines-limit');
+      throw error;
+    }
+  }
   const dxf = serializeCadDxf(output.entities, options);
   const closedContours = output.entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
   return { ...dxf, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted,
@@ -299,13 +316,13 @@ export function serializeCadDxf(
   };
   for (const original of entities) {
     let e = original.type === 'polyline' ? checkedPolyline(original.points, original.closed) : original;
+    if (e.type === 'spline' && !validContours([e.contour])) throw new CadDxfError('invalid');
+    vertexCount += dxfVertexCount(e);
+    if (vertexCount > MAX_VERTICES) throw new CadDxfError('limit');
     let layer: CadDxfLayer;
     if (e.type === 'spline') {
       const contour = e.contour;
-      if (!validContours([contour])) throw new CadDxfError('invalid');
       const segments = [...contourSegments(contour)], controls = [contour.nodes[0], ...segments.flatMap(p => p.slice(1))];
-      vertexCount += controls.length;
-      if (vertexCount > MAX_VERTICES) throw new CadDxfError('limit');
       const knots = [0, 0, 0, 0];
       for (let i = 1; i < segments.length; i++) knots.push(i, i, i);
       knots.push(segments.length, segments.length, segments.length, segments.length);
@@ -315,8 +332,6 @@ export function serializeCadDxf(
       for (const p of controls) add(body, 10, p.x, 20, p.y, 30, 0);
       const b = curveBounds([contour]); bound(b.x, b.y); bound(b.x + b.w, b.y + b.h);
     } else if (e.type === 'polyline') {
-      vertexCount += e.points.length;
-      if (vertexCount > MAX_VERTICES) throw new CadDxfError('limit');
       if (e.points.length === 2 && !e.closed) {
         layer = startEntity('LINE', 'AcDbLine', false, original.rgb, original.commonLine);
         add(body, 10, e.points[0].x, 20, e.points[0].y, 30, 0, 11, e.points[1].x, 21, e.points[1].y, 31, 0);
@@ -371,8 +386,10 @@ export function serializeCadDxf(
   for (const [owner, name, start, end] of [['1F', '*Model_Space', '21', '22'], ['20', '*Paper_Space', '23', '24']]) add(parts,
     0, 'BLOCK', 5, start, 330, owner, 100, 'AcDbEntity', 8, '0', 100, 'AcDbBlockBegin', 2, name, 70, 0, 10, 0, 20, 0, 30, 0, 3, name, 1, '',
     0, 'ENDBLK', 5, end, 330, owner, 100, 'AcDbEntity', 8, '0', 100, 'AcDbBlockEnd');
-  add(parts, 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES'); parts.push(...body); add(parts, 0, 'ENDSEC', 0, 'EOF');
-  const text = parts.join('\r\n') + '\r\n';
+  add(parts, 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES');
+  const footer: string[] = [];
+  add(footer, 0, 'ENDSEC', 0, 'EOF');
+  const text = [parts, body, footer].map(section => section.join('\r\n')).join('\r\n') + '\r\n';
   if (text.length > 16_000_000) throw new CadDxfError('limit');
   const result = { text, widthMm: maxX - minX, heightMm: maxY - minY, layers: layerEntries.filter(layer => layer.entities > 0) };
   if (!previewSources) return result;

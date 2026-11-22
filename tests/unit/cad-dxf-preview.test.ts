@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
 import { buildDxfCommonLines } from '../../src/lib/components/canvas/cad-dxf-common-lines';
-import { serializeCadDxf, type DxfEntity } from '../../src/lib/components/canvas/cad-dxf';
+import { buildCadDxf, CadDxfError, serializeCadDxf, type DxfEntity } from '../../src/lib/components/canvas/cad-dxf';
+import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
+import { fixture } from '../helpers/cad-editor';
 
 function box(x: number, y: number, w: number, h: number, rgb = '#112233'): DxfEntity {
   return { type: 'polyline', closed: true, rgb,
@@ -92,5 +94,57 @@ describe('DXF cut preview', () => {
     assert.equal(heightMm, 1);
     assert.equal(preview?.layers[0].path, 'M0,1 L0,0');
     assert.ok(Number(preview?.viewBox.split(' ')[2]) > 0);
+  });
+
+  it('reviews and exports 100,000 vertices in the same file and enforces the vertex cap', () => {
+    const path = (length: number, y: number): DxfEntity => ({
+      type: 'polyline', closed: false, points: Array.from({ length }, (_, x) => ({ x, y })),
+    });
+    const paths = Array.from({ length: 25 }, (_, y) => path(4000, y));
+    const reviewed = serializeCadDxf(paths, { includePreview: true });
+    assert.equal(reviewed.text, serializeCadDxf(paths).text);
+    assert.match(reviewed.text, /\r\n0\r\nENDSEC\r\n0\r\nEOF\r\n$/);
+    assert.equal(reviewed.layers[0].entities, 25);
+    assert.deepEqual(reviewed.cutLengths, { totalMm: 99_975, byLayer: { OMS_OPEN: 99_975 } });
+    assert.throws(() => serializeCadDxf([...paths.slice(1), path(4001, 0)]), { name: 'CadDxfError', code: 'limit' });
+  });
+
+  it('uses the emitted open spline control count when reviewing a page at the vertex cap', () => {
+    const { editor } = fixture();
+    const makeSpline = (n: number) => {
+      const nodes = Array.from({ length: n }, (_, x) => nodeAt({ x, y: 0 }));
+      nodes[0].outY = 1;
+      return [{ closed: false, nodes }];
+    };
+    for (let i = 0; i < 9; i++) {
+      editor.createShape({ id: `shape:spline-${i}`, type: 'cad-bezier',
+        props: { contours: makeSpline(i < 8 ? 4096 : 570), fillRule: 'evenodd', color: 'black' } });
+    }
+    editor.createShape({ id: 'shape:panel', type: 'cad-path',
+      props: { points: [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }, { x: 0, y: 2 }], closed: true, color: 'black' } });
+    editor.createShape({ id: 'shape:circle', type: 'cad-ellipse', props: { w: 10, h: 10, color: 'black' } });
+    const result = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS);
+    assert.equal(result.entities, 11);
+    assert.equal(result.omitted.length, 0);
+    assert.match(result.text, /\r\n0\r\nCIRCLE\r\n/);
+    editor.createShape({ id: 'shape:excess', type: 'cad-path',
+      props: { points: [{ x: 0, y: 0 }, { x: 2, y: 0 }], closed: false, color: 'black' } });
+    assert.throws(() => buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS), (error) => error instanceof CadDxfError && error.code === 'limit');
+  });
+
+  it('reports the shared-edge comparison limit while preserving ordinary DXF export', () => {
+    const { editor } = fixture();
+    const count = 1100, step = 0.000008, width = 900_000, height = count * step;
+    for (let i = 0; i < count; i++) {
+      const top = i * step;
+      editor.createShape({
+        id: `shape:panel-${i}`, type: 'cad-path',
+        props: { points: [{ x: 0, y: top }, { x: width, y: top },
+          { x: width, y: top + height }, { x: 0, y: top + height }], closed: true, color: 'black' },
+      });
+    }
+    assert.throws(() => buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { commonLines: true }),
+      (error) => error instanceof CadDxfError && error.code === 'common-lines-limit');
+    assert.equal(buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS).entities, count);
   });
 });

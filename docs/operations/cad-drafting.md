@@ -168,7 +168,7 @@ CAD rectangles/paths and ellipses use custom geometry so small parts are not cla
 
 ## DXF contract
 
-The DXF export review includes a cut preview from the geometry written to the file, including the selected curve mode and shared cuts. Use **Preview layer** to isolate a cutting layer. The review shows the estimated cut length in millimetres for the file and each cutting layer. Shared edges count once when merging is enabled. The totals measure DXF geometry before any machine-specific tool compensation or travel. The preview and lengths reflect the reviewed drawing, scope and export options.
+The DXF export review includes a cut preview from the geometry written to the file, including the selected curve mode and shared cuts. Use **Preview layer** to isolate a cutting layer. The review shows the estimated cut length in millimetres for the file and each cutting layer. Shared edges count once when merging is enabled. The totals measure DXF geometry before any machine-specific tool compensation or travel. The preview and lengths reflect the reviewed drawing, scope and export options. If a dense drawing reaches the DXF export or shared-edge comparison limit, select a smaller set of parts and run the review again.
 
 In **Production check**, the **Shared straight cut** finding reports the length of each shared section. **Locate** selects all objects on that section, zooms to the cut, and marks its two endpoints on the canvas. The marker clears when the check changes or closes. The summary counts shared sections and duplicate passes. The check uses straight spans from exportable closed contours and includes overlaps across colors. When exporting by color, DXF merges cuts only within the same color.
 

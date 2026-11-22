@@ -14,7 +14,7 @@ import {
   calibrateCadSelection, convertSelectionToCadPath, createCadDimension, createCadGeometry, getCadArc, getCadPathPoints, getCadSelection,
   setCadOriginToSelection, updateCadArc, updateCadPathPoints, type CadGeometryInput,
 } from './cad-geometry';
-import { buildCadDxf, type DxfExportScope } from './cad-dxf';
+import { buildCadDxf, CadDxfError, type DxfExportScope } from './cad-dxf';
 import { DxfReviewPreview } from './DxfReviewPreview';
 import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
 import { preflightRevision, type PreflightDxfScope } from './drawing-preflight';
@@ -284,6 +284,11 @@ function ArcFields({ settings, disabled }: { settings: CadSettings | null; disab
 type DxfScopeChoice = 'selected' | 'all' | 'preflight';
 const dxfSelectionKey = (editor: Editor, scope: DxfScopeChoice) =>
   scope === 'selected' ? JSON.stringify(editor.getSelectedShapeIds()) : '';
+const dxfExportErrorLabels: Partial<Record<CadDxfError['code'], CadLabel>> = {
+  empty: 'noEntities',
+  limit: 'dxfExportLimit',
+  'common-lines-limit': 'dxfCommonLineLimit',
+};
 
 function DxfExport({ settings, preflightScope }: { settings: CadSettings | null; preflightScope?: PreflightDxfScope }) {
   const editor = useEditor(); const { label } = useCadText();
@@ -331,7 +336,11 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       data: buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true }),
       revision, selectionKey, source, optionsKey, curves, toleranceMm, colorLayers, commonLines,
     }); }
-    catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
+    catch (error) {
+      setReport(null);
+      const message = error instanceof CadDxfError ? dxfExportErrorLabels[error.code] : undefined;
+      setMessage(message ?? 'exportFailed');
+    }
   }
   const canExport = !!report && !!settings && !captureStale && !stale && !!report.data.entities && (!report.data.omitted.length || acknowledged);
   function createFile() {
@@ -411,6 +420,6 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       <button type="button" disabled={!canExport} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
       <ProductionSaveButton extension="dxf" disabled={!canExport} createFile={createFile} />
     </div>}
-    <Message text={message ? label(message) : ''} error={message === 'exportFailed' || message === 'noEntities'} />
+    <Message text={message ? label(message) : ''} error={message !== 'exported'} />
   </details>;
 }

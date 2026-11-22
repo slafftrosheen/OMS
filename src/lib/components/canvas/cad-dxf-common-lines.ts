@@ -8,6 +8,8 @@ const SLOPE_TOLERANCE = 1e-8;
 const MAX_COMPARISONS = 2_000_000;
 const MAX_SPLIT_INTERVALS = 100_000;
 
+export class DxfCommonLineLimitError extends RangeError {}
+
 type Axis = 'x' | 'y';
 type Interval = [number, number];
 type Edge = { entity: number; segment: number; a: CadPoint; b: CadPoint; rgb?: string };
@@ -68,7 +70,7 @@ function groupEdges(edges: Edge[], extent: number) {
       const s = Math.floor(slope / SLOPE_TOLERANCE), d = Math.floor(offset / offsetStep);
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
         for (const entry of buckets.get(bucketKey(axis, s + i, d + j)) ?? []) {
-          if (++comparisons > MAX_COMPARISONS) throw new RangeError('DXF common-line comparison limit');
+          if (++comparisons > MAX_COMPARISONS) throw new DxfCommonLineLimitError('DXF common-line comparison limit');
           if (Math.abs(slope - entry.slope) > SLOPE_TOLERANCE) continue;
           const { group } = entry, main = group.line.axis, secondary = other(main);
           if ([edge.a, edge.b].every(p => Math.abs(pointOnLine(group, p[main])[secondary] - p[secondary]) <= MATCH_MM)) {
@@ -206,7 +208,7 @@ export function buildDxfCommonLines(entities: DxfEntity[]) {
       const intervals = overlapIntervals(a[axis], b[axis], coverage);
       if (!intervals.length) continue;
       intervalsProcessed += intervals.length;
-      if (intervalsProcessed > MAX_SPLIT_INTERVALS) throw new RangeError('DXF common-line split limit');
+      if (intervalsProcessed > MAX_SPLIT_INTERVALS) throw new DxfCommonLineLimitError('DXF common-line split limit');
       const bySegment = cuts.get(entity) ?? new Map();
       bySegment.set(segment, { axis, intervals });
       cuts.set(entity, bySegment);
