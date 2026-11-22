@@ -1,16 +1,21 @@
-import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
+import { atom, Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { contourSegments, mapContours, type CadContour } from './cad-curves';
 import { shapeCadContours } from './cad-editing';
 import { cadShapeDxfGeometry, type DxfCapturedScope, type DxfEntity } from './cad-dxf';
 import { visitDxfCommonLines } from './cad-dxf-common-lines';
 import { drawingObjectName } from './drawing-operations';
-import { cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
+import { cadMmPerPixel, cadPointToCanvas, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
 
 export const PREFLIGHT_MAX_SHAPES = 1000;
 export const PREFLIGHT_MAX_SEGMENTS = 12000;
 export const PREFLIGHT_MAX_ISSUES = 500;
 export type PreflightKind = 'open' | 'zero' | 'short' | 'duplicate' | 'shared' | 'clipped' | 'invalid' | 'text' | 'unsupported';
-export type PreflightIssue = { kind: PreflightKind; id: TLShapeId; name: string; contour?: number; segment?: number; otherId?: TLShapeId; otherName?: string; otherContour?: number; lengthMm?: number; relatedIds?: TLShapeId[]; coveringContours?: number };
+type SharedSegment = { from: CadPoint; to: CadPoint };
+export type PreflightIssue = {
+  kind: PreflightKind; id: TLShapeId; name: string; contour?: number; segment?: number; otherId?: TLShapeId;
+  otherName?: string; otherContour?: number; lengthMm?: number; relatedIds?: TLShapeId[]; coveringContours?: number;
+  sharedSegment?: SharedSegment;
+};
 export interface DrawingPreflight {
   revision: string; pageId: string; scope: 'selected' | 'all'; thresholdMm: number;
   checked: number; omitted: number; open: number; closed: number; segments: number;
@@ -18,6 +23,27 @@ export interface DrawingPreflight {
   issues: PreflightIssue[]; issueCount: number; truncated: boolean; sourceIds: TLShapeId[];
 }
 export interface PreflightDxfScope extends DxfCapturedScope { revision: string }
+
+function createPreflightHighlight() {
+  return atom<{ pageId: string; revision: string; segment: SharedSegment } | null>('drawing preflight highlight', null);
+}
+const highlights = new WeakMap<Editor, ReturnType<typeof createPreflightHighlight>>();
+function drawingPreflightHighlight(editor: Editor) {
+  let highlight = highlights.get(editor);
+  if (!highlight) {
+    highlight = createPreflightHighlight();
+    highlights.set(editor, highlight);
+  }
+  return highlight;
+}
+export function clearPreflightHighlight(editor: Editor) {
+  highlights.get(editor)?.set(null);
+}
+export function readPreflightHighlight(editor: Editor): SharedSegment | null {
+  const highlight = drawingPreflightHighlight(editor).get();
+  return highlight && highlight.pageId === editor.getCurrentPageId() && highlight.revision === preflightRevision(editor)
+    ? highlight.segment : null;
+}
 /** Selection is deliberately excluded: locating an issue must not stale the report. */
 export function preflightRevision(editor: Editor): string {
   return JSON.stringify([editor.getCurrentPage(), editor.getCurrentPageShapesSorted()]);
@@ -73,6 +99,7 @@ export function inspectDrawingPreflight(editor:Editor,settings:CadSettings,scope
     else seen.set(key,{id:shape.id,name,contour});
   };
   const mm=cadMmPerPixel(settings);
+  const modelSpace: CadSettings = { ...settings, unit: 'mm' };
   for(const id of ids){
     const shape=editor.getShape(id);
     if(!shape||['group','frame'].includes(shape.type))continue;
@@ -121,9 +148,9 @@ export function inspectDrawingPreflight(editor:Editor,settings:CadSettings,scope
     }
   }
   try {
-    visitDxfCommonLines(sharedCandidates, (lengthMm, indices, passes) => {
+    visitDxfCommonLines(sharedCandidates, ({ from, to, duplicatePasses }, indices) => {
       result.sharedEdges++;
-      result.duplicatePasses += passes;
+      result.duplicatePasses += duplicatePasses;
       if (result.issues.length >= PREFLIGHT_MAX_ISSUES) {
         result.issueCount++;
         result.truncated = true;
@@ -132,7 +159,9 @@ export function inspectDrawingPreflight(editor:Editor,settings:CadSettings,scope
       const participants = Array.from(indices, index => sharedSources[index]);
       const [first, second] = participants;
       issue({ kind: 'shared', ...first, otherId: second.id, otherName: second.name, otherContour: second.contour,
-        lengthMm, coveringContours: participants.length, relatedIds: [...new Set(participants.map(source => source.id))] });
+        lengthMm: distance(from, to), coveringContours: participants.length,
+        relatedIds: [...new Set(participants.map(source => source.id))],
+        sharedSegment: { from: cadPointToCanvas(from, modelSpace), to: cadPointToCanvas(to, modelSpace) } });
     });
   } catch (error) {
     if (error instanceof RangeError) throw new Error('limit');
@@ -142,13 +171,22 @@ export function inspectDrawingPreflight(editor:Editor,settings:CadSettings,scope
 }
 /** Navigation only, including read-only drawings. Never deletes or edits paths. */
 export function locatePreflightIssue(editor:Editor,report:DrawingPreflight,index:number):boolean {
+  clearPreflightHighlight(editor);
   if(report.revision!==preflightRevision(editor)||editor.getCurrentPageId()!==report.pageId)return false;
   const issue=report.issues[index];if(!issue||!editor.getShape(issue.id))return false;
   editor.complete();editor.setCurrentTool('select');
   if(report.revision!==preflightRevision(editor))return false;
   const related = issue.relatedIds ?? (issue.otherId ? [issue.otherId] : []);
   editor.setSelectedShapes([...new Set([issue.id, ...related.filter(id => !!editor.getShape(id))])]);
-  editor.zoomToSelection();return true;
+  if (issue.sharedSegment) {
+    const { from, to } = issue.sharedSegment, padding = 24;
+    editor.zoomToBounds(new Box(
+      Math.min(from.x, to.x) - padding, Math.min(from.y, to.y) - padding,
+      Math.abs(from.x - to.x) + padding * 2, Math.abs(from.y - to.y) + padding * 2,
+    ));
+    drawingPreflightHighlight(editor).set({ pageId: report.pageId, revision: report.revision, segment: issue.sharedSegment });
+  } else editor.zoomToSelection();
+  return true;
 }
 
 /** Export the objects from the check, even after Locate changes the selection. */

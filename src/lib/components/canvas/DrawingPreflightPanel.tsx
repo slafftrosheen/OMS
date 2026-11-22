@@ -1,9 +1,9 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
 import {useEditor,useValue} from '@tldraw/tldraw';
 import {unitMm,type CadSettings} from './cad-settings';
-import {capturePreflightDxfScope,inspectDrawingPreflight,locatePreflightIssue,preflightRevision,type DrawingPreflight,type PreflightDxfScope,type PreflightKind} from './drawing-preflight';
+import {capturePreflightDxfScope,clearPreflightHighlight,inspectDrawingPreflight,locatePreflightIssue,preflightRevision,type DrawingPreflight,type PreflightDxfScope,type PreflightKind} from './drawing-preflight';
 import {usePreflightText} from './preflight-copy';
-export function DrawingPreflightPanel({settings,focusSequence,onOpenDxf}:{settings:CadSettings|null;focusSequence?:number;onOpenDxf?:(scope:PreflightDxfScope)=>void}){
+export function DrawingPreflightPanel({settings,focusSequence,onOpenDxf,active}:{settings:CadSettings|null;focusSequence?:number;onOpenDxf?:(scope:PreflightDxfScope)=>void;active:boolean}){
  const editor=useEditor(),t=usePreflightText(),root=useRef<HTMLElement>(null),errorId=useId();
  const [scope,setScope]=useState<'selected'|'all'>('selected'),[threshold,setThreshold]=useState('0.1');
  const [report,setReport]=useState<DrawingPreflight>(),[filter,setFilter]=useState<PreflightKind|'all'>('all');
@@ -15,6 +15,10 @@ export function DrawingPreflightPanel({settings,focusSequence,onOpenDxf}:{settin
  const thresholdMm=threshold.trim()?Number(threshold)*unitMm(settings?.unit??'mm'):NaN;
  const valid=Number.isFinite(thresholdMm)&&thresholdMm>0&&thresholdMm<=100;
  const stale=!!report&&(revision!==report.revision||report.scope!==scope||Math.abs(report.thresholdMm-thresholdMm)>1e-12||!valid);
+ useEffect(()=>{
+  if(!active||stale)clearPreflightHighlight(editor);
+  return ()=>clearPreflightHighlight(editor);
+ },[active,editor,filter,report,stale]);
  const issueKinds:PreflightKind[]=['open','zero','short','duplicate','shared','clipped','invalid','text','unsupported'];
  const display=(mm:number)=>(mm/unitMm(settings?.unit??'mm')).toLocaleString(undefined,{maximumFractionDigits:6})+' '+(settings?.unit??'mm');
  return <section ref={root} data-testid="drawing-preflight">

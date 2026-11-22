@@ -11,6 +11,7 @@ import {CadConstructionOverlay} from './CadConstructionOverlay';
 import {CadNodeSelectionOverlay} from './CadNodeSelectionOverlay';
 import { DrawingPageSheet } from './DrawingPageSetup';
 import { DrawingRepeatOverlay } from './DrawingRepeatOverlay';
+import { DrawingPreflightOverlay } from './DrawingPreflightOverlay';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import { DrawingContextMenu } from './DrawingContextMenu';
 import { DrawingGuideOverlay } from './DrawingGuideOverlay';
@@ -88,7 +89,7 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
-    OnTheCanvas: () => <><DrawingPageSheet/><DrawingRepeatOverlay/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/></>,
+    OnTheCanvas: () => <><DrawingPageSheet/><DrawingRepeatOverlay/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/><DrawingPreflightOverlay/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
     SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
     Toolbar: null, StylePanel: null,

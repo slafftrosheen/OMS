@@ -2,6 +2,38 @@ import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 const dxf=readFileSync('tests/fixtures/cad/production-reference.dxf');
 const fileId='22222222-2222-4222-8222-222222222222';
+test('locates the exact shared DXF section and clears its canvas marker when leaving Production check',async({page})=>{
+ await page.setViewportSize({width:1440,height:950});
+ await page.goto('/drawing-workspace.html?mode=idea');
+ await page.getByTestId('drawing-cad-toggle').click();
+ await page.getByTestId('drawing-cad-apply').click();
+ const task=page.getByTestId('drawing-cad-task');
+ await task.selectOption('files');
+ const intake=page.getByTestId('drawing-cad-import');
+ await intake.locator('summary').click();
+ const rectangle=(x:number,y:number,w:number,h:number)=>[0,'LWPOLYLINE',90,4,70,1,10,x,20,y,10,x+w,20,y,10,x+w,20,y+h,10,x,20,y+h];
+ const source=[0,'SECTION',2,'HEADER',9,'$INSUNITS',70,4,0,'ENDSEC',0,'SECTION',2,'ENTITIES',
+  ...rectangle(0,0,100,50),...rectangle(100,10,40,20),0,'ENDSEC',0,'EOF',''].join('\n');
+ await intake.getByLabel('DXF file',{exact:true}).setInputFiles({name:'adjacent-parts.dxf',mimeType:'application/dxf',buffer:Buffer.from(source)});
+ await intake.getByRole('button',{name:'Prepare preview',exact:true}).click();
+ await intake.getByTestId('drawing-cad-apply-plan').click();
+ await task.selectOption('preflight');
+ const preflight=page.getByTestId('drawing-preflight');
+ await preflight.getByRole('button',{name:'Check drawing',exact:true}).click();
+ const finding=preflight.getByRole('listitem').filter({hasText:'Shared straight cut'});
+ await expect(finding).toHaveCount(1);
+ await finding.getByRole('button',{name:'Locate',exact:true}).click();
+ const marker=page.getByTestId('drawing-preflight-highlight');
+ await expect(marker.locator('circle')).toHaveCount(2);
+ const length=await marker.locator('circle').evaluateAll(nodes=>{
+  const [a,b]=nodes;
+  return Math.hypot(Number(b.getAttribute('cx'))-Number(a.getAttribute('cx')),Number(b.getAttribute('cy'))-Number(a.getAttribute('cy')));
+ });
+ expect(length*25.4/96).toBeCloseTo(20,7);
+ expect(await page.evaluate(()=>(window as any).__drawingFixture.inspect().selected.length)).toBe(2);
+ await task.selectOption('files');
+ await expect(marker).toHaveCount(0);
+});
 test('carries the reviewed Production check scope into DXF after clearing the selection',async({page})=>{
  await page.setViewportSize({width:1440,height:950});
  await page.goto('/drawing-workspace.html?mode=idea');

@@ -1,6 +1,6 @@
 import {describe,it} from 'vitest';
 import assert from 'node:assert/strict';
-import {capturePreflightDxfScope,inspectDrawingPreflight,locatePreflightIssue,preflightContourKey} from '../../src/lib/components/canvas/drawing-preflight';
+import {capturePreflightDxfScope,clearPreflightHighlight,inspectDrawingPreflight,locatePreflightIssue,preflightContourKey,readPreflightHighlight} from '../../src/lib/components/canvas/drawing-preflight';
 import {buildCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {measureCadSelection} from '../../src/lib/components/canvas/cad-measurements';
 import {nodeAt} from '../../src/lib/components/canvas/cad-curves';
@@ -12,7 +12,7 @@ const make=(type:string,id:string,props:any):any=>({id:'shape:'+id,type,x:0,y:0,
 const path=(id:string,points=rectangle,closed=true)=>make('cad-path',id,{points:structuredClone(points),closed,color:'black'});
 const panel=(id:string,x:number,y:number,w:number,h:number)=>path(id,[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}]);
 function fixture(items:any[]){
- const shapes=new Map(items.map(s=>[s.id,s]));let selected=items.map(s=>s.id),zoomed=false;
+ const shapes=new Map(items.map(s=>[s.id,s]));let selected=items.map(s=>s.id),zoomed=false,focusedBounds:unknown;
  const page={id:'page:one',meta:{omsCad:settings}};
  const editor:any={
   getShape:(id:string)=>shapes.get(id),getCurrentPage:()=>page,getCurrentPageId:()=>page.id,
@@ -26,9 +26,10 @@ function fixture(items:any[]){
    return {applyToPoint:(p:any)=>parent?editor.getShapePageTransform(parent).applyToPoint(local(p)):local(p),rotation:()=>r+(parent?editor.getShapePageTransform(parent).rotation():0)};
   },
   complete(){},setCurrentTool(){},zoomToSelection:()=>{zoomed=true;},
+  zoomToBounds:(bounds:{x:number;y:number;w:number;h:number})=>{zoomed=true;const {x,y,w,h}=bounds;focusedBounds={x,y,w,h};},
   updateShapes:()=>{throw new Error('Must not edit');},deleteShapes:()=>{throw new Error('Must not delete');},
  };
- return {editor,shapes,page,selection:()=>selected,zoomed:()=>zoomed};
+ return {editor,shapes,page,selection:()=>selected,zoomed:()=>zoomed,focusedBounds:()=>focusedBounds};
 }
 const inspect=(f:ReturnType<typeof fixture>,threshold=0.1)=>inspectDrawingPreflight(f.editor,settings,'all',threshold);
 const raster={width:2,height:1,png:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAD91JpzAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',rgb:'eJz7z8AAAAMBAQA=',matrix:[1,0,0,1,0,0]};
@@ -116,6 +117,46 @@ describe('production drawing check',()=>{
   const f=fixture([first,second]);
   assert.equal(inspect(f).duplicatePasses,1);
   assert.equal(buildCadDxf(f.editor,'all',settings,{commonLines:true,colorLayers:true}).sharedEdges,0);
+ });
+ it('locates the precise shared section in page space with scaled inch settings and a custom origin',()=>{
+  const f=fixture([panel('long',0,0,100,50),panel('short',100,10,40,20)]);
+  const inches={...settings,unit:'in' as const,scale:2.5,originX:500,originY:-250};
+  f.page.meta.omsCad=inches;
+  const report=inspectDrawingPreflight(f.editor,inches,'all');
+  const index=report.issues.findIndex(issue=>issue.kind==='shared');
+  const shared=report.issues[index];
+  assert.ok(shared.sharedSegment);
+  assert.ok(Math.abs(shared.lengthMm!-20*cadMmPerPixel(inches))<1e-8);
+  const before=JSON.stringify([...f.shapes.values()]);
+  assert.equal(locatePreflightIssue(f.editor,report,index),true);
+  const marker=readPreflightHighlight(f.editor)!;
+  assert.ok(Math.abs(marker.from.x-100)<1e-8&&Math.abs(marker.to.x-100)<1e-8);
+  assert.ok(Math.abs(Math.min(marker.from.y,marker.to.y)-10)<1e-8);
+  assert.ok(Math.abs(Math.max(marker.from.y,marker.to.y)-30)<1e-8);
+  const bounds=f.focusedBounds() as {x:number;y:number;w:number;h:number};
+  assert.ok(Math.abs(bounds.x-76)<1e-8&&Math.abs(bounds.y+14)<1e-8&&Math.abs(bounds.w-48)<1e-8&&Math.abs(bounds.h-68)<1e-8);
+  assert.equal(JSON.stringify([...f.shapes.values()]),before);
+  clearPreflightHighlight(f.editor);
+  assert.equal(readPreflightHighlight(f.editor),null);
+ });
+ it('drops the marker on drawing edits and page changes and clears it when locating another kind',()=>{
+  const left=panel('left',0,0,100,50),right=panel('right',100,10,40,20);
+  const open=path('open',[{x:200,y:0},{x:210,y:0}],false);
+  const f=fixture([left,right,open]),report=inspect(f);
+  const locate=(kind:'shared'|'open')=>locatePreflightIssue(f.editor,report,report.issues.findIndex(issue=>issue.kind===kind));
+  assert.equal(locate('shared'),true);
+  assert.ok(readPreflightHighlight(f.editor));
+  assert.equal(locate('open'),true);
+  assert.equal(readPreflightHighlight(f.editor),null);
+  assert.equal(locate('shared'),true);
+  left.x=1;
+  assert.equal(readPreflightHighlight(f.editor),null);
+  assert.equal(locate('shared'),false);
+  left.x=0;
+  assert.equal(readPreflightHighlight(f.editor),null);
+  assert.equal(locate('shared'),true);
+  f.page.id='page:other';
+  assert.equal(readPreflightHighlight(f.editor),null);
  });
  it('hands the checked group scope to DXF after Locate changes the selection',()=>{
   const group=make('group','group',{}),left=panel('left',0,0,100,50),right=panel('right',100,10,40,20);

@@ -168,7 +168,7 @@ CAD rectangles/paths and ellipses use custom geometry so small parts are not cla
 
 ## DXF contract
 
-In **Production check**, the **Shared straight cut** finding reports the length of each shared section. **Locate** selects all objects on that section, and the summary counts shared sections and duplicate passes. The check uses straight spans from exportable closed contours and includes overlaps across colors. When exporting by color, DXF merges cuts only within the same color.
+In **Production check**, the **Shared straight cut** finding reports the length of each shared section. **Locate** selects all objects on that section, zooms to the cut, and marks its two endpoints on the canvas. The marker clears when the check changes or closes. The summary counts shared sections and duplicate passes. The check uses straight spans from exportable closed contours and includes overlaps across colors. When exporting by color, DXF merges cuts only within the same color.
 
 **Open DXF export** carries over the checked objects, including a captured selection after **Locate** changes the canvas selection. The export scope is shown as **Production check scope**. Review the export with the options you intend to use before downloading or saving it into a production pocket. A drawing edit requires a new Production check to reuse its scope.
 

@@ -121,12 +121,13 @@ function visitSharedIntervals(group: Group, visit: (from: number, to: number, ac
  * The contour indices are available during the callback. */
 export function visitDxfCommonLines(
   entities: DxfEntity[],
-  visit: (lengthMm: number, contours: Iterable<number>, duplicatePasses: number) => void,
+  visit: (section: { from: CadPoint; to: CadPoint; duplicatePasses: number }, contours: Iterable<number>) => void,
 ) {
   const { edges, extent } = straightEdges(entities);
   for (const group of groupEdges(edges, extent)) {
-    const factor = Math.hypot(1, group.line.slope);
-    visitSharedIntervals(group, (from, to, active, passes) => visit((to - from) * factor, active.keys(), passes));
+    visitSharedIntervals(group, (from, to, active, passes) => visit({
+      from: pointOnLine(group, from), to: pointOnLine(group, to), duplicatePasses: passes,
+    }, active.keys()));
   }
 }
 

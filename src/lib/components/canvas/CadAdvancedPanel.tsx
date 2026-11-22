@@ -121,7 +121,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf }: {
     <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly}
       focusRequest={task === 'files' && focusRequest?.section === 'importDxf' ? focusRequest : undefined} />
     </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
-    <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} onOpenDxf={onOpenDxf} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
+    <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} onOpenDxf={onOpenDxf} active={task === 'preflight'} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
   </>;
 }
 
