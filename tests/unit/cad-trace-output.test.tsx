@@ -82,7 +82,7 @@ async function harness(run: (h: any) => void | Promise<void>) {
   });
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
   const records = () => editor.getCurrentPageShapesSorted();
-  try { await run({ editor, tl, plans, vector, curves, source, cad, dxf, shapeUtils, documentFixture, genericPlan, sourceFixture, singletonFixture, tracePlan, snapshot, records }); }
+  try { await run({ editor, tl, plans, vector, curves, source, cad, dxf, shapeUtils, rectangle, documentFixture, genericPlan, sourceFixture, singletonFixture, tracePlan, snapshot, records }); }
   finally {
     editor.dispose(); host.remove(); channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
@@ -158,14 +158,25 @@ describe('native trace output grouping and source placement', () => {
     assert.equal(editor.getOnlySelectedShape().type, 'cad-bezier');
   }));
 
-  it('leaves ordinary unflagged CAD plans flat and retains their active-opacity behavior', async () => harness(h => {
-    const { editor, plans, genericPlan } = h;
+  it('leaves ungrouped vector imports flat and preserves their paint opacity independently of active style', async () => harness(h => {
+    const { editor, plans, genericPlan, documentFixture } = h;
     editor.updateInstanceState({ opacityForNextShape: .35 });
-    const plan = genericPlan(); assert.equal(plan.groupResult, undefined); assert.equal(plan.placement, undefined);
+    const document = documentFixture(), plan = genericPlan(document);
+    assert.equal(plan.groupResult, undefined); assert.equal(plan.placement, undefined);
     assert.equal(plans.applyCadPlan(editor, plan), true); assert.equal(editor.getSelectedShapeIds().length, 2);
-    for (const shape of editor.getSelectedShapes()) {
-      assert.equal(shape.parentId, editor.getCurrentPageId()); assert.equal(shape.type, 'cad-bezier'); near(shape.opacity, .35);
-    }
+    editor.getSelectedShapes().forEach((shape: any, index: number) => {
+      assert.equal(shape.parentId, editor.getCurrentPageId()); assert.equal(shape.type, 'cad-bezier'); near(shape.opacity, 1);
+      near(shape.meta.omsVectorPaint.fillOpacity, document.paths[index].paint.fillOpacity);
+    });
+  }));
+
+  it('retains active opacity for an ordinary CAD plan without an explicit shape opacity', async () => harness(h => {
+    const { editor, plans, rectangle, cad } = h;
+    editor.updateInstanceState({ opacityForNextShape: .35 });
+    const plan = plans.makeCadPlan(editor, cad.DEFAULT_CAD_SETTINGS, [rectangle(0, 0, 20, 10)]);
+    assert.equal(plans.applyCadPlan(editor, plan), true);
+    const shape = editor.getOnlySelectedShape();
+    assert.equal(shape.type, 'cad-bezier'); near(shape.opacity, .35);
   }));
 });
 

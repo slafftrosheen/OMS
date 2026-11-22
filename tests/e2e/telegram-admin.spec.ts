@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
+import { resolve } from 'node:path';
 import { DEFAULT_TELEGRAM_OPTIONS } from '../../src/lib/notifications/telegram-options';
 
 const initial = () => ({ available:true,source:'settings',configured:true,
-  options:{...structuredClone(DEFAULT_TELEGRAM_OPTIONS),enabled:true,botUsername:'OMS_notify_bot',appUrl:'https://oms.example.test'},
+  options:{...structuredClone(DEFAULT_TELEGRAM_OPTIONS),connectionMode:'webhook',enabled:true,botUsername:'OMS_notify_bot',appUrl:'https://oms.example.test'},
   credentials:{botToken:{configured:true,masked:'••••6789'},webhookSecret:{configured:true,masked:'••••ssss'},deliverySecret:{configured:true,masked:'••••dddd'}},
   webhookUrl:'https://oms.example.test/api/telegram/webhook',dispatchUrl:'https://oms.example.test/api/telegram/dispatch',counts:{connected:3,pending:2,failed:1}
 });
@@ -36,6 +37,34 @@ async function fixture(page:Page, options:{failLoad?:boolean;failSave?:boolean}=
   return {writes,actions};
 }
 
+test('Telegram admin tabs expose accessible panels and support keyboard navigation', async ({ page }) => {
+  await fixture(page);
+  await page.goto('/telegram-admin.html');
+  await expect(page.getByRole('tab', { name: 'Connection & keys' })).toBeVisible();
+  await page.addScriptTag({ path: resolve('node_modules/axe-core/axe.min.js') });
+  const violations = await page.evaluate(async () => {
+    const result = await (window as any).axe.run('.telegram-admin', {
+      runOnly: { type: 'rule', values: ['aria-allowed-role', 'aria-valid-attr-value'] }
+    });
+    return result.violations.map((violation: any) => ({ id: violation.id, elements: violation.nodes.map((node: any) => node.target) }));
+  });
+  expect(violations).toEqual([]);
+  const connection = page.getByRole('tabpanel', { name: 'Connection & keys' });
+  await expect(connection.locator('#telegram-bot-token')).toBeVisible();
+  await expect(page.locator('#telegram-batchSize')).toBeDisabled();
+  await page.getByRole('tab', { name: 'Connection & keys' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Notifications' })).toBeFocused();
+  await expect(page.getByRole('tabpanel', { name: 'Notifications' })).toBeVisible();
+  await expect(page.locator('#telegram-batchSize')).toBeEnabled();
+  await expect(page.locator('#telegram-bot-token')).toBeDisabled();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Bot commands' })).toBeFocused();
+  await expect(page.getByRole('tabpanel', { name: 'Bot commands' })).toBeVisible();
+  await page.keyboard.press('Home');
+  await expect(connection.locator('#telegram-bot-token')).toBeVisible();
+});
+
 test('Telegram R&D settings keep credentials write-only and save delivery/AI controls before provider actions',async({page})=>{
   const calls=await fixture(page);await page.goto('/telegram-admin.html');
   await expect(page.getByRole('heading',{name:'Telegram · R&D administration'})).toBeVisible();
@@ -43,11 +72,14 @@ test('Telegram R&D settings keep credentials write-only and save delivery/AI con
   await expect(page.locator('#telegram-webhook-secret')).toHaveValue('');
   await expect(page.locator('.telegram-admin')).toContainText('••••6789');
   await page.locator('#telegram-bot-token').fill('123456:replacement_abcdefghijklmnopqrstuvwxyz');
-  await page.locator('#telegram-batchSize').fill('4');
-  await page.getByLabel('OpenRouter assistant in Telegram').check();
-  await expect(page.getByRole('button',{name:'Register webhook',exact:true})).toBeDisabled();
   await page.getByRole('button',{name:'Generate secret',exact:true}).first().click();
   await expect(page.locator('#telegram-webhook-secret')).toHaveValue(/^[A-Za-z0-9_-]{43}$/);
+  await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
+  await page.locator('#telegram-batchSize').fill('4');
+  await page.getByRole('tab', { name: 'Bot commands', exact: true }).click();
+  await page.getByLabel('OpenRouter assistant in Telegram').check();
+  await page.getByRole('tab', { name: 'Connection & keys', exact: true }).click();
+  await expect(page.getByRole('button',{name:'Register webhook',exact:true})).toBeDisabled();
   await page.getByRole('button',{name:'Save Telegram settings',exact:true}).click();
   await expect(page.locator('#telegram-bot-token')).toHaveValue('');
   await expect(page.locator('#telegram-webhook-secret')).toHaveValue('');

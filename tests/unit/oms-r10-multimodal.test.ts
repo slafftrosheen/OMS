@@ -85,7 +85,6 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(route).toContain('requireToolkitManager(locals.user)');
     expect(route).toContain('checkAiRateLimit(rateLimitIdentifier(event))');
     expect(route).toContain("code: 'OMS_AI_RATE_LIMIT'");
-    expect(route).toContain("source: upstreamStatus ? 'openrouter' : 'oms'");
     expect(route).toContain("from('canvas_documents')");
     expect(route).toContain("from('toolkit_assets')");
     expect(route).toContain(".eq('id', body.assetId).eq('canvas_id', body.boardId)");

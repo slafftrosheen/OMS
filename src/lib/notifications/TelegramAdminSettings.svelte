@@ -171,14 +171,14 @@
       <div><dt>{$t(prefix + 'queued')}</dt><dd>{status.counts.pending}</dd></div>
       <div><dt>{$t(prefix + 'failed')}</dt><dd>{status.counts.failed}</dd></div>
     </dl>
-    <nav class="admin-tabs" role="tablist" aria-label={$t(prefix + 'title')} onkeydown={adminTabKeydown}>
+    <div class="admin-tabs" role="tablist" tabindex="-1" aria-label={$t(prefix + 'title')} onkeydown={adminTabKeydown}>
       {#each adminTabs as tab (tab)}
         <button type="button" role="tab" id={`telegram-admin-tab-${tab}`}
           aria-selected={adminTab === tab} aria-controls={`telegram-admin-panel-${tab}`}
           tabindex={adminTab === tab ? 0 : -1} class:active={adminTab === tab}
           onclick={() => adminTab = tab}>{tabLabels[tab]}</button>
       {/each}
-    </nav>
+    </div>
     <section class="receiver-health" aria-labelledby="telegram-receiver-heading"
       hidden={adminTab !== 'connection'}>
       <h3 id="telegram-receiver-heading">{copy.health}</h3>
@@ -193,50 +193,56 @@
       <button type="button" disabled={!!busy || loading} onclick={refreshReceiver}>{copy.refresh}</button>
     </section>
     <form onsubmit={(event) => { event.preventDefault(); void save(); }}>
-      <fieldset id="telegram-admin-panel-connection" role="tabpanel"
-        aria-labelledby="telegram-admin-tab-connection" disabled={disabled || adminTab !== 'connection'}
+      <div class="admin-panel" id="telegram-admin-panel-connection" role="tabpanel"
+        aria-labelledby="telegram-admin-tab-connection"
         hidden={adminTab !== 'connection'}>
-        <legend>{$t(prefix + 'configuration')}</legend>
-        <label class="toggle"><input type="checkbox" bind:checked={options.enabled} /><span><strong>{$t(prefix + 'enableBot')}</strong><small>{$t(prefix + 'enableHint')}</small></span></label>
-        <label for="telegram-connection-mode">{copy.mode}<select id="telegram-connection-mode" bind:value={options.connectionMode}><option value="polling">{copy.polling}</option><option value="webhook">{copy.webhook}</option></select></label>
-        <p class="muted">{polling ? copy.pollingHint : copy.webhookHint}</p>
-        <div class="field-grid">
-          <label for="telegram-bot-username">{$t(prefix + 'botUsername')}<input id="telegram-bot-username" autocomplete="off" spellcheck="false" bind:value={options.botUsername} placeholder="company_bot" maxlength="33" /></label>
-          <label for="telegram-app-url">{polling ? copy.appUrl : $t(prefix + 'appUrl')}<input id="telegram-app-url" type="url" autocomplete="off" spellcheck="false" bind:value={options.appUrl} placeholder={polling ? 'http://oms:3000' : 'https://oms.example.com'} maxlength="500" /></label>
-          <label for="telegram-timezone">{$t(prefix + 'timezone')}<input id="telegram-timezone" list="telegram-timezones" bind:value={options.timezone} maxlength="80" required /></label>
-          <datalist id="telegram-timezones"><option value="Europe/Riga"></option><option value="Europe/Amsterdam"></option><option value="Europe/London"></option><option value="UTC"></option></datalist>
-          {#if polling}<label for="telegram-poll-timeout">{copy.timeout}<input id="telegram-poll-timeout" type="number" min="10" max="50" step="1" required bind:value={options.pollingTimeoutSeconds} /></label>{/if}
-        </div>
-        {#if polling}<p class="muted">{copy.appUrlHint}</p><p class="muted">{copy.timeoutHint}</p>{/if}
-      </fieldset>
-      <fieldset disabled={disabled || adminTab !== 'connection'} hidden={adminTab !== 'connection'}>
-        <legend>{$t(prefix + 'credentials')}</legend>
-        <p class="muted">{polling ? copy.secretHint : $t(prefix + 'credentialHint')}</p>
-        <div class="secret-field"><label for="telegram-bot-token">{$t(prefix + 'botToken')} <small>{status.credentials.botToken.masked || $t(prefix + 'notSet')}</small></label><input id="telegram-bot-token" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={botToken} placeholder={$t(prefix + 'keepSecret')} /></div>
-        {#if !polling}<div class="secret-field"><label for="telegram-webhook-secret">{$t(prefix + 'webhookSecret')} <small>{status.credentials.webhookSecret.masked || $t(prefix + 'notSet')}</small></label><div class="secret-entry"><input id="telegram-webhook-secret" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={webhookSecret} placeholder={$t(prefix + 'keepSecret')} /><button type="button" onclick={() => generateSecret('webhookSecret')}>{$t(prefix + 'generate')}</button></div></div>{/if}
-        <div class="secret-field"><label for="telegram-delivery-secret">{$t(prefix + 'deliverySecret')} <small>{status.credentials.deliverySecret.masked || $t(prefix + 'notSet')}</small></label><div class="secret-entry"><input id="telegram-delivery-secret" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={deliverySecret} placeholder={$t(prefix + 'keepSecret')} /><button type="button" onclick={() => generateSecret('deliverySecret')}>{$t(prefix + 'generate')}</button></div></div>
-        <label class="toggle reveal"><input type="checkbox" bind:checked={reveal} /><span>{$t(prefix + 'revealSecrets')}</span></label>
-        <p class="muted">{polling ? copy.rotationHint : $t(prefix + 'rotationHint')}</p>
-      </fieldset>
-      <fieldset id="telegram-admin-panel-delivery" role="tabpanel"
-        aria-labelledby="telegram-admin-tab-delivery" disabled={disabled || adminTab !== 'delivery'}
+        <fieldset disabled={disabled || adminTab !== 'connection'}>
+          <legend>{$t(prefix + 'configuration')}</legend>
+          <label class="toggle"><input type="checkbox" bind:checked={options.enabled} /><span><strong>{$t(prefix + 'enableBot')}</strong><small>{$t(prefix + 'enableHint')}</small></span></label>
+          <label for="telegram-connection-mode">{copy.mode}<select id="telegram-connection-mode" bind:value={options.connectionMode}><option value="polling">{copy.polling}</option><option value="webhook">{copy.webhook}</option></select></label>
+          <p class="muted">{polling ? copy.pollingHint : copy.webhookHint}</p>
+          <div class="field-grid">
+            <label for="telegram-bot-username">{$t(prefix + 'botUsername')}<input id="telegram-bot-username" autocomplete="off" spellcheck="false" bind:value={options.botUsername} placeholder="company_bot" maxlength="33" /></label>
+            <label for="telegram-app-url">{polling ? copy.appUrl : $t(prefix + 'appUrl')}<input id="telegram-app-url" type="url" autocomplete="off" spellcheck="false" bind:value={options.appUrl} placeholder={polling ? 'http://oms:3000' : 'https://oms.example.com'} maxlength="500" /></label>
+            <label for="telegram-timezone">{$t(prefix + 'timezone')}<input id="telegram-timezone" list="telegram-timezones" bind:value={options.timezone} maxlength="80" required /></label>
+            <datalist id="telegram-timezones"><option value="Europe/Riga"></option><option value="Europe/Amsterdam"></option><option value="Europe/London"></option><option value="UTC"></option></datalist>
+            {#if polling}<label for="telegram-poll-timeout">{copy.timeout}<input id="telegram-poll-timeout" type="number" min="10" max="50" step="1" required bind:value={options.pollingTimeoutSeconds} /></label>{/if}
+          </div>
+          {#if polling}<p class="muted">{copy.appUrlHint}</p><p class="muted">{copy.timeoutHint}</p>{/if}
+        </fieldset>
+        <fieldset disabled={disabled || adminTab !== 'connection'}>
+          <legend>{$t(prefix + 'credentials')}</legend>
+          <p class="muted">{polling ? copy.secretHint : $t(prefix + 'credentialHint')}</p>
+          <div class="secret-field"><label for="telegram-bot-token">{$t(prefix + 'botToken')} <small>{status.credentials.botToken.masked || $t(prefix + 'notSet')}</small></label><input id="telegram-bot-token" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={botToken} placeholder={$t(prefix + 'keepSecret')} /></div>
+          {#if !polling}<div class="secret-field"><label for="telegram-webhook-secret">{$t(prefix + 'webhookSecret')} <small>{status.credentials.webhookSecret.masked || $t(prefix + 'notSet')}</small></label><div class="secret-entry"><input id="telegram-webhook-secret" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={webhookSecret} placeholder={$t(prefix + 'keepSecret')} /><button type="button" onclick={() => generateSecret('webhookSecret')}>{$t(prefix + 'generate')}</button></div></div>{/if}
+          <div class="secret-field"><label for="telegram-delivery-secret">{$t(prefix + 'deliverySecret')} <small>{status.credentials.deliverySecret.masked || $t(prefix + 'notSet')}</small></label><div class="secret-entry"><input id="telegram-delivery-secret" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={deliverySecret} placeholder={$t(prefix + 'keepSecret')} /><button type="button" onclick={() => generateSecret('deliverySecret')}>{$t(prefix + 'generate')}</button></div></div>
+          <label class="toggle reveal"><input type="checkbox" bind:checked={reveal} /><span>{$t(prefix + 'revealSecrets')}</span></label>
+          <p class="muted">{polling ? copy.rotationHint : $t(prefix + 'rotationHint')}</p>
+        </fieldset>
+      </div>
+      <div class="admin-panel" id="telegram-admin-panel-delivery" role="tabpanel"
+        aria-labelledby="telegram-admin-tab-delivery"
         hidden={adminTab !== 'delivery'}>
-        <legend>{$t(prefix + 'notifications')}</legend>
-        <div class="choice-grid">{#each TELEGRAM_CATEGORIES as category}<label class="toggle"><input type="checkbox" checked={options.notificationCategories.includes(category)} onchange={(event) => toggleCategory(category, event.currentTarget.checked)} /><span>{$t(prefix + `categories.${category}`)}</span></label>{/each}</div>
-        <p class="muted">{$t(prefix + 'categoriesHint')}</p>
-        <label class="toggle"><input type="checkbox" bind:checked={options.automaticDelivery} /><span><strong>{$t(prefix + 'automaticDelivery')}</strong><small>{$t(prefix + 'automaticHint')}</small></span></label>
-        <div class="field-grid numeric">{#each numericFields as field}<label for={`telegram-${field.key}`}>{$t(prefix + field.key)}<input id={`telegram-${field.key}`} type="number" min={field.min} max={field.max} step="1" required bind:value={options[field.key]} /></label>{/each}</div>
-      </fieldset>
-      <fieldset id="telegram-admin-panel-commands" role="tabpanel"
-        aria-labelledby="telegram-admin-tab-commands" disabled={disabled || adminTab !== 'commands'}
+        <fieldset disabled={disabled || adminTab !== 'delivery'}>
+          <legend>{$t(prefix + 'notifications')}</legend>
+          <div class="choice-grid">{#each TELEGRAM_CATEGORIES as category}<label class="toggle"><input type="checkbox" checked={options.notificationCategories.includes(category)} onchange={(event) => toggleCategory(category, event.currentTarget.checked)} /><span>{$t(prefix + `categories.${category}`)}</span></label>{/each}</div>
+          <p class="muted">{$t(prefix + 'categoriesHint')}</p>
+          <label class="toggle"><input type="checkbox" bind:checked={options.automaticDelivery} /><span><strong>{$t(prefix + 'automaticDelivery')}</strong><small>{$t(prefix + 'automaticHint')}</small></span></label>
+          <div class="field-grid numeric">{#each numericFields as field}<label for={`telegram-${field.key}`}>{$t(prefix + field.key)}<input id={`telegram-${field.key}`} type="number" min={field.min} max={field.max} step="1" required bind:value={options[field.key]} /></label>{/each}</div>
+        </fieldset>
+      </div>
+      <div class="admin-panel" id="telegram-admin-panel-commands" role="tabpanel"
+        aria-labelledby="telegram-admin-tab-commands"
         hidden={adminTab !== 'commands'}>
-        <legend>{$t(prefix + 'bidirectional')}</legend>
-        <label class="toggle"><input type="checkbox" bind:checked={options.commandsEnabled} /><span><strong>{$t(prefix + 'enableCommands')}</strong><small>{$t(prefix + 'commandsHint')}</small></span></label>
-        <div class="choice-grid commands">{#each TELEGRAM_COMMANDS as command}<label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} checked={options.commands.includes(command)} onchange={(event) => toggleCommand(command, event.currentTarget.checked)} /><span><code>/{command}</code><small>{$t(prefix + `commands.${command}`)}</small></span></label>{/each}</div>
-        <label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} bind:checked={options.aiEnabled} /><span><strong>{$t(prefix + 'aiEnabled')}</strong><small>{$t(prefix + 'aiHint')}</small></span></label>
-        {#if options.aiEnabled}<label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} checked={options.commands.includes('ask')} onchange={(event) => toggleCommand('ask', event.currentTarget.checked)} /><span><code>/ask</code><small>{$t(prefix + 'commands.ask')}</small></span></label>{/if}
-        <p class="muted">{$t(prefix + 'stopHint')}</p>
-      </fieldset>
+        <fieldset disabled={disabled || adminTab !== 'commands'}>
+          <legend>{$t(prefix + 'bidirectional')}</legend>
+          <label class="toggle"><input type="checkbox" bind:checked={options.commandsEnabled} /><span><strong>{$t(prefix + 'enableCommands')}</strong><small>{$t(prefix + 'commandsHint')}</small></span></label>
+          <div class="choice-grid commands">{#each TELEGRAM_COMMANDS as command}<label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} checked={options.commands.includes(command)} onchange={(event) => toggleCommand(command, event.currentTarget.checked)} /><span><code>/{command}</code><small>{$t(prefix + `commands.${command}`)}</small></span></label>{/each}</div>
+          <label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} bind:checked={options.aiEnabled} /><span><strong>{$t(prefix + 'aiEnabled')}</strong><small>{$t(prefix + 'aiHint')}</small></span></label>
+          {#if options.aiEnabled}<label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} checked={options.commands.includes('ask')} onchange={(event) => toggleCommand('ask', event.currentTarget.checked)} /><span><code>/ask</code><small>{$t(prefix + 'commands.ask')}</small></span></label>{/if}
+          <p class="muted">{$t(prefix + 'stopHint')}</p>
+        </fieldset>
+      </div>
       <div class="save-row"><button class="primary" type="submit" disabled={disabled}>{$t(prefix + (busy === 'save' ? 'saving' : 'save'))}</button>{#if dirty}<span class="muted">{$t(prefix + 'unsaved')}</span>{/if}</div>
     </form>
     <section class="provider-actions" aria-labelledby="telegram-provider-actions" hidden={adminTab !== 'connection'}>
@@ -279,6 +285,7 @@
     font:inherit;cursor:pointer; }
   .admin-tabs button.active { background:var(--brand-soft);border-color:var(--brand);font-weight:650; }
   .admin-tabs button:focus-visible {outline:2px solid var(--brand);outline-offset:3px;}
+  .admin-panel { display:grid; gap:18px; }
 
   .app-menu-settings { display:grid; gap:8px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; }
   .app-menu-settings h4 { margin:0; }

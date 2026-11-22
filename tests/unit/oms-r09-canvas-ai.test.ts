@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { toolkitModelChoices, resolveToolkitModel } from '../../src/lib/server/toolkit/ai-models';
+import { toolkitModelChoices, resolveToolkitModel, allowOpenRouterWebSearch } from '../../src/lib/server/toolkit/ai-models';
 import { parseToolkitModelResponse, normalizeToolkitVisualAssets, normalizeProviderWebSources } from '../../src/lib/server/toolkit/ai-response';
 import { markdownProjectBrief, briefFileName } from '../../src/lib/components/canvas/toolkit-brief';
 import { openRouterRequestBody, openRouterTextContent, openRouterCompleteWithMetadata } from '../../src/lib/server/ai/openrouter';
@@ -110,7 +110,17 @@ describe('OMS-R09 Toolkit AI workflow', () => {
 
   it('keeps web-provider pricing and model selection server-controlled', () => {
     const endpoint = read('src/routes/api/toolkit/brainstorm/+server.ts');
-    expect(endpoint).toContain('allowOpenRouterWebSearch()');
+    const previous = process.env.OPENROUTER_TOOLKIT_WEB_SEARCH;
+    try {
+      process.env.OPENROUTER_TOOLKIT_WEB_SEARCH = 'true';
+      expect(allowOpenRouterWebSearch('openrouter')).toBe(true);
+      expect(allowOpenRouterWebSearch('openai')).toBe(false);
+      process.env.OPENROUTER_TOOLKIT_WEB_SEARCH = 'false';
+      expect(allowOpenRouterWebSearch('openrouter')).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.OPENROUTER_TOOLKIT_WEB_SEARCH;
+      else process.env.OPENROUTER_TOOLKIT_WEB_SEARCH = previous;
+    }
     expect(endpoint).toContain('resolveToolkitModel(body.model');
     expect(endpoint).toContain("type: 'openrouter:web_search'");
     expect(endpoint).toContain("skill === 'research' && webMode === 'searxng'");

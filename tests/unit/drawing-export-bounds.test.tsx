@@ -453,6 +453,11 @@ describe('production vector PDF and EPS', () => {
       assert.deepEqual(h.snapshot(), before, 'publishing does not edit the saved drawing');
     } finally { globalThis.fetch = fetchBefore; }
     assert.equal(saveDrawingPage(h.editor, 'Oversize', { widthMm: 5080, heightMm: 297 }), true);
+    h.editor.deleteShapes([offPage.id]);
+    const large = prepareVectorExport(h.editor, settings, scope, 'pdf');
+    assert.match(large.text, /\/UserUnit 10\b/);
+    assert.deepEqual(large.sheet, { widthMm: 5080, heightMm: 297, bleedMm: scope.pageBleedMm });
+    assert.equal(saveDrawingPage(h.editor, 'Beyond PDF limit', { widthMm: 50800, heightMm: 297 }), true);
     assert.throws(() => prepareVectorExport(h.editor, settings, scope, 'pdf', true), /page-limit/);
   }));
 

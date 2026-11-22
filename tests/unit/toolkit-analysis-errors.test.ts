@@ -10,12 +10,13 @@ import { isHttpError } from '@sveltejs/kit';
 const source = readFileSync('src/routes/api/toolkit/analyze-asset/+server.ts', 'utf8');
 const catchBody = source.slice(source.lastIndexOf('} catch (err) {') + '} catch (err) {'.length,
   source.lastIndexOf('\n  }'));
-const handleError = new Function('err', 'request', 'json', 'kind', 'noStore', 'console', 'OpenRouterHttpError', 'PdfSourceError', 'isHttpError', catchBody);
+const handleError = new Function('err', 'request', 'json', 'kind', 'noStore', 'console', 'OpenRouterHttpError', 'PdfSourceError', 'isHttpError', 'providerName', 'routing', catchBody);
 
-function responseFor(message: string, aborted = false) {
-  return handleError(new Error(message), { signal: { aborted } },
-    (body: unknown, options: ResponseInit) => Response.json(body, options),
-    'pdf', { 'Cache-Control': 'private, no-store' }, { error() {} }, OpenRouterHttpError, PdfSourceError, isHttpError) as Response;
+function responseFor(message: string | Error, aborted = false, provider: 'openrouter' | 'openai' = 'openrouter') {
+  return handleError(typeof message === 'string' ? new Error(message) : message, { signal: { aborted } },
+    (body: unknown, options: Parameters<typeof Response.json>[1]) => Response.json(body, options),
+    'pdf', { 'Cache-Control': 'private, no-store' }, { error() {} }, OpenRouterHttpError, PdfSourceError, isHttpError,
+    provider === 'openai' ? 'OpenAI' : 'OpenRouter', { provider }) as Response;
 }
 
 describe('Toolkit analysis provider error responses', () => {
@@ -35,8 +36,18 @@ describe('Toolkit analysis provider error responses', () => {
       const body = await response.json();
       assert.equal(body.code, code);
       assert.equal(body.upstreamStatus, upstream);
+      assert.equal(body.source, 'openrouter');
     });
   }
+  it('labels OpenAI errors with the active provider and preserves bounded retry metadata', async () => {
+    const response = responseFor(new OpenRouterHttpError(429, '5'), false, 'openai');
+    const body = await response.json();
+    assert.equal(response.status, 429);
+    assert.equal(response.headers.get('retry-after'), '5');
+    assert.equal(body.source, 'openai');
+    assert.match(body.error, /OpenAI/);
+    assert.equal(body.upstreamStatus, 429);
+  });
   it('does not return raw provider inputs in an unknown failure', async () => {
     const response = responseFor('private-file.pdf secret-key sensitive-prompt');
     assert.equal(response.status, 503);

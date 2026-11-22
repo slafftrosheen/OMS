@@ -158,9 +158,20 @@ describe('round centerline stroke picking', () => {
     assert.equal(pick(shape, [50, 15])?.id, shape.id); assert.equal(editor.getShapeGeometry(shape.id), geometry);
   }));
 
-  it('keeps other cap/join, dashed, solid-fill, gradient and raster styles on their existing centerline hit policy', async () => harness(h => {
+  it('picks unfilled cap/join and dashed styles across their stroke width without changing geometry', async () => harness(h => {
+    const { editor, create, pick, margin } = h;
+    for (const paint of [{ lineCap: 'butt' }, { lineCap: 'square' }, { lineJoin: 'miter' }, { lineJoin: 'bevel' }, { dash: [3, 2] }]) {
+      const shape = create(undefined, paint);
+      assert.equal(pick(shape, [50, 0])?.id, shape.id);
+      assert.equal(pick(shape, [50, 15], { margin: margin() })?.id, shape.id);
+      assert.equal(pick(shape, [50, 20 + margin() + 2], { margin: margin() }), undefined);
+      near(editor.getShapeGeometry(shape).bounds.h, 0);
+    }
+  }));
+
+  it('keeps solid-fill, gradient and raster styles on their existing centerline hit policy', async () => harness(h => {
     const { create, pick, margin } = h;
-    for (const paint of [{ lineCap: 'butt' }, { lineCap: 'square' }, { lineJoin: 'miter' }, { lineJoin: 'bevel' }, { dash: [3, 2] }, { fill: '#ffffff' },
+    for (const paint of [{ fill: '#ffffff' },
       { gradient: { type: 'linear', matrix: [1, 0, 0, 1, 0, 0], start: [0, 0], end: [100, 0], r0: 0, r1: 0,
         stops: [{ offset: 0, color: '#000000' }, { offset: 1, color: '#ffffff' }] } },
       { raster: { width: 1, height: 1, png: 'data:image/png;base64,iVBORw0KGgoAAAAA', rgb: 'AAAA', matrix: [100, 0, 0, 100, 0, 0] } }]) {

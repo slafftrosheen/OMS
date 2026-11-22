@@ -1,5 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
+import { Box } from '@tldraw/tldraw';
 import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, prepareRepeatGrid, applyRepeatGrid, planDrawingExport, type RepeatSheetOptions } from '../../src/lib/components/canvas/drawing-operations';
 import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
 
@@ -111,7 +112,10 @@ describe('Fit to production sheet', () => {
     const page = { meta: { omsPageSize: sheet, omsCad: cad } };
     f.editor.getCurrentPage = () => page;
     f.editor.getSelectionPageBounds = () => ({ x: 10, y: 10, w: 120, h: 50 });
-    f.editor.getShapePageBounds = () => f.editor.getSelectionPageBounds();
+    f.editor.getShapePageBounds = () => {
+      const { x, y, w, h } = f.editor.getSelectionPageBounds();
+      return new Box(x, y, w, h);
+    };
     return { ...f, sheet, page, cad };
   }
 

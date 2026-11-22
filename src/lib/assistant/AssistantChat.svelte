@@ -200,7 +200,7 @@
   .context-bar { display:flex;align-items:flex-start;gap:10px;flex-shrink:0;min-width:0; }
   button { font:inherit;cursor:pointer; }
   button:disabled { opacity:1;cursor:not-allowed;color:var(--ink-secondary);background:var(--bg-1); }
-  button:focus-visible,textarea:focus-visible,input:focus-visible,summary:focus-visible { outline:2px solid var(--focus);outline-offset:3px; }
+  button:focus-visible,textarea:focus-visible,summary:focus-visible { outline:2px solid var(--focus);outline-offset:3px; }
   .quiet { display:grid;place-items:center;min-width:36px;min-height:36px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--ink-secondary); }
   .available-tools { flex:1;min-width:0;font-size:12px;color:var(--ink-secondary); }
   summary { cursor:pointer;min-height:36px;align-content:center;color:var(--ink-primary);line-height:1.5; }
@@ -240,8 +240,6 @@
   .context-change :global(svg) { flex-shrink:0; }
   .thinking { color:var(--ink-secondary);font-size:13px; }
   .composer { display:flex;flex-shrink:0;flex-direction:column;gap:9px;min-width:0;padding-top:12px;border-top:1px solid var(--border);background:var(--bg-0); }
-  .consent { display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;color:var(--ink-secondary); }
-  .consent input { margin-top:3px;flex-shrink:0;accent-color:var(--brand); }
   textarea { width:100%;box-sizing:border-box;resize:none;min-height:68px;max-height:120px;font:inherit;font-size:14px;line-height:1.5;padding:9px 12px;color:var(--ink-primary);background:var(--bg-0);border:1px solid var(--border);border-radius:var(--radius-sm);caret-color:var(--brand); }
   textarea::placeholder { color:var(--ink-secondary); }
   .send-row { display:flex;justify-content:space-between;align-items:center;gap:10px; }
@@ -255,7 +253,6 @@
     .assistant-chat { gap:8px; }
     .context-details { max-height:90px; }
     .composer { gap:6px;padding-top:8px; }
-    .consent { font-size:11px;line-height:1.35; }
     textarea { min-height:58px;line-height:1.3;padding:7px 10px; }
     .send { min-height:34px;padding:6px 12px; }
   }

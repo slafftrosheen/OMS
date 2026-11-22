@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import DxfParser, { type ILwpolylineEntity } from 'dxf-parser';
+import DxfParser, { type IArcEntity, type ILwpolylineEntity } from 'dxf-parser';
 import { fixture } from '../helpers/cad-editor';
 import {
   DEFAULT_CAD_SETTINGS as settings,
@@ -373,9 +373,7 @@ describe('CAD region shaping', () => {
     assert.equal(applyCadPlan(f.editor, plan), true);
     const result = buildCadDxf(f.editor, 'selected', settings);
     assert.equal(result.omitted.length, 0);
-    const [arc] = new DxfParser().parseSync(result.text)!.entities as Array<{
-      type: string; center: { x: number; y: number }; radius: number; startAngle: number; endAngle: number
-    }>;
+    const [arc] = new DxfParser().parseSync(result.text)!.entities as IArcEntity[];
     assert.equal(arc.type, 'ARC');
     near(arc.center.x, 30); near(arc.center.y, -20); near(arc.radius, 88);
     near(arc.startAngle * 180 / Math.PI, 350); near(arc.endAngle * 180 / Math.PI, 20);

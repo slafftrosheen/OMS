@@ -254,13 +254,13 @@
   .revision-panel{display:grid;gap:10px;padding:12px;max-height:100%;overflow-y:auto;font-size:12px}
   h3,h4{margin:0;font-size:14px}h4{margin-top:9px}
   .muted,small{font-size:11px;line-height:1.5;color:var(--ink-secondary);white-space:pre-wrap;overflow-wrap:anywhere}
-  label:not(.consent):not(.change){display:grid;gap:5px}
+  label:not(.change){display:grid;gap:5px}
   select,button{min-width:0;max-width:100%;padding:8px;border:1px solid var(--border);
     color:var(--ink);background:var(--bg-1);border-radius:8px}
   button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}
   button.primary{background:var(--brand);color:white}
-  .consent,.checkline,.actions{display:flex;align-items:flex-start;gap:8px}
-  .consent input,.checkline input{flex-shrink:0}
+  .checkline,.actions{display:flex;align-items:flex-start;gap:8px}
+  .checkline input{flex-shrink:0}
   .change,.source,.history{border:1px solid var(--border);border-radius:8px;padding:9px;display:grid;gap:6px}
   .change{overflow-wrap:anywhere}.source small{word-break:break-all}
   .problem{color:var(--error,#c43d3d)}.success{color:var(--success,#39855e)}

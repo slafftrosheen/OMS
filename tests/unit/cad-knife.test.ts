@@ -173,7 +173,8 @@ describe('CAD knife', () => {
     assert.deepEqual(plan.warnings, ['knife-shared-edge', 'knife-dash']);
     assert.ok(shapes.has('shape:target') && shapes.has('shape:blade'));
     assert.equal(applyCadPlan(editor, plan), true);
-    assert.equal(marks.length, 1);
+    assert.equal(marks.length, 2);
+    assert.equal(marks[1].id, `${marks[0].id}-complete`);
     assert.ok(!shapes.has('shape:target') && !shapes.has('shape:blade'));
     const result = editor.getSelectedShapes();
     assert.deepEqual(result.map((s: any) => s.meta.omsObjectName), ['Panel (1)', 'Panel (2)']);

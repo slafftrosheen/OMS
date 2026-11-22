@@ -365,8 +365,7 @@
  h3,h4{margin:0;font-size:1rem}h4{margin-top:.5rem}
  .hint{font-size:.81rem;color:var(--muted);margin:0}
  .warning{color:var(--warn);font-size:.83rem}.success{color:var(--brand);font-size:.83rem}
- label:not(.consent){display:grid;gap:.35rem;font-size:.82rem}
- .consent{display:flex;align-items:flex-start;gap:.5rem;font-size:.82rem}
+ label{display:grid;gap:.35rem;font-size:.82rem}
  .conversation{max-height:390px;min-height:160px;overflow:auto;display:grid;gap:.5rem;align-content:start}
  .conversation article{border:1px solid var(--border);border-radius:10px;padding:.7rem;
    background:var(--bg-1);overflow-wrap:anywhere}

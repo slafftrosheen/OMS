@@ -77,17 +77,24 @@ async function harness(run: (h: any) => Promise<void>) {
       element.dispatchEvent(new Event('input', { bubbles: true }));
     }); await tick();
   };
+  const selectControl = (section: Element, label: string) => {
+    const control = [...section.querySelectorAll('label')]
+      .find(element => element.querySelector('span')?.textContent === label)
+      ?.querySelector('select');
+    assert.ok(control, label);
+    return control;
+  };
   const prepare = async () => {
     const section = get('drawing-repeat') as HTMLDetailsElement; section.open = true;
-    await select(section.querySelector('select')!, 'offset');
+    await select(selectControl(section, 'Spacing'), 'offset');
     await input(section.querySelectorAll<HTMLInputElement>('input[type="number"]')[2], '3.75');
-    await select(section.querySelectorAll('select')[1], '-1');
+    await select(selectControl(section, 'Horizontal'), '-1');
     await act(async () => section.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); await tick();
     assert.equal((section.querySelector('.drawing-cad-report button') as HTMLButtonElement).disabled, false);
     return section;
   };
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
-  try { await run({ editor, tl, cad, sourceId, host, get, render, tick, select, input, prepare, snapshot, act }); }
+  try { await run({ editor, tl, cad, sourceId, host, get, render, tick, select, selectControl, input, prepare, snapshot, act }); }
   finally {
     await act(async () => root.unmount()); editor.dispose(); host.remove(); stopText();
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
@@ -97,7 +104,7 @@ async function harness(run: (h: any) => Promise<void>) {
 
 describe('drawing docker continuity', () => {
   it('retains repeat drafts and an unchanged native geometry review across a panel switch', async () => {
-    await harness(async ({ get, render, prepare, snapshot, act }) => {
+    await harness(async ({ get, render, prepare, selectControl, snapshot, act }) => {
       await render(false);
       assert.equal(document.querySelector('[data-testid="drawing-repeat"]'), null, 'unvisited operation stays unmounted');
       await render(true);
@@ -110,7 +117,7 @@ describe('drawing docker continuity', () => {
       assert.equal(get('drawing-repeat'), section);
       assert.equal(document.querySelector('.drawing-cad-report')!, review);
       assert.equal(section.querySelectorAll<HTMLInputElement>('input[type="number"]')[2].value, '3.75');
-      assert.equal(section.querySelectorAll('select')[1].value, '-1');
+      assert.equal(selectControl(section, 'Horizontal').value, '-1');
       assert.equal((section.querySelector('.drawing-cad-report button') as HTMLButtonElement).disabled, false);
       assert.deepEqual(snapshot(), before, 'panel inspection never writes artwork');
     });

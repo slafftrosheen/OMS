@@ -146,8 +146,6 @@
   .readiness{display:grid;gap:10px;padding:12px;max-height:100%;overflow-y:auto;font-size:12px}
   h3,h4{margin:0;font-size:14px} h4{margin-top:7px}
   .description,.evidence,small{font-size:11px;line-height:1.5;color:var(--ink-secondary);margin:0}
-  .consent{display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.5}
-  .consent input{flex-shrink:0}
   .analyze{padding:9px;border-radius:8px;border:1px solid var(--brand);background:var(--brand);color:white;cursor:pointer}
   .analyze:disabled{opacity:.45;cursor:not-allowed}
   .summary,.material{padding:9px;border:1px solid var(--border);border-radius:9px;display:grid;gap:4px}

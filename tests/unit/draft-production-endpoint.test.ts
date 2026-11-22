@@ -1,7 +1,10 @@
-import {describe,it,expect} from 'vitest';
+import {restoreRoutingFixtureEnvironment,withAiRouting} from '../helpers/ai-routing-fixture';
+import {describe,it as test,expect} from 'vitest';
 import assert from 'node:assert/strict';
 import {jsPDF} from 'jspdf';
 import {POST} from '../../src/routes/api/ai/order-intake/+server';
+restoreRoutingFixtureEnvironment();
+const it: typeof test = (name, run) => test(name, () => withAiRouting(run));
 const id='11111111-1111-4111-8111-111111111111';
 const order={id,status:'DRAFT',created_by:id,updated_at:'2026-11-05T12:00:00Z'};
 function event(body:unknown,user:unknown={id,role:'RD'},row:unknown=order){

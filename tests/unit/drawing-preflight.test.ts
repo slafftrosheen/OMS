@@ -1,5 +1,6 @@
 import {describe,it} from 'vitest';
 import assert from 'node:assert/strict';
+import {createShapeId} from '@tldraw/tldraw';
 import {capturePreflightDxfScope,clearPreflightHighlight,inspectDrawingPreflight,locatePreflightIssue,preflightContourKey,readPreflightHighlight} from '../../src/lib/components/canvas/drawing-preflight';
 import {buildCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {measureCadSelection} from '../../src/lib/components/canvas/cad-measurements';
@@ -185,7 +186,7 @@ describe('production drawing check',()=>{
   const f=fixture([panel('checked',0,0,10,10)]);
   const report=inspect(f),captured=capturePreflightDxfScope(f.editor,report);
   assert.ok(captured);
-  assert.throws(()=>buildCadDxf(f.editor,{...captured,shapeIds:['shape:missing']},settings),/invalid/);
+  assert.throws(()=>buildCadDxf(f.editor,{...captured,shapeIds:[createShapeId('missing')]},settings),/invalid/);
   f.shapes.get('shape:checked')!.x=20;
   assert.equal(capturePreflightDxfScope(f.editor,report),null);
   const fresh=inspect(f);
