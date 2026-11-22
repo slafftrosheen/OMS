@@ -87,7 +87,7 @@ test('carries the reviewed Production check scope into DXF after clearing the se
  await expect(panel.getByTestId('drawing-cad-download')).toBeDisabled();
 });
 for (const mode of ['idea', 'order']) {
-  test(`${mode} DXF layer assignment is reviewed, grouped, exportable and undoable`, async ({ page }) => {
+  test(`${mode} DXF layer mapping, color export and layer removal work together`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
     await page.getByTestId('drawing-cad-toggle').click();
@@ -97,10 +97,10 @@ for (const mode of ['idea', 'order']) {
     const intake = panel.getByTestId('drawing-cad-import');
     await intake.locator('summary').click();
 
-    const line = (layer: string, y: number) => [0, 'LINE', 8, layer, 10, 0, 20, y, 11, 100, 21, y];
+    const line = (layer: string, y: number, rgb = 0x112233) => [0, 'LINE', 8, layer, 420, rgb, 10, 0, 20, y, 11, 100, 21, y];
     const source = [
       0, 'SECTION', 2, 'HEADER', 9, '$INSUNITS', 70, 4, 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES',
-      ...line('OMS_JOB_CUT', 0), ...line('Score guides', 10), ...line('0', 20), 0, 'ENDSEC', 0, 'EOF', '',
+      ...line('OMS_JOB_CUT', 0, 0xb01020), ...line('Score guides', 10), ...line('Etching', 15), ...line('0', 20), 0, 'ENDSEC', 0, 'EOF', '',
     ].join('\n');
     const inspect = () => page.evaluate(() => (window as any).__drawingFixture.inspect());
     const before = await inspect();
@@ -117,6 +117,7 @@ for (const mode of ['idea', 'order']) {
     await preview.click();
     await expect(intake.getByText('Score guides · New layer', { exact: true })).toBeVisible();
     await expect(intake.getByText('Unassigned (DXF layer 0) (1)', { exact: true })).toBeVisible();
+    await intake.getByRole('combobox', { name: 'Destination layer · Etching', exact: true }).selectOption('layer:engrave');
     await apply.click();
 
     const imported = await inspect();
@@ -124,13 +125,35 @@ for (const mode of ['idea', 'order']) {
     const group = imported.shapes.find((shape: any) => shape.id === imported.selected[0]);
     expect(group.type).toBe('group');
     expect(imported.shapes.filter((shape: any) => shape.parentId === group.id)
-      .map((shape: any) => shape.meta.omsProductionLayer ?? '').sort()).toEqual(['', 'cut', layer.id].sort());
+
+      .map((shape: any) => shape.meta.omsProductionLayer ?? '').sort()).toEqual(['', 'cut', 'engrave', layer.id].sort());
     await panel.getByRole('combobox', { name: 'Cutting layers', exact: true }).selectOption('production');
+    await panel.getByRole('checkbox', { name: 'Preserve object colors (R2004)', exact: true }).check();
     await panel.getByTestId('drawing-cad-review').click();
     const exportPreview = panel.getByTestId('drawing-dxf-preview');
-    await expect(exportPreview.locator('[data-dxf-layer="OMS_JOB_CUT"]')).toBeAttached();
+    await expect(exportPreview.locator('[data-dxf-layer="OMS_JOB_CUT"] [stroke="#B01020"]')).toBeAttached();
+    await expect(exportPreview.locator('[data-dxf-layer="OMS_JOB_ENGRAVE"]')).toBeAttached();
     await expect(exportPreview.locator('[data-dxf-layer="OMS_JOB_SCORE_GUIDES"]')).toBeAttached();
+    const report = panel.getByTestId('drawing-cad-report');
+    await report.getByText('Why objects were excluded', { exact: true }).click();
+    await expect(report.getByText('Unassigned objects', { exact: true })).toBeVisible();
 
+    await page.getByTestId('drawing-objects-toggle').click();
+    const layers = page.getByTestId('drawing-production-layers');
+    await layers.getByText('Production layers', { exact: true }).click();
+    await layers.getByRole('combobox', { name: 'Layer settings', exact: true }).selectOption(layer.id);
+    await layers.getByRole('button', { name: 'Remove layer', exact: true }).click();
+    const remove = layers.getByRole('button', { name: 'Confirm removal', exact: true });
+    await expect(remove).toBeDisabled();
+    await layers.getByRole('combobox', { name: 'Move objects to', exact: true }).selectOption('layer:bend');
+    await remove.click();
+    await expect(layers.getByRole('combobox', { name: 'Layer settings', exact: true })).toHaveValue('bend');
+    const moved = await inspect();
+    expect(moved.page.meta.omsProductionLayers.some((item: any) => item.id === layer.id)).toBe(false);
+    expect(moved.shapes.filter((shape: any) => shape.parentId === group.id).some((shape: any) => shape.meta.omsProductionLayer === 'bend')).toBe(true);
+
+    await page.getByTestId('drawing-undo').click();
+    expect((await inspect()).page.meta.omsProductionLayers).toEqual(imported.page.meta.omsProductionLayers);
     await page.getByTestId('drawing-undo').click();
     const undone = await inspect();
     expect(undone.shapes.length).toBe(before.shapes.length);

@@ -296,6 +296,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
   const [curves, setCurves] = useState<'spline' | 'polyline'>('spline');
   const [layerMode, setLayerMode] = useState<'standard' | 'color' | 'production'>('standard');
   const [productionTarget, setProductionTarget] = useState('');
+  const [preserveProductionColors, setPreserveProductionColors] = useState(false);
   const colorLayers = layerMode === 'color';
   const productionLayers = useValue('DXF production layers', () => readProductionLayers(editor), [editor]);
   const enabledLayers = productionLayers.filter(layer => layer.includeInDxf);
@@ -306,7 +307,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
   const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
   const validTarget = layerMode !== 'production' || !productionTarget || !!productionLayer;
   const validOptions = (curves === 'spline' || validTolerance) && validTarget;
-  const optionsKey = JSON.stringify([curves, tolerance, layerMode, productionTarget, commonLines]);
+  const optionsKey = JSON.stringify([curves, tolerance, layerMode, productionTarget, preserveProductionColors, commonLines]);
   const [report, setReport] = useState<{
     data: ReturnType<typeof buildCadDxf>; revision: string; selectionKey: string; source: DxfExportScope;
     optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; commonLines: boolean;
@@ -339,7 +340,9 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
     setAcknowledged(false); setMessage('');
     const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
     try {
-      const production = layerMode === 'production' ? { only: productionTarget || undefined } : undefined;
+      const production = layerMode === 'production'
+        ? { only: productionTarget || undefined, preserveColors: preserveProductionColors }
+        : undefined;
       const data = buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true, productionLayers: production });
       const page = editor.getCurrentPage();
       const release: CanvasDxfRelease = {
@@ -347,7 +350,10 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         pageName: page.name.slice(0, 80).trim() || page.id.slice(0, 80),
         scope, curves, toleranceMm: curves === 'spline' ? null : toleranceMm,
         colorLayers, commonLines, omitted: data.omitted.length,
-        ...(production ? { productionLayers: { layerName: productionLayer?.name ?? null, filtered: data.filteredByLayer ?? 0 } } : {}),
+        ...(production ? { productionLayers: {
+          layerName: productionLayer?.name ?? null, filtered: data.filteredByLayer ?? 0,
+          ...(production.preserveColors ? { preserveColors: true } : {}),
+        } } : {}),
       };
       setReport({ data, revision, selectionKey, source, optionsKey, curves, toleranceMm, commonLines, release });
     }
@@ -400,15 +406,25 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         <Field label={label('productionTarget')}><select value={productionTarget} aria-invalid={!validTarget}
           onChange={event => { setProductionTarget(event.target.value); setAcknowledged(false); setMessage(''); }}>
           <option value="">{label('productionAllEnabled')}</option>
+          {productionTarget && !productionLayers.some(layer => layer.id === productionTarget) &&
+            <option value={productionTarget} disabled>{label('productionLayerUnavailable')}</option>}
           {productionLayers.map(layer => <option key={layer.id} value={layer.id} disabled={!layer.includeInDxf}>{layer.name}</option>)}
         </select></Field>
         <p className="drawing-help">{label(validTarget ? 'productionDxfHelp' : 'productionTargetUnavailable')}</p>
+        <label className="drawing-cad-check">
+          <input type="checkbox" checked={preserveProductionColors} onChange={event => {
+            setPreserveProductionColors(event.target.checked); setAcknowledged(false); setMessage('');
+          }} />
+          <span>{label('productionColors')}</span>
+        </label>
       </>}
       {colorLayers && <p className="drawing-help">{label('dxfColorLayersHelp')}</p>}
       <label className="drawing-cad-check"><input type="checkbox" checked={commonLines} onChange={event => { setCommonLines(event.target.checked); setAcknowledged(false); setMessage(''); }} />
         <span>{label('dxfCommonLines')}</span>
       </label>
-      {commonLines && <p className="drawing-help">{label('dxfCommonLinesHelp')}</p>}
+      {commonLines && <p className="drawing-help">{label(layerMode === 'production'
+        ? preserveProductionColors ? 'productionColorCommonLinesHelp' : 'productionCommonLinesHelp'
+        : 'dxfCommonLinesHelp')}</p>}
       <button type="button" disabled={!settings || !hasObjects || !validOptions || captureStale} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
@@ -423,6 +439,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         <dt>{label('dxfLayers')}</dt><dd>{report.release.productionLayers
           ? report.release.productionLayers.layerName ?? label('productionAllEnabled')
           : label(report.release.colorLayers ? 'dxfColorLayers' : 'dxfStandardLayers')}</dd>
+        {report.release.productionLayers?.preserveColors && <><dt>{label('productionColorMode')}</dt><dd>{label('productionExactColors')}</dd></>}
         {report.data.filteredByLayer !== undefined && <><dt>{label('productionFiltered')}</dt><dd>{report.data.filteredByLayer}</dd></>}
         {report.commonLines && <>
           <dt>{label('dxfSharedEdges')}</dt><dd>{report.data.sharedEdges}</dd>
@@ -432,6 +449,14 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         {cutLengths && <><dt>{label('dxfCutLength')}</dt><dd>{cutLengthLabel(cutLengths.totalMm)}</dd></>}
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
+      {!!report.data.filteredByLayer && report.data.productionFilter && <details>
+        <summary>{label('productionFilterDetails')}</summary>
+        <dl className="drawing-cad-values">
+          <dt>{label('productionFilteredUnassigned')}</dt><dd>{report.data.productionFilter.unassigned}</dd>
+          <dt>{label('productionFilteredExcluded')}</dt><dd>{report.data.productionFilter.excluded}</dd>
+          <dt>{label('productionFilteredOther')}</dt><dd>{report.data.productionFilter.otherLayers}</dd>
+        </dl>
+      </details>}
       {(cutLengths || report.release.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
         <summary>{label(cutLengths ? 'dxfLayerCutLengths' : 'dxfLayerContents')} ({report.data.layers.length})</summary>
         <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => {

@@ -23,6 +23,7 @@ export interface CadDxfResult {
   layers: CadDxfLayer[];
   sharedEdges: number;
   filteredByLayer?: number;
+  productionFilter?: { unassigned: number; excluded: number; otherLayers: number };
   passesRemoved: number;
   preview?: DxfPreview;
   cutLengths?: DxfCutLengths;
@@ -202,7 +203,7 @@ function cuttingColor(shape: TLShape): string | undefined {
   if (paint.fill.startsWith('#') && paint.fillOpacity > 0 && !paint.gradient && !paint.raster) return paint.fill.toUpperCase();
 }
 
-interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean; includePreview?: boolean; productionLayers?: { only?: string } }
+interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean; includePreview?: boolean; productionLayers?: { only?: string; preserveColors?: boolean } }
 
 export interface DxfCapturedScope { pageId: string; shapeIds: readonly TLShapeId[] }
 export type DxfExportScope = 'selected' | 'all' | DxfCapturedScope;
@@ -232,13 +233,16 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
   const names = productionDxfNames(pageLayers);
   const enabled = new Set(pageLayers.filter(layer => layer.includeInDxf).map(layer => layer.id));
   if (production?.only && !enabled.has(production.only)) throw new CadDxfError('invalid');
-  let vertices = 0, filteredByLayer = 0;
+  let vertices = 0;
+  const productionFilter = { unassigned: 0, excluded: 0, otherLayers: 0 };
   for (const id of new Set(ids)) {
     const shape = editor.getShape(id as TLShapeId);
     if (!shape || ['group', 'frame'].includes(shape.type)) continue;
     const assignedLayer = production ? productionLayerId(shape) : undefined;
     if (production && (!assignedLayer || !enabled.has(assignedLayer) || production.only && production.only !== assignedLayer)) {
-      filteredByLayer++;
+      if (!assignedLayer || !names.has(assignedLayer)) productionFilter.unassigned++;
+      else if (!enabled.has(assignedLayer)) productionFilter.excluded++;
+      else productionFilter.otherLayers++;
       continue;
     }
     const productionLayer = assignedLayer ? names.get(assignedLayer) : undefined;
@@ -248,7 +252,7 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
       if (source.length) {
         // Treat every contour of an object as one unit. A failed hole must not
         // leave its exterior in the cutting file on its own.
-        const rgb = options.colorLayers ? cuttingColor(shape) : undefined;
+        const rgb = options.colorLayers || production?.preserveColors ? cuttingColor(shape) : undefined;
         let outputVertices = vertices;
         const output = source.map(original => {
           const entity = original.type === 'spline' && options.curves === 'polyline'
@@ -266,7 +270,8 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
     }
     if (entities.length > MAX_ENTITIES) throw new CadDxfError('limit');
   }
-  const layerReport = production ? { filteredByLayer } : {};
+  const filteredByLayer = productionFilter.unassigned + productionFilter.excluded + productionFilter.otherLayers;
+  const layerReport = production ? { filteredByLayer, productionFilter } : {};
   if (!entities.length) {
     if (!omitted.length && !filteredByLayer) throw new CadDxfError('empty');
     return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [], sharedEdges: 0, passesRemoved: 0, ...layerReport };
@@ -298,13 +303,14 @@ function fallbackColorIndex(rgb: number) {
   return index;
 }
 
-/** R2000 by default, R2004 when exact RGB cutting layers are requested. */
+/** R2000 by default, R2004 when exact RGB is requested. */
 export function serializeCadDxf(
   entities: DxfEntity[],
-  { colorLayers = false, includePreview = false }: Pick<CadDxfOptions, 'colorLayers' | 'includePreview'> = {},
+  { colorLayers = false, includePreview = false, productionLayers }: Pick<CadDxfOptions, 'colorLayers' | 'includePreview' | 'productionLayers'> = {},
 ): Pick<CadDxfResult, 'text' | 'widthMm' | 'heightMm' | 'layers' | 'preview' | 'cutLengths'> {
   if (!entities.length) throw new CadDxfError('empty');
   if (entities.length > MAX_ENTITIES) throw new CadDxfError('limit');
+  const preserveProductionColors = productionLayers?.preserveColors === true;
   let nextHandle = 0x100, vertexCount = 0;
   const previewSources: DxfPreviewSource[] | undefined = includePreview ? [] : undefined;
   const parts: string[] = [], body: string[] = [];
@@ -318,15 +324,19 @@ export function serializeCadDxf(
   const bound = (x: number, y: number) => { finite(x); finite(y); minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
   const startEntity = (type: string, subclass: string, closed: boolean, original: DxfEntity) => {
     const base = original.commonLine ? 'OMS_SHARED' : closed ? 'OMS_CLOSED' : 'OMS_OPEN';
-    const rgb = colorLayers && !original.productionLayer ? original.rgb?.toUpperCase() : undefined;
+    const rgb = (original.productionLayer ? preserveProductionColors : colorLayers) ? original.rgb?.toUpperCase() : undefined;
     if (rgb !== undefined && !/^#[0-9A-F]{6}$/.test(rgb)) throw new CadDxfError('invalid');
     if (original.productionLayer && !/^OMS_JOB_[A-Z0-9_]+$/.test(original.productionLayer)) throw new CadDxfError('invalid');
     const name = original.productionLayer ?? (rgb ? `${base}_${rgb.slice(1)}` : base);
-    const layer = layers.get(name) ?? { name, rgb, entities: 0 };
+    const layer = layers.get(name) ?? { name, rgb: original.productionLayer ? undefined : rgb, entities: 0 };
     layer.entities++;
     layers.set(name, layer);
     add(body, 0, type, 5, (nextHandle++).toString(16).toUpperCase(), 330, '1F', 100, 'AcDbEntity', 8, name);
-    if (rgb) add(body, 420, rgbNumber(rgb));
+    if (rgb) {
+      const color = rgbNumber(rgb);
+      if (original.productionLayer) add(body, 62, fallbackColorIndex(color));
+      add(body, 420, color);
+    }
     add(body, 100, subclass);
     return layer;
   };
@@ -378,10 +388,10 @@ export function serializeCadDxf(
       const dx = Math.hypot(e.major.x, e.major.y * e.ratio), dy = Math.hypot(e.major.y, e.major.x * e.ratio);
       bound(e.center.x - dx, e.center.y - dy); bound(e.center.x + dx, e.center.y + dy);
     }
-    previewSources?.push({ entity: e, layer });
+    previewSources?.push({ entity: e, layer, rgb: original.productionLayer && preserveProductionColors ? original.rgb?.toUpperCase() : undefined });
   }
   const layerEntries = [...layers.values()];
-  add(parts, 0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, colorLayers ? 'AC1018' : 'AC1015', 9, '$INSUNITS', 70, 4, 9, '$MEASUREMENT', 70, 1,
+  add(parts, 0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, colorLayers || preserveProductionColors ? 'AC1018' : 'AC1015', 9, '$INSUNITS', 70, 4, 9, '$MEASUREMENT', 70, 1,
     9, '$LUNITS', 70, 2, 9, '$LUPREC', 70, 6, 9, '$HANDSEED', 5, (nextHandle + layerEntries.length - 3).toString(16).toUpperCase(),
     9, '$EXTMIN', 10, minX, 20, minY, 30, 0, 9, '$EXTMAX', 10, maxX, 20, maxY, 30, 0, 0, 'ENDSEC');
   add(parts, 0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LTYPE', 5, '10', 330, '0', 100, 'AcDbSymbolTable', 70, 1,

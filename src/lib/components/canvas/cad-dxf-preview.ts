@@ -3,10 +3,11 @@ import type { DxfEntity } from './cad-dxf';
 import type { CadPoint } from './cad-settings';
 
 type Layer = { name: string; rgb?: string };
-export type DxfPreviewSource = { entity: DxfEntity; layer: Layer };
+type PreviewPath = { rgb?: string; path: string };
+export type DxfPreviewSource = { entity: DxfEntity; layer: Layer; rgb?: string };
 export interface DxfPreview {
   viewBox: string;
-  layers: Array<Layer & { path: string }>;
+  layers: Array<Layer & PreviewPath & { colorPaths?: PreviewPath[] }>;
 }
 
 type ProjectPoint = (p: CadPoint) => CadPoint;
@@ -47,14 +48,20 @@ export function buildDxfPreview(
 ): DxfPreview {
   const w = maxX - minX, h = maxY - minY, margin = Math.max(w, h, 1e-6) * 0.06;
   const project = (p: CadPoint) => ({ x: p.x - minX, y: maxY - p.y });
-  const grouped = new Map<string, { layer: Layer; paths: string[] }>();
-  for (const { entity, layer } of entries) {
-    const item = grouped.get(layer.name) ?? { layer, paths: [] };
-    item.paths.push(pathFor(entity, project));
-    grouped.set(layer.name, item);
+  const grouped = new Map<string, Map<string | undefined, string[]>>();
+  for (const { entity, layer, rgb } of entries) {
+    const colors = grouped.get(layer.name) ?? new Map<string | undefined, string[]>();
+    const color = rgb ?? layer.rgb;
+    const paths = colors.get(color) ?? [];
+    paths.push(pathFor(entity, project));
+    colors.set(color, paths);
+    grouped.set(layer.name, colors);
   }
   return {
     viewBox: `${-margin} ${-margin} ${w + 2 * margin} ${h + 2 * margin}`,
-    layers: Array.from(grouped.values(), ({ layer, paths }) => ({ name: layer.name, rgb: layer.rgb, path: paths.join(' ') })),
+    layers: Array.from(grouped, ([name, colors]) => {
+      const paths = Array.from(colors, ([rgb, parts]) => ({ rgb, path: parts.join(' ') }));
+      return paths.length === 1 ? { name, ...paths[0] } : { name, path: '', colorPaths: paths };
+    }),
   };
 }

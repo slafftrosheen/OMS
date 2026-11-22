@@ -89,6 +89,7 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
                 <dt>{copy.cuttingLayers}</dt><dd>{release.productionLayers
                   ? release.productionLayers.layerName ?? copy.enabledProductionLayers
                   : release.colorLayers ? copy.byColor : copy.standard}</dd>
+                {release.productionLayers?.preserveColors && <><dt>{copy.objectColors}</dt><dd>RGB (R2004)</dd></>}
                 {release.productionLayers && <><dt>{copy.filteredByLayer}</dt><dd>{release.productionLayers.filtered}</dd></>}
                 <dt>{copy.sharedCuts}</dt><dd>{release.commonLines ? copy.enabled : copy.disabled}</dd>
                 <dt>{copy.omissions}</dt><dd>{release.omitted}</dd>

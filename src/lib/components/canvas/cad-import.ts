@@ -56,10 +56,11 @@ export interface CadImportPlan extends CadPlan {
   layerReview: DxfLayerReview[];
   unassignedCount: number;
   layerLimitExceeded: boolean;
+  missingLayerDestination: boolean;
 }
 
 type DxfShape = CadPlannedShape & { sourceLayer: string };
-type DxfDrawing = Omit<CadImportPlan, 'revision' | 'layerReview' | 'unassignedCount' | 'layerLimitExceeded' | 'shapes'> & {
+export type DxfDrawing = Omit<CadImportPlan, 'revision' | 'layerReview' | 'unassignedCount' | 'layerLimitExceeded' | 'missingLayerDestination' | 'shapes'> & {
   shapes: DxfShape[];
 };
 type Pair = [number, string];
@@ -258,7 +259,14 @@ type CadImportOptions = {
   centerAt?: CadPoint;
 };
 
-function reviewDxfLayers(shapes: DxfShape[], currentLayers?: ProductionLayer[]) {
+type DxfLayerOptions = {
+  groupName?: string;
+  preserveLayers?: boolean;
+  /** Case-insensitive source name to an existing layer ID, or null for unassigned geometry. */
+  layerDestinations?: ReadonlyMap<string, string | null>;
+};
+
+function reviewDxfLayers(shapes: DxfShape[], currentLayers?: ProductionLayer[], destinations?: DxfLayerOptions['layerDestinations']) {
   const layerReview = new Map<string, DxfLayerReview>();
   let unassignedCount = 0;
   for (const shape of shapes) {
@@ -273,14 +281,24 @@ function reviewDxfLayers(shapes: DxfShape[], currentLayers?: ProductionLayer[]) 
   }
 
   const layers = currentLayers?.slice();
-  let layerLimitExceeded = false;
+  let layerLimitExceeded = false, missingLayerDestination = false;
   if (layers) {
+    const byId = new Map(layers.map(layer => [layer.id, layer]));
+    const overrides = new Map([...(destinations ?? [])].map(([source, destination]) => [source.toUpperCase(), destination]));
     const byName = new Map(layers.map(layer => [layer.name.toUpperCase(), layer]));
     const exportedNames = productionDxfNames(layers);
     const byExportedName = new Map(layers.map(layer => [exportedNames.get(layer.id)!, layer]));
     const occupied = new Set(byName.keys());
 
     for (const [key, review] of layerReview) {
+      const override = overrides.get(key);
+      if (override !== undefined) {
+        if (override !== null) {
+          review.destination = byId.get(override);
+          if (!review.destination) missingLayerDestination = true;
+        }
+        continue;
+      }
       const existing = byExportedName.get(key) ?? byName.get(key);
       if (existing) {
         review.destination = existing;
@@ -304,19 +322,26 @@ function reviewDxfLayers(shapes: DxfShape[], currentLayers?: ProductionLayer[]) 
       review.created = true;
     }
   }
-  return { layerReview, unassignedCount, layerLimitExceeded, layers };
+  return { layerReview, unassignedCount, layerLimitExceeded, missingLayerDestination, layers };
 }
 
 export function prepareCadImport(
   editor: Editor,
   settings: CadSettings,
   text: string,
-  options: CadImportOptions & { groupName?: string; preserveLayers?: boolean },
+  options: CadImportOptions & DxfLayerOptions,
 ): CadImportPlan {
   assertCadEditable(editor);
-  const { shapes, ...plan } = readCadDxf(settings, text, options);
+  return planDxfImport(editor, readCadDxf(settings, text, options), options);
+}
+
+export function planDxfImport(editor: Editor, drawing: DxfDrawing, options: DxfLayerOptions): CadImportPlan {
+  assertCadEditable(editor);
+  const { shapes, ...plan } = drawing;
   const currentLayers = options.preserveLayers ? readProductionLayers(editor) : undefined;
-  const { layerReview, unassignedCount, layerLimitExceeded, layers } = reviewDxfLayers(shapes, currentLayers);
+  const { layerReview, unassignedCount, layerLimitExceeded, missingLayerDestination, layers } =
+    reviewDxfLayers(shapes, currentLayers, options.layerDestinations);
+  const blocked = plan.blocked || layerLimitExceeded || missingLayerDestination;
   return {
     ...plan,
     revision: cadRevision(editor),
@@ -327,8 +352,9 @@ export function prepareCadImport(
     layerReview: [...layerReview.values()],
     unassignedCount,
     layerLimitExceeded,
-    blocked: plan.blocked || layerLimitExceeded,
-    ...(layers && layerReview.size && !layerLimitExceeded ? { productionLayers: layers } : {}),
+    missingLayerDestination,
+    blocked,
+    ...(layers && !blocked && [...layerReview.values()].some(layer => layer.destination) ? { productionLayers: layers } : {}),
     ...(options.groupName ? { groupResult: true, groupName: options.groupName } : {}),
   };
 }

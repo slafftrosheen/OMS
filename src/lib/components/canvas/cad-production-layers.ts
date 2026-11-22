@@ -101,18 +101,22 @@ function projectLayerState(editor: Editor, page: TLPage, layers: ProductionLayer
 }
 
 /** Update definitions and project their policies inside the caller's drawing transaction. */
-export function applyProductionLayerDefinitions(editor: Editor, layers: ProductionLayer[]) {
+export function applyProductionLayerDefinitions(editor: Editor, layers: ProductionLayer[], assignments?: Map<TLShapeId, string | null>) {
   const page = editor.getCurrentPage();
   if (JSON.stringify(pageProductionLayers(page)) !== JSON.stringify(layers)) {
     editor.updatePage({ id: page.id, meta: { ...page.meta, [PAGE_KEY]: layers } });
     if (JSON.stringify(readProductionLayers(editor)) !== JSON.stringify(layers)) throw new Error('Production layers were not saved');
   }
-  projectLayerState(editor, page, layers);
+  projectLayerState(editor, page, layers, assignments);
+  if (assignments && [...assignments].some(([id, target]) => {
+    const shape = editor.getShape(id);
+    return !shape || productionLayerId(shape) !== (target ?? undefined);
+  })) throw new Error('Production layer assignments were not saved');
 }
 
-function writeProductionLayers(editor: Editor, layers: ProductionLayer[]): boolean {
+function writeProductionLayers(editor: Editor, layers: ProductionLayer[], assignments?: Map<TLShapeId, string | null>): boolean {
   if (editor.getInstanceState().isReadonly) return false;
-  return drawingTransaction(editor, () => { applyProductionLayerDefinitions(editor, layers); });
+  return drawingTransaction(editor, () => { applyProductionLayerDefinitions(editor, layers, assignments); });
 }
 
 export function installProductionLayers(editor: Editor): () => void {
@@ -168,6 +172,17 @@ export function updateProductionLayer(editor: Editor, id: string, changes: Parti
   const visible = changes.visible ?? current.visible, locked = changes.locked ?? current.locked;
   if (name === current.name && includeInDxf === current.includeInDxf && visible === current.visible && locked === current.locked) return true;
   return writeProductionLayers(editor, layers.map(layer => layer.id === id ? { id, name, includeInDxf, visible, locked } : layer));
+}
+
+/** Remove a definition and reassign all current members in the same undo step. */
+export function removeProductionLayer(editor: Editor, id: string, target: string | null): boolean {
+  if (editor.getInstanceState().isReadonly || id === target) return false;
+  const layers = readProductionLayers(editor);
+  if (!layers.some(layer => layer.id === id) || target !== null && !layers.some(layer => layer.id === target)) return false;
+  const assignments = new Map(editor.getCurrentPageShapesSorted()
+    .filter(shape => productionLayerId(shape) === id)
+    .map(shape => [shape.id, target]));
+  return writeProductionLayers(editor, layers.filter(layer => layer.id !== id), assignments);
 }
 
 const protectedLayerTypes = new Set(['order-details', 'order-address', 'profile-7st']);

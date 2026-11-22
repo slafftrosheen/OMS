@@ -237,6 +237,14 @@
 .drawing-cad-omissions { max-height: 176px; overflow: auto; padding-left: 16px; margin: 0 0 8px; font-size: 11px; }
 .drawing-cad-omissions li { margin-bottom: 8px; overflow-wrap: anywhere; }
 .drawing-cad-omissions strong, .drawing-cad-omissions span { display: block; }
+.drawing-cad-omissions .drawing-cad-field { margin: 4px 0; }
+.drawing-production-layer-removal {
+  grid-column: 1 / -1;
+  padding: 8px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
 .drawing-cad-omissions span { color: var(--ink-secondary); }
 
 /* Advanced CAD stays inside the same scrolling docker at every host size. */

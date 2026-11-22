@@ -7,7 +7,7 @@ export interface CanvasDxfRelease {
   curves: 'spline' | 'polyline';
   toleranceMm: number | null;
   colorLayers: boolean;
-  productionLayers?: { layerName: string | null; filtered: number };
+  productionLayers?: { layerName: string | null; filtered: number; preserveColors?: boolean };
   commonLines: boolean;
   omitted: number;
 }
@@ -28,7 +28,11 @@ export function readCanvasDxfRelease(value: unknown): CanvasDxfRelease | null {
   if (productionLayers !== undefined && (!productionLayers || typeof productionLayers !== 'object' || Array.isArray(productionLayers) ||
       (productionLayers.layerName !== null && (typeof productionLayers.layerName !== 'string' ||
         !productionLayers.layerName.trim() || productionLayers.layerName.length > 40)) ||
-      !Number.isSafeInteger(productionLayers.filtered) || productionLayers.filtered < 0 || productionLayers.filtered > 8000 || colorLayers)) return null;
+      !Number.isSafeInteger(productionLayers.filtered) || productionLayers.filtered < 0 || productionLayers.filtered > 8000 ||
+      (productionLayers.preserveColors !== undefined && typeof productionLayers.preserveColors !== 'boolean') || colorLayers)) return null;
   return { reviewId, revision, pageId, pageName, scope, curves, toleranceMm: toleranceMm ?? null, colorLayers, commonLines, omitted,
-    ...(productionLayers ? { productionLayers: { layerName: productionLayers.layerName, filtered: productionLayers.filtered } } : {}) };
+    ...(productionLayers ? { productionLayers: {
+      layerName: productionLayers.layerName, filtered: productionLayers.filtered,
+      ...(productionLayers.preserveColors === true ? { preserveColors: true } : {}),
+    } } : {}) };
 }

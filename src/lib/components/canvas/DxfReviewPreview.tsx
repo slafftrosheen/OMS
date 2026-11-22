@@ -32,9 +32,11 @@ export function DxfReviewPreview({ preview, layerLengths, formatLength }: DxfRev
       {visible.map(item => {
         const shared = sharedLayer(item.name), width = shared ? 2.5 : 1.5;
         return <g key={item.name} data-dxf-layer={item.name}>
-          {item.rgb && <path d={item.path} stroke="var(--ink-primary)" strokeWidth={width + 1.2} vectorEffect="non-scaling-stroke" />}
-          <path d={item.path} stroke={item.rgb ?? (shared ? 'var(--rf-cv-snap, #dc2626)' : 'var(--ink-primary)')}
-            strokeWidth={width} vectorEffect="non-scaling-stroke" />
+          {(item.colorPaths ?? [item]).map(({ path, rgb }) => <React.Fragment key={rgb ?? 'default'}>
+            {rgb && <path d={path} stroke="var(--ink-primary)" strokeWidth={width + 1.2} vectorEffect="non-scaling-stroke" />}
+            <path d={path} stroke={rgb ?? (shared ? 'var(--rf-cv-snap, #dc2626)' : 'var(--ink-primary)')}
+              strokeWidth={width} vectorEffect="non-scaling-stroke" />
+          </React.Fragment>)}
         </g>;
       })}
     </svg>

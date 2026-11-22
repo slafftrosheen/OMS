@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import { fixture } from '../helpers/cad-editor';
 import { buildCadDxf } from '../../src/lib/components/canvas/cad-dxf';
-import { prepareCadImport } from '../../src/lib/components/canvas/cad-import';
+import { planDxfImport, prepareCadImport, readCadDxf } from '../../src/lib/components/canvas/cad-import';
 import { applyCadPlan } from '../../src/lib/components/canvas/cad-plans';
 import {
   addProductionLayer, MAX_PRODUCTION_LAYERS, productionLayerId, readProductionLayers, updateProductionLayer,
@@ -72,6 +72,53 @@ describe('DXF production layer import', () => {
     assert.equal(editor.getCurrentPage().meta.retained, 'metadata');
   });
 
+  it('maps source names to existing layers or unassigned without rereading geometry', () => {
+    const { editor } = fixture();
+    const drawing = readCadDxf(settings, dxf([...line('Router'), ...line('router', 10), ...line('Notes', 20)]), options);
+    const legacy = planDxfImport(editor, drawing, options);
+    assert.equal(legacy.layerReview[0].destination?.name, 'Router');
+    const plan = planDxfImport(editor, drawing, {
+      ...options, layerDestinations: new Map<string, string | null>([['ROUTER', 'cut'], ['Notes', null]]),
+    });
+    assert.deepEqual(plan.layerReview.map(layer => [layer.count, layer.destination?.id]), [[2, 'cut'], [1, undefined]]);
+    assert.equal(plan.contours, legacy.contours);
+    assert.equal(plan.shapes![0].meta?.omsProductionLayer, 'cut');
+    assert.equal(plan.shapes![2].meta?.omsProductionLayer, undefined);
+    const unavailable = planDxfImport(editor, drawing, {
+      ...options, layerDestinations: new Map([['Notes', 'removed-layer']]),
+    });
+    assert.equal(unavailable.missingLayerDestination, true);
+    assert.equal(applyCadPlan(editor, unavailable), false);
+    assert.equal(applyCadPlan(editor, plan), true);
+    assert.equal(readProductionLayers(editor).length, 6);
+  });
+
+  it('round-trips exact colors per entity on one production layer without merging different colors', () => {
+    const { editor } = fixture();
+    const shape = (x: number, rgb: number) => [
+      0, 'LWPOLYLINE', 8, 'Cut', 420, rgb, 90, 4, 70, 1,
+      10, x, 20, 0, 10, x+30, 20, 0, 10, x+30, 20, 20, 10, x, 20, 20,
+    ];
+    const plan = prepareCadImport(editor, settings, dxf([...shape(0, 0xb01020), ...shape(30, 0x1670b4)]), options);
+    assert.equal(applyCadPlan(editor, plan), true);
+    const legacy = buildCadDxf(editor, 'all', settings, { productionLayers: {}, commonLines: true });
+    assert.match(legacy.text, /\r\nAC1015\r\n/);
+    assert.equal(legacy.sharedEdges, 1);
+    const exact = buildCadDxf(editor, 'all', settings, {
+      productionLayers: { preserveColors: true }, commonLines: true, includePreview: true,
+    });
+    assert.match(exact.text, /\r\nAC1018\r\n/);
+    assert.equal(exact.sharedEdges, 0);
+    assert.equal(exact.entities, 2);
+    assert.deepEqual(exact.layers.map(layer => layer.name), ['OMS_JOB_CUT']);
+    assert.deepEqual(exact.preview?.layers[0].colorPaths?.map(path => path.rgb), ['#B01020', '#1670B4']);
+    const readback = prepareCadImport(editor, settings, exact.text, options);
+    assert.deepEqual(readback.omitted, []);
+    assert.equal(readback.layerReview[0].destination?.id, 'cut');
+    const effectiveColor = (shape: NonNullable<typeof readback.shapes>[number]) => shape.meta?.omsVectorPaint.stroke;
+    assert.deepEqual(readback.shapes!.map(effectiveColor), ['#b01020', '#1670b4']);
+  });
+
   it('applies existing layer policies and invalidates a reviewed plan if the policy changes', () => {
     const { editor, shapes } = fixture();
     const drawing = dxf([...line('Print'), ...line('Engrave', 10)]);
@@ -97,6 +144,11 @@ describe('DXF production layer import', () => {
     assert.equal(preserved.layerLimitExceeded, true);
     assert.equal(applyCadPlan(editor, preserved), false);
     assert.equal(shapes.size, 0);
+    const reassigned = prepareCadImport(editor, settings, drawing, {
+      ...options, layerDestinations: new Map([['New layer', 'cut']]),
+    });
+    assert.equal(reassigned.layerLimitExceeded, false);
+    assert.equal(reassigned.shapes![0].meta?.omsProductionLayer, 'cut');
     const geometry = prepareCadImport(editor, settings, drawing, { keepCoordinates: true });
     assert.equal(geometry.layerReview[0].count, 1);
     assert.equal(applyCadPlan(editor, geometry), true);

@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
 import { buildDxfCommonLines } from '../../src/lib/components/canvas/cad-dxf-common-lines';
 import { buildCadDxf, CadDxfError, serializeCadDxf, type DxfEntity } from '../../src/lib/components/canvas/cad-dxf';
-import { addProductionLayer, assignProductionLayer, isProductionLayerHidden, isProductionLayerProtected, productionDxfNames, readProductionLayers, selectProductionLayer, updateProductionLayer } from '../../src/lib/components/canvas/cad-production-layers';
+import { addProductionLayer, assignProductionLayer, isProductionLayerHidden, isProductionLayerProtected, productionDxfNames, productionLayerId, readProductionLayers, removeProductionLayer, selectProductionLayer, updateProductionLayer } from '../../src/lib/components/canvas/cad-production-layers';
 import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
 import { fixture } from '../helpers/cad-editor';
 
@@ -67,6 +67,7 @@ describe('DXF cut preview', () => {
     assert.deepEqual(all.layers.map(layer => layer.name), ['OMS_JOB_CUT', 'OMS_JOB_ENGRAVE']);
     const cut = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: { only: 'cut' }, includePreview: true });
     assert.equal(cut.filteredByLayer, 3);
+    assert.deepEqual(cut.productionFilter, { unassigned: 1, excluded: 1, otherLayers: 1 });
     assert.equal(cut.entities, 1);
     assert.equal(cut.preview?.layers[0].name, 'OMS_JOB_CUT');
     assert.ok(cut.cutLengths?.byLayer.OMS_JOB_CUT);
@@ -77,6 +78,41 @@ describe('DXF cut preview', () => {
     assert.deepEqual(merged.layers.map(layer => layer.name), ['OMS_JOB_CUT']);
     state.isReadonly = true;
     assert.equal(assignProductionLayer(editor, 'bend'), false);
+  });
+
+
+  it('removes a hidden layer and moves its members without losing their geometry or native locks', () => {
+    const { editor, shapes, marks, state } = fixture();
+    const props = { points: [{ x: 0, y: 0 }, { x: 10, y: 0 }], closed: false };
+    editor.createShape({ id: 'shape:assembly', type: 'group' });
+    editor.createShape({ id: 'shape:member', type: 'cad-path', parentId: 'shape:assembly', opacity: 0.4, isLocked: true,
+      props, meta: { omsProductionLayer: 'cut' } });
+    assert.equal(updateProductionLayer(editor, 'cut', { visible: false }), true);
+    assert.equal(removeProductionLayer(editor, 'cut', 'missing'), false);
+    assert.equal(removeProductionLayer(editor, 'cut', 'cut'), false);
+    const mark = marks.length;
+    assert.equal(removeProductionLayer(editor, 'cut', 'bend'), true);
+    const moved = shapes.get('shape:member');
+    assert.equal(productionLayerId(moved), 'bend');
+    assert.equal(moved.opacity, 0.4);
+    assert.equal(moved.isLocked, true);
+    assert.equal(moved.parentId, 'shape:assembly');
+    assert.equal(shapes.get('shape:assembly').isLocked, false);
+    assert.equal(readProductionLayers(editor).some(layer => layer.id === 'cut'), false);
+    editor.bailToMark(marks[mark].id);
+    assert.equal(productionLayerId(shapes.get('shape:member')), 'cut');
+    assert.ok(isProductionLayerHidden(shapes.get('shape:member')));
+    const update = editor.updateShapes;
+    editor.updateShapes = () => {};
+    assert.equal(removeProductionLayer(editor, 'cut', null), false);
+    assert.equal(productionLayerId(shapes.get('shape:member')), 'cut');
+    assert.ok(readProductionLayers(editor).some(layer => layer.id === 'cut'));
+    editor.updateShapes = update;
+    assert.equal(removeProductionLayer(editor, 'cut', null), true);
+    assert.equal(productionLayerId(shapes.get('shape:member')), undefined);
+    assert.equal(shapes.size, 2);
+    state.isReadonly = true;
+    assert.equal(removeProductionLayer(editor, 'bend', null), false);
   });
 
   it('keeps production layer changes undoable and gives colliding DXF names distinct identifiers', () => {

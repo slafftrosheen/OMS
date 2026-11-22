@@ -25,7 +25,8 @@ import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping, type CadShapingOptions } from './cad-shaping';
 import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
-import { prepareCadImport, type CadImportPlan } from './cad-import';
+import { planDxfImport, readCadDxf, type CadImportPlan, type DxfDrawing } from './cad-import';
+import { readProductionLayers } from './cad-production-layers';
 
 export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
@@ -553,7 +554,10 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
   const [preserveLayers, setPreserveLayers] = useState(false);
   const [projection,setProjection]=useState<'strict'|'xy'|'xz'|'yz'>('strict');
   const [font,setFont]=useState<'sans'|'serif'|'mono'|'custom'>('sans');const [fontFile,setFontFile]=useState<File>();
-  const [review, setReview] = useState<Review<CadImportPlan> | null>(null); const [acknowledged, setAcknowledged] = useState(false);
+  const [review, setReview] = useState<(Review<CadImportPlan> & { drawing: DxfDrawing }) | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [layerDestinations, setLayerDestinations] = useState(() => new Map<string, string | null>());
+  const productionLayers = useValue('DXF import layers', () => readProductionLayers(editor), [editor]);
   const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false); const [busy, setBusy] = useState(false);
   const request = useRef(0); const alive = useRef(true);
   const section = useRef<HTMLDetailsElement>(null);
@@ -572,6 +576,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
     if (!focusRequest.file || disabled) return;
     request.current++; setBusy(false); setFile(focusRequest.file);
     setDropPoint(focusRequest.dropPoint); setKeepCoordinates(!focusRequest.dropPoint);
+    setLayerDestinations(new Map());
     setReview(null); setAcknowledged(false); setMessage('');
     if (input.current) input.current.value = '';
   }, [focusRequest, disabled]);
@@ -588,12 +593,29 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
         ? await getCadFont(font, fontData).catch(() => undefined) : undefined;
       if (!alive.current || id !== request.current) return;
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
-      const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates,
-        centerAt: dropPoint, groupName: group ? file.name : undefined, preserveLayers, font: selectedFont, projection });
+      const drawing = readCadDxf(settings, content, { unit: unit || undefined, keepCoordinates,
+        centerAt: dropPoint, font: selectedFont, projection });
+      const plan = planDxfImport(editor, drawing, { groupName: group ? file.name : undefined, preserveLayers, layerDestinations });
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
-      setReview({ plan, inputKey: key });
+      setReview({ drawing, plan, inputKey: key });
     } catch (error) { if (alive.current && id === request.current) { setFailed(true); setMessage(errorLabel(error, 'invalidDxf')); } }
     finally { if (alive.current && id === request.current) setBusy(false); }
+  }
+  function changeDestination(source: string, choice: string) {
+    if (!review || disabled || busy || review.inputKey !== inputKey || review.plan.revision !== cadRevision(editor) || !canChange(editor, false)) return;
+    const next = new Map(layerDestinations);
+    if (choice === 'auto') next.delete(source.toUpperCase());
+    else next.set(source.toUpperCase(), choice === 'none' ? null : choice.slice('layer:'.length));
+    try {
+      const plan = planDxfImport(editor, review.drawing, { groupName: group ? file?.name : undefined, preserveLayers, layerDestinations: next });
+      setLayerDestinations(next);
+      setAcknowledged(false);
+      setMessage('');
+      setReview({ ...review, plan });
+    } catch (error) {
+      setFailed(true);
+      setMessage(errorLabel(error, 'invalidDxf'));
+    }
   }
   return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-import">
     <summary>{label('import')}</summary>
@@ -602,6 +624,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings || busy}>
         <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept=".dxf,application/dxf,image/vnd.dxf" onChange={event => {
           request.current++; setFile(event.target.files?.[0]); setDropPoint(undefined); setKeepCoordinates(true);
+          setLayerDestinations(new Map());
           setReview(null); setMessage(''); setAcknowledged(false);
         }} /></label>
         {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
@@ -629,16 +652,32 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
       <dl className="drawing-cad-values"><dt>{label('sourceUnit')}</dt><dd>{review.plan.sourceUnit || '—'}</dd><dt>{label('omitted')}</dt><dd>{review.plan.omitted.length}</dd></dl>
       {review.plan.requiresUnit && <Message value="chooseUnit" error />}
       {review.plan.layerLimitExceeded && <Message value="importLayerLimit" error />}
+      {review.plan.missingLayerDestination && <Message value="importDestinationUnavailable" error />}
       {!!review.plan.layerReview.length && <details open={preserveLayers}>
         <summary>{label('importLayers')} ({review.plan.layerReview.length})</summary>
-        <ul className="drawing-cad-omissions">{review.plan.layerReview.map(layer => <li key={layer.sourceName}>
-          <strong>{layer.sourceName} ({layer.count})</strong>
-          {layer.destination && <span>{layer.destination.name}{layer.created && ` · ${label('importLayerNew')}`}
-            {!layer.destination.visible && ` · ${label('importLayerHidden')}`}
-            {layer.destination.locked && ` · ${label('importLayerLocked')}`}
-            {!layer.destination.includeInDxf && ` · ${label('importLayerExcluded')}`}
-          </span>}
-        </li>)}</ul>
+        <ul className="drawing-cad-omissions">{review.plan.layerReview.map(layer => {
+          const choice = layerDestinations.get(layer.sourceName.toUpperCase());
+          const value = choice === undefined ? 'auto' : choice === null ? 'none' : `layer:${choice}`;
+          return <li key={layer.sourceName}>
+            <strong>{layer.sourceName} ({layer.count})</strong>
+            {preserveLayers && <Field label={label('importDestination')}>
+              <select aria-label={`${label('importDestination')} · ${layer.sourceName}`} value={value}
+                disabled={disabled || busy || review.plan.revision !== revision || review.inputKey !== inputKey}
+                onChange={event => changeDestination(layer.sourceName, event.target.value)}>
+                <option value="auto">{label('automatic')}</option>
+                <option value="none">{label('importDestinationUnassigned')}</option>
+                {choice && !productionLayers.some(item => item.id === choice) &&
+                  <option value={value} disabled>{label('importDestinationUnavailable')}</option>}
+                {productionLayers.map(item => <option key={item.id} value={`layer:${item.id}`}>{item.name}</option>)}
+              </select>
+            </Field>}
+            {layer.destination && <span>{layer.destination.name}{layer.created && ` · ${label('importLayerNew')}`}
+              {!layer.destination.visible && ` · ${label('importLayerHidden')}`}
+              {layer.destination.locked && ` · ${label('importLayerLocked')}`}
+              {!layer.destination.includeInDxf && ` · ${label('importLayerExcluded')}`}
+            </span>}
+          </li>;
+        })}</ul>
       </details>}
       {!!review.plan.unassignedCount && <p className="drawing-help">{label('importLayerZero')} ({review.plan.unassignedCount})</p>}
       {review.plan.omitted.length || review.plan.warnings.length ? <>
