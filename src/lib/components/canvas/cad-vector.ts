@@ -1,7 +1,7 @@
 import { transformAppearance } from "./cad-appearance";
 import type { Editor } from "@tldraw/tldraw";
 import { getDefaultColorTheme } from "@tldraw/tldraw";
-import { mapContours, validContours, type CadContour } from "./cad-curves";
+import { curveBounds, mapContours, validContours, type CadContour } from "./cad-curves";
 import {
   makeCadPlan,
   assertCadEditable,
@@ -41,6 +41,7 @@ export function prepareVectorImport(
   name: string,
   sourceIds: string[] = [],
   removeIds: string[] = [],
+  options: { center?: boolean; group?: boolean } = {},
 ): CadPlan {
   assertCadEditable(editor, sourceIds);
   if (
@@ -48,23 +49,29 @@ export function prepareVectorImport(
       (n) => Number.isFinite(n) && n > 0,
     ) ||
     widthMm > 1e6 ||
-    !document.paths.length
+    !document.paths.length || ![point.x, point.y].every(Number.isFinite)
   )
     throw new CadOperationError("geometry");
   const scale = widthMm / document.width / cadMmPerPixel(settings);
+  let { x, y } = point;
+  if (options.center) {
+    const bounds = curveBounds(document.paths.flatMap(path => path.contours));
+    x -= (bounds.x + bounds.w / 2) * scale;
+    y -= (bounds.y + bounds.h / 2) * scale;
+  }
   const paths = document.paths.map((p) => ({
     ...p,
     contours: mapContours(p.contours, (q) => ({
-      x: point.x + q.x * scale,
-      y: point.y + q.y * scale,
+      x: x + q.x * scale,
+      y: y + q.y * scale,
     })),
     paint: transformAppearance(scalePaint(p.paint, scale), [
       1,
       0,
       0,
       1,
-      point.x,
-      point.y,
+      x,
+      y,
     ]),
   }));
   if (
@@ -80,6 +87,7 @@ export function prepareVectorImport(
       sourceIds,
       removeIds,
       warnings: document.warnings,
+      groupResult: options.group,
       shapes: paths.map((p, i) => ({
         type: "cad-bezier",
         x: 0,

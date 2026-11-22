@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import { buildCadDxf, serializeCadDxf } from '../../src/lib/components/canvas/cad-dxf';
-import { CAD_CURVE_NODE_LIMIT, nodeAt, type CadContour } from '../../src/lib/components/canvas/cad-curves';
+import { CAD_CURVE_NODE_LIMIT, curveBounds, nodeAt, type CadContour } from '../../src/lib/components/canvas/cad-curves';
 import { cadMmPerPixel } from '../../src/lib/components/canvas/cad-settings';
-import { readCadDxf } from '../../src/lib/components/canvas/cad-import';
+import { prepareCadImport, readCadDxf } from '../../src/lib/components/canvas/cad-import';
+import { prepareVectorImport } from '../../src/lib/components/canvas/cad-vector';
 import { VECTOR_DEFAULT_PAINT } from '../../src/lib/components/canvas/cad-paint';
 import { DEFAULT_CAD_SETTINGS as settings } from '../../src/lib/components/canvas/cad-settings';
 import { DRAWING_UI_REQUEST, isDrawingUiRequest, routeCanvasCadImport } from '../../src/lib/components/canvas/drawing-ui-requests';
@@ -32,6 +33,39 @@ function exportEditor(shapes: any[]) {
 }
 
 describe('CAD interchange regressions', () => {
+  it('centers imported geometry at an explicit point without changing scale, paint, or source coordinates on request', () => {
+    const dropPoint = { x: -420, y: 185 };
+    const { text } = serializeCadDxf([{ type: 'spline', contour: curve }]);
+    const original = readCadDxf(settings, text, { keepCoordinates: true });
+    const editor = {
+      getInstanceState: () => ({ isReadonly: false }),
+      getShapeAndDescendantIds: () => new Set(),
+      getCurrentPage: () => ({ id: 'page:test' }),
+      getCurrentPageShapesSorted: () => [],
+      getSelectedShapeIds: () => [],
+    } as any;
+    const placed = prepareCadImport(editor, settings, text, {
+      keepCoordinates: false, centerAt: dropPoint, groupName: 'Sample.dxf',
+    });
+    const bounds = curveBounds(placed.contours);
+    assert.ok(Math.hypot(bounds.x + bounds.w / 2 - dropPoint.x, bounds.y + bounds.h / 2 - dropPoint.y) < 1e-9);
+    assert.deepEqual([placed.widthMm, placed.heightMm], [original.widthMm, original.heightMm]);
+    assert.deepEqual([placed.groupResult, placed.groupName], [true, 'Sample.dxf']);
+    const retained = readCadDxf(settings, text, { keepCoordinates: true, centerAt: dropPoint });
+    assert.deepEqual(retained, original);
+
+    const paths = ['#ff0000', '#0000ff'].map(stroke => ({
+      contours: [curve], fillRule: 'nonzero' as const, paint: { ...VECTOR_DEFAULT_PAINT, stroke },
+    }));
+    const vector = prepareVectorImport(editor, settings, {
+      width: 500, height: 500, warnings: [], paths,
+    }, 100, dropPoint, 'Sample.cdr · 1', [], [], { center: true, group: true });
+    const ink = curveBounds(vector.contours);
+    assert.ok(Math.hypot(ink.x + ink.w / 2 - dropPoint.x, ink.y + ink.h / 2 - dropPoint.y) < 1e-9);
+    assert.ok(Math.abs(vector.widthMm - 20) < 1e-9);
+    assert.equal(vector.groupResult, true);
+    assert.deepEqual(vector.shapes?.map(shape => shape.meta?.omsVectorPaint.stroke), ['#ff0000','#0000ff']);
+  });
   it('round-trips a maximum-size closed Bézier contour with exact handles even in explicit projection', () => {
     const nodes = Array.from({ length: CAD_CURVE_NODE_LIMIT }, (_, index) => {
       const angle = index * 2 * Math.PI / CAD_CURVE_NODE_LIMIT;
@@ -101,7 +135,9 @@ describe('CAD interchange regressions', () => {
     const cdr = new File(['CDR'], 'drawing.CDR');
     assert.equal(routeCanvasCadImport(editor, [dxf]), true);
     assert.equal(routeCanvasCadImport(editor, [eps]), true);
-    assert.equal(routeCanvasCadImport(editor, [cdr]), true);
+    const point = { x: -125, y: 90 };
+    assert.equal(routeCanvasCadImport(editor, [cdr], point), true);
+    point.x = 0;
     assert.equal(routeCanvasCadImport(editor, [dxf, eps]), false);
     assert.equal(routeCanvasCadImport(editor, [new File(['PDF'], 'page.pdf')]), false);
     state.isReadonly = true;
@@ -110,7 +146,8 @@ describe('CAD interchange regressions', () => {
     assert.deepEqual(received, [
       { kind: 'cad', action: 'importDxf', file: dxf },
       { kind: 'cad', action: 'importVector', file: eps },
-      { kind: 'cad', action: 'importVector', file: cdr },
+      { kind: 'cad', action: 'importVector', file: cdr, dropPoint: { x: -125, y: 90 } },
     ]);
+    assert.equal(isDrawingUiRequest({ kind: 'cad', action: 'importVector', file: cdr, dropPoint: { x: Infinity, y: 0 } }), false);
   });
 });

@@ -25,7 +25,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -488,6 +488,8 @@ function Shaping({ settings, revision, disabled, focus, sequence, requestedOpera
 function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps & { focusRequest?: CadFocusRequest }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const [file, setFile] = useState<File>(); const [unit, setUnit] = useState<CadUnit | ''>(''); const [keepCoordinates, setKeepCoordinates] = useState(true);
+  const [dropPoint, setDropPoint] = useState<CadFocusRequest['dropPoint']>();
+  const [group, setGroup] = useState(false);
   const [projection,setProjection]=useState<'strict'|'xy'|'xz'|'yz'>('strict');
   const [font,setFont]=useState<'sans'|'serif'|'mono'|'custom'>('sans');const [fontFile,setFontFile]=useState<File>();
   const [review, setReview] = useState<Review<CadImportPlan> | null>(null); const [acknowledged, setAcknowledged] = useState(false);
@@ -496,7 +498,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const consumedFocus = useRef<number>();
-  const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, projection, font, fontFile?.name, fontFile?.lastModified, settings]);
+  const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, dropPoint, group, projection, font, fontFile?.name, fontFile?.lastModified, settings]);
   const currentKey = useRef(inputKey); currentKey.current = inputKey;
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   useEffect(() => { request.current++; setBusy(false); setAcknowledged(false); }, [revision, inputKey]);
@@ -508,6 +510,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
     section.current.scrollIntoView?.({ block: 'nearest' });
     if (!focusRequest.file || disabled) return;
     request.current++; setBusy(false); setFile(focusRequest.file);
+    setDropPoint(focusRequest.dropPoint); setKeepCoordinates(!focusRequest.dropPoint);
     setReview(null); setAcknowledged(false); setMessage('');
     if (input.current) input.current.value = '';
   }, [focusRequest, disabled]);
@@ -524,7 +527,8 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
         ? await getCadFont(font, fontData).catch(() => undefined) : undefined;
       if (!alive.current || id !== request.current) return;
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
-      const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates, font:selectedFont, projection });
+      const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates,
+        centerAt: dropPoint, groupName: group ? file.name : undefined, font: selectedFont, projection });
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
       setReview({ plan, inputKey: key });
     } catch (error) { if (alive.current && id === request.current) { setFailed(true); setMessage(errorLabel(error, 'invalidDxf')); } }
@@ -535,17 +539,22 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
     <p className="drawing-help">{label('importHelp')}</p>
     <form onSubmit={event => { event.preventDefault(); void prepare(); }} aria-busy={busy}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings || busy}>
-        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept=".dxf,application/dxf,image/vnd.dxf" onChange={event => { request.current++; setFile(event.target.files?.[0]); setReview(null); setMessage(''); setAcknowledged(false); }} /></label>
+        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept=".dxf,application/dxf,image/vnd.dxf" onChange={event => {
+          request.current++; setFile(event.target.files?.[0]); setDropPoint(undefined); setKeepCoordinates(true);
+          setReview(null); setMessage(''); setAcknowledged(false);
+        }} /></label>
         {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
         <Field label={label('sourceUnit')}><select value={unit} onChange={event => { setUnit(event.target.value as typeof unit); setMessage(''); }}><option value="">{label('automatic')}</option>{(['mm', 'cm', 'm', 'in'] as const).map(value => <option key={value} value={value}>{value}</option>)}</select></Field>
         <Field label={label('projection')}><select value={projection} onChange={event=>setProjection(event.target.value as typeof projection)}>{(['strict','xy','xz','yz'] as const).map(value=><option key={value} value={value}>{label(value==='strict'?'projection2d':value==='xy'?'projectionTop':value==='xz'?'projectionFront':'projectionSide')}</option>)}</select></Field>
         <Field label={label('importFont')}><select value={font} onChange={event=>setFont(event.target.value as typeof font)}>{(['sans','serif','mono','custom'] as const).map(value=><option key={value} value={value}>{label(value==='custom'?'custom':value)}</option>)}</select></Field>
         {font==='custom'&&<Field label={label('fontFile')}><input type="file" accept=".ttf,.otf,.woff,.woff2" onChange={event=>setFontFile(event.target.files?.[0])}/></Field>}
         <label className="drawing-cad-check"><input type="checkbox" checked={keepCoordinates} onChange={event => setKeepCoordinates(event.target.checked)} /><span>{label('keepCoordinates')}</span></label>
+        {!keepCoordinates && dropPoint && <p className="drawing-help">{label('dropPlacement')}</p>}
+        <label className="drawing-cad-check"><input type="checkbox" checked={group} onChange={event => setGroup(event.target.checked)} /><span>{label('groupImport')}</span></label>
         <button type="submit" disabled={!file}>{label('preview')}</button>
       </fieldset>
     </form>
-    <p className="drawing-help">{label('coordinatesHelp')}</p>
+    {!dropPoint && <p className="drawing-help">{label('coordinatesHelp')}</p>}
     {busy && <Message value="preparing" />}
     {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.requiresUnit || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => {
       setFailed(!success); setMessage(success ? 'applied' : 'failed');

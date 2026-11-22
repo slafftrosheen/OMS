@@ -218,7 +218,7 @@ function Preview({
 export { RasterTrace } from "./RasterTrace";
 
 export function VectorImport({ settings, revision, disabled, focusRequest }: Props & {
-  focusRequest?: { sequence: number; file?: File };
+  focusRequest?: { sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 }) {
   const editor = useEditor(),
     t = useVectorText(),
@@ -229,12 +229,18 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
     [mode,setMode]=useState<"auto"|"editable"|"appearance">("auto"),
     [dpi,setDpi]=useState(300),
     [review, setReview] = useState<Review>();
+  const [dropPoint, setDropPoint] = useState<{ x: number; y: number }>();
+  const [group, setGroup] = useState(true);
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const consumedFocus = useRef<number>();
   const automaticOutlines = /\.(?:eps|cdr)$/i.test(file?.name ?? '');
-  function chooseFile(next?: File) {
+  const singlePage = /\.eps$/i.test(file?.name ?? '');
+  const pageNumber = Number(page);
+  const validPage = singlePage || Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= 5000;
+  function chooseFile(next?: File, point?: { x: number; y: number }) {
     setFile(next);
+    setDropPoint(point);
     setPage('1');
     setMode(/\.(?:eps|cdr)$/i.test(next?.name ?? '') ? 'editable' : 'auto');
     setReview(undefined);
@@ -248,14 +254,15 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
     section.current.scrollIntoView?.({ block: 'nearest' });
     if (!focusRequest.file || disabled) return;
     work.cancel();
-    chooseFile(focusRequest.file);
+    chooseFile(focusRequest.file, focusRequest.dropPoint);
     if (input.current) input.current.value = '';
   }, [focusRequest, disabled]);
   const key = JSON.stringify([
     file?.name,
+    file?.size,
     file?.lastModified,
     page,
-    outline, mode, dpi,
+    outline, mode, dpi, group, dropPoint,
     settings,
   ]);
   return (
@@ -282,10 +289,12 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
             max="5000"
             step="1"
             value={page}
-            disabled={/\.eps$/i.test(file?.name ?? "")}
+            disabled={singlePage}
+            aria-invalid={file && !validPage ? true : undefined}
             onChange={(e) => setPage(e.target.value)}
           />
         </Field>
+        {file && !validPage && <p className="drawing-help is-error" role="alert">{t('pageError')}</p>}
         <Field label={t('pdfMode')}><select value={mode} onChange={event=>setMode(event.target.value as typeof mode)}><option value="auto">{t('pdfAuto')}</option><option value="editable">{t('pdfEditable')}</option><option value="appearance">{t('pdfAppearance')}</option></select></Field>
         {mode!=='editable'&&<Field label={t('renderDpi')}><select value={dpi} onChange={event=>setDpi(Number(event.target.value))}>{[72,150,300,600].map(value=><option key={value} value={value}>{value} DPI</option>)}</select></Field>}
         <label className="drawing-vector-check">
@@ -297,17 +306,24 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           />
           {t("outline")}
         </label>
+        <label className="drawing-vector-check">
+          <input type="checkbox" checked={group} onChange={event=>setGroup(event.target.checked)} />
+          {t("groupImport")}
+        </label>
+        {dropPoint && <p className="drawing-help">{t('dropPlacement')}</p>}
         <button
           type="button"
-          disabled={!file}
+          disabled={!file || !validPage}
           onClick={() =>
             void work.run(async (signal) => {
               setReview(undefined);
-              if (!file || !settings) return;
+              if (!file || !settings || !validPage) return;
               const before = cadRevision(editor);
+              const center = dropPoint ?? editor.getViewportPageBounds().center;
               const { body, kind } = await vectorUploadPayload(file);
               let bytes: Uint8Array;
-              let selectedPage = kind === "eps" ? 1 : Number(page);
+              const sourcePage = kind === "eps" ? 1 : pageNumber;
+              let selectedPage = sourcePage;
               if (kind === "eps" || kind === "cdr" || outline) {
                 const response = await fetch(
                   `${base}/api/canvas/convert-vector?page=${selectedPage}`,
@@ -347,8 +363,11 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
                 settings,
                 result.document,
                 result.widthMm,
-                editor.getViewportPageBounds().center,
-                `${file.name} · ${page}`,
+                center,
+                `${file.name} · ${sourcePage}`,
+                [],
+                [],
+                { center: true, group },
               );
               setReview({ plan, key, original: result.preview });
             })

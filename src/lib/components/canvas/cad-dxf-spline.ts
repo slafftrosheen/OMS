@@ -2,7 +2,7 @@ import type { DxfPair } from "./cad-dxf-decode";
 import type { CadPoint } from "./cad-settings";
 import { CadOperationError } from "./cad-plans";
 import { CAD_CURVE_NODE_LIMIT } from "./cad-curves";
-import { fitOpenCubic } from "./cad-fit-spline";
+import { fitClosedCubic, fitOpenCubic } from "./cad-fit-spline";
 import { isExpandedCubicChain, MAX_CUBIC_CHAIN_CONTROLS, splineContours, type SplineContours } from "./cad-nurbs";
 
 /**
@@ -53,7 +53,7 @@ export function readDxfSpline(pairs: DxfPair[]) {
       !isExpandedCubicChain(controls.length, knots, degree, weights))
     throw new CadOperationError("spline-limit");
   if (!controls.length && fitPoints.length >= 2) {
-    if (degree !== 3 || flags & (1 | 2 | 4 | 16) || knots.length)
+    if (degree !== 3 || flags & (4 | 16) || knots.length)
       throw new CadOperationError("spline-fit-only");
     const z = values(31, "spline-fit-points");
     if (z.length && z.length !== fitPoints.length) throw new CadOperationError("spline-fit-points");
@@ -65,8 +65,11 @@ export function readDxfSpline(pairs: DxfPair[]) {
       if (Math.abs(elevation[0] ?? 0) > 1e-8) throw new CadOperationError("unsupported");
       return pair[0];
     };
-    return { controls, knots, weights: undefined, degree, closed: false,
-      fit: { points: fitPoints, start: tangent(12), end: tangent(13) } };
+    const closed = !!(flags & 3);
+    const start = tangent(12), end = tangent(13);
+    if (closed && (start?.x || start?.y || end?.x || end?.y))
+      throw new CadOperationError("spline-fit-only");
+    return { controls, knots, weights: undefined, degree, closed, fit: { points: fitPoints, start, end } };
   }
   if (!controls.length) throw new CadOperationError("spline-control-points");
   return { controls, knots, weights: weights.length ? weights : undefined, degree, closed: !!(flags & 3) };
@@ -76,7 +79,8 @@ export function dxfSplineContours(pairs: DxfPair[], tolerance: number): SplineCo
   const data = readDxfSpline(pairs);
   if (data.fit) {
     const { points, start, end } = data.fit;
-    return { contours: [fitOpenCubic(points, start, end)], approximated: false, reconstructed: true };
+    return { contours: [data.closed ? fitClosedCubic(points) : fitOpenCubic(points, start, end)],
+      approximated: false, reconstructed: true };
   }
   try {
     return splineContours(data.controls, data.weights, data.knots, data.degree, data.closed, tolerance, {

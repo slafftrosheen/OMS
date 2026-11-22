@@ -1,4 +1,5 @@
 import type { Editor } from '@tldraw/tldraw';
+import type { CadPoint } from './cad-settings';
 
 // Editor-local navigation keeps a menu in one drawing from opening another
 // drawing's docker. Commands still run through DrawingChrome's fresh guards.
@@ -12,16 +13,20 @@ const objects = ['relative', 'reverse'] as const;
 export type DrawingUiRequest =
   | { kind: 'command'; action: typeof commands[number] }
   | { kind: 'panel'; action: typeof panels[number] }
-  | { kind: 'cad'; action: typeof cad[number]; file?: File }
+  | { kind: 'cad'; action: typeof cad[number]; file?: File; dropPoint?: CadPoint }
   | { kind: 'objects'; action: typeof objects[number] };
 
 export function isDrawingUiRequest(value: unknown): value is DrawingUiRequest {
   if (!value || typeof value !== 'object') return false;
-  const request = value as { kind?: unknown; action?: unknown; file?: unknown };
+  const request = value as { kind?: unknown; action?: unknown; file?: unknown; dropPoint?: unknown };
   if (typeof request.action !== 'string') return false;
   if (request.file !== undefined &&
       (request.kind !== 'cad' || !['importDxf', 'importVector'].includes(request.action) ||
         typeof File === 'undefined' || !(request.file instanceof File))) return false;
+  if (request.dropPoint !== undefined) {
+    const point = request.dropPoint as Partial<CadPoint> | null;
+    if (!request.file || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+  }
   const actions: readonly string[] | undefined = request.kind === 'command' ? commands
     : request.kind === 'panel' ? panels : request.kind === 'cad' ? cad : request.kind === 'objects' ? objects : undefined;
   return !!actions?.includes(request.action);
@@ -32,11 +37,13 @@ export function requestDrawingUi(editor: Editor, request: DrawingUiRequest): voi
 }
 
 /** A single production drawing on the work area opens a review before insertion. */
-export function routeCanvasCadImport(editor: Editor, files: readonly File[]): boolean {
+export function routeCanvasCadImport(editor: Editor, files: readonly File[], point?: CadPoint): boolean {
   if (files.length !== 1 || editor.getInstanceState().isReadonly) return false;
   const [file] = files;
   const action = /\.dxf$/i.test(file.name) ? 'importDxf' : /\.(?:eps|cdr)$/i.test(file.name) ? 'importVector' : null;
   if (!action) return false;
-  requestDrawingUi(editor, { kind: 'cad', action, file });
+  const dropPoint = point && Number.isFinite(point.x) && Number.isFinite(point.y)
+    ? { x: point.x, y: point.y } : undefined;
+  requestDrawingUi(editor, { kind: 'cad', action, file, ...(dropPoint ? { dropPoint } : {}) });
   return true;
 }

@@ -701,12 +701,12 @@ export function DrawingChrome() {
     };
   }, [toolGroup, context?.hosts.tools]);
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
-  function focusCad(section: CadFocusRequest['section'], file?: File) {
+  function focusCad(section: CadFocusRequest['section'], file?: File, dropPoint?: CadFocusRequest['dropPoint']) {
     if (section === 'nodes' || section === 'nodeArrange' || section === 'nodeReduce' || section === 'convert') {
       editor.complete(); editor.setCurrentTool('select'); setCadNodeEditing(editor, true);
     }
     context?.setPanel('cad'); closeMenus();
-    setCadFocus(previous => ({ section, file, sequence: (previous?.sequence ?? 0) + 1 }));
+    setCadFocus(previous => ({ section, file, dropPoint, sequence: (previous?.sequence ?? 0) + 1 }));
   }
   function compound(operation: CadCompoundOperation) {
     const settings = readCadSettings(editor);
@@ -782,7 +782,7 @@ export function DrawingChrome() {
       if (!isDrawingUiRequest(request)) return;
       setToolGroup(null); closeMenus();
       if (request.kind === 'command') command(request.action);
-      else if (request.kind === 'cad') focusCad(request.action, request.file);
+      else if (request.kind === 'cad') focusCad(request.action, request.file, request.dropPoint);
       else if (request.kind === 'objects') {
         if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
       }

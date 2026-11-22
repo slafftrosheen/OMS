@@ -115,6 +115,8 @@ const en = {
   importHatchBoundary: "Pattern/gradient hatch boundary curves were retained. Their hatch pattern/fill appearance is not reproduced.",
   importApproximation: "Polyline bulges, partial ellipses and rational or higher-degree splines were approximated within 0.002 mm. Spline approximations use editable line segments; review them before cutting.",
   importFitSplineReconstructed: "Some splines contained fit points only. OMS created editable Béziers through those points. The shape between points may differ from the source, so compare it before cutting.",
+  groupImport: "Keep imported objects together",
+  dropPlacement: "Geometry is centered at the drop point.",
   warning: 'Review required', approximated: 'Curves were approximated within the chosen tolerance.', unsupportedFont: 'The selected font or text layout cannot be outlined.',
   unrecognizedWarning: 'This result has a preparation warning. Inspect the geometry before applying.',
 } as const;
@@ -232,6 +234,8 @@ const ru: Dictionary = {
   importHatchBoundary: "Контуры штриховок/градиентных заливок сохранены. Их узор и вид заливки не воспроизведены.",
   importApproximation: "Дуги полилиний, части эллипсов, рациональные сплайны и сплайны высокой степени аппроксимированы с допуском 0,002 мм. Аппроксимация сплайнов состоит из редактируемых отрезков; проверьте их перед резкой.",
   importFitSplineReconstructed: "Некоторые сплайны содержат только точки интерполяции. OMS построил через них редактируемые кривые Безье. Сравните форму между точками с оригиналом перед резкой.",
+  groupImport: "Сгруппировать импортированные объекты",
+  dropPlacement: "Геометрия будет центрирована в точке перетаскивания.",
   warning: 'Требуется проверка', approximated: 'Кривые аппроксимированы с выбранным допуском.', unsupportedFont: 'Шрифт или размещение выбранного текста нельзя преобразовать в контуры.',
   unrecognizedWarning: 'При подготовке результата возникло предупреждение. Проверьте геометрию перед применением.',
 };
@@ -348,6 +352,8 @@ const lv: Dictionary = {
   importHatchBoundary: "Rakstu/gradientu iesvītrojuma kontūras saglabātas. Raksts un aizpildījuma izskats nav atveidots.",
   importApproximation: "Polilīniju loki, daļējas elipses un racionāli vai augstākas pakāpes splaini aproksimēti ar 0,002 mm pielaidi. Splainu aproksimācijās ir rediģējami nogriežņi; pārbaudiet tos pirms griešanas.",
   importFitSplineReconstructed: "Dažiem splainiem bija tikai interpolācijas punkti. OMS izveidoja rediģējamas Bezjē līknes caur šiem punktiem. Pirms griešanas salīdziniet formu starp punktiem ar oriģinālu.",
+  groupImport: "Grupēt importētos objektus",
+  dropPlacement: "Ģeometrija tiks centrēta nomešanas vietā.",
   warning: 'Nepieciešama pārbaude', approximated: 'Līknes aproksimētas izvēlētās pielaides robežās.', unsupportedFont: 'Atlasītā teksta fontu vai izkārtojumu nevar pārveidot kontūrās.',
   unrecognizedWarning: 'Rezultāta sagatavošanā radās brīdinājums. Pirms lietošanas pārbaudiet ģeometriju.',
 };
