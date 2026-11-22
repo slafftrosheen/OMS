@@ -169,18 +169,52 @@ describe('Fit to production sheet', () => {
     assert.equal(f.shapes.size, 2);
   });
 
-  it('reports a capped layout and still enforces the editor capacity', () => {
+  it('reports axis limits and reduces oversized multi-object layouts to the largest complete grid', () => {
     const f = sheetFixture();
     f.sheet.widthMm = 3000; f.sheet.heightMm = 6000;
     f.editor.setSelectedShapes([f.a.id]);
     const result = prepareRepeatGrid(f.editor, options, f.selected());
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.value.sheet?.capped, true);
+    assert.equal(result.value.sheet?.limit, 'axis');
     assert.deepEqual([result.value.rows, result.value.columns, result.value.generated], [20, 20, 399]);
     f.editor.setSelectedShapes([f.a.id, f.b.id]);
+    const limited = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(limited.ok, true);
+    if (!limited.ok) return;
+    assert.equal(limited.value.sheet?.limit, 'capacity');
+    assert.deepEqual([limited.value.rows, limited.value.columns, limited.value.generated], [13, 19, 492]);
+    assert.equal(f.shapes.size, 2);
+  });
+
+  it('honors payload capacity, keeping whole copies of the original selection', () => {
+    const f = sheetFixture();
+    const perCopy = JSON.stringify([...f.shapes.values()]).length;
+    const base = JSON.stringify({ document: '' }).length;
+    let capacity = 2;
+    f.editor.store = { getStoreSnapshot: () => ({ document: 'x'.repeat(1_850_000 - base - capacity * perCopy) }) };
+    const result = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.value.sheet?.limit, 'capacity');
+    assert.deepEqual([result.value.rows, result.value.columns, result.value.generated], [1, 3, 4]);
+    capacity = 0;
     assert.deepEqual(prepareRepeatGrid(f.editor, options, f.selected()), { ok: false, error: 'repeatLimit' });
     assert.equal(f.shapes.size, 2);
+  });
+
+  it('requires a fresh preview when reduced capacity would change the reviewed grid', () => {
+    const f = sheetFixture(), result = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    f.editor.options.maxShapesPerPage = 4;
+    assert.deepEqual(applyRepeatGrid(f.editor, result.value), { ok: false, error: 'selectionChanged' });
+    assert.equal(f.calls.length, 0);
+    const limited = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(limited.ok, true);
+    if (!limited.ok) return;
+    assert.deepEqual([limited.value.rows, limited.value.columns, limited.value.generated], [1, 2, 2]);
+    assert.deepEqual(applyRepeatGrid(f.editor, limited.value), { ok: true, value: 2 });
   });
 });
 

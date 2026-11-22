@@ -18,6 +18,8 @@ const en = {
   sheetHelp:'Place the original inside the margin. Copies fill the sheet in the chosen directions from the original.',
   sheetNeedsPage:'Set a physical page size to fit copies on a sheet.',
   sheetCap:'This preview is limited to {limit} rows and {limit} columns.',
+  sheetCapacity:'The preview uses the largest complete grid that fits the remaining drawing capacity.',
+  showOverlay:'Show layout on canvas',
   repeatOutsideSheet:'Move the selection inside the sheet margin or reduce the margin.',
   repeatNoRoom:'There is no room for another copy. Try a different direction or smaller gaps.',
   invalidSheet:'Enter a nonnegative margin and gaps.'
@@ -39,6 +41,8 @@ const ru:Record<Key,string>={
   sheetHelp:'Разместите оригинал внутри границ отступа. Копии заполнят лист от оригинала в выбранных направлениях.',
   sheetNeedsPage:'Задайте физический размер страницы для раскладки на листе.',
   sheetCap:'В предпросмотре не более {limit} строк и {limit} столбцов.',
+  sheetCapacity:'В предпросмотре показана самая большая полная сетка, которая помещается в пределах ёмкости чертежа.',
+  showOverlay:'Показать раскладку на чертеже',
   repeatOutsideSheet:'Переместите выделение внутрь области листа или уменьшите отступ.',
   repeatNoRoom:'Для ещё одной копии нет места. Измените направление или уменьшите зазоры.',
   invalidSheet:'Укажите неотрицательные значения отступа и зазоров.'
@@ -59,6 +63,8 @@ const lv:Record<Key,string>={
   sheetHelp:'Novietojiet oriģinālu atkāpes iekšpusē. Kopijas aizpildīs loksni izvēlētajos virzienos no oriģināla.',
   sheetNeedsPage:'Iestatiet fizisku lapas izmēru, lai izvietotu kopijas uz loksnes.',
   sheetCap:'Priekšskatījumā var būt ne vairāk kā {limit} rindas un {limit} kolonnas.',
+  sheetCapacity:'Priekšskatījumā redzams lielākais pilnais režģis, ko pieļauj atlikusī zīmējuma ietilpība.',
+  showOverlay:'Rādīt izkārtojumu zīmējumā',
   repeatOutsideSheet:'Pārvietojiet atlasi atkāpes iekšpusē vai samaziniet atkāpi.',
   repeatNoRoom:'Vēl vienai kopijai nepietiek vietas. Mainiet virzienu vai samaziniet atstarpes.',
   invalidSheet:'Ievadiet nenegatīvas atkāpes un atstarpju vērtības.'

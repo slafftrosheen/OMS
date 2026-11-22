@@ -1,8 +1,9 @@
-import React,{useEffect,useId,useRef,useState} from 'react';
+import React,{useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import {useEditor,useValue,type Editor,type TLShapeId} from '@tldraw/tldraw';
 import {applyRepeatGrid,MAX_REPEAT_AXIS,prepareRepeatGrid,repeatDrawingRevision,type RepeatError,type RepeatGridOptions,type RepeatGridPlan,type RepeatOptions} from './drawing-operations';
 import {canvasLengthToUnit,DEFAULT_CAD_SETTINGS,unitLengthToCanvas,type CadSettings} from './cad-settings';
-import {drawingPageBounds} from './drawing-pages';
+import {drawingPageBounds,fitDrawingPage} from './drawing-pages';
+import {drawingRepeatPreview} from './DrawingRepeatOverlay';
 import {useDrawingText} from './drawing-copy';
 import {useCadText} from './cad-copy';
 import {useRepeatText} from './repeat-copy';
@@ -13,8 +14,9 @@ const number=(value:string)=>value.trim()?Number(value):NaN;
 const display=(value:number,settings:CadSettings|null)=>String(settings?canvasLengthToUnit(value,settings):value);
 const toCanvas=(value:string,settings:CadSettings|null)=>settings?unitLengthToCanvas(number(value),settings):number(value);
 
-export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=false,onSetup}:{
-  selected:readonly TLShapeId[];disabled:boolean;settings:CadSettings|null;focusRequest?:number;expanded?:boolean;onSetup?:()=>void
+export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=false,active=true,onSetup}:{
+  selected:readonly TLShapeId[];disabled:boolean;settings:CadSettings|null;focusRequest?:number;expanded?:boolean;
+  active?:boolean;onSetup?:()=>void
 }){
   const editor=useEditor(),t=useRepeatText(),{label}=useDrawingText(),{label:cadLabel}=useCadText();
   const errorText=(code:RepeatError)=>{
@@ -35,6 +37,8 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
   const [directionX,setDirectionX]=useState<1|-1>(initial.directionX??1),[directionY,setDirectionY]=useState<1|-1>(initial.directionY??1);
   const previousSettings=useRef(settings);
   const [review,setReview]=useState<{plan:RepeatGridPlan;key:string}>(),[message,setMessage]=useState('');
+  const [showOverlay,setShowOverlay]=useState(true);
+  const [sectionOpen,setSectionOpen]=useState(expanded);
   useEffect(()=>{
     if(!focusRequest)return;
     if(section.current)section.current.open=true;
@@ -57,6 +61,15 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
   const options:RepeatOptions=fit?{mode:'sheet',margin,gapX,gapY,directionX,directionY}:manual;
   const effectiveSpacing=fit?'gap':spacing;
   const key=JSON.stringify(options),stale=!!review&&(review.key!==key||review.plan.revision!==revision);
+  const preview=active&&sectionOpen&&showOverlay&&!disabled&&!stale?review?.plan:undefined;
+  useLayoutEffect(()=>{
+    if(!preview)return;
+    const overlay=drawingRepeatPreview(editor);
+    overlay.set(preview);
+    return ()=>{
+      if(overlay.get()===preview)overlay.set(null);
+    };
+  },[editor,preview]);
   const validCounts=Number.isInteger(rows)&&Number.isInteger(columns)&&rows>=1&&columns>=1&&
     rows<=MAX_REPEAT_AXIS&&columns<=MAX_REPEAT_AXIS&&rows*columns>=2;
   const valid=[gapX,gapY].every(value=>Number.isFinite(value)&&Math.abs(value)<=10000)&&
@@ -71,7 +84,8 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
     setValues(current=>({...current,[field]:value}));
     setMessage('');
   }
-  return <details ref={section} open={expanded || undefined} className="drawing-repeat" data-testid="drawing-repeat">
+  return <details ref={section} open={expanded || undefined} onToggle={event=>setSectionOpen(event.currentTarget.open)}
+    className="drawing-repeat" data-testid="drawing-repeat">
     <summary>{t('title')}</summary>
     <form onSubmit={event=>{
       event.preventDefault();setMessage('');setReview(undefined);
@@ -127,8 +141,16 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
         <dt>{t('extent')}</dt><dd>{distance(review.plan.bounds.w+Math.max(...review.plan.offsets.map(p=>Math.abs(p.x))))} × {distance(review.plan.bounds.h+Math.max(...review.plan.offsets.map(p=>Math.abs(p.y))))} {unit}</dd>
       </dl>
       <p className="drawing-help">{t('previewHelp')}</p>
-      {review.plan.sheet?.capped&&<p className="drawing-help" role="status">{t('sheetCap').replaceAll('{limit}',String(MAX_REPEAT_AXIS))}</p>}
+      {review.plan.sheet?.limit==='axis'&&<p className="drawing-help" role="status">{t('sheetCap').replaceAll('{limit}',String(MAX_REPEAT_AXIS))}</p>}
+      {review.plan.sheet?.limit==='capacity'&&<p className="drawing-help" role="status">{t('sheetCapacity')}</p>}
       {stale&&<p role="status">{t('stale')}</p>}
+      <div className="drawing-repeat-review-controls">
+        <label><input type="checkbox" checked={showOverlay} disabled={disabled||stale}
+          onChange={event=>setShowOverlay(event.target.checked)}/>{t('showOverlay')}</label>
+        {review.plan.sheet&&<button type="button" disabled={stale} onClick={()=>{
+          if(!fitDrawingPage(editor))setMessage(label('changedFailed'));
+        }}>{label('pageFit')}</button>}
+      </div>
       <button type="button" disabled={disabled||stale} onClick={()=>{
         const result=applyRepeatGrid(editor,review.plan);
         setMessage(result.ok===true?`${label('copiesCreated')}: ${result.value}`:errorText(result.error));

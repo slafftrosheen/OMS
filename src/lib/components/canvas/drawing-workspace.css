@@ -142,6 +142,12 @@
 .drawing-repeat-sheet-preview polygon.is-original { fill: var(--bg-2); }
 .drawing-radial-legend .is-margin { color: var(--ink-secondary); }
 .drawing-radial-legend .is-margin::before { content: ""; display: inline-block; width: 12px; margin-inline-end: 4px; vertical-align: middle; border-top: 1px dotted currentColor; }
+.drawing-repeat-review-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-block: 8px; }
+.drawing-repeat-review-controls label { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; font-size: 11px; }
+.drawing-repeat-review-controls input { margin: 0; accent-color: var(--brand); }
+.drawing-repeat-overlay { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+.drawing-repeat-overlay-copy { fill: var(--brand); fill-opacity: .1; stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.drawing-repeat-overlay-margin { fill: none; stroke: var(--ink-secondary); stroke-width: 1; stroke-dasharray: 2 4; }
 .drawing-export-options { border: 0; border-top: 1px solid var(--border); margin: 4px 0; padding: 8px; display: grid; gap: 8px; }
 .drawing-export-options label { display: grid; gap: 4px; font-size: 11px; }
 .drawing-palette { grid-column: 5; grid-row: 4; min-height: 0; background: var(--bg-1); border-left: 1px solid var(--border); overflow-y: auto; scrollbar-width: none; }

@@ -67,7 +67,7 @@ export type DrawingOperationError = 'selectionRequired' | 'selectionChanged' | '
 export type RepeatError = DrawingOperationError | 'repeatOutsideSheet' | 'repeatNoRoom';
 type Result<T, E = DrawingOperationError> = { ok: true; value: T } | { ok: false; error: E };
 type RepeatBounds = { x: number; y: number; w: number; h: number };
-type RepeatSheet = { bounds: RepeatBounds; margin: number; capped: boolean };
+type RepeatSheet = { bounds: RepeatBounds; margin: number; limit: 'axis' | 'capacity' | null };
 export interface RepeatGridPlan {
   revision: string;
   selected: TLShapeId[];
@@ -108,8 +108,18 @@ function fitSheetRepeat(editor: Editor, artwork: RepeatBounds, options: RepeatSh
   if (rows * columns < 2) return { ok: false, error: 'repeatNoRoom' };
   return { ok: true, value: {
     rows: Math.min(rows, MAX_REPEAT_AXIS), columns: Math.min(columns, MAX_REPEAT_AXIS),
-    sheet: { bounds: page, margin, capped: rows > MAX_REPEAT_AXIS || columns > MAX_REPEAT_AXIS }
+    sheet: { bounds: page, margin, limit: rows > MAX_REPEAT_AXIS || columns > MAX_REPEAT_AXIS ? 'axis' : null }
   } };
+}
+
+/** Use the largest complete rectangle that fits the remaining copy budget. */
+function capSheetGrid(rows: number, columns: number, cells: number) {
+  let best = { rows: 1, columns: Math.min(columns, cells) };
+  for (let row = 2; row <= Math.min(rows, cells); row++) {
+    const column = Math.min(columns, Math.floor(cells / row));
+    if (row * column > best.rows * best.columns) best = { rows: row, columns: column };
+  }
+  return best;
 }
 
 function topLevelIds(editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
@@ -158,7 +168,8 @@ export function prepareRepeatGrid(editor: Editor, options: RepeatOptions, expect
   } catch {
     return { ok: false, error: 'invalidOptions' };
   }
-  if (!bounds || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite) || bounds.w < 0 || bounds.h < 0) return { ok: false, error: 'selectionRequired' };
+  if (!descendants.length || !bounds || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite) ||
+      bounds.w < 0 || bounds.h < 0) return { ok: false, error: 'selectionRequired' };
   let rows: number, columns: number, sheet: RepeatSheet | undefined;
   if (fit) {
     const result = fitSheetRepeat(editor, bounds, options);
@@ -167,10 +178,19 @@ export function prepareRepeatGrid(editor: Editor, options: RepeatOptions, expect
   } else {
     ({ rows, columns } = options);
   }
-  const copies = rows * columns - 1, generated = copies * descendants.length;
-  if (generated > MAX_REPEAT_SHAPES || generated + editor.getCurrentPageShapeIds().size > editor.options.maxShapesPerPage) return { ok: false, error: 'repeatLimit' };
-  if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length +
-      JSON.stringify(descendants.map(id => editor.getShape(id))).length * copies > 1_850_000) return { ok: false, error: 'repeatLimit' };
+  const objectBudget = Math.min(MAX_REPEAT_SHAPES, editor.options.maxShapesPerPage - editor.getCurrentPageShapeIds().size);
+  let availableCopies = Math.floor(objectBudget / descendants.length);
+  if (editor.store) {
+    const availableBytes = 1_850_000 - JSON.stringify(editor.store.getStoreSnapshot()).length;
+    const bytesPerCopy = JSON.stringify(descendants.map(id => editor.getShape(id))).length;
+    availableCopies = Math.min(availableCopies, Math.floor(availableBytes / bytesPerCopy));
+  }
+  if (rows * columns - 1 > availableCopies) {
+    if (!sheet || availableCopies < 1) return { ok: false, error: 'repeatLimit' };
+    ({ rows, columns } = capSheetGrid(rows, columns, availableCopies + 1));
+    sheet.limit = 'capacity';
+  }
+  const generated = (rows * columns - 1) * descendants.length;
   const stepX = (spacing === 'gap' ? bounds.w + gapX : gapX) * directionX;
   const stepY = (spacing === 'gap' ? bounds.h + gapY : gapY) * directionY;
   if (columns > 1 && Math.abs(stepX) < 1e-8 || rows > 1 && Math.abs(stepY) < 1e-8) return { ok: false, error: 'invalidOptions' };
@@ -204,6 +224,7 @@ export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<nu
   const refreshed = prepareRepeatGrid(editor, plan.options, plan.selected);
   if (refreshed.ok === false) return refreshed;
   const fresh = refreshed.value;
+  if (fresh.rows !== plan.rows || fresh.columns !== plan.columns) return { ok: false, error: 'selectionChanged' };
   const descendants = editor.getShapeAndDescendantIds(fresh.roots).size;
   const camera = { ...editor.getCamera() };
   const success = drawingTransaction(editor, () => {
