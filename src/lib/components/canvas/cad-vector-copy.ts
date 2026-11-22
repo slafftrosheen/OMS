@@ -121,12 +121,17 @@ const en = {
   original: "Original",
   stale: "Drawing or options changed. Prepare a new preview.",
   done: "Applied in one undo step.",
-  files: "PDF / EPS / DXF",
-  import: "Import PDF / EPS artwork",
+  files: "PDF / EPS / CDR / DXF",
+  import: "Import PDF / EPS / CDR artwork",
   file: "Source file",
   page: "Page number",
+  groupImport: "Keep imported objects together",
+  dropPlacement: "Artwork is centered at the drop point.",
   outline: "Outline text on the OMS server",
-  importHelp: "Choose a PDF page or EPS. Automatic mode retains editable paths where supported and renders the whole page when effects cannot be reproduced. Rendered pages are bitmaps. Preparing a preview stores images as private attachments at original resolution (up to 32 MP / 25 MiB each). Compare before applying.",
+  importHelp: "Choose a page from a PDF, EPS or CorelDRAW file. CDR and EPS open in editable-curve mode. Automatic mode can render unsupported effects as a bitmap. Preparing a preview stores images as private attachments at original resolution (up to 32 MP / 25 MiB each).",
+  "cdr-review": "Compare the converted CDR page with the source. CorelDRAW-specific effects, fonts and spot-color definitions may change during conversion.",
+  "cdr-conversion": "OMS could not convert this CDR page. Check the page number and CorelDRAW version.",
+  "cdr-converter-unavailable": "CDR import needs LibreOffice Draw on the OMS server.",
   omissions: "I reviewed the omitted content / warnings",
   export: "Export vector PDF / EPS",
   publishPdf: "Publish PDF",
@@ -213,7 +218,7 @@ const en = {
   busy: "Converter is busy. Try again shortly.",
   timeout: "Conversion exceeded the time limit.",
   pageLimit:
-    "The exported page exceeds 5080 mm. Split the drawing into smaller exports.",
+    "The exported page exceeds 50,800 mm including bleed. Split the drawing into smaller exports.",
 };
 type Key = keyof typeof en;
 const ru: Record<Key, string> = {
@@ -336,12 +341,17 @@ const ru: Record<Key, string> = {
   original: "Оригинал",
   stale: "Чертёж или параметры изменены. Обновите предпросмотр.",
   done: "Применено одним шагом отмены.",
-  files: "PDF / EPS / DXF",
-  import: "Импорт макета PDF / EPS",
+  files: "PDF / EPS / CDR / DXF",
+  import: "Импорт макета PDF / EPS / CDR",
   file: "Исходный файл",
   page: "Номер страницы",
+  groupImport: "Сгруппировать импортированные объекты",
+  dropPlacement: "Макет будет центрирован в точке перетаскивания.",
   outline: "Преобразовать текст в кривые на сервере OMS",
-  importHelp: "Выберите страницу PDF или EPS. Автоматический режим сохраняет редактируемые контуры, а при неподдерживаемых эффектах растрирует всю страницу. Растрированные страницы — изображения. При подготовке предпросмотра изображения сохраняются как приватные вложения в исходном разрешении (до 32 Мп / 25 МиБ каждое). Сравните перед применением.",
+  importHelp: "Выберите страницу PDF, EPS или CorelDRAW. Для CDR и EPS по умолчанию включён режим редактируемых контуров. Автоматический режим может растрировать неподдерживаемые эффекты. При предпросмотре изображения сохраняются как приватные вложения в исходном разрешении (до 32 Мп / 25 МиБ каждое).",
+  "cdr-review": "Сравните преобразованную страницу CDR с оригиналом. Эффекты CorelDRAW, шрифты и определения плашечных цветов могут измениться при преобразовании.",
+  "cdr-conversion": "OMS не смог преобразовать эту страницу CDR. Проверьте номер страницы и версию CorelDRAW.",
+  "cdr-converter-unavailable": "Для импорта CDR на сервере OMS требуется LibreOffice Draw.",
   omissions: "Пропуски и предупреждения проверены",
   export: "Экспорт векторного PDF / EPS",
   publishPdf: "Публикация PDF",
@@ -428,7 +438,7 @@ const ru: Record<Key, string> = {
     "Выберите одну кривую. Палитра: левая кнопка — заливка, правая — обводка. F12 открывает настройки.",
   busy: "Конвертер занят. Повторите позже.",
   timeout: "Превышено время конвертации.",
-  pageLimit: "Страница экспорта превышает 5080 мм. Разделите чертёж на части.",
+  pageLimit: "Размер экспортируемой страницы с вылетами превышает 50 800 мм. Разделите чертёж на части.",
 };
 const lv: Record<Key, string> = {
   "ellipseSegments": "Elipse / sektors / loks",
@@ -550,12 +560,17 @@ const lv: Record<Key, string> = {
   original: "Oriģināls",
   stale: "Rasējums vai parametri mainīti. Atjaunojiet priekšskatījumu.",
   done: "Lietots vienā atsaukšanas solī.",
-  files: "PDF / EPS / DXF",
-  import: "Importēt PDF / EPS maketu",
+  files: "PDF / EPS / CDR / DXF",
+  import: "Importēt PDF / EPS / CDR maketu",
   file: "Avota fails",
   page: "Lapas numurs",
+  groupImport: "Grupēt importētos objektus",
+  dropPlacement: "Makets tiks centrēts nomešanas vietā.",
   outline: "Pārvērst tekstu līknēs OMS serverī",
-  importHelp: "Izvēlieties PDF lapu vai EPS. Automātiskais režīms saglabā rediģējamas kontūras, bet neatbalstītu efektu gadījumā rasterizē visu lapu. Rasterizētas lapas ir attēli. Priekšskatījuma sagatavošana saglabā attēlus kā privātus pielikumus sākotnējā izšķirtspējā (līdz 32 MP / 25 MiB katram). Pirms lietošanas salīdziniet.",
+  importHelp: "Izvēlieties PDF, EPS vai CorelDRAW lapu. CDR un EPS tiek atvērti rediģējamu līkņu režīmā. Automātiskais režīms var rasterizēt neatbalstītus efektus. Priekšskatījumā attēli tiek saglabāti kā privāti pielikumi sākotnējā izšķirtspējā (līdz 32 MP / 25 MiB katram).",
+  "cdr-review": "Salīdziniet pārveidoto CDR lapu ar oriģinālu. Pārveidē var mainīties CorelDRAW efekti, fonti un speciālo krāsu definīcijas.",
+  "cdr-conversion": "OMS nevarēja pārveidot CDR lapu. Pārbaudiet lapas numuru un CorelDRAW versiju.",
+  "cdr-converter-unavailable": "CDR importēšanai OMS serverī ir nepieciešams LibreOffice Draw.",
   omissions: "Izlaistais saturs un brīdinājumi pārbaudīti",
   export: "Eksportēt vektoru PDF / EPS",
   publishPdf: "Publicēt PDF",
@@ -640,7 +655,7 @@ const lv: Record<Key, string> = {
   busy: "Pārveidotājs aizņemts. Mēģiniet vēlāk.",
   timeout: "Pārsniegts pārveidošanas laiks.",
   pageLimit:
-    "Eksporta lapa pārsniedz 5080 mm. Sadaliet rasējumu mazākās daļās.",
+    "Eksporta lapa ar pārlaidēm pārsniedz 50 800 mm. Sadaliet rasējumu mazākās daļās.",
 };
 export function useVectorText() {
   const language = useSyncExternalStore(
@@ -661,6 +676,8 @@ export function vectorError(error: unknown): string {
     (
       {
         "converter-unavailable": "unavailable",
+        "cdr-converter-unavailable": "cdr-converter-unavailable",
+        "cdr-conversion": "cdr-conversion",
         font: "fontError",
         page: "pageError",
         corners: "cornerError",

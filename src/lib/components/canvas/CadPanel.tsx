@@ -1,5 +1,4 @@
 import { DrawingPageSetup } from './DrawingPageSetup';
-import {readCadSettings} from './cad-settings';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { useVectorText } from './cad-vector-copy';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -15,8 +14,10 @@ import {
   calibrateCadSelection, convertSelectionToCadPath, createCadDimension, createCadGeometry, getCadArc, getCadPathPoints, getCadSelection,
   setCadOriginToSelection, updateCadArc, updateCadPathPoints, type CadGeometryInput,
 } from './cad-geometry';
-import { buildCadDxf } from './cad-dxf';
+import { buildCadDxf, CadDxfError, type DxfExportScope } from './cad-dxf';
+import { DxfReviewPreview } from './DxfReviewPreview';
 import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
+import { preflightRevision, type PreflightDxfScope } from './drawing-preflight';
 import { usePreflightText } from './preflight-copy';
 
 function numeric(value: string): number { return value.trim() ? Number(value) : NaN; }
@@ -47,6 +48,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
   const preflightLabel = usePreflightText();
   const { label: advancedLabel } = useCadAdvancedText(); const vectorLabel = useVectorText();
   const [task, setTask] = useState<CadTask>(() => settings && editor.getSelectedShapeIds().length ? 'edit' : 'document');
+  const [preflightScope, setPreflightScope] = useState<PreflightDxfScope>();
   const sourceIsText = useValue('cad focus text', () => editor.getOnlySelectedShape()?.type === 'text', [editor]);
   const consumedFocus = useRef<number>();
   useEffect(() => {
@@ -54,7 +56,8 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
     const drawingFocus = focusRequest.section === 'rectangle' || focusRequest.section === 'ellipse' || focusRequest.section === 'polygon' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
-    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : (focusRequest.section === 'files' || focusRequest.section === 'publishPdf') ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
+    const fileFocus = ['files', 'publishPdf', 'importDxf', 'importVector'].includes(focusRequest.section);
+    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
@@ -150,8 +153,11 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
       <PathVertices settings={settings} disabled={!controls.canEditSelection} />
       <ArcFields settings={settings} disabled={!controls.canEditSelection} />
     </div>
-    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} />
-    <div hidden={task !== 'files'}><DxfExport settings={settings} /></div>
+    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} onOpenDxf={scope => {
+      setPreflightScope(scope);
+      setTask('files');
+    }} />
+    <div hidden={task !== 'files'}><DxfExport settings={settings} preflightScope={preflightScope} /></div>
   </div>;
 }
 
@@ -275,37 +281,71 @@ function ArcFields({ settings, disabled }: { settings: CadSettings | null; disab
   </details>;
 }
 
-function dxfSourceRevision(editor: Editor): string {
-  return JSON.stringify([editor.getCurrentPage().id, editor.getCurrentPageShapesSorted(),
-    editor.getSelectedShapeIds(), readCadSettings(editor)]);
-}
+type DxfScopeChoice = 'selected' | 'all' | 'preflight';
+const dxfSelectionKey = (editor: Editor, scope: DxfScopeChoice) =>
+  scope === 'selected' ? JSON.stringify(editor.getSelectedShapeIds()) : '';
+const dxfExportErrorLabels: Partial<Record<CadDxfError['code'], CadLabel>> = {
+  empty: 'noEntities',
+  limit: 'dxfExportLimit',
+  'common-lines-limit': 'dxfCommonLineLimit',
+};
 
-function DxfExport({ settings }: { settings: CadSettings | null }) {
+function DxfExport({ settings, preflightScope }: { settings: CadSettings | null; preflightScope?: PreflightDxfScope }) {
   const editor = useEditor(); const { label } = useCadText();
-  const [scope, setScope] = useState<'selected' | 'all'>('selected');
+  const details = useRef<HTMLDetailsElement>(null);
+  const [scope, setScope] = useState<DxfScopeChoice>('selected');
   const [curves, setCurves] = useState<'spline' | 'polyline'>('spline');
+  const [colorLayers, setColorLayers] = useState(false);
+  const [commonLines, setCommonLines] = useState(false);
   const [tolerance, setTolerance] = useState('0.01');
   const toleranceErrorId = useId();
   const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
   const validOptions = curves === 'spline' || validTolerance;
-  const optionsKey = JSON.stringify([curves, tolerance]);
-  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number } | null>(null);
+  const optionsKey = JSON.stringify([curves, tolerance, colorLayers, commonLines]);
+  const [report, setReport] = useState<{
+    data: ReturnType<typeof buildCadDxf>; revision: string; selectionKey: string; source: DxfExportScope;
+    optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; colorLayers: boolean; commonLines: boolean;
+  } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadLabel | ''>('');
-  const revision = useValue('cad dxf source revision', () => dxfSourceRevision(editor), [editor]);
-  const hasObjects = useValue('cad dxf scope availability', () => scope === 'selected' ? !!editor.getSelectedShapeIds().length : !!editor.getCurrentPageShapeIds().size, [editor, scope]);
-  const stale = !!report && (report.revision !== revision || report.scope !== scope || report.optionsKey !== optionsKey);
+  useEffect(() => {
+    if (!preflightScope) return;
+    setScope('preflight'); setReport(null); setAcknowledged(false); setMessage('');
+    if (details.current) {
+      details.current.open = true;
+      details.current.querySelector('summary')?.focus();
+    }
+  }, [preflightScope]);
+  const source = scope === 'preflight' ? preflightScope : scope;
+  const revision = useValue('cad dxf drawing revision', () => preflightRevision(editor), [editor]);
+  const selectionKey = useValue('cad dxf selection key', () => dxfSelectionKey(editor, scope), [editor, scope]);
+  const hasObjects = useValue('cad dxf scope availability', () => scope === 'selected' ? !!editor.getSelectedShapeIds().length
+    : scope === 'all' ? !!editor.getCurrentPageShapeIds().size : !!preflightScope?.shapeIds.length, [editor, scope, preflightScope]);
+  const captureStale = scope === 'preflight' && preflightScope?.revision !== revision;
+  const stale = !!report && (report.revision !== revision || report.selectionKey !== selectionKey || report.source !== source || report.optionsKey !== optionsKey);
   const reasonLabels: Record<string, CadLabel> = { unsupported: 'unsupported', text: 'annotation', annotation: 'annotation', form: 'form', invalid: 'invalid', curved: 'curved', clipped: 'clipped', empty: 'empty' };
+  const cutLengths = !stale && !captureStale ? report?.data.cutLengths : undefined;
+  const cutLengthLabel = (length: number | null) =>
+    length === null ? label('dxfCutLengthUnavailable') : format(length, 2) + ' mm';
+
   function prepare() {
-    if (!settings || !validOptions) return;
+    if (!settings || !validOptions || !source || (scope === 'preflight' && preflightScope?.revision !== preflightRevision(editor))) return;
     setAcknowledged(false); setMessage('');
     const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
-    try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm }), revision, scope, optionsKey, curves, toleranceMm }); }
-    catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
+    try { setReport({
+      data: buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true }),
+      revision, selectionKey, source, optionsKey, curves, toleranceMm, colorLayers, commonLines,
+    }); }
+    catch (error) {
+      setReport(null);
+      const message = error instanceof CadDxfError ? dxfExportErrorLabels[error.code] : undefined;
+      setMessage(message ?? 'exportFailed');
+    }
   }
-  const canExport = !!report && !stale && !!report.data.entities && (!report.data.omitted.length || acknowledged);
+  const canExport = !!report && !!settings && !captureStale && !stale && !!report.data.entities && (!report.data.omitted.length || acknowledged);
   function createFile() {
-    if (!report || !canExport || report.revision !== dxfSourceRevision(editor)) throw new Error('changed');
+    if (!report || !canExport || report.revision !== preflightRevision(editor) || report.selectionKey !== dxfSelectionKey(editor, scope))
+      throw new Error('changed');
     return new Blob([report.data.text], { type: 'application/dxf' });
   }
   function download() {
@@ -316,40 +356,70 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
       setTimeout(() => URL.revokeObjectURL(url), 30_000); setMessage('exported');
     } catch { setMessage('exportFailed'); }
   }
-  return <details className="drawing-cad-section" open>
+  return <details className="drawing-cad-section" ref={details} open>
     <summary>{label('dxf')}</summary>
     <p className="drawing-help">{label('dxfHelp')}</p>
     <div className="drawing-cad-fields">
       <Field label={label('exportScope')}><select value={scope} onChange={event => { setScope(event.target.value as typeof scope); setAcknowledged(false); setMessage(''); }}>
         <option value="selected">{label('selected')}</option><option value="all">{label('all')}</option>
+        {preflightScope && <option value="preflight" disabled={preflightScope.revision !== revision}>{label('dxfPreflightScope')}</option>}
       </select></Field>
+      {captureStale && <Message text={label('dxfRefreshPreflight')} error />}
       <Field label={label('curveExport')}><select value={curves} onChange={event => { setCurves(event.target.value as typeof curves); setAcknowledged(false); setMessage(''); }}>
         <option value="spline">{label('splineExport')}</option><option value="polyline">{label('polylineExport')}</option>
       </select></Field>
       <Field label={label('exportTolerance')}><input type="number" min="0.001" max="1" step="any" value={tolerance} disabled={curves === 'spline'} aria-invalid={curves === 'polyline' && !validTolerance} aria-describedby={curves === 'polyline' && !validTolerance ? toleranceErrorId : undefined} onChange={event => { setTolerance(event.target.value); setAcknowledged(false); setMessage(''); }} /></Field>
       <p className="drawing-help">{label(curves === 'spline' ? 'splineExportHelp' : 'polylineExportHelp')}</p>
       {curves === 'polyline' && !validTolerance && <p id={toleranceErrorId} className="drawing-help is-error" role="alert">{label('exportToleranceInvalid')}</p>}
-      <button type="button" disabled={!settings || !hasObjects || !validOptions} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
+      <Field label={label('dxfLayers')}><select value={colorLayers ? 'color' : 'standard'} onChange={event => { setColorLayers(event.target.value === 'color'); setAcknowledged(false); setMessage(''); }}>
+        <option value="standard">{label('dxfStandardLayers')}</option>
+        <option value="color">{label('dxfColorLayers')}</option>
+      </select></Field>
+      {colorLayers && <p className="drawing-help">{label('dxfColorLayersHelp')}</p>}
+      <label className="drawing-cad-check"><input type="checkbox" checked={commonLines} onChange={event => { setCommonLines(event.target.checked); setAcknowledged(false); setMessage(''); }} />
+        <span>{label('dxfCommonLines')}</span>
+      </label>
+      {commonLines && <p className="drawing-help">{label('dxfCommonLinesHelp')}</p>}
+      <button type="button" disabled={!settings || !hasObjects || !validOptions || captureStale} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
+      {cutLengths && report.data.preview && <DxfReviewPreview
+        preview={report.data.preview} layerLengths={cutLengths.byLayer} formatLength={cutLengthLabel} />}
       <dl className="drawing-cad-values">
         <dt>{label('curveExport')}</dt><dd>{label(report.curves === 'spline' ? 'splineExport' : 'polylineExport')}</dd>
         {report.curves === 'polyline' && <><dt>{label('exportTolerance')}</dt><dd>{format(report.toleranceMm, 4)}</dd></>}
         <dt>{label('entities')}</dt><dd>{report.data.entities}</dd>
         <dt>{label('closedContours')}</dt><dd>{report.data.closedContours}</dd>
         <dt>{label('openContours')}</dt><dd>{report.data.openContours}</dd>
+        <dt>{label('dxfLayers')}</dt><dd>{label(report.colorLayers ? 'dxfColorLayers' : 'dxfStandardLayers')}</dd>
+        {report.commonLines && <>
+          <dt>{label('dxfSharedEdges')}</dt><dd>{report.data.sharedEdges}</dd>
+          <dt>{label('dxfPassesRemoved')}</dt><dd>{report.data.passesRemoved}</dd>
+        </>}
         <dt>{label('dimensions')}</dt><dd>{format(report.data.widthMm, 4)} × {format(report.data.heightMm, 4)}</dd>
+        {cutLengths && <><dt>{label('dxfCutLength')}</dt><dd>{cutLengthLabel(cutLengths.totalMm)}</dd></>}
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
+      {(cutLengths || report.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
+        <summary>{label(cutLengths ? 'dxfLayerCutLengths' : 'dxfLayerContents')} ({report.data.layers.length})</summary>
+        <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => {
+          const length = cutLengths?.byLayer[layer.name];
+          return <li key={layer.name}>
+            <strong>{layer.name}</strong>
+            <span>{layer.entities}{length !== undefined ? ' · ' + cutLengthLabel(length) : ''}</span>
+          </li>;
+        })}</ul>
+        {report.data.layers.length > 20 && <p className="drawing-help">{label('dxfLayerContentsMore')}</p>}
+      </details>}
       {report.data.omitted.length ? <>
         <ul className="drawing-cad-omissions">{report.data.omitted.map(item => <li key={item.id}><strong>{item.name}</strong><span>{label(reasonLabels[item.reason] ?? 'unsupported')}</span></li>)}</ul>
         <label className="drawing-cad-check"><input type="checkbox" checked={acknowledged} disabled={stale} onChange={event => setAcknowledged(event.target.checked)} /><span>{label('acknowledge')}</span></label>
       </> : <p className="drawing-help">{label('noOmissions')}</p>}
-      {stale && <Message text={label('stale')} error />}
+      {stale && !captureStale && <Message text={label('stale')} error />}
       {!report.data.entities && <Message text={label('noEntities')} error />}
       <button type="button" disabled={!canExport} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
       <ProductionSaveButton extension="dxf" disabled={!canExport} createFile={createFile} />
     </div>}
-    <Message text={message ? label(message) : ''} error={message === 'exportFailed' || message === 'noEntities'} />
+    <Message text={message ? label(message) : ''} error={message !== 'exported'} />
   </details>;
 }

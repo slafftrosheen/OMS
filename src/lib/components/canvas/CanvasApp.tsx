@@ -10,6 +10,8 @@ import {CadArcThreePointTool,CadCircleThreePointTool} from './CadThreePointTool'
 import {CadConstructionOverlay} from './CadConstructionOverlay';
 import {CadNodeSelectionOverlay} from './CadNodeSelectionOverlay';
 import { DrawingPageSheet } from './DrawingPageSetup';
+import { DrawingRepeatOverlay } from './DrawingRepeatOverlay';
+import { DrawingPreflightOverlay } from './DrawingPreflightOverlay';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import { DrawingContextMenu } from './DrawingContextMenu';
 import { DrawingGuideOverlay } from './DrawingGuideOverlay';
@@ -24,7 +26,8 @@ import { installDrawingPenInput } from './drawing-pen-input';
 import { CadFreehandTool, cancelCadFreehand } from './CadFreehandTool';
 import { CadFreehandOverlay } from './CadFreehandOverlay';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
-import {syncCreationFileDocuments} from './order-file-documents';
+import {orderPocketAtPoint,syncCreationFileDocuments} from './order-file-documents';
+import { routeCanvasCadImport } from './drawing-ui-requests';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
 import { CadBezierShapeUtil } from './shapes/CadBezierShape';
 import { CadBezierTool } from './CadBezierTool';
@@ -86,7 +89,7 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
-    OnTheCanvas: () => <><DrawingPageSheet/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/></>,
+    OnTheCanvas: () => <><DrawingPageSheet/><DrawingRepeatOverlay/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/><DrawingPreflightOverlay/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
     SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
     Toolbar: null, StylePanel: null,
@@ -253,6 +256,7 @@ export function CanvasApp({
             // Route paste as well as drag/drop through private persistent
             // uploads, instead of tldraw's ephemeral data-URL asset store.
             editor.registerExternalContentHandler('files', async ({ files, point }) => {
+                if (routeCanvasCadImport(editor, files, point)) return;
                 callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
             });
             editor.registerExternalContentHandler('url', async ({ url, point }) => {
@@ -260,7 +264,14 @@ export function CanvasApp({
             });
         }
 
-        if(!toolkitBoardId)editor.registerExternalContentHandler('files',async({files,point})=>{const id=seedRef.current?.orderId;if(id)await uploadOrderCanvasFiles(editor,files,id,point??editor.getViewportPageBounds().center);});
+        const routeOrderDrawing = (files: File[], position: { x: number; y: number }) =>
+            !orderPocketAtPoint(editor, position) && routeCanvasCadImport(editor, files, position);
+        if (!toolkitBoardId) editor.registerExternalContentHandler('files', async ({ files, point }) => {
+            const position = point ?? editor.getViewportPageBounds().center;
+            if (routeOrderDrawing(files, position)) return;
+            const id = seedRef.current?.orderId;
+            if (id) await uploadOrderCanvasFiles(editor, files, id, position);
+        });
 
         // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
@@ -278,6 +289,7 @@ export function CanvasApp({
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.
                     const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
+                    if (routeCanvasCadImport(editor, files, position)) return;
                     callbacksRef.current.onToolkitFilesDrop?.(files, position);
                 };
                 container.addEventListener('dragover', onDragOver, true);
@@ -288,7 +300,7 @@ export function CanvasApp({
                 };
             } else {
                 dropCleanupRef.current = wireAssetDropHandler(
-                    containerRef.current, editor, () => seedRef.current?.orderId ?? null
+                    containerRef.current, editor, () => seedRef.current?.orderId ?? null, routeOrderDrawing
                 );
             }
         }

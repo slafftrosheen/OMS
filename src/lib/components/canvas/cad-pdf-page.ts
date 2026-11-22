@@ -18,12 +18,19 @@ export async function readVectorPdfPage(
   signal: AbortSignal,
   options: PdfImportOptions = {},
 ) {
-  const pdfjs = { OPS },
-    viewport = page.getViewport({ scale: 1 });
+  const pdfjs = { OPS };
+  const baseViewport = page.getViewport({ scale: 1 });
+  // PDF.js 4.x reports UserUnit on the page but does not apply it to the viewport.
+  // Newer viewports include it in their transform already.
+  const baseScale = baseViewport.userUnit === undefined && Number.isFinite(page.userUnit) && page.userUnit > 0
+    ? page.userUnit : 1;
+  const viewport = baseScale === 1 ? baseViewport : page.getViewport({ scale: baseScale });
+  if (![viewport.width, viewport.height].every(value => Number.isFinite(value) && value > 0))
+    throw new Error("limit");
   const list = await page.getOperatorList();
 
   const preview = page.getViewport({
-    scale: Math.min(1, 720 / Math.max(viewport.width, viewport.height)),
+    scale: baseScale * Math.min(1, 720 / Math.max(viewport.width, viewport.height)),
   });
   const canvas = window.document.createElement("canvas");
   canvas.width = Math.ceil(preview.width);
@@ -42,7 +49,7 @@ export async function readVectorPdfPage(
   const renderAppearance = async () => {
     const dpi = options.dpi ?? 300;
     if (![72, 150, 300, 600].includes(dpi)) throw new Error("limit");
-    const full = page.getViewport({ scale: dpi / 72 }),
+    const full = page.getViewport({ scale: baseScale * dpi / 72 }),
       w = Math.ceil(full.width),
       h = Math.ceil(full.height);
     if (w > 16384 || h > 16384 || w * h > 32 * 1024 * 1024)

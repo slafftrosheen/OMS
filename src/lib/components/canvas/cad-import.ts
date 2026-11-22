@@ -229,21 +229,30 @@ function parse(text: string) {
   return { entities, blocks, units, hiddenLayers, layers, styles };
 }
 /** Bounded ASCII DXF intake. Unsupported entities remain visible in the review report. */
+type CadImportOptions = {
+  unit?: CadUnit; keepCoordinates: boolean; font?: any; projection?: "strict" | "xy" | "xz" | "yz";
+  centerAt?: CadPoint;
+};
+
 export function prepareCadImport(
   editor: Editor,
   settings: CadSettings,
   text: string,
-  options: { unit?: CadUnit; keepCoordinates: boolean; font?:any; projection?:"strict"|"xy"|"xz"|"yz" },
+  options: CadImportOptions & { groupName?: string },
 ): CadImportPlan {
   assertCadEditable(editor);
-  return { ...readCadDxf(settings, text, options), revision: cadRevision(editor) };
+  const plan = readCadDxf(settings, text, options);
+  return {
+    ...plan, revision: cadRevision(editor),
+    ...(options.groupName ? { groupResult: true, groupName: options.groupName } : {}),
+  };
 }
 
 /** Read geometry without creating an editor or changing a saved drawing. */
 export function readCadDxf(
   settings: CadSettings,
   text: string,
-  options: { unit?: CadUnit; keepCoordinates: boolean; font?:any; projection?:"strict"|"xy"|"xz"|"yz" },
+  options: CadImportOptions,
 ): Omit<CadImportPlan, 'revision'> {
   if (!validateCadSettings(settings)) throw new CadOperationError("geometry");
   const parsed = parse(text),
@@ -547,6 +556,7 @@ export function readCadDxf(
             0.002 / cadMmPerPixel(settings) / matrixScale(m),
           );
           appendCurves(result.contours, m, r);
+          if (result.reconstructed) extraWarnings.add("import-fit-spline-reconstructed");
           approximated ||= result.approximated;
           continue;
         }
@@ -706,8 +716,9 @@ export function readCadDxf(
   let finalContours = contours;
   const bounds = plannedBounds(shapes);
   if (!options.keepCoordinates && contours.length) {
-    const dx = settings.originX - bounds.x,
-      dy = settings.originY - bounds.y - bounds.h;
+    const center = options.centerAt;
+    const dx = center ? center.x - bounds.x - bounds.w / 2 : settings.originX - bounds.x;
+    const dy = center ? center.y - bounds.y - bounds.h / 2 : settings.originY - bounds.y - bounds.h;
     finalContours = mapContours(contours, (p) => ({
       x: p.x + dx,
       y: p.y + dy,
@@ -730,7 +741,7 @@ export function readCadDxf(
     ],
     widthMm: bounds.w * cadMmPerPixel(settings),
     heightMm: bounds.h * cadMmPerPixel(settings),
-    shapes,
+    shapes: shapes.map(shape => ({ ...shape, opacity: 1 })),
     omitted,
     sourceUnit,
     requiresUnit,

@@ -115,6 +115,14 @@ Closing a broken contour merges its exactly coincident seam endpoints and retain
 
 **To straight segment** removes only the outgoing/incoming controls of the selected segment; adjacent segments retain their controls. **To Bézier segment** adds one-third/two-thirds controls to a straight segment, preserving its line geometry and making its handles draggable. It does not straighten an existing Bézier curve. For an open contour, the last node has no outgoing segment. Node operations are undoable and respect locks/read-only state.
 
+## Knife
+
+Draw a straight two-point line across the artwork. Select the artwork, then Shift-select the line and open **Object → Knife**. Both objects must be in the same group, frame or page. **Swap roles** changes which object is cut. **Preview** marks the crossings and shows the resulting contours before any changes.
+
+The Knife splits one unfilled open path at every crossing within the finite knife line. Closed artwork, including concave and compound objects with holes, requires the blade to span every crossing on its line. The result has one editable object on each side. Each can contain multiple closed contours. Seams follow the intervals inside the artwork, leaving gaps through holes and between disjoint contours. Bézier spans are subdivided in place and straight segments stay straight. The pieces keep the source paint and stacking position. Dash patterns restart on each piece. By default **Apply** removes the knife line and replaces the source with the pieces in one undo step. Clear **Remove knife line after cutting** to reuse the line.
+
+Convert native shapes to curves first. For closed artwork, coincident crossings, tangencies on the blade and overlapping edges are rejected. A nonzero compound must alternate between filled and empty intervals along the cut. Use Weld to resolve overlapping filled contours or correct the direction of a hole if necessary. Open objects with a fill and mixed open/closed compounds are rejected. Both sides of a closed cut include copies of the shared edges. Move the pieces apart or enable **Cut shared edges once** in DXF export.
+
 ## Operator flow
 
 1. Open **Layout → Document units & scale**, or the **CAD** docker. Select mm, cm, m or inches; set drawing scale and decimal places, then **Apply settings**. An old drawing stays in pixels until explicitly configured.
@@ -159,6 +167,14 @@ CAD rectangles/paths and ellipses use custom geometry so small parts are not cla
 `cad-transforms.ts` corrects tldraw 2.4's unaligned mirror rotation for CAD shapes inside rotated parents, including selection-handle mirrors. It retains native resize/history and is removed on editor cleanup. Recheck its nested-parent regression when upgrading tldraw.
 
 ## DXF contract
+
+The DXF export review includes a cut preview from the geometry written to the file, including the selected curve mode and shared cuts. Use **Preview layer** to isolate a cutting layer. The review shows the estimated cut length in millimetres for the file and each cutting layer. Shared edges count once when merging is enabled. The totals measure DXF geometry before any machine-specific tool compensation or travel. The preview and lengths reflect the reviewed drawing, scope and export options. If a dense drawing reaches the DXF export or shared-edge comparison limit, select a smaller set of parts and run the review again.
+
+In **Production check**, the **Shared straight cut** finding reports the length of each shared section. **Locate** selects all objects on that section, zooms to the cut, and marks its two endpoints on the canvas. The marker clears when the check changes or closes. The summary counts shared sections and duplicate passes. The check uses straight spans from exportable closed contours and includes overlaps across colors. When exporting by color, DXF merges cuts only within the same color.
+
+**Open DXF export** carries over the checked objects, including a captured selection after **Locate** changes the canvas selection. The export scope is shown as **Production check scope**. Review the export with the options you intend to use before downloading or saving it into a production pocket. A drawing edit requires a new Production check to reuse its scope.
+
+**Cut shared edges once** writes one line over each overlapping section of straight spans from distinct closed contours. A long edge can share sections with several shorter edges. Shared lines break at the overlap junctions, and unshared sections stay in their original outlines. Line matching uses fixed model-space roundoff tolerances independent of curve flattening. Point contacts, open source paths and exact Bézier spans with control handles stay as drawn. With color layers, each color is matched separately. The shared lines go on `OMS_SHARED` or `OMS_SHARED_<RGB>`, and remaining runs of affected outlines are exported as open paths. Review counts shared sections and duplicate passes removed across those sections. Leave the option off when the receiving CAM workflow needs individual closed contours.
 
 DXF is ASCII R2000 (`AC1015`), with `$INSUNITS = 4` (millimetres), Cartesian Y-up coordinates, and full-size model-space geometry. Export has no view padding or zoom scaling. A 1,200 × 600 mm rectangle at drawing scale 1:10 exports as 1,200 × 600 mm; choosing inches for display does not change that result.
 

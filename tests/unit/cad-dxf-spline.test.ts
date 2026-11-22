@@ -43,12 +43,12 @@ describe('DXF SPLINE records and isolated import failures',()=>{
     const ascii=read('mixed-ascii'),binary=read('mixed-binary');
     assert.deepEqual(binary,ascii);
     assert.equal(ascii.blocked,false);
-    assert.equal(ascii.shapes?.length,3);
-    assert.equal(ascii.contours.length,4);
+    assert.equal(ascii.shapes?.length,4);
+    assert.equal(ascii.contours.length,5);
     assert.equal(ascii.contours[0].closed,true);
     assert.ok(ascii.contours[0].nodes.length<30,'Polynomial periodic spline retains compact cubic nodes');
-    assert.deepEqual(ascii.warnings,['import-curves-approximated']);
-    assert.deepEqual(ascii.omitted,[{type:'SPLINE',reason:'spline-fit-only',handle:'A4',layer:'FIT_ONLY'}]);
+    assert.deepEqual(ascii.warnings,['import-curves-approximated','import-fit-spline-reconstructed']);
+    assert.deepEqual(ascii.omitted,[]);
   });
   it('keeps polynomial control-point curves exact and ignores exporter metadata flag bits',()=>{
     const result=plan([...controlPairs,[70,'1064']]);
@@ -101,9 +101,60 @@ describe('DXF SPLINE records and isolated import failures',()=>{
     assert.deepEqual(parsed.controls,[{x:0,y:1},{x:10,y:2}]);
     assert.equal(plan(pairs).omitted.length,0);
   });
-  it('reports fit-point-only records without fabricating a curve',()=>{
-    failure([[71,'3'],[72,'0'],[73,'0'],[74,'3'],[11,'0'],[21,'0'],
-      [11,'10'],[21,'20'],[11,'30'],[21,'0']],'spline-fit-only');
+  it('interpolates open cubic fit points with an explicit reconstruction warning',()=>{
+    const points: DxfPair[] = [[71,'3'],[72,'0'],[73,'0'],[74,'3'],[11,'0'],[21,'0'],
+      [11,'10'],[21,'20'],[11,'30'],[21,'0']];
+    const result = plan(points);
+    assert.deepEqual(result.omitted, []);
+    assert.deepEqual(result.warnings, ['import-fit-spline-reconstructed']);
+    const curve = result.contours[0], px = 1 / cadMmPerPixel(settings);
+    assert.equal(curve.closed, false);
+    const expected = [[0,0],[10,20],[30,0]];
+    assert.ok(curve.nodes.every((node, i) =>
+      Math.hypot(node.x / px - expected[i][0], -node.y / px - expected[i][1]) < 1e-10));
+    const [first, second] = [...contourSegments(curve)];
+    const lengths = [Math.hypot(10,20), Math.hypot(20,20)];
+    for (const axis of ['x','y'] as const) {
+      const fromLeft = (first[3][axis] - 2 * first[2][axis] + first[1][axis]) / lengths[0]**2;
+      const fromRight = (second[2][axis] - 2 * second[1][axis] + second[0][axis]) / lengths[1]**2;
+      assert.ok(Math.abs(fromLeft - fromRight) < 1e-12);
+    }
+    const withTangents = plan([...points,[12,'0'],[22,'1'],[13,'1'],[23,'0']]).contours[0].nodes;
+    assert.equal(withTangents[0].outX, 0);
+    assert.ok(withTangents[0].outY < 0);
+    assert.ok(Math.abs(withTangents[2].inY) < 1e-10);
+    assert.ok(withTangents[2].inX < 0);
+    failure([...points,[70,'1'],[12,'0'],[22,'1']],'spline-fit-only');
+    failure([...points,[31,'0'],[31,'5'],[31,'0']],'unsupported');
+  });
+  it('reconstructs closed and periodic fit splines without duplicating their seam',()=>{
+    const points = [[0,0],[30,2],[25,17],[-6,9]];
+    function fit(flags: number, repeatFirst: boolean) {
+      const input = repeatFirst ? [...points, points[0]] : points;
+      const vertices = input.flatMap(([x,y]) => [[11,String(x)],[21,String(y)]] as DxfPair[]);
+      const result = plan([[70,String(flags)],[71,'3'],[74,String(input.length)],...vertices]);
+      assert.deepEqual(result.omitted,[]);
+      assert.deepEqual(result.warnings,['import-fit-spline-reconstructed']);
+      assert.equal(result.contours[0].closed,true);
+      return result.contours[0];
+    }
+    const curve = fit(1, false);
+    assert.deepEqual(fit(3, true),curve);
+    const segments = [...contourSegments(curve)];
+    const lengths = points.map(([x,y],i) => {
+      const [nextX,nextY] = points[(i + 1) % points.length];
+      return Math.hypot(nextX - x,nextY - y);
+    });
+    assert.equal(segments.length,points.length);
+    for (let i = 0; i < segments.length; i++) {
+      const next = (i + 1) % segments.length, a = segments[i], b = segments[next];
+      for (const axis of ['x','y'] as const) {
+        assert.ok(Math.abs((a[3][axis] - a[2][axis]) / lengths[i] - (b[1][axis] - b[0][axis]) / lengths[next]) < 1e-12);
+        assert.ok(Math.abs((a[3][axis] - 2*a[2][axis] + a[1][axis]) / lengths[i]**2 -
+          (b[2][axis] - 2*b[1][axis] + b[0][axis]) / lengths[next]**2) < 1e-12);
+      }
+    }
+    failure([[70,'1'],[71,'3'],[11,'0'],[21,'0'],[11,'10'],[21,'0'],[11,'0'],[21,'0']], 'spline-fit-points');
   });
   it('validates declared control, knot and fit counts independently',()=>{
     for(const code of [72,73,74])failure(replace(code,'999'),'spline-count');

@@ -1,6 +1,6 @@
 import { Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
-import { getCadShapePageBounds } from './cad-bounds';
+import { getCadSelectionPageBounds, getCadShapePageBounds } from './cad-bounds';
 import { curveBounds, mapContours } from './cad-curves';
 import { drawingPageBounds } from './drawing-pages';
 import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadPaintHasFill, cadPaintHasStroke, cadShapePaint } from './cad-shape-appearance';
@@ -9,6 +9,7 @@ const NAME_KEY = 'omsObjectName';
 const ORDER_FORMS = new Set(['order-details', 'order-address', 'profile-7st']);
 const ARTWORK_TYPES = new Set(['geo', 'draw', 'highlight', 'line', 'arrow', 'text', 'note', 'image', 'cad-bezier', 'cad-path', 'cad-ellipse', 'cad-arc', 'cad-dimension']);
 export const MAX_REPEAT_SHAPES = 500;
+export const MAX_REPEAT_AXIS = 20;
 export const MAX_EXPORT_PIXELS = 32_000_000;
 export const MAX_EXPORT_SIDE = 8192;
 
@@ -44,32 +45,81 @@ export function renameDrawingObject(editor: Editor, id: TLShapeId, name: string)
   return drawingTransaction(editor, () => { editor.updateShapes([{ id, type: shape.type, meta }]); });
 }
 
-export interface RepeatGridOptions {
-  rows: number;
-  columns: number;
+interface RepeatSpacing {
   gapX: number;
   gapY: number;
-  spacing?: 'gap' | 'offset';
   directionX?: 1 | -1;
   directionY?: 1 | -1;
 }
+export interface RepeatGridOptions extends RepeatSpacing {
+  mode?: 'manual';
+  rows: number;
+  columns: number;
+  spacing?: 'gap' | 'offset';
+}
+export interface RepeatSheetOptions extends RepeatSpacing {
+  mode: 'sheet';
+  margin: number;
+  spacing?: 'gap';
+}
+export type RepeatOptions = RepeatGridOptions | RepeatSheetOptions;
 export type DrawingOperationError = 'selectionRequired' | 'selectionChanged' | 'repeatProtected' | 'repeatLimit' | 'invalidOptions' | 'exportEmpty' | 'exportTooLarge' | 'pageNeedsSize' | 'changedFailed';
-type Result<T> = { ok: true; value: T } | { ok: false; error: DrawingOperationError };
+export type RepeatError = DrawingOperationError | 'repeatOutsideSheet' | 'repeatNoRoom';
+type Result<T, E = DrawingOperationError> = { ok: true; value: T } | { ok: false; error: E };
 type RepeatBounds = { x: number; y: number; w: number; h: number };
+type RepeatSheet = { bounds: RepeatBounds; margin: number; limit: 'axis' | 'capacity' | null };
 export interface RepeatGridPlan {
   revision: string;
   selected: TLShapeId[];
   roots: TLShapeId[];
-  options: RepeatGridOptions;
+  options: RepeatOptions;
   bounds: RepeatBounds;
+  rows: number;
+  columns: number;
+  sheet?: RepeatSheet;
   offsets: Array<{ x: number; y: number }>;
   generated: number;
 }
 
 /** Preview and apply use a document revision, so geometry and selection
  * cannot silently change between review and mutation. Camera movement is harmless. */
-export function repeatDrawingRevision(editor: Editor): string {
-  return JSON.stringify([editor.getCurrentPageId(), editor.getCurrentPageShapesSorted(), editor.getSelectedShapeIds()]);
+export function repeatDrawingRevision(editor: Editor, sheet = false): string {
+  return JSON.stringify([editor.getCurrentPageId(), editor.getCurrentPageShapesSorted(), editor.getSelectedShapeIds(),
+    sheet ? drawingPageBounds(editor) : null]);
+}
+
+function fitSheetRepeat(editor: Editor, artwork: RepeatBounds, options: RepeatSheetOptions):
+  Result<{ rows: number; columns: number; sheet: RepeatSheet }, RepeatError> {
+  const page = drawingPageBounds(editor);
+  if (!page) return { ok: false, error: 'pageNeedsSize' };
+  const { margin, gapX, gapY, directionX = 1, directionY = 1 } = options;
+  const left = page.x + margin, top = page.y + margin;
+  const right = page.x + page.w - margin, bottom = page.y + page.h - margin;
+  const endX = artwork.x + artwork.w, endY = artwork.y + artwork.h;
+  const epsilon = 1e-8;
+  if (right <= left || bottom <= top ||
+      artwork.x < left - epsilon || artwork.y < top - epsilon || endX > right + epsilon || endY > bottom + epsilon)
+    return { ok: false, error: 'repeatOutsideSheet' };
+  const stepX = artwork.w + gapX, stepY = artwork.h + gapY;
+  const roomX = directionX === 1 ? right - endX : artwork.x - left;
+  const roomY = directionY === 1 ? bottom - endY : artwork.y - top;
+  const columns = stepX > epsilon ? 1 + Math.floor((Math.max(0, roomX) + epsilon) / stepX) : 1;
+  const rows = stepY > epsilon ? 1 + Math.floor((Math.max(0, roomY) + epsilon) / stepY) : 1;
+  if (rows * columns < 2) return { ok: false, error: 'repeatNoRoom' };
+  return { ok: true, value: {
+    rows: Math.min(rows, MAX_REPEAT_AXIS), columns: Math.min(columns, MAX_REPEAT_AXIS),
+    sheet: { bounds: page, margin, limit: rows > MAX_REPEAT_AXIS || columns > MAX_REPEAT_AXIS ? 'axis' : null }
+  } };
+}
+
+/** Use the largest complete rectangle that fits the remaining copy budget. */
+function capSheetGrid(rows: number, columns: number, cells: number) {
+  let best = { rows: 1, columns: Math.min(columns, cells) };
+  for (let row = 2; row <= Math.min(rows, cells); row++) {
+    const column = Math.min(columns, Math.floor(cells / row));
+    if (row * column > best.rows * best.columns) best = { rows: row, columns: column };
+  }
+  return best;
 }
 
 function topLevelIds(editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
@@ -85,9 +135,13 @@ function topLevelIds(editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
   });
 }
 
-export function prepareRepeatGrid(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<RepeatGridPlan> {
-  const { rows, columns, gapX, gapY, spacing = 'gap', directionX = 1, directionY = 1 } = options;
-  if (!Number.isInteger(rows) || !Number.isInteger(columns) || rows < 1 || columns < 1 || rows > 20 || columns > 20 || rows * columns < 2 ||
+export function prepareRepeatGrid(editor: Editor, options: RepeatOptions, expectedIds: readonly TLShapeId[]): Result<RepeatGridPlan, RepeatError> {
+  const { gapX, gapY, spacing = 'gap', directionX = 1, directionY = 1 } = options;
+  const fit = options.mode === 'sheet';
+  if ((!fit && (!Number.isInteger(options.rows) || !Number.isInteger(options.columns) ||
+      options.rows < 1 || options.columns < 1 || options.rows > MAX_REPEAT_AXIS || options.columns > MAX_REPEAT_AXIS ||
+      options.rows * options.columns < 2)) ||
+      (fit && (!Number.isFinite(options.margin) || options.margin < 0 || gapX < 0 || gapY < 0 || spacing !== 'gap')) ||
       !Number.isFinite(gapX) || !Number.isFinite(gapY) || Math.abs(gapX) > 10_000 || Math.abs(gapY) > 10_000 ||
       !['gap', 'offset'].includes(spacing) || ![1, -1].includes(directionX) || ![1, -1].includes(directionY) ||
       (spacing === 'offset' && (gapX < 0 || gapY < 0))) return { ok: false, error: 'invalidOptions' };
@@ -107,12 +161,36 @@ export function prepareRepeatGrid(editor: Editor, options: RepeatGridOptions, ex
     }
     return false;
   })) return { ok: false, error: 'repeatProtected' };
-  const copies = rows * columns - 1, generated = copies * descendants.length;
-  if (generated > MAX_REPEAT_SHAPES || generated + editor.getCurrentPageShapeIds().size > editor.options.maxShapesPerPage) return { ok: false, error: 'repeatLimit' };
-  if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length +
-      JSON.stringify(descendants.map(id => editor.getShape(id))).length * copies > 1_850_000) return { ok: false, error: 'repeatLimit' };
-  const bounds = editor.getSelectionPageBounds();
-  if (!bounds || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite) || bounds.w < 0 || bounds.h < 0) return { ok: false, error: 'selectionRequired' };
+  let bounds: Box | null | undefined;
+  try {
+    // Use exact CAD extents for the sheet edge and gap calculations.
+    bounds = fit ? getCadSelectionPageBounds(editor) : editor.getSelectionPageBounds();
+  } catch {
+    return { ok: false, error: 'invalidOptions' };
+  }
+  if (!descendants.length || !bounds || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite) ||
+      bounds.w < 0 || bounds.h < 0) return { ok: false, error: 'selectionRequired' };
+  let rows: number, columns: number, sheet: RepeatSheet | undefined;
+  if (fit) {
+    const result = fitSheetRepeat(editor, bounds, options);
+    if (result.ok === false) return result;
+    ({ rows, columns, sheet } = result.value);
+  } else {
+    ({ rows, columns } = options);
+  }
+  const objectBudget = Math.min(MAX_REPEAT_SHAPES, editor.options.maxShapesPerPage - editor.getCurrentPageShapeIds().size);
+  let availableCopies = Math.floor(objectBudget / descendants.length);
+  if (editor.store) {
+    const availableBytes = 1_850_000 - JSON.stringify(editor.store.getStoreSnapshot()).length;
+    const bytesPerCopy = JSON.stringify(descendants.map(id => editor.getShape(id))).length;
+    availableCopies = Math.min(availableCopies, Math.floor(availableBytes / bytesPerCopy));
+  }
+  if (rows * columns - 1 > availableCopies) {
+    if (!sheet || availableCopies < 1) return { ok: false, error: 'repeatLimit' };
+    ({ rows, columns } = capSheetGrid(rows, columns, availableCopies + 1));
+    sheet.limit = 'capacity';
+  }
+  const generated = (rows * columns - 1) * descendants.length;
   const stepX = (spacing === 'gap' ? bounds.w + gapX : gapX) * directionX;
   const stepY = (spacing === 'gap' ? bounds.h + gapY : gapY) * directionY;
   if (columns > 1 && Math.abs(stepX) < 1e-8 || rows > 1 && Math.abs(stepY) < 1e-8) return { ok: false, error: 'invalidOptions' };
@@ -132,19 +210,21 @@ export function prepareRepeatGrid(editor: Editor, options: RepeatGridOptions, ex
         return { ok: false, error: 'invalidOptions' };
     }
   }
-  return { ok: true, value: { revision: repeatDrawingRevision(editor), selected: [...expectedIds], roots,
-    options: { ...options }, bounds: {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h}, offsets, generated } };
+  return { ok: true, value: { revision: repeatDrawingRevision(editor, fit), selected: [...expectedIds], roots,
+    options: { ...options }, bounds: {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h}, rows, columns, sheet, offsets, generated } };
 }
 
 /** A complete reviewed grid is one undo operation; native duplication remaps
  * group ancestry and bindings for every copy of the original roots. */
-export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<number> {
-  if (plan.revision !== repeatDrawingRevision(editor)) return { ok: false, error: 'selectionChanged' };
+export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<number, RepeatError> {
+  const fit = plan.options.mode === 'sheet';
+  if (plan.revision !== repeatDrawingRevision(editor, fit)) return { ok: false, error: 'selectionChanged' };
   editor.complete(); editor.setCurrentTool('select');
-  if (plan.revision !== repeatDrawingRevision(editor)) return { ok: false, error: 'selectionChanged' };
+  if (plan.revision !== repeatDrawingRevision(editor, fit)) return { ok: false, error: 'selectionChanged' };
   const refreshed = prepareRepeatGrid(editor, plan.options, plan.selected);
   if (refreshed.ok === false) return refreshed;
   const fresh = refreshed.value;
+  if (fresh.rows !== plan.rows || fresh.columns !== plan.columns) return { ok: false, error: 'selectionChanged' };
   const descendants = editor.getShapeAndDescendantIds(fresh.roots).size;
   const camera = { ...editor.getCamera() };
   const success = drawingTransaction(editor, () => {
@@ -164,7 +244,7 @@ export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<nu
   return success ? { ok: true, value: fresh.generated } : { ok: false, error: 'changedFailed' };
 }
 
-export function repeatDrawingSelection(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<number> {
+export function repeatDrawingSelection(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<number, RepeatError> {
   const planned = prepareRepeatGrid(editor, options, expectedIds);
   return planned.ok === true ? applyRepeatGrid(editor, planned.value) : planned;
 }

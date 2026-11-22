@@ -1,6 +1,7 @@
-import { arcContour, mapContours, nodeAt, type CadContour } from "./cad-curves";
+import { arcContour, CAD_CURVE_NODE_LIMIT, mapContours, nodeAt, type CadContour } from "./cad-curves";
 import type { DxfPair } from "./cad-dxf-decode";
 import type { VectorMatrix } from "./cad-appearance";
+import { MAX_CUBIC_CHAIN_CONTROLS } from "./cad-nurbs";
 type V = [number, number, number];
 type M = number[];
 export type ProjectableDxfRecord = {
@@ -306,28 +307,30 @@ export function projectDxfRecords(
           continue;
         }
         if (r.type === "SPLINE") {
-          if (r.pairs.filter(([c]) => c === 10).length > 4096)
-            throw new Error("limit");
           const pairs: DxfPair[] = [];
-          for (let j = 0; j < r.pairs.length; j++) {
-            const [code, value] = r.pairs[j];
-            if ([10, 11, 12, 13].includes(code)) {
-              let y = 0,
-                z = 0;
-              const yi = r.pairs
-                .slice(j + 1)
-                .findIndex(([c]) => c === code + 10);
-              if (yi >= 0) y = Number(r.pairs[j + 1 + yi][1]);
-              const zi = r.pairs
-                .slice(j + 1)
-                .findIndex(([c]) => c === code + 20);
-              if (zi >= 0) z = Number(r.pairs[j + 1 + zi][1]);
-              const q = project(point(parent, [Number(value), y, z]));
+          const coordinates = new Map(
+            [10, 11, 12, 13, 20, 21, 22, 23, 30, 31, 32, 33].map(code => [code, [] as number[]]),
+          );
+          for (const [code, value] of r.pairs) {
+            const axis = coordinates.get(code);
+            if (axis) {
+              const number = Number(value);
+              if (!value.trim() || !Number.isFinite(number)) throw new Error("geometry");
+              axis.push(number);
+            } else if (code !== 210 && code !== 220 && code !== 230) pairs.push([code, value]);
+          }
+          const linear = parent.slice();
+          linear[3] = linear[7] = linear[11] = 0;
+          for (const code of [10, 11, 12, 13]) {
+            const xs = coordinates.get(code)!, ys = coordinates.get(code + 10)!, zs = coordinates.get(code + 20)!;
+            const limit = code === 10 ? MAX_CUBIC_CHAIN_CONTROLS : code === 11 ? CAD_CURVE_NODE_LIMIT : 1;
+            if (xs.length > limit) throw new Error("limit");
+            if (ys.length !== xs.length || (zs.length && zs.length !== xs.length)) throw new Error("geometry");
+            for (let i = 0; i < xs.length; i++) {
+              // Endpoint tangents are vectors and must not inherit block translation.
+              const q = project(point(code >= 12 ? linear : parent, [xs[i], ys[i], zs[i] ?? 0]));
               pairs.push([code, String(q.x)], [code + 10, String(q.y)]);
-            } else if (
-              ![20, 21, 22, 23, 30, 31, 32, 33, 210, 220, 230].includes(code)
-            )
-              pairs.push([code, value]);
+            }
           }
           output.push({ ...r, pairs, projectedMatrix: [1, 0, 0, 1, 0, 0] });
           continue;

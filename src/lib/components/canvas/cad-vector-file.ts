@@ -13,10 +13,11 @@ export function dosEpsSection(header: Uint8Array, fileSize = header.byteLength) 
   return { start, end: start + size };
 }
 
-export function vectorPayloadKind(header: Uint8Array): 'pdf' | 'eps' | null {
+export function vectorPayloadKind(header: Uint8Array, size = header.length): 'pdf' | 'eps' | 'cdr' | null {
   const magic = new TextDecoder('latin1').decode(header.subarray(0, FORMAT_PROBE_SIZE));
   if (magic.startsWith('%PDF-')) return 'pdf';
   if (magic.startsWith('%!PS-Adobe-') && magic.includes('EPSF-')) return 'eps';
+  if (isRiffCdr(header, size) || isCdrArchive(header)) return 'cdr';
   return null;
 }
 
@@ -26,7 +27,12 @@ export async function vectorUploadPayload(file: Blob) {
   const section = dosEpsSection(header, file.size);
   const body = section ? file.slice(section.start, section.end) : file;
   if (body.size < 8 || body.size > VECTOR_FILE_LIMIT) throw new Error('limit');
-  const kind = vectorPayloadKind(section ? await probe(body) : header);
+  const signature = section ? await probe(body) : header;
+  const kind = vectorPayloadKind(signature, body.size) ??
+    (!section && signature[0] === 0x50 && signature[1] === 0x4b
+      ? vectorPayloadKind(new Uint8Array(await body.arrayBuffer())) : null);
   if (!kind || (section && kind !== 'eps')) throw new Error('format');
   return { body, kind };
 }
+import { isCdrArchive, isRiffCdr } from './cad-cdr-file';
+

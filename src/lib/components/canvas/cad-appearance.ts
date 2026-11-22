@@ -4,6 +4,27 @@ export type VectorClip = {
   contours: CadContour[];
   fillRule: "evenodd" | "nonzero";
 };
+/** A plain rectangular clip cannot change paths whose entire bounds it encloses. */
+export function rectangularClipContainsBounds(
+  clip: VectorClip,
+  bounds: { x: number; y: number; w: number; h: number },
+  padding = 0,
+): boolean {
+  const [contour] = clip.contours;
+  if (clip.contours.length !== 1 || !contour.closed || contour.nodes.length !== 4) return false;
+  const nodes = contour.nodes;
+  const left = Math.min(...nodes.map(n => n.x)), right = Math.max(...nodes.map(n => n.x));
+  const top = Math.min(...nodes.map(n => n.y)), bottom = Math.max(...nodes.map(n => n.y));
+  if (!(right > left && bottom > top) || new Set(nodes.map(n => `${n.x},${n.y}`)).size !== 4) return false;
+  const rectangle = nodes.every((node, index) => {
+    const next = nodes[(index + 1) % nodes.length];
+    return !node.inX && !node.inY && !node.outX && !node.outY &&
+      (node.x === left || node.x === right) && (node.y === top || node.y === bottom) &&
+      (node.x === next.x || node.y === next.y);
+  });
+  return rectangle && bounds.x - padding >= left - 1e-6 && bounds.y - padding >= top - 1e-6 &&
+    bounds.x + bounds.w + padding <= right + 1e-6 && bounds.y + bounds.h + padding <= bottom + 1e-6;
+}
 export type VectorGradient = {
   type: "linear" | "radial";
   matrix: VectorMatrix;

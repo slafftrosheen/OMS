@@ -7,7 +7,7 @@
   import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
   import { captureCanvasDocument } from '../../src/lib/components/canvas/canvas-document';
   import { VECTOR_DEFAULT_PAINT } from '../../src/lib/components/canvas/cad-paint';
-  import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
+  import { DEFAULT_CAD_SETTINGS, readCadSettings, unitLengthToCanvas } from '../../src/lib/components/canvas/cad-settings';
   import { readMaterialTexture, prepareMaterialTexture, applyMaterialTexture } from '../../src/lib/components/canvas/material-texture';
   const materialExample = new URLSearchParams(location.search).has('materials');
   const draftSaveExample = new URLSearchParams(location.search).has('save-draft');
@@ -181,6 +181,14 @@
       bounds: (id:string) => { const bounds=editor.getShapePageBounds(id); return bounds ? {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h} : null; },
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       emptyArea: () => { editor.setCamera({ x: -2400, y: 0, z: 1 }); },
+      selectSheetSample: () => {
+        const cad = readCadSettings(editor);
+        if (!cad || cad.unit !== 'mm') throw new Error('Set the sheet size in millimetres first');
+        const px = (value:number) => unitLengthToCanvas(value,cad);
+        const id = 'shape:sheet-sample';
+        editor.createShape({ id, type:'geo', x:px(10), y:px(10), props:{ geo:'rectangle', w:px(400), h:px(900) } });
+        editor.setSelectedShapes([id]);
+      },
     };
     return () => { delete (window as any).__drawingFixture; };
   });

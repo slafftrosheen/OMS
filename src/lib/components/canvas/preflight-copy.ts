@@ -2,6 +2,10 @@ import {useSyncExternalStore} from 'react';
 import {get} from 'svelte/store';
 import {locale} from 'svelte-i18n';
 const en={
+ openDxf:'Open DXF export',
+ shared:'Shared straight cut',sharedEdges:'Shared sections',duplicatePasses:'Duplicate passes',overlapsWith:'Shares with',
+ sharedLength:'Shared length',coveringContours:'Contours on this section',
+ sharedHelp:'Locate selects every object on a shared section. Use Cut shared edges once in DXF export to merge these cuts. This check includes overlaps across colors. Color-layer export matches within each color.',
  title:'Production check',scope:'Artwork scope',selected:'Captured selection',all:'All page objects',threshold:'Short segment threshold',scan:'Check drawing',refresh:'Refresh check',
  setup:'Set document units and scale first.',help:'Review cutting paths before export. Open paths may be intentional for engraving or bending; these are review findings, not automatic errors.',
  limits:'Up to 1,000 objects and 12,000 segments. Duplicate checks compare recorded geometry at 0.000001 mm precision, ignoring direction and closed start nodes. Different segmentation or converted conics can remain unmatched. No self-intersection, kerf or machine-tool checks.',
@@ -10,6 +14,10 @@ const en={
 };
 type Key=keyof typeof en;
 const ru:Record<Key,string>={
+ openDxf:'Открыть экспорт DXF',
+ shared:'Общий прямой рез',sharedEdges:'Общие участки',duplicatePasses:'Повторные проходы',overlapsWith:'Общий участок с',
+ sharedLength:'Длина общего участка',coveringContours:'Контуров на этом участке',
+ sharedHelp:'Кнопка «Найти» выделяет все объекты на общем участке. Чтобы объединить резы, включите «Резать общие кромки один раз» при экспорте DXF. Проверка учитывает участки разных цветов. При экспорте по цвету объединяются резы одного цвета.',
  title:'Проверка для производства',scope:'Область проверки',selected:'Зафиксированное выделение',all:'Все объекты страницы',threshold:'Порог короткого сегмента',scan:'Проверить чертёж',refresh:'Обновить проверку',
  setup:'Сначала задайте единицы и масштаб документа.',help:'Проверьте траектории перед экспортом. Открытые пути могут быть нужны для гравировки или гибки; это замечания для проверки, а не автоматические ошибки.',
  limits:'До 1000 объектов и 12000 сегментов. Совпадения сравниваются по записанной геометрии с точностью 0,000001 мм без учёта направления и начального узла замкнутого пути. Иная разбивка и преобразованные дуги могут не совпасть. Самопересечения, ширина реза и параметры станка не проверяются.',
@@ -17,6 +25,10 @@ const ru:Record<Key,string>={
  open:'Открытый путь резки',zero:'Сегмент нулевой длины',short:'Короткий сегмент',duplicate:'Совпадающий путь',clipped:'Обрезанная геометрия пропущена',invalid:'Некорректная геометрия пропущена',text:'Текст/аннотация пропущены',unsupported:'Объект не для резки или не поддерживается',
 };
 const lv:Record<Key,string>={
+ openDxf:'Atvērt DXF eksportu',
+ shared:'Kopīgs taisns griezums',sharedEdges:'Kopīgie posmi',duplicatePasses:'Atkārtotie griezumi',overlapsWith:'Kopīgs ar',
+ sharedLength:'Kopīgā posma garums',coveringContours:'Kontūras šajā posmā',
+ sharedHelp:'Poga “Atrast” atlasa visus objektus kopīgajā posmā. DXF eksportā izvēlieties “Kopīgās malas griezt vienreiz”, lai apvienotu griezumus. Pārbaudē iekļauj arī dažādu krāsu pārklājumus. Eksportā pēc krāsas apvieno tikai vienas krāsas griezumus.',
  title:'Ražošanas pārbaude',scope:'Pārbaudes apgabals',selected:'Fiksētā atlase',all:'Visi lapas objekti',threshold:'Īsa segmenta slieksnis',scan:'Pārbaudīt zīmējumu',refresh:'Atjaunot pārbaudi',
  setup:'Vispirms iestatiet dokumenta mērvienības un mērogu.',help:'Pirms eksportēšanas pārbaudiet griešanas ceļus. Atvērti ceļi var būt paredzēti gravēšanai vai locīšanai; tie ir pārskatāmi atradumi, nevis automātiskas kļūdas.',
  limits:'Līdz 1000 objektiem un 12000 segmentiem. Sakritības salīdzina ierakstīto ģeometriju ar 0,000001 mm precizitāti, neņemot vērā virzienu un slēgtā ceļa sākuma mezglu. Cits segmentējums vai pārveidotas līknes var palikt neatpazītas. Paškrustošanās, griezuma platums un darbgalda iestatījumi netiek pārbaudīti.',

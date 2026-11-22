@@ -86,7 +86,9 @@ async function readPdf(bytes: Uint8Array) {
   try {
     const doc = await task.promise,
       page = await doc.getPage(1),
-      viewport = page.getViewport({ scale: 1 }),
+      base = page.getViewport({ scale: 1 }),
+      viewport = (base as typeof base & { userUnit?: number }).userUnit === undefined
+        ? page.getViewport({ scale: page.userUnit }) : base,
       list = await page.getOperatorList();
     return {
       result: pdfOperatorsToVectors(list, pdfjs.OPS, viewport),
@@ -280,7 +282,16 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
     const originalBounds = curveBounds(contours), exportedBounds = curveBounds(reopened);
     near(exportedBounds.w, originalBounds.w, 0.1);
     near(exportedBounds.h, originalBounds.h, 0.1);
-    assert.throws(() => serializeVectorDocument(doc.paths, "pdf"), /page-limit/);
+    const largePdf = serializeVectorDocument(doc.paths, "pdf");
+    assert.match(largePdf, /\/UserUnit 10\b/);
+    const pdf = (await readPdf(new TextEncoder().encode(largePdf))).result;
+    const pdfContours = pdf.paths.flatMap(p => p.contours);
+    assert.deepEqual(pdf.warnings, []);
+    assert.equal(pdfContours.length, contours.length);
+    const pdfBounds = curveBounds(pdfContours);
+    near(pdfBounds.w, originalBounds.w);
+    near(pdfBounds.h, originalBounds.h);
+    near(pdf.paths[0].paint.strokeWidth, doc.paths[0].paint.strokeWidth);
 
     // The same compound path may contain holes when filled and must stay intact.
     await assert.rejects(readEps(source.replace("\nstroke\n", "\neofill\n")), /limit/);
@@ -298,6 +309,24 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
     assert.ok(outlined.result.paths.some((p) => p.contours.length > 1));
     assert.ok(!outlined.result.warnings.includes("pdf-text"));
     assert.equal(outlined.text.items.length, 0);
+  });
+  it("exports large sheet and bleed boxes in scaled page units, and keeps ordinary PDF units", async () => {
+    const normal = serializeVectorDocument([sample], "pdf");
+    assert.doesNotMatch(normal, /\/UserUnit\b/);
+    const page = { widthMm: 6000, heightMm: 1200, bleedMm: 10 };
+    const pdf = serializeVectorDocument([sample], "pdf", page);
+    assert.match(pdf, /\/UserUnit 10\b/);
+    const boxes = pdf.match(/\/MediaBox \[0 0 ([.\d]+) ([.\d]+)\] \/TrimBox \[([.\d]+) ([.\d]+) ([.\d]+) ([.\d]+)\] \/BleedBox \[0 0 ([.\d]+) ([.\d]+)\]/);
+    assert.ok(boxes);
+    const [w, h, trimX, trimY, trimR, trimT, bleedW, bleedH] = boxes.slice(1).map(n => Number(n) * 10 * 25.4 / 72);
+    near(w, 6020); near(h, 1220);
+    near(trimX, 10); near(trimY, 10); near(trimR, 6010); near(trimT, 1210);
+    near(bleedW, w); near(bleedH, h);
+    const read = (await readPdf(new TextEncoder().encode(pdf))).result;
+    near(read.width * 25.4 / 72, w);
+    near(read.height * 25.4 / 72, h);
+    near(curveBounds(read.paths[0].contours).w, 72);
+    assert.throws(() => serializeVectorDocument([sample], "pdf", { ...page, widthMm: 50801 }), /page-limit/);
   });
   it("selects one source page and rejects invalid files, pages and EPS transparency", async () => {
     const pdf = new jsPDF();
@@ -397,6 +426,27 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
   });
 });
 describe("painted curves in the native editor store", () => {
+  it("makes stroke-only imported Béziers pickable at their outline with butt caps and dashes", () => {
+    const f = fixture();
+    const path = {
+      ...sample,
+      paint: { ...VECTOR_DEFAULT_PAINT, fill: 'none', lineCap: 'butt' as const, dash: [1, 2], strokeOpacity: 0.6 },
+    };
+    const plan = prepareVectorImport(f.editor, DEFAULT_CAD_SETTINGS,
+      { paths: [path], width: 72, height: 72, warnings: [] }, 72 * 25.4 / 96, { x: 0, y: 0 }, 'EPS');
+    assert.equal(plan.shapes?.[0].opacity, 1);
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    const shape = f.only(), geometry = f.utils['cad-bezier'].getGeometry(shape);
+    const child = geometry.children[0];
+    const point = shape.props.contours[0].nodes[0];
+    // Native getShapeAtPoint checks the children first, even when the drawing
+    // is zoomed so the whole viewport lies inside the curve's overall bounds.
+    assert.ok(child.distanceToPoint(new Vec(point.x, point.y)) <= 0);
+    assert.equal(child.isFilled, true);
+    assert.equal(shape.meta.omsVectorPaint.strokeOpacity, 0.6);
+    assert.equal(geometry.hitTestPoint(new Vec(-200, -200), 2), false);
+  });
+
   it("persists paint and cubic data and hit-tests fills without selecting holes", () => {
     const f = fixture(),
       plan = prepareVectorImport(

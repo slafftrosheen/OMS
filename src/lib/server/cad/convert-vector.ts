@@ -1,11 +1,17 @@
-import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import { mkdir, mkdtemp, open, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import { inflateRawSync } from "node:zlib";
 
 import { dosEpsSection, VECTOR_FILE_LIMIT, vectorPayloadKind } from "../../components/canvas/cad-vector-file";
+import { isCdrArchive } from "../../components/canvas/cad-cdr-file";
 
 export { VECTOR_FILE_LIMIT };
+const PDF_OUTPUT_LIMIT = 20 * 1024 * 1024;
+const runProcess = promisify(execFile);
 let active = 0;
 export class VectorConversionError extends Error {
   constructor(
@@ -25,11 +31,72 @@ export function unwrapEps(bytes: Uint8Array): Uint8Array {
     throw new VectorConversionError("format", 415);
   }
 }
-export function vectorFileKind(bytes: Uint8Array): "pdf" | "eps" {
+export function vectorFileKind(bytes: Uint8Array): "pdf" | "eps" | "cdr" {
   const payload = unwrapEps(bytes);
+  if (payload[0] === 0x50 && payload[1] === 0x4b) {
+    const cdr = payload === bytes && isCdrArchive(payload, (data, size, method) => {
+      if (method === 0) return data.length === size;
+      try {
+        return inflateRawSync(data, { maxOutputLength: Math.max(1, size) }).length === size;
+      } catch {
+        return false;
+      }
+    });
+    if (cdr) return "cdr";
+    throw new VectorConversionError("format", 415);
+  }
   const kind = vectorPayloadKind(payload);
   if (kind && (payload === bytes || kind === "eps")) return kind;
   throw new VectorConversionError("format", 415);
+}
+
+/** Import through the explicit Draw CDR filter in a private, disposable profile. */
+async function convertCdrPage(directory: string, input: string, page: number): Promise<string> {
+  const profile = join(directory, "profile");
+  const userProfile = join(profile, "user");
+  await mkdir(userProfile, { recursive: true, mode: 0o700 });
+  await writeFile(join(userProfile, "registrymodifications.xcu"),
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<oor:items xmlns:oor="http://openoffice.org/2001/registry">' +
+    '<item oor:path="/org.openoffice.Office.Common/Security/Scripting">' +
+    '<prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop>' +
+    '<prop oor:name="DisableMacrosExecution" oor:op="fuse"><value>true</value></prop>' +
+    '</item></oor:items>', { mode: 0o600 });
+  const filter = JSON.stringify({ PageRange: { type: "string", value: String(page) } });
+  try {
+    await runProcess(process.platform === "win32" ? "soffice.com" : "soffice", [
+      `-env:UserInstallation=${pathToFileURL(profile).href}`,
+      "--headless", "--invisible", "--nologo", "--norestore", "--nodefault",
+      "--infilter=Corel Draw Document", "--convert-to", `pdf:draw_pdf_Export:${filter}`,
+      "--outdir", directory, input,
+    ], {
+      cwd: directory,
+      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, HOME: directory,
+        TMPDIR: directory, TEMP: directory, TMP: directory },
+      timeout: 25_000,
+      killSignal: "SIGKILL",
+      maxBuffer: 64 * 1024,
+      windowsHide: true,
+    });
+  } catch (cause) {
+    const error = cause as NodeJS.ErrnoException & { killed?: boolean };
+    if (error.code === "ENOENT") throw new VectorConversionError("cdr-converter-unavailable", 503);
+    if (error.killed) throw new VectorConversionError("timeout");
+    throw new VectorConversionError("cdr-conversion");
+  }
+  const output = join(directory, "input.pdf");
+  const file = await open(output, "r").catch(() => { throw new VectorConversionError("cdr-conversion"); });
+  try {
+    const metadata = await file.stat();
+    if (metadata.size > PDF_OUTPUT_LIMIT) throw new VectorConversionError("limit", 413);
+    const header = Buffer.alloc(8);
+    const { bytesRead } = await file.read(header, 0, header.length, 0);
+    if (!metadata.isFile() || bytesRead < 8 || vectorPayloadKind(header) !== "pdf")
+      throw new VectorConversionError("cdr-conversion");
+  } finally {
+    await file.close();
+  }
+  return output;
 }
 /** Local, bounded conversion. Never accepts URLs, shell commands or caller-supplied flags. */
 export async function convertVectorFile(
@@ -52,8 +119,12 @@ export async function convertVectorFile(
   let directory: string | undefined;
   try {
     directory = await mkdtemp(join(tmpdir(), "oms-vector-"));
-    const input = join(directory, `input.${kind}`);
+    let input = join(directory, `input.${kind}`);
     await writeFile(input, bytes, { mode: 0o600 });
+    if (kind === "cdr") {
+      input = await convertCdrPage(directory, input, page);
+      page = 1;
+    }
     return await new Promise<Buffer>((resolve, reject) => {
       const args = [
         "-dSAFER",
@@ -91,7 +162,7 @@ export async function convertVectorFile(
       );
       child.stdout.on("data", (chunk: Buffer) => {
         size += chunk.length;
-        if (size > 20 * 1024 * 1024)
+        if (size > PDF_OUTPUT_LIMIT)
           stop(new VectorConversionError("limit", 413));
         else chunks.push(chunk);
       });

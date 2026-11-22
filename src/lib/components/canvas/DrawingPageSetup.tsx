@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, useValue, type TLPage, type TLPageId } from '@tldraw/tldraw';
 import {
-  addDrawingPage, drawingPageBounds, DRAWING_PAGE_NAME_LIMIT, DRAWING_PAGE_PRESETS,
+  addDrawingPage, drawingPageBounds, DRAWING_PAGE_NAME_LIMIT, DRAWING_PAGE_PRESETS, DRAWING_STOCK_PRESETS,
   fitDrawingPage, readDrawingPageSize, saveDrawingPage,
 } from './drawing-pages';
 import { useDrawingText } from './drawing-copy';
+
+const pagePresets = { ...DRAWING_PAGE_PRESETS, ...DRAWING_STOCK_PRESETS };
 
 export function DrawingPageSheet() {
   const editor = useEditor();
@@ -49,7 +51,7 @@ export function DrawingPageSetup({ multiple, focus }: { multiple: boolean; focus
   const widthMm = Number(width), heightMm = Number(height);
   const valid = !!name.trim() && name.trim().length <= DRAWING_PAGE_NAME_LIMIT &&
     [widthMm, heightMm].every(value => Number.isFinite(value) && value >= 1 && value <= 100000);
-  const preset = Object.entries(DRAWING_PAGE_PRESETS).find(([, p]) =>
+  const preset = Object.entries(pagePresets).find(([, p]) =>
     p.widthMm === widthMm && p.heightMm === heightMm || p.widthMm === heightMm && p.heightMm === widthMm)?.[0] ?? '';
   const report = (ok: boolean) => setMessage(ok ? 'pageSaved' : 'changedFailed');
   return <details className="drawing-cad-section" ref={title} data-testid="drawing-page-setup">
@@ -64,13 +66,18 @@ export function DrawingPageSetup({ multiple, focus }: { multiple: boolean; focus
         </label>
         <label className="drawing-cad-field"><span>{label('pagePreset')}</span>
           <select value={preset} onChange={event => {
-            const next = DRAWING_PAGE_PRESETS[event.target.value as keyof typeof DRAWING_PAGE_PRESETS];
+            const next = pagePresets[event.target.value as keyof typeof pagePresets];
             if (!next) return;
             setWidth(String(widthMm > heightMm ? next.heightMm : next.widthMm));
             setHeight(String(widthMm > heightMm ? next.widthMm : next.heightMm));
           }}>
             <option value="" disabled>{label('pageCustom')}</option>
-            {Object.keys(DRAWING_PAGE_PRESETS).map(key => <option key={key} value={key}>{key}</option>)}
+            <optgroup label={label('pagePaper')}>
+              {Object.keys(DRAWING_PAGE_PRESETS).map(key => <option key={key} value={key}>{key}</option>)}
+            </optgroup>
+            <optgroup label={label('pageStock')}>
+              {Object.keys(DRAWING_STOCK_PRESETS).map(key => <option key={key} value={key}>{key}</option>)}
+            </optgroup>
           </select>
         </label>
         <label className="drawing-cad-field"><span>{label('pageWidth')} (mm)</span>

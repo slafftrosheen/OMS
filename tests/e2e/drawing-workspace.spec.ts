@@ -16,6 +16,47 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} drops DXF as editable artwork and opens EPS in editable mode`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    if (mode === 'order') {
+      await expect.poll(async () => (await scene(page)).shapes.some((s: any) => s.type === 'order-details')).toBe(true);
+    }
+    const viewport = page.locator('.drawing-viewport');
+    async function drop(name: string, text: string) {
+      await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+      await viewport.evaluate((node, { name, text }) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(new File([text], name));
+        const bounds = node.getBoundingClientRect();
+        node.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer,
+          clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2 }));
+      }, { name, text });
+    }
+    const source = await readFile('tests/fixtures/cad-splines/mixed-ascii.dxf', 'utf8');
+    await drop('editable-splines.dxf', source);
+    const importer = page.getByTestId('drawing-cad-import');
+    await expect(importer.getByText('editable-splines.dxf', { exact: true })).toBeVisible();
+    const enable = page.getByRole('button', { name: 'Enable CAD in mm at 1:1', exact: true });
+    if (await enable.isVisible()) await enable.click();
+    await importer.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    const apply = importer.getByTestId('drawing-cad-apply-plan');
+    await expect(apply).toBeVisible();
+    const acknowledgment = importer.locator('.drawing-cad-report input[type=checkbox]');
+    if (await acknowledgment.count()) await acknowledgment.check();
+    await apply.click();
+    await expect.poll(async () => {
+      const { shapes, selected } = await scene(page);
+      return shapes.some((shape: any) => shape.type === 'cad-bezier' && shape.opacity === 1 && selected.includes(shape.id) &&
+        shape.props.contours.some((contour: any) => contour.nodes.some((node: any) => node.inX || node.inY || node.outX || node.outY)));
+    }).toBe(true);
+    await drop('editable-paths.eps', '%!PS-Adobe-3.0 EPSF-3.0');
+    const eps = page.getByTestId('vector-import');
+    await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
+    await expect(eps.getByRole('combobox', { name: 'Import mode' })).toHaveValue('editable');
+  });
+
   test(`${mode} builds production vectors and keeps controls in full screen`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
@@ -352,6 +393,50 @@ for (const mode of ['idea', 'order']) {
     await expect(page.getByTestId('drawing-colour-red')).toHaveAttribute('aria-label', 'Цвет объекта: Красный');
     await page.getByRole('combobox', { name: 'Theme', exact: true }).selectOption('DarkVim');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+  test(`${mode} stock presets and Fit to Sheet create editable copies in one undo step`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.locator('[data-drawing-menu="tools"] > summary').click();
+    await page.locator('[data-drawing-menu="tools"]').getByRole('button', { name: 'Page setup', exact: true }).click();
+    const setup = page.getByTestId('drawing-page-setup');
+    await setup.getByLabel('Size preset', { exact: true }).selectOption('1500 × 3000 mm');
+    await expect(setup.getByLabel('Page width (mm)', { exact: true })).toHaveValue('1500');
+    await expect(setup.getByLabel('Page height (mm)', { exact: true })).toHaveValue('3000');
+    await setup.getByRole('button', { name: 'Apply page setup', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).page.meta.omsPageSize).toEqual({ widthMm: 1500, heightMm: 3000 });
+    await page.evaluate(() => (window as any).__drawingFixture.selectSheetSample());
+    await page.getByTestId('drawing-arrange-toggle').click();
+    await page.getByRole('combobox', { name: 'Arrange task', exact: true }).selectOption('repeat');
+    const panel = page.getByTestId('drawing-repeat');
+    await panel.getByLabel('Layout mode', { exact: true }).selectOption('sheet');
+    await panel.getByLabel('Edge margin (mm)', { exact: true }).fill('10');
+    await panel.getByRole('button', { name: 'Preview layout', exact: true }).click();
+    await expect(panel.getByRole('img', { name: /Sheet layout with the edge margin/ })).toBeVisible();
+    await expect(panel.getByText('3 × 3', { exact: true })).toBeVisible();
+    const overlay = page.getByTestId('drawing-repeat-overlay');
+    await expect(overlay.locator('.drawing-repeat-overlay-copy')).toHaveCount(8);
+    await expect(overlay).toHaveCSS('pointer-events', 'none');
+    expect((await scene(page)).shapes.filter((s: any) => s.type === 'geo')).toHaveLength(1);
+    const showOverlay = panel.getByRole('checkbox', { name: 'Show layout on canvas' });
+    await showOverlay.uncheck();
+    await expect(overlay).toHaveCount(0);
+    await showOverlay.check();
+    await expect(overlay.locator('.drawing-repeat-overlay-copy')).toHaveCount(8);
+    await page.getByRole('combobox', { name: 'Arrange task', exact: true }).selectOption('align');
+    await expect(overlay).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Arrange task', exact: true }).selectOption('repeat');
+    await expect(overlay.locator('.drawing-repeat-overlay-copy')).toHaveCount(8);
+    await panel.getByLabel('Edge margin (mm)', { exact: true }).fill('11');
+    await expect(overlay).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Create copies', exact: true })).toBeDisabled();
+    await panel.getByLabel('Edge margin (mm)', { exact: true }).fill('10');
+    await panel.getByRole('button', { name: 'Preview layout', exact: true }).click();
+    await panel.getByRole('button', { name: 'Create copies', exact: true }).click();
+    await expect(overlay).toHaveCount(0);
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'geo').length).toBe(9);
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'geo').length).toBe(1);
   });
   test(`${mode} object aliases and repeat grids preserve artwork and undo as one command`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
