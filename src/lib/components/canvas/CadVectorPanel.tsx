@@ -232,10 +232,11 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const consumedFocus = useRef<number>();
+  const automaticOutlines = /\.(?:eps|cdr)$/i.test(file?.name ?? '');
   function chooseFile(next?: File) {
     setFile(next);
     setPage('1');
-    setMode(/\.eps$/i.test(next?.name ?? '') ? 'editable' : 'auto');
+    setMode(/\.(?:eps|cdr)$/i.test(next?.name ?? '') ? 'editable' : 'auto');
     setReview(undefined);
     work.setMessage('');
   }
@@ -269,7 +270,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           <input
             ref={input}
             type="file"
-            accept=".pdf,.eps,application/pdf,application/postscript"
+            accept=".pdf,.eps,.cdr,application/pdf,application/postscript,application/vnd.corel-draw"
             onChange={(e) => chooseFile(e.target.files?.[0])}
           />
         </Field>
@@ -290,7 +291,8 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
         <label className="drawing-vector-check">
           <input
             type="checkbox"
-            checked={outline}
+            checked={automaticOutlines || outline}
+            disabled={automaticOutlines}
             onChange={(e) => setOutline(e.target.checked)}
           />
           {t("outline")}
@@ -306,7 +308,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
               const { body, kind } = await vectorUploadPayload(file);
               let bytes: Uint8Array;
               let selectedPage = kind === "eps" ? 1 : Number(page);
-              if (kind === "eps" || outline) {
+              if (kind === "eps" || kind === "cdr" || outline) {
                 const response = await fetch(
                   `${base}/api/canvas/convert-vector?page=${selectedPage}`,
                   {
@@ -339,6 +341,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
                 );
                 return;
               }
+              if (kind === 'cdr') result.document.warnings.push('cdr-review');
               const plan = prepareVectorImport(
                 editor,
                 settings,

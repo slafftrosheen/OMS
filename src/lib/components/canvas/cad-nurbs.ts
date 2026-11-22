@@ -9,6 +9,25 @@ export interface SplineContours {
 }
 const MAX_DEGREE = 16;
 const MAX_CONTOURS = 512;
+export const MAX_CUBIC_CHAIN_CONTROLS = 3 * CAD_CURVE_NODE_LIMIT + 1;
+
+/** A clamped cubic chain stores three extra controls per segment, but only
+ * one extra editable anchor. This is also the layout used by OMS DXF export. */
+export function isExpandedCubicChain(
+  controlCount: number, knots: number[], degree: number, weights?: number[],
+): boolean {
+  if (degree !== 3 || controlCount <= CAD_CURVE_NODE_LIMIT || controlCount > MAX_CUBIC_CHAIN_CONTROLS ||
+      (controlCount - 1) % 3 !== 0 || knots.length !== controlCount + 4 ||
+      (weights?.length && (weights.length !== controlCount || weights[0] <= 0 || weights.some(w => w !== weights[0]))))
+    return false;
+  for (let i = 0; i < knots.length;) {
+    const size = i === 0 || i === controlCount ? 4 : 3;
+    if (!Number.isFinite(knots[i]) || (i > 0 && knots[i] <= knots[i - 1]) || knots[i] !== knots[i + size - 1])
+      return false;
+    i += size;
+  }
+  return true;
+}
 const fail = (code: string, message: string): never => {
   const error = new CadOperationError(code);
   error.message = message;
@@ -119,7 +138,9 @@ export function splineContours(
 ): SplineContours {
   if (!Number.isInteger(degree) || degree < 1 || degree > MAX_DEGREE)
     fail("spline-degree", "Spline degree must be between 1 and 16.");
-  if (controls.length < degree + 1 || controls.length > CAD_CURVE_NODE_LIMIT ||
+  const expandedCubic = isExpandedCubicChain(controls.length, knots, degree, weights);
+  const nodeBudget = CAD_CURVE_NODE_LIMIT + Number(expandedCubic && closed);
+  if (controls.length < degree + 1 || (controls.length > CAD_CURVE_NODE_LIMIT && !expandedCubic) ||
       controls.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y)))
     fail("spline-control-points", "Spline control points are missing, invalid, or too numerous.");
   if (!(tolerance > 0) || !Number.isFinite(tolerance))
@@ -149,7 +170,7 @@ export function splineContours(
   const contours: CadContour[] = [];
   let contour: CadContour | undefined, nodeCount = 0, subdivisions = 0;
   const append = (p: CadPoint) => {
-    if (++nodeCount > CAD_CURVE_NODE_LIMIT)
+    if (++nodeCount > nodeBudget)
       fail("spline-limit", "Spline exceeds the editable node limit at this tolerance.");
     const node = nodeAt(p);
     contour!.nodes.push(node);

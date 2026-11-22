@@ -35,7 +35,7 @@ export function requestDrawingUi(editor: Editor, request: DrawingUiRequest): voi
 export function routeCanvasCadImport(editor: Editor, files: readonly File[]): boolean {
   if (files.length !== 1 || editor.getInstanceState().isReadonly) return false;
   const [file] = files;
-  const action = /\.dxf$/i.test(file.name) ? 'importDxf' : /\.eps$/i.test(file.name) ? 'importVector' : null;
+  const action = /\.dxf$/i.test(file.name) ? 'importDxf' : /\.(?:eps|cdr)$/i.test(file.name) ? 'importVector' : null;
   if (!action) return false;
   requestDrawingUi(editor, { kind: 'cad', action, file });
   return true;

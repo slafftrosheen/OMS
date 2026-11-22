@@ -547,6 +547,7 @@ export function readCadDxf(
             0.002 / cadMmPerPixel(settings) / matrixScale(m),
           );
           appendCurves(result.contours, m, r);
+          if (result.reconstructed) extraWarnings.add("import-fit-spline-reconstructed");
           approximated ||= result.approximated;
           continue;
         }

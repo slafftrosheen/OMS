@@ -1,7 +1,9 @@
 import type { DxfPair } from "./cad-dxf-decode";
 import type { CadPoint } from "./cad-settings";
 import { CadOperationError } from "./cad-plans";
-import { splineContours } from "./cad-nurbs";
+import { CAD_CURVE_NODE_LIMIT } from "./cad-curves";
+import { fitOpenCubic } from "./cad-fit-spline";
+import { isExpandedCubicChain, MAX_CUBIC_CHAIN_CONTROLS, splineContours, type SplineContours } from "./cad-nurbs";
 
 /**
  * SPLINE group schema: Autodesk DXF reference, AcDbSpline.
@@ -36,11 +38,9 @@ export function readDxfSpline(pairs: DxfPair[]) {
     if (!Number.isSafeInteger(declared) || declared < 0 || declared !== count)
       throw new CadOperationError("spline-count");
   }
-  if (controls.length > 4096 || fitPoints.length > 4096 || knots.length > 8192)
+  if (controls.length > MAX_CUBIC_CHAIN_CONTROLS || fitPoints.length > CAD_CURVE_NODE_LIMIT ||
+      knots.length > MAX_CUBIC_CHAIN_CONTROLS + 4)
     throw new CadOperationError("spline-limit");
-  if (!controls.length && fitPoints.length >= 2)
-    throw new CadOperationError("spline-fit-only");
-  if (!controls.length) throw new CadOperationError("spline-control-points");
   if (weights.length && weights.length !== controls.length)
     throw new CadOperationError("spline-weights");
   const degree = scalar(71, NaN, "spline-degree");
@@ -49,11 +49,35 @@ export function readDxfSpline(pairs: DxfPair[]) {
   // Known lower bits determine geometry; exporters also use additional metadata bits.
   const flags = scalar(70, 0, "geometry");
   if (!Number.isSafeInteger(flags) || flags < 0) throw new CadOperationError("geometry");
+  if ((controls.length > CAD_CURVE_NODE_LIMIT || knots.length > 8192) &&
+      !isExpandedCubicChain(controls.length, knots, degree, weights))
+    throw new CadOperationError("spline-limit");
+  if (!controls.length && fitPoints.length >= 2) {
+    if (degree !== 3 || flags & (1 | 2 | 4 | 16) || knots.length)
+      throw new CadOperationError("spline-fit-only");
+    const z = values(31, "spline-fit-points");
+    if (z.length && z.length !== fitPoints.length) throw new CadOperationError("spline-fit-points");
+    if (z.some(value => Math.abs(value - z[0]) > 1e-8)) throw new CadOperationError("unsupported");
+    const tangent = (code: number) => {
+      const pair = points(code, "spline-fit-points");
+      const elevation = values(code + 20, "spline-fit-points");
+      if (pair.length > 1 || elevation.length > pair.length) throw new CadOperationError("spline-fit-points");
+      if (Math.abs(elevation[0] ?? 0) > 1e-8) throw new CadOperationError("unsupported");
+      return pair[0];
+    };
+    return { controls, knots, weights: undefined, degree, closed: false,
+      fit: { points: fitPoints, start: tangent(12), end: tangent(13) } };
+  }
+  if (!controls.length) throw new CadOperationError("spline-control-points");
   return { controls, knots, weights: weights.length ? weights : undefined, degree, closed: !!(flags & 3) };
 }
 
-export function dxfSplineContours(pairs: DxfPair[], tolerance: number) {
+export function dxfSplineContours(pairs: DxfPair[], tolerance: number): SplineContours & { reconstructed?: true } {
   const data = readDxfSpline(pairs);
+  if (data.fit) {
+    const { points, start, end } = data.fit;
+    return { contours: [fitOpenCubic(points, start, end)], approximated: false, reconstructed: true };
+  }
   try {
     return splineContours(data.controls, data.weights, data.knots, data.degree, data.closed, tolerance, {
       joinCoincidentClosedSpans: true,

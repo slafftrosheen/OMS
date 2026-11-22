@@ -26,7 +26,8 @@ This is **not** universal CorelDRAW / prepress format compatibility. The review 
 | PDF export | Cubic curves, full size, fill/stroke, holes, dashes, alpha, nested imported clips, gradients, imported embedded rasters with alpha masks, fitted artboard | CAD geometry and supported unfilled native shapes. Live text, ordinary media/image attachments, form cards and native frame masks are reported. Imported PDF artwork retains its own clips. Circular geometry is approximated within 0.005 mm. Max page side 5080 mm. |
 | EPS export | Level 3 EPS: curves, fills/outlines, holes, dashes, clips, gradients and opaque embedded rasters | EPS cannot retain alpha: transparent objects/images are reported and omitted. Same object/page limits as PDF export. |
 | DXF | ASCII and binary R12/R13+ import; bulged polylines; rational and periodic splines; blocks/arrays and color inheritance; hatch boundaries and solid fills; saved dimension graphics; TEXT/MTEXT/ATTRIB and constant ATTDEF as editable glyph curves; explicit XY/XZ/YZ projection of 3D lines, polylines, polyface/polygon meshes, 3DFACE edges, splines, tilted planar entities and nested XYZ blocks. Export remains ASCII 2D. | No 3D solid modeler: ACIS 3DSOLID/REGION, modern MESH entities, thickness extrusions, fit-point-only splines, wide polylines, paperspace and full style/layer round trips remain reported. 3D import is a wire projection without depth or hidden-edge removal. Text uses the selected substitute font; MTEXT inline styles/fractions are flattened with a warning, columns/vertical layouts remain unsupported. No live text editing or SHX font engine. Pattern/gradient hatches retain boundaries with a warning. Clipped artwork and rasters remain excluded from DXF cutting geometry. |
-| CDR / DWG | Attachments can remain attached to orders | No native editable import/export. |
+| CDR import | Pick one CorelDRAW page. Supported fills, strokes, and cubic paths import as editable artwork. | RIFF and packaged CDR files up to 12 MiB. The server needs LibreOffice Draw and Ghostscript. Compare appearance, dimensions, fonts, and spot-color definitions with the source. |
+| DWG | Order attachment | Export to DXF in the source application for editable geometry. |
 
 Unsupported material is never advertised as converted. Vector import/export with omission warnings requires an explicit review checkbox. Tracing displays its approximation, resolution, topology and noise notices directly; those informational notices do not require an omission checkbox. Centerline omission of isolated dots does require acknowledgement. Changes to the document, selection or relevant options invalidate prepared results. Read-only and locked objects cannot be changed. The original bitmap is kept by default. Imported clipping and gradient/image coordinates are stored with the editable paths and follow object moves, rotation, mirrors and resizing. Clipping is nondestructive; node editing changes the artwork under its mask. Region shaping/combining of clipped, gradient or raster-painted objects is blocked pending an explicit flatten/unclip workflow. Selecting an imported bitmap and using **Trace bitmap** retains its affine placement and clipping. Changing its fill to a solid color replaces the gradient/image fill.
 
@@ -205,18 +206,19 @@ Playwright discovery still finds **61 scenarios in six files**. They were **not 
 
 ## Deployment
 
-Docker production images now install `ghostscript`. For the existing Debian/Ubuntu systemd host, install its maintained distribution package before using EPS or PDF text outlining:
+The Docker image includes Ghostscript and LibreOffice Draw. On the Debian/Ubuntu systemd host, install both distribution packages before using CDR, EPS, or PDF text outlining.
 
 ```sh
 sudo apt-get update
-sudo apt-get install ghostscript
+sudo apt-get install ghostscript libreoffice-draw
 gs --version
+soffice --version
 npm ci
 npm run build
 sudo systemctl restart reclame-oms.service
 ```
 
-Keep Ghostscript patched. Conversion is authenticated and limited to the existing Toolkit manager roles. Input bytes are capped at 12 MiB while streaming; conversion has a 20-second timeout, a 20 MiB output cap, a maximum of two concurrent processes per OMS process and a per-user throttle. Ghostscript runs with SAFER, fixed flags, no shell, a minimal environment, and a private temporary directory removed on completion/failure. It does not receive application credentials or remote URLs. Missing Ghostscript returns an actionable 503; PDF path-only import and tracing still run locally. Retain `BODY_SIZE_LIMIT=32M` and the existing private Storage bucket policies for image imports. No new database migration is required.
+Conversion uses the existing Toolkit manager permissions and per-user throttle. Requests are capped at 12 MiB, intermediate and final PDFs at 20 MiB, and CDR archives at 128 MiB expanded. The CDR stage has a 25-second timeout and uses the explicit CorelDRAW Draw filter in a temporary profile with macros disabled. Ghostscript has a separate 20-second timeout. OMS allows two concurrent conversion requests per application process. Retain `BODY_SIZE_LIMIT=32M` and the existing private Storage policies for images. This uses the existing database schema.
 
 ## Verification
 

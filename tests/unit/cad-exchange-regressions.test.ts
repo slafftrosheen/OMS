@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
-import { buildCadDxf } from '../../src/lib/components/canvas/cad-dxf';
-import { nodeAt, type CadContour } from '../../src/lib/components/canvas/cad-curves';
+import { buildCadDxf, serializeCadDxf } from '../../src/lib/components/canvas/cad-dxf';
+import { CAD_CURVE_NODE_LIMIT, nodeAt, type CadContour } from '../../src/lib/components/canvas/cad-curves';
+import { cadMmPerPixel } from '../../src/lib/components/canvas/cad-settings';
 import { readCadDxf } from '../../src/lib/components/canvas/cad-import';
 import { VECTOR_DEFAULT_PAINT } from '../../src/lib/components/canvas/cad-paint';
 import { DEFAULT_CAD_SETTINGS as settings } from '../../src/lib/components/canvas/cad-settings';
@@ -31,6 +32,30 @@ function exportEditor(shapes: any[]) {
 }
 
 describe('CAD interchange regressions', () => {
+  it('round-trips a maximum-size closed Bézier contour with exact handles even in explicit projection', () => {
+    const nodes = Array.from({ length: CAD_CURVE_NODE_LIMIT }, (_, index) => {
+      const angle = index * 2 * Math.PI / CAD_CURVE_NODE_LIMIT;
+      return { ...nodeAt({ x: 500 * Math.cos(angle), y: 500 * Math.sin(angle) }),
+        inX: Math.sin(angle) / 4, inY: -Math.cos(angle) / 4,
+        outX: -Math.sin(angle) / 4, outY: Math.cos(angle) / 4 };
+    });
+    const { text } = serializeCadDxf([{ type: 'spline', contour: { closed: true, nodes } }]);
+    for (const projection of ['strict','xy'] as const) {
+      const imported = readCadDxf(settings, text, { keepCoordinates: true, projection });
+      assert.deepEqual(imported.omitted, []);
+      assert.ok(!imported.warnings.includes('import-curves-approximated'));
+      assert.equal(imported.contours.length, 1);
+      assert.equal(imported.contours[0].closed, true);
+      assert.equal(imported.contours[0].nodes.length, CAD_CURVE_NODE_LIMIT);
+      const scale = 1 / cadMmPerPixel(settings);
+      imported.contours[0].nodes.forEach((node, i) => {
+        for (const axis of ['x','inX','outX','y','inY','outY'] as const) {
+          const expected = nodes[i][axis] * scale * (axis.toLowerCase().endsWith('y') ? -1 : 1);
+          assert.ok(Math.abs(node[axis] - expected) < 1e-9);
+        }
+      });
+    }
+  });
   it('exports native curved lines together with straight lines and reimports the same Bézier handles', () => {
     const spline = { id: 'curved', type: 'line', props: { spline: 'cubic' }, meta: {} };
     const straight = { id: 'straight', type: 'cad-path', props: { points: [cubic.a, cubic.d], closed: false }, meta: {} };
@@ -66,20 +91,26 @@ describe('CAD interchange regressions', () => {
     ]);
   });
 
-  it('routes one DXF or EPS into the matching review without accepting other files or readonly drops', () => {
+  it('routes one DXF, EPS or CDR into the matching review without accepting other files or readonly drops', () => {
     const container = new EventTarget();
     const state = { isReadonly: false };
     const editor = { getContainer: () => container, getInstanceState: () => state } as any;
     const received: unknown[] = [];
     container.addEventListener(DRAWING_UI_REQUEST, event => received.push((event as CustomEvent).detail));
     const dxf = new File(['DXF'], 'line.DXF'), eps = new File(['EPS'], 'art.Eps');
+    const cdr = new File(['CDR'], 'drawing.CDR');
     assert.equal(routeCanvasCadImport(editor, [dxf]), true);
     assert.equal(routeCanvasCadImport(editor, [eps]), true);
+    assert.equal(routeCanvasCadImport(editor, [cdr]), true);
     assert.equal(routeCanvasCadImport(editor, [dxf, eps]), false);
     assert.equal(routeCanvasCadImport(editor, [new File(['PDF'], 'page.pdf')]), false);
     state.isReadonly = true;
     assert.equal(routeCanvasCadImport(editor, [dxf]), false);
     assert.ok(received.every(isDrawingUiRequest));
-    assert.deepEqual(received, [{ kind: 'cad', action: 'importDxf', file: dxf }, { kind: 'cad', action: 'importVector', file: eps }]);
+    assert.deepEqual(received, [
+      { kind: 'cad', action: 'importDxf', file: dxf },
+      { kind: 'cad', action: 'importVector', file: eps },
+      { kind: 'cad', action: 'importVector', file: cdr },
+    ]);
   });
 });
