@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 const dxf=readFileSync('tests/fixtures/cad/production-reference.dxf');
 const fileId='22222222-2222-4222-8222-222222222222';
-test('locates the exact shared DXF section and clears its canvas marker when leaving Production check',async({page})=>{
+test('locates a shared DXF section and previews the exported shared layer',async({page})=>{
  await page.setViewportSize({width:1440,height:950});
  await page.goto('/drawing-workspace.html?mode=idea');
  await page.getByTestId('drawing-cad-toggle').click();
@@ -31,8 +31,20 @@ test('locates the exact shared DXF section and clears its canvas marker when lea
  });
  expect(length*25.4/96).toBeCloseTo(20,7);
  expect(await page.evaluate(()=>(window as any).__drawingFixture.inspect().selected.length)).toBe(2);
- await task.selectOption('files');
+ await preflight.getByTestId('drawing-preflight-open-dxf').click();
  await expect(marker).toHaveCount(0);
+ const common=page.getByRole('checkbox',{name:'Cut shared edges once',exact:true});
+ await common.check();
+ await page.getByTestId('drawing-cad-review').click();
+ const preview=page.getByTestId('drawing-dxf-preview');
+ await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toBeAttached();
+ await preview.getByLabel('Preview layer',{exact:true}).selectOption('OMS_SHARED');
+ await expect(preview.locator('[data-dxf-layer]')).toHaveCount(1);
+ await common.uncheck();
+ await expect(preview).toHaveCount(0);
+ await page.getByTestId('drawing-cad-review').click();
+ await expect(preview.locator('[data-dxf-layer="OMS_CLOSED"]')).toBeAttached();
+ await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toHaveCount(0);
 });
 test('carries the reviewed Production check scope into DXF after clearing the selection',async({page})=>{
  await page.setViewportSize({width:1440,height:950});

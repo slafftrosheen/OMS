@@ -15,6 +15,7 @@ import {
   setCadOriginToSelection, updateCadArc, updateCadPathPoints, type CadGeometryInput,
 } from './cad-geometry';
 import { buildCadDxf, type DxfExportScope } from './cad-dxf';
+import { DxfReviewPreview } from './DxfReviewPreview';
 import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
 import { preflightRevision, type PreflightDxfScope } from './drawing-preflight';
 import { usePreflightText } from './preflight-copy';
@@ -323,7 +324,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
     setAcknowledged(false); setMessage('');
     const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
     try { setReport({
-      data: buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines }),
+      data: buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true }),
       revision, selectionKey, source, optionsKey, curves, toleranceMm, colorLayers, commonLines,
     }); }
     catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
@@ -369,6 +370,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       <button type="button" disabled={!settings || !hasObjects || !validOptions || captureStale} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
+      {!stale && !captureStale && report.data.preview && <DxfReviewPreview preview={report.data.preview} />}
       <dl className="drawing-cad-values">
         <dt>{label('curveExport')}</dt><dd>{label(report.curves === 'spline' ? 'splineExport' : 'polylineExport')}</dd>
         {report.curves === 'polyline' && <><dt>{label('exportTolerance')}</dt><dd>{format(report.toleranceMm, 4)}</dd></>}

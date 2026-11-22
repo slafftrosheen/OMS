@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 import { locale, t } from 'svelte-i18n';
 
 const en = {
+  dxfPreviewTitle: 'DXF cut preview', dxfPreviewLayer: 'Preview layer', dxfPreviewAll: 'All cutting layers',
   dxfPreflightScope: 'Production check scope',
   dxfRefreshPreflight: 'The drawing changed. Run Production check again or choose another export scope.',
   dxfCommonLines: 'Cut shared edges once',
@@ -39,6 +40,7 @@ const en = {
 } as const;
 type CadDictionary = { [K in keyof typeof en]: string };
 const ru: CadDictionary = {
+  dxfPreviewTitle: 'Предпросмотр резов DXF', dxfPreviewLayer: 'Просмотр слоя', dxfPreviewAll: 'Все слои резки',
   dxfPreflightScope: 'Область проверки для производства',
   dxfRefreshPreflight: 'Чертёж изменился. Повторите проверку для производства или выберите другую область экспорта.',
   dxfCommonLines: 'Резать общие кромки один раз',
@@ -74,6 +76,7 @@ const ru: CadDictionary = {
   nudgeHelp: 'Стрелки: шаг в единицах чертежа · Shift: ×10 · Ctrl/⌘: ×0.1', repeatHint: 'Интервалы заданы в единицах чертежа. Строки и столбцы включают оригинал.',
 };
 const lv: CadDictionary = {
+  dxfPreviewTitle: 'DXF griezumu priekšskatījums', dxfPreviewLayer: 'Priekšskatījuma slānis', dxfPreviewAll: 'Visi griešanas slāņi',
   dxfPreflightScope: 'Ražošanas pārbaudes apgabals',
   dxfRefreshPreflight: 'Zīmējums ir mainījies. Atkārtojiet ražošanas pārbaudi vai izvēlieties citu eksporta apgabalu.',
   dxfCommonLines: 'Kopīgās malas griezt vienreiz',

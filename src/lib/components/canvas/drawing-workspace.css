@@ -232,6 +232,8 @@
 .drawing-cad-message { margin: 8px 0; }
 .drawing-cad-report { border: 1px solid var(--border); background: var(--bg-0); padding: 8px; border-radius: 4px; }
 .drawing-cad-report > button { width: 100%; margin-top: 8px; }
+.drawing-dxf-preview { display: grid; gap: 8px; margin-bottom: 8px; }
+.drawing-dxf-preview svg { display: block; box-sizing: border-box; width: 100%; height: 200px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-1); }
 .drawing-cad-omissions { max-height: 176px; overflow: auto; padding-left: 16px; margin: 0 0 8px; font-size: 11px; }
 .drawing-cad-omissions li { margin-bottom: 8px; overflow-wrap: anywhere; }
 .drawing-cad-omissions strong, .drawing-cad-omissions span { display: block; }
