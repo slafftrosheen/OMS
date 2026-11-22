@@ -40,7 +40,7 @@ test('locates a shared DXF section and previews the exported shared layer',async
  await expect(report.getByText('400 mm',{exact:true})).toBeVisible();
  const preview=page.getByTestId('drawing-dxf-preview');
  await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toBeAttached();
- await preview.getByLabel('Preview layer',{exact:true}).selectOption('OMS_SHARED');
+ await preview.getByRole('combobox',{name:'Preview layer',exact:true}).selectOption('OMS_SHARED');
  await expect(preview.locator('[data-dxf-layer]')).toHaveCount(1);
  await expect(preview.getByText('20 mm',{exact:true})).toBeVisible();
  await common.uncheck();
@@ -60,8 +60,9 @@ test('carries the reviewed Production check scope into DXF after clearing the se
  const panel=page.getByTestId('drawing-cad-panel'),task=panel.getByTestId('drawing-cad-task');
  await task.selectOption('draw');
  await panel.locator('summary').filter({hasText:/^Exact geometry$/}).click();
- await panel.getByLabel('Width (mm)',{exact:true}).fill('100');
- await panel.getByLabel('Height (mm)',{exact:true}).fill('60');
+ const geometry=panel.locator('form').filter({has:page.getByTestId('drawing-cad-create')});
+ await geometry.getByLabel('Width (mm)',{exact:true}).fill('100');
+ await geometry.getByLabel('Height (mm)',{exact:true}).fill('60');
  await panel.getByTestId('drawing-cad-create').click();
  const selected=()=>page.evaluate(()=>(window as any).__drawingFixture.inspect().selected.length);
  await expect.poll(selected).toBe(1);

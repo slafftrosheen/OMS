@@ -1,7 +1,10 @@
 <script lang="ts">
   import { locale } from 'svelte-i18n';
   import CanvasPage from '../../src/routes/toolkit/canvas/+page.svelte';
+  import AssistantShell from '$lib/assistant/AssistantShell.svelte';
+  import { provideAssistantContext } from '$lib/assistant/context';
   import { requestFixtureNavigation } from './navigation';
+  const controller = provideAssistantContext();
   let theme = $state('LightVim');
   let canvasOpen = $state(true);
   $effect(() => { document.documentElement.dataset.theme = theme; });
@@ -17,6 +20,7 @@
   <button onclick={() => { if (requestFixtureNavigation()) canvasOpen = false; }}>Leave canvas</button>
 </header>
 <main class="canvas-fixture">{#if canvasOpen}<CanvasPage />{:else}<p>Canvas closed</p>{/if}</main>
+<AssistantShell {controller} path="/toolkit/canvas" accountId="canvas-fixture" />
 
 <style>
   .fixture-controls { display:flex;flex-wrap:wrap;gap:12px;padding:8px 12px;background:var(--bg-1);color:var(--text);border-bottom:1px solid var(--border); }

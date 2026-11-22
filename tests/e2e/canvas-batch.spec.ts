@@ -1,3 +1,4 @@
+import { openCanvasAssistant } from './canvas-assistant';
 import { test, expect } from '@playwright/test';
 
 test('a linked AI diagram groups from Draw, uses real bindings and remains one native Undo step', async ({ page }) => {
@@ -52,12 +53,14 @@ test('a linked AI diagram groups from Draw, uses real bindings and remains one n
   await expect(page.getByTestId('drawing-tool-select')).toBeEnabled({ timeout: 45_000 });
   const allRecords = () => Object.values(saved.at(-1)?.payload?.snapshot?.document?.store ?? {}) as any[];
   const shapes = () => allRecords().filter(record => record.typeName === 'shape');
-  const draw = page.getByTestId('drawing-tool-draw');
+  const draw = page.getByTestId('drawing-tool-cad-freehand');
   const select = page.getByTestId('drawing-tool-select');
   const applyAll = page.getByRole('button', { name: 'Apply all edits', exact: true });
   const historyAction = async (name: string) => {
     await page.getByTestId(name.startsWith('Undo') ? 'drawing-undo' : 'drawing-redo').click();
   };
+
+  await openCanvasAssistant(page);
 
   await page.locator('#toolkit-prompt').fill('Create a connected two-step diagram, align it and group it');
   await page.locator('#toolkit-prompt').press('Enter');
@@ -90,6 +93,7 @@ test('a linked AI diagram groups from Draw, uses real bindings and remains one n
 
   // Ungroup has the same native tool gate; exercise it separately on the saved
   // real group, whose descendants and fingerprints now exist in scene context.
+  await openCanvasAssistant(page);
   await page.locator('#toolkit-prompt').fill('Ungroup this diagram');
   await page.locator('#toolkit-prompt').press('Enter');
   await expect(applyAll).toBeVisible();

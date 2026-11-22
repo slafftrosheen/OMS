@@ -1,3 +1,4 @@
+import { openCanvasAssistant, closeCanvasAssistant } from './canvas-assistant';
 import { test, expect, type Page } from '@playwright/test';
 import PDFDocument from 'pdfkit';
 
@@ -126,7 +127,7 @@ test('content insertion is distinct from drawing controls and remains keyboard u
   await expect.poll(() => shapes().some(shape => shape.type === 'document' && shape.props.url === 'https://example.com/corrected')).toBe(true);
   await insert.click();
   await panel.getByRole('button', { name: 'Note', exact: true }).click();
-  await expect.poll(() => shapes().some(shape => shape.type === 'idea' && shape.props.kind === 'note')).toBe(true);
+  await expect.poll(() => shapes().some(shape => shape.type === 'idea-card' && shape.props.kind === 'note')).toBe(true);
   for (const [locale, label] of [['ru', 'Содержимое и автоматизация холста'], ['lv', 'Audekla saturs un automatizācija']]) {
     await page.getByLabel('Language', { exact: true }).selectOption(locale);
     await expect(page.getByRole('toolbar', { name: label, exact: true })).toBeVisible();
@@ -139,7 +140,7 @@ test('PDF analysis respects provider backoff, sends the selected mode and preser
   await page.setViewportSize({ width: 1500, height: 1100 });
   const pdf = await fixturePdf();
   const { analyses, shapes, errors } = await mountContentBar(page, { pdf, failAnalysisOnce: true });
-  await page.getByRole('button', { name: 'Hide assistant', exact: true }).click();
+  await closeCanvasAssistant(page);
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   await page.getByLabel('Choose images, PDFs, video or audio').setInputFiles({
     name: 'sign-drawing.pdf', mimeType: 'application/pdf', buffer: pdf
@@ -147,7 +148,7 @@ test('PDF analysis respects provider backoff, sends the selected mode and preser
   await page.locator('.tl-shape').getByText('sign-drawing.pdf', { exact: true }).click();
   await page.getByTestId('canvas-content-bar').getByRole('button', { name: 'Ask about selection', exact: true }).click();
   await page.locator('.assistant-options > summary').click();
-  const mode = page.getByLabel('Read PDF as', { exact: true });
+  const mode = page.getByRole('combobox', { name: 'Read PDF as', exact: true });
   await expect(mode).toHaveValue('auto');
   await page.getByRole('button', { name: 'Analyze selected image / PDF', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Waiting to retry · see message', exact: true })).toBeDisabled();
@@ -166,7 +167,7 @@ test('PDF analysis respects provider backoff, sends the selected mode and preser
   expect(analyses[2].pdfMode).toBe('text');
   await expect(page.getByRole('log').getByText(/Text-only analysis.*Graphics and page layout/s)).toBeVisible();
   await page.getByRole('button', { name: 'Add findings to shared Canvas', exact: true }).click();
-  await expect.poll(() => shapes().some(shape => shape.type === 'idea' &&
+  await expect.poll(() => shapes().some(shape => shape.type === 'idea-card' &&
     shape.props.body.includes('Text-only analysis') && shape.props.body.includes('EXTRACTED PDF SOURCE TEXT'))).toBe(true);
   expect(errors).toEqual([]);
 });
@@ -179,15 +180,15 @@ test('PDF page ranges validate before sending, survive failure and reset for ano
   const { analyses, shapes, errors } = await mountContentBar(page, {
     pdf, totalPages: 3, paidOcr: true, rejectRangeOnce: true
   });
-  await page.getByRole('button', { name: 'Hide assistant', exact: true }).click();
+  await closeCanvasAssistant(page);
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   const upload = page.getByLabel('Choose images, PDFs, video or audio');
   await upload.setInputFiles({ name: 'sign-drawing.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.locator('.tl-shape').getByText('sign-drawing.pdf', { exact: true }).click();
   await page.getByTestId('canvas-content-bar').getByRole('button', { name: 'Ask about selection', exact: true }).click();
   await page.locator('.assistant-options > summary').click();
-  const pages = page.getByLabel('PDF pages', { exact: true });
-  const mode = page.getByLabel('Read PDF as', { exact: true });
+  const pages = page.getByRole('combobox', { name: 'PDF pages', exact: true });
+  const mode = page.getByRole('combobox', { name: 'Read PDF as', exact: true });
   const analyze = page.getByRole('button', { name: 'Analyze selected image / PDF', exact: true });
   const ocr = page.getByRole('checkbox', { name: 'Use scanned-PDF OCR (paid)', exact: true });
   await expect(pages).toHaveValue('all');
@@ -229,12 +230,14 @@ test('PDF page ranges validate before sending, survive failure and reset for ano
   await expect(page.getByRole('log').getByText(/Only pages 2–3 of 3 were analyzed/)).toBeVisible();
   expect(analyses).toHaveLength(2);
   await page.getByRole('button', { name: 'Add findings to shared Canvas', exact: true }).click();
-  await expect.poll(() => shapes().some(shape => shape.type === 'idea' &&
+  await expect.poll(() => shapes().some(shape => shape.type === 'idea-card' &&
     shape.props.body.includes('Only pages 2–3 of 3 were analyzed'))).toBe(true);
   // Pinning a research card can change the selection. Select the source again
   // through the object list, then prove OCR and range are mutually exclusive.
+  await closeCanvasAssistant(page);
   await page.getByTestId('drawing-objects-toggle').click();
-  await page.locator('.drawing-object-select[title="sign-drawing.pdf"]').click();
+  await page.getByRole('treeitem', { name: 'sign-drawing.pdf', exact: true }).click();
+  await openCanvasAssistant(page);
   await pages.selectOption('all');
   await ocr.check();
   await expect(pages).toBeDisabled();
@@ -243,8 +246,10 @@ test('PDF page ranges validate before sending, survive failure and reset for ano
   await pages.selectOption('range');
   await first.fill('2');
   await last.fill('3');
+  await closeCanvasAssistant(page);
   await upload.setInputFiles({ name: 'other-drawing.pdf', mimeType: 'application/pdf', buffer: pdf });
-  await page.locator('.drawing-object-select[title="other-drawing.pdf"]').click();
+  await page.getByRole('treeitem', { name: 'other-drawing.pdf', exact: true }).click();
+  await openCanvasAssistant(page);
   await expect(pages).toHaveValue('all');
   await expect(ocr).not.toBeChecked();
   await pages.selectOption('range');

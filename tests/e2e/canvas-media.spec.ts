@@ -1,10 +1,18 @@
+import { openCanvasAssistant, closeCanvasAssistant } from './canvas-assistant';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { CANVAS_VIDEO_BYTES } from '../ui/canvas-video-fixture';
+import { readFileSync } from 'node:fs';
 
 const boardId = '152f8b54-b90a-438a-8427-71a96299b7b3';
 const assetId = 'a9796329-77f6-435b-8b89-3e4dabd137c7';
 
 async function mountCanvas(page: Page) {
+  // Bundled Chromium on ARM lacks H.264. Exercise playback with VP8 there,
+  // while retaining the MP4 path in browsers with an H.264 decoder.
+  const supportsMp4 = await page.evaluate(() => !!document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"'));
+  const clip = supportsMp4
+    ? { name: 'clip.mp4', mimeType: 'video/mp4', buffer: CANVAS_VIDEO_BYTES }
+    : { name: 'clip.webm', mimeType: 'video/webm', buffer: readFileSync(new URL('../fixtures/canvas-video.webm', import.meta.url)) };
   const saved: any[] = [];
   const board: any = { id:boardId,title:'Media study',revision:0,created_at:'2026-10-22T12:00:00Z',updated_at:'2026-10-22T12:00:00Z',payload:{version:1,snapshot:null} };
   let uploaded: any = null;
@@ -22,12 +30,12 @@ async function mountCanvas(page: Page) {
     if (path === `/api/toolkit/assets/${boardId}/library`) return reply({files:uploaded ? [uploaded] : []});
     if (path === `/api/toolkit/assets/${boardId}`) {
       if (method === 'POST') {
-        uploaded = {id:assetId,fileName:'clip.mp4',mime:'video/mp4',bytes:CANVAS_VIDEO_BYTES.length,url:`/api/toolkit/assets/${boardId}/${assetId}`};
+        uploaded = {id:assetId,fileName:clip.name,mime:clip.mimeType,bytes:clip.buffer.length,url:`/api/toolkit/assets/${boardId}/${assetId}`};
         return reply(uploaded,201);
       }
       return reply({ready:true});
     }
-    if (path === `/api/toolkit/assets/${boardId}/${assetId}`) return route.fulfill({status:200,contentType:'video/mp4',body:CANVAS_VIDEO_BYTES});
+    if (path === `/api/toolkit/assets/${boardId}/${assetId}`) return route.fulfill({status:200,contentType:clip.mimeType,body:clip.buffer});
     if (path === '/api/toolkit/link-preview') {
       const body = request.postDataJSON();
       return reply({url:body.url,title:body.url.includes('youtu') ? 'Workshop film' : 'Reference article',description:'Useful production reference',siteName:body.url.includes('youtu') ? 'YouTube' : 'Example',previewAvailable:true});
@@ -37,7 +45,7 @@ async function mountCanvas(page: Page) {
   await page.goto('/canvas-media.html');
   await expect(page.getByTestId('canvas-content-bar')).toBeVisible({timeout:45_000});
   await expect(page.getByTestId('drawing-tool-select')).toBeEnabled({timeout:45_000});
-  return {saved,board};
+  return {saved,board,clip};
 }
 
 async function insertLink(page: Page, url: string) {
@@ -96,7 +104,7 @@ test('order form updates reuse the editor, preserve saved shapes and refresh cal
 
 test('technical node buttons and the toolbar share one request without erasing pending edits', async ({page}) => {
   const {saved} = await mountCanvas(page);
-  await page.getByRole('button',{name:'Hide assistant',exact:true}).click();
+  await closeCanvasAssistant(page);
   await page.getByRole('button',{name:'Projects',exact:true}).click();
   let release!: () => void;
   const provider = new Promise<void>(resolve => { release = resolve; });
@@ -197,10 +205,11 @@ test('canvas has one compact tool selector and native drawing remains operationa
   await expect(page.getByRole('toolbar',{name:'Drawing tools'})).toHaveCount(1);
   await expect(page.locator('.node-toolbar')).toHaveCount(0);
   await expect(page.locator('.tlui-toolbar')).toHaveCount(0);
-  await expect(page.getByTestId('drawing-tool-draw')).toHaveCount(1);
-  await page.getByRole('button',{name:'Hide assistant',exact:true}).click();
+  await expect(page.getByTestId('drawing-tool-cad-freehand')).toHaveCount(1);
+  await closeCanvasAssistant(page);
   await page.getByRole('button',{name:'Projects',exact:true}).click();
-  await page.getByTestId('drawing-tool-draw').click();
+  await page.getByTestId('drawing-tools-curves').click();
+  await page.getByTestId('drawing-flyout-draw').click();
   await expect(page.getByTestId('drawing-tool-draw')).toHaveAttribute('aria-pressed','true');
   const canvas = await page.getByTestId('canvas').boundingBox();
   if (!canvas) throw new Error('Canvas not rendered');
@@ -215,8 +224,8 @@ test('canvas has one compact tool selector and native drawing remains operationa
 
 test('canvas links, embedded video and uploaded clips persist then native text remains usable', async ({page}) => {
   await page.setViewportSize({width:1440,height:1000});
-  const {saved} = await mountCanvas(page);
-  await page.getByRole('button',{name:'Hide assistant',exact:true}).click();
+  const {saved,clip} = await mountCanvas(page);
+  await closeCanvasAssistant(page);
   await page.getByRole('button',{name:'Projects',exact:true}).click();
   await insertLink(page,'https://example.com/article');
   await expect(page.getByText('Reference article',{exact:true}).last()).toBeVisible();
@@ -227,7 +236,7 @@ test('canvas links, embedded video and uploaded clips persist then native text r
   await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({status:200,contentType:'text/html',body:'<p>Embedded player fixture</p>'}));
   await page.getByRole('button',{name:'Play video',exact:true}).click();
   await expect(page.locator('iframe')).toHaveAttribute('src','https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0');
-  await page.getByLabel('Choose images, PDFs, video or audio').setInputFiles({name:'clip.mp4',mimeType:'video/mp4',buffer:CANVAS_VIDEO_BYTES});
+  await page.getByLabel('Choose images, PDFs, video or audio').setInputFiles(clip);
   await expect(page.locator('video')).toHaveAttribute('src',`/api/toolkit/assets/${boardId}/${assetId}`);
   await expect.poll(() => page.locator('video').evaluate(video => (video as HTMLVideoElement).readyState), {timeout:15_000}).toBeGreaterThanOrEqual(1);
   await page.locator('video').evaluate(async element => { const video = element as HTMLVideoElement; video.muted = true; await video.play(); });
@@ -320,6 +329,7 @@ test('canvas OpenRouter edits native shapes atomically, reads real drawing pixel
       vision:{requested:body.includeImages,included:0,skipped:0,drawing:!!body.drawing,drawingShapes:body.drawing?.shapeIds.length??0,drawingOmitted:0}})});
   });
   const records=()=>Object.values(saved.at(-1)?.payload?.snapshot?.document?.store??{}).filter((record:any)=>record.typeName==='shape') as any[];
+  await openCanvasAssistant(page);
   await page.locator('#toolkit-prompt').fill('Create a two-step workshop diagram and a heading');
   await page.locator('#toolkit-prompt').press('Enter');
   await page.getByRole('button',{name:'Apply all edits',exact:true}).click();
@@ -328,6 +338,7 @@ test('canvas OpenRouter edits native shapes atomically, reads real drawing pixel
   const originals=records().map(shape=>({id:shape.id,type:shape.type,x:shape.x,y:shape.y,props:shape.props}));
   await page.locator('.assistant-options > summary').click();
   await page.locator('.canvas-image-option input').check();
+  await openCanvasAssistant(page);
   await page.locator('#toolkit-prompt').fill('Inspect the drawing, clarify the labels, connect the steps and group them');
   await page.locator('#toolkit-prompt').press('Enter');
   await expect(page.getByRole('button',{name:'Apply all edits',exact:true})).toBeVisible({timeout:30_000});
@@ -363,7 +374,9 @@ test('native order canvas edits real production configuration and preserves cust
  await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='order-details').props.clientName)).toBe('Canvas client');
  await expect(page.getByTestId('callback-events')).toContainText('original:order:fixture-order');
  await page.route('**/api/files/upload',r=>r.fulfill({json:{file:{id:'saved-image',mimeType:'image/png'}}}));
- await page.locator('.drawing-commands input[type=file]').setInputFiles({name:'Reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64')});
+ const fileChooser = page.waitForEvent('filechooser');
+ await page.getByTestId('drawing-import').click();
+ await (await fileChooser).setFiles({name:'Reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64')});
  await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='document')?.props.url)).toBe('/api/files/saved-image/download');
  await page.getByRole('button',{name:'Warning',exact:true}).click();
  await page.getByRole('textbox',{name:'Badge icon'}).fill('★');

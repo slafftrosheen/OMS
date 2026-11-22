@@ -1,3 +1,4 @@
+import { openCanvasAssistant } from './canvas-assistant';
 import { test, expect, type Page } from '@playwright/test';
 
 const A = '757c36ea-f6c9-4803-bbf1-339aebcc61b4';
@@ -117,6 +118,7 @@ async function mountCanvas(page: Page, hooks: Hooks = {}, initialMessages: Json[
 const title = (page: Page) => page.getByLabel('Project title', { exact: true });
 const project = (page: Page, name: string) => page.locator('.project-open').filter({ has: page.getByText(name, { exact: true }) });
 async function ask(page: Page, question: string) {
+  await openCanvasAssistant(page);
   await page.locator('#toolkit-prompt').fill(question);
   await page.locator('#toolkit-prompt').press('Enter');
 }
@@ -142,6 +144,7 @@ test('rapid project changes abort old AI and board loads without leaking private
     await expect.poll(() => fixture.reads.includes(B)).toBe(true);
     await project(page, 'Project C').click();
     await expect(title(page)).toHaveValue('Project C');
+    await openCanvasAssistant(page);
     await expect(page.locator('#toolkit-prompt')).toBeEnabled();
     delayedB.resolve();
     await bReleased.promise;
@@ -150,6 +153,7 @@ test('rapid project changes abort old AI and board loads without leaking private
     // Returning to the same ID must not make the abandoned request current.
     await project(page, 'Project A').click();
     await expect(title(page)).toHaveValue('Project A');
+    await openCanvasAssistant(page);
     await expect(page.locator('#toolkit-prompt')).toBeEnabled();
     await expect(page.getByText(question, { exact: true })).toBeVisible();
     oldAnswer.resolve();
@@ -184,6 +188,7 @@ test('navigation shares an in-flight save and drains newer edits with the next r
     expect(fixture.reads).toEqual([A]);
     firstSave.resolve();
     await expect(title(page)).toHaveValue('Project B');
+    await openCanvasAssistant(page);
     await expect(page.locator('#toolkit-prompt')).toBeEnabled();
     expect(fixture.patches.map(write => ({ id: write.id, revision: write.body.revision, title: write.body.title })))
       .toEqual([{ id: A, revision: 4, title: 'First title' }, { id: A, revision: 5, title: 'Latest title' }]);
@@ -213,6 +218,7 @@ test('choosing the current project cancels a pending switch while its save finis
     await expect(page.locator('.save-indicator')).toContainText('Saved');
     await expect(title(page)).toHaveValue('Stay with these edits');
     await expect(project(page, 'Stay with these edits')).toHaveAttribute('aria-current', 'true');
+    await openCanvasAssistant(page);
     await expect(page.locator('#toolkit-prompt')).toBeEnabled();
     expect(fixture.reads).toEqual([A]);
     expect(fixture.patches).toHaveLength(1);
@@ -240,6 +246,7 @@ test('a failed private recovery copy retries the existing copied project', async
   expect(fixture.reads.includes(COPY)).toBe(false);
   await retry.click();
   await expect(title(page)).toHaveValue('Unsaved A — recovered copy');
+  await openCanvasAssistant(page);
   await expect(page.locator('#toolkit-prompt')).toBeEnabled();
   await expect(page.getByText('Saved private context', { exact: true })).toBeVisible();
   await expect(page.locator('.private-banner')).toHaveCount(0);
