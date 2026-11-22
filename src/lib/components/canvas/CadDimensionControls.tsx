@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { useCadText } from './cad-copy';
 import { createCadDimension, detachCadDimension, relinkCadDimension } from './cad-geometry';
-import { CAD_DIMENSION_SOURCE_LIMIT, dimensionSources, getDimensionEndpoints, type CadDimensionKind, type DimensionSource } from './cad-dimension-links';
+import { CAD_DIMENSION_KINDS, CAD_DIMENSION_SOURCE_LIMIT, circularDimensionPoints, dimensionSources, getDimensionEndpoints, radialDimensionKind, type CadDimensionKind, type DimensionSource } from './cad-dimension-links';
 import type { CadSettings } from './cad-settings';
 import { captureToolkitControls } from './toolkit-controls';
-
-const dimensionKinds = ['horizontal', 'vertical', 'aligned'] as const;
 
 export function CadDimensionControls({ settings }: { settings: CadSettings | null }) {
   const editor = useEditor(), { label } = useCadText();
@@ -21,13 +19,15 @@ export function CadDimensionControls({ settings }: { settings: CadSettings | nul
     return {
       selection: ids.join(' '), count: sources.length, dimensionCount: dimensions.length,
       status: dimension && getDimensionEndpoints(editor, dimension).status,
-      kind: dimension?.props.link?.kind,
+      kind: dimension?.props.link?.kind ?? dimension?.props.radialKind,
+      circular: sources.length === 1 && !!circularDimensionPoints(sources[0]),
       editable: captureToolkitControls(editor).canEditSelection &&
         !sources.some(shape => ['order-details', 'order-address', 'profile-7st'].includes(shape.type)),
     };
   }, [editor]);
   if (!state.count && !state.dimensionCount) return null;
-  const kind = direction ?? state.kind ?? 'horizontal';
+  const preferred = direction ?? state.kind ?? 'horizontal';
+  const kind = radialDimensionKind(preferred) && !state.circular ? 'horizontal' : preferred;
   const canCreate = !state.dimensionCount && !!state.count && !!settings;
   const canRelink = state.dimensionCount === 1 && !!state.count;
   const overLimit = state.count > CAD_DIMENSION_SOURCE_LIMIT;
@@ -43,9 +43,11 @@ export function CadDimensionControls({ settings }: { settings: CadSettings | nul
       <label className="drawing-cad-field">
         <span>{label('dimensionKind')}</span>
         <select value={kind} onChange={event => setDirection(event.target.value as CadDimensionKind)}>
-          {dimensionKinds.map(value => <option key={value} value={value}>{label(value)}</option>)}
+          {CAD_DIMENSION_KINDS.map(value =>
+            <option key={value} value={value} disabled={!!radialDimensionKind(value) && !state.circular}>{label(value)}</option>)}
         </select>
       </label>
+      {radialDimensionKind(kind) && <p className="drawing-help">{label('dimensionRadialHelp')}</p>}
       {canCreate && <>
         <label className="drawing-cad-check"><input type="checkbox" checked={linked} onChange={event => setLinked(event.target.checked)} />
           <span>{label('dimensionLink')}</span>

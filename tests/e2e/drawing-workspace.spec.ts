@@ -16,6 +16,26 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} diameter annotations follow circles and keep their style when detached`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(100, 100));
+    await page.getByTestId('drawing-measure-toggle').click();
+    const controls = page.getByTestId('drawing-dimension-links');
+    await controls.getByRole('combobox', { name: 'Dimension type' }).selectOption('diameter');
+    await controls.getByRole('button', { name: 'Add dimension', exact: true }).click();
+    const dimension = page.locator('[data-radial-dimension="diameter"]');
+    await expect(dimension.getByText('Ø 100.00 mm', { exact: true })).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(125, 110));
+    await expect(dimension).toHaveAttribute('data-dimension-state', 'broken');
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(125, 125));
+    await expect(dimension.getByText('Ø 125.00 mm', { exact: true })).toBeVisible();
+    await controls.getByRole('button', { name: 'Detach dimension', exact: true }).click();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(null));
+    await expect(dimension).toHaveAttribute('data-dimension-state', 'free');
+    await expect(dimension.getByText('Ø 125.00 mm', { exact: true })).toBeVisible();
+  });
   test(`${mode} associative dimensions follow geometry and expose broken links after reload`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

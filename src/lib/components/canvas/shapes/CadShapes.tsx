@@ -8,7 +8,8 @@ import { ShapeUtil, SVGContainer, Polyline2d, Polygon2d, Ellipse2d, Group2d, Box
   DefaultColorStyle, getDefaultColorTheme, getIndices, resizeBox, useValue, type Editor, type TLBaseShape,
   type TLDefaultColorStyle, type TLHandle, type TLOnHandleDragHandler, type TLOnResizeHandler } from '@tldraw/tldraw';
 import { useCadText } from '../cad-copy';
-import { CAD_DIMENSION_SOURCE_LIMIT, getDimensionEndpoints, type CadDimensionLink } from '../cad-dimension-links';
+import { CAD_DIMENSION_KINDS, CAD_DIMENSION_SOURCE_LIMIT, CAD_RADIAL_DIMENSION_KINDS, getDimensionEndpoints,
+  type CadDimensionLink, type CadRadialDimensionKind } from '../cad-dimension-links';
 import { CAD_MAX_COORDINATE, CAD_MAX_POINTS, canvasLengthToUnit, readCadSettings, type CadPoint } from '../cad-settings';
 
 const bounded = T.number.check(n => { if (!Number.isFinite(n) || Math.abs(n) > CAD_MAX_COORDINATE) throw new Error('CAD coordinate out of bounds'); });
@@ -19,7 +20,7 @@ const pointsValidator = T.arrayOf(T.object({ x: bounded, y: bounded })).check(p 
 export type CadPathShape = TLBaseShape<'cad-path', { points: CadPoint[]; closed: boolean; color: TLDefaultColorStyle }>;
 export type CadEllipseShape = TLBaseShape<'cad-ellipse', { w: number; h: number; color: TLDefaultColorStyle }>;
 export type CadArcShape = TLBaseShape<'cad-arc', { radius: number; startAngle: number; endAngle: number; color: TLDefaultColorStyle }>;
-export type CadDimensionShape = TLBaseShape<'cad-dimension', { endX: number; endY: number; offset: number; decorationScale: number; color: TLDefaultColorStyle; link?: CadDimensionLink | null }>;
+export type CadDimensionShape = TLBaseShape<'cad-dimension', { endX: number; endY: number; offset: number; decorationScale: number; color: TLDefaultColorStyle; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null }>;
 const vectors = (points: CadPoint[]) => points.map(p => new Vec(p.x, p.y));
 function pathData(points: CadPoint[], closed: boolean) { return points.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') + (closed ? ' Z' : ''); }
 function color(editor: Editor, value: TLDefaultColorStyle) { return getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() })[value].solid; }
@@ -180,7 +181,7 @@ export class CadArcShapeUtil extends ShapeUtil<CadArcShape> {
 }
 
 const dimensionLinkValidator = T.object({
-  kind: T.literalEnum('horizontal', 'vertical', 'aligned'),
+  kind: T.literalEnum(...CAD_DIMENSION_KINDS),
   sourceIds: T.arrayOf(T.string.check(id => {
     if (!id.startsWith('shape:') || id.length > 128) throw new Error('Invalid dimension source');
   })).check(ids => {
@@ -193,16 +194,32 @@ const dimensionLinkValidator = T.object({
 });
 
 function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
-  const { start, end, status } = getDimensionEndpoints(editor, shape);
+  const { start, end, status, radialKind } = getDimensionEndpoints(editor, shape);
   const dx = end.x - start.x, dy = end.y - start.y;
   const length = Math.hypot(dx, dy), divisor = length || 1;
   const normal = { x: -dy / divisor, y: dx / divisor };
   const { offset, decorationScale } = shape.props;
   const shift = (p: CadPoint, distance: number) => ({ x: p.x + normal.x * distance, y: p.y + normal.y * distance });
-  const a = shift(start, offset), b = shift(end, offset), tick = 5 * decorationScale;
+  const tick = 5 * decorationScale;
+  if (radialKind) {
+    const advance = (p: CadPoint, distance: number) => ({
+      x: p.x + dx / divisor * distance, y: p.y + dy / divisor * distance,
+    });
+    const arrowLength = Math.min(7 * decorationScale, length / 4);
+    const arrowAt = (tip: CadPoint, inward: number) => {
+      const back = advance(tip, arrowLength * inward);
+      return [shift(back, arrowLength / 2), tip, shift(back, -arrowLength / 2)];
+    };
+    const elbow = shift(advance(end, 12 * decorationScale), offset);
+    const tail = advance(elbow, 16 * decorationScale);
+    const other = radialKind === 'diameter' ? arrowAt(start, 1) : [shift(start, -tick), shift(start, tick)];
+    return { start, end, length, normal, status, radialKind, midpoint: tail,
+      lines: [[start, end], [end, elbow, tail], arrowAt(end, -1), other] };
+  }
+  const a = shift(start, offset), b = shift(end, offset);
   const extension = offset + Math.sign(offset) * 8 * decorationScale;
   return {
-    start, end, length, normal, status, midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    start, end, length, normal, status, radialKind, midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
     lines: [[start, shift(start, extension)], [end, shift(end, extension)], [a, b],
       [shift(a, -tick), shift(a, tick)], [shift(b, -tick), shift(b, tick)]],
   };
@@ -210,12 +227,13 @@ function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
 function DimensionSvg({ shape, editor }: { shape: CadDimensionShape; editor: Editor }) {
   const { label } = useCadText();
   const settings = useValue('CAD measurement settings', () => readCadSettings(editor), [editor]);
-  const { length, lines, midpoint, status } = useValue('CAD dimension geometry', () => dimensionLayout(editor, shape), [editor, shape]);
+  const { length, lines, midpoint, status, radialKind } = useValue('CAD dimension geometry', () => dimensionLayout(editor, shape), [editor, shape]);
   const broken = status === 'broken';
   const ink = broken ? 'var(--status-warning, #b45309)' : color(editor, shape.props.color);
-  const value = broken ? label('dimensionBroken') : settings
-    ? `${canvasLengthToUnit(length, settings).toFixed(settings.precision)} ${settings.unit}` : `${length.toFixed(2)} px`;
-  return <g data-dimension-state={status} fill="none" stroke={ink} strokeWidth={1}>
+  const prefix = radialKind === 'radius' ? 'R ' : radialKind === 'diameter' ? 'Ø ' : '';
+  const measurement = settings ? `${canvasLengthToUnit(length, settings).toFixed(settings.precision)} ${settings.unit}` : `${length.toFixed(2)} px`;
+  const value = broken ? label('dimensionBroken') : prefix + measurement;
+  return <g data-dimension-state={status} data-radial-dimension={radialKind ?? undefined} fill="none" stroke={ink} strokeWidth={1}>
     {lines.map((points, i) => <path key={i} d={pathData(points, false)} strokeDasharray={broken ? '4 3' : undefined} />)}
     <text x={midpoint.x} y={midpoint.y - 6 * shape.props.decorationScale} textAnchor="middle" stroke="none" fill={ink} fontSize={14 * shape.props.decorationScale} fontFamily="sans-serif">{value}</text>
   </g>;
@@ -223,7 +241,7 @@ function DimensionSvg({ shape, editor }: { shape: CadDimensionShape; editor: Edi
 export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   static override type = 'cad-dimension' as const;
   static override props = { endX: bounded, endY: bounded, offset: bounded, decorationScale: positive, color: DefaultColorStyle,
-    link: T.optional(T.nullable(dimensionLinkValidator)) };
+    link: T.optional(T.nullable(dimensionLinkValidator)), radialKind: T.optional(T.nullable(T.literalEnum(...CAD_RADIAL_DIMENSION_KINDS))) };
   override getDefaultProps(): CadDimensionShape['props'] { return { endX: 100, endY: 0, offset: 24, decorationScale: 1, color: 'blue' }; }
   override isAspectRatioLocked = () => true;
   override canResize = (shape: CadDimensionShape) => !shape.props.link;

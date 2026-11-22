@@ -92,6 +92,55 @@ describe('CAD physical coordinates and saved settings', () => {
     editor.deleteShapes(['shape:edge']);
     assert.equal(getDimensionEndpoints(editor, only()).status, 'free');
   });
+  it('measures an arc through the visible sweep even when its parent is rotated', () => {
+    const { editor, only } = fixture();
+    editor.createShape({ id: 'shape:arc-holder', type: 'group', x: 300, y: 130, rotation: Math.PI / 2 });
+    editor.createShape({ id: 'shape:bend', type: 'cad-arc', parentId: 'shape:arc-holder', x: 20, y: 10,
+      props: { radius: 64, startAngle: 350, endAngle: 370 } });
+    editor.setSelectedShapes(['shape:bend']);
+    assert.equal(createCadDimension(editor, defaults, 'radius'), true);
+    const dimension = only();
+    const current = () => getDimensionEndpoints(editor, dimension);
+    assert.equal(current().radialKind, 'radius');
+    near(current().end.x - current().start.x, 0);
+    near(current().end.y - current().start.y, 64);
+    editor.updateShape({ id: 'shape:bend', type: 'cad-arc', props: { radius: 100, startAngle: 80, endAngle: 100 } });
+    near(current().end.x - current().start.x, 100);
+    near(current().end.y - current().start.y, 0);
+    editor.setSelectedShapes([dimension.id, 'shape:bend']);
+    assert.equal(relinkCadDimension(editor, 'diameter'), true);
+    const diameter = getDimensionEndpoints(editor, only());
+    assert.equal(diameter.radialKind, 'diameter');
+    near(diameter.end.x - diameter.start.x, 200);
+    assert.equal(detachCadDimension(editor), true);
+    editor.updateShape({ id: 'shape:bend', type: 'cad-arc', props: { radius: 120 } });
+    const detached = getDimensionEndpoints(editor, only());
+    assert.equal(detached.status, 'free');
+    assert.equal(detached.radialKind, 'diameter');
+    near(detached.end.x, 200);
+  });
+  it('breaks and restores radial references when a circle becomes an ellipse', () => {
+    const { editor, only } = fixture();
+    editor.createShape({ id: 'shape:round-part', type: 'cad-ellipse', props: { w: 100, h: 100 } });
+    editor.setSelectedShapes(['shape:round-part']);
+    assert.equal(createCadDimension(editor, defaults, 'diameter'), true);
+    const dimension = only();
+    const current = () => getDimensionEndpoints(editor, dimension);
+    near(current().end.x - current().start.x, 100);
+    editor.updateShape({ id: 'shape:round-part', type: 'cad-ellipse', props: { w: 140 } });
+    assert.equal(current().status, 'broken');
+    editor.setSelectedShapes(['shape:round-part']);
+    assert.equal(createCadDimension(editor, defaults, 'radius'), false);
+    editor.updateShape({ id: 'shape:round-part', type: 'cad-ellipse', props: { h: 140 } });
+    near(current().end.x - current().start.x, 140);
+    assert.equal(current().status, 'linked');
+    editor.setSelectedShapes(['shape:round-part']);
+    assert.equal(createCadDimension(editor, defaults, 'radius', false), true);
+    const manual = getDimensionEndpoints(editor, only());
+    assert.equal(manual.status, 'free');
+    assert.equal(manual.radialKind, 'radius');
+    near(manual.end.x, 70);
+  });
   it('preserves physical size across units and converts Y-up independently of view zoom', () => {
     for (const unit of ['mm', 'cm', 'm', 'in'] as const) for (const scale of [0.1, 1, 10, 100]) {
       const settings = { ...defaults, unit, scale, originX: 13, originY: 27 };

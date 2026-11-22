@@ -2,7 +2,7 @@ import { createShapeId, type Editor, type TLShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { captureToolkitControls } from './toolkit-controls';
 import { getCadSelectionPageBounds } from './cad-bounds';
-import { CAD_DIMENSION_SOURCE_LIMIT, dimensionSources, getDimensionEndpoints, makeDimensionLink, resolveDimensionLink,
+import { CAD_DIMENSION_SOURCE_LIMIT, dimensionSources, getDimensionEndpoints, makeDimensionLink, radialDimensionKind, resolveDimensionLink,
   type CadDimensionKind, type CadDimensionLink, type DimensionSource } from './cad-dimension-links';
 import { CAD_MAX_COORDINATE, cadPointToCanvas, canvasPointToCad, canvasLengthToUnit, unitLengthToCanvas,
   validateCadSettings, validCadPoint, validCadPoints, writeCadSettings, type CadPoint, type CadSettings } from './cad-settings';
@@ -217,10 +217,11 @@ export function createCadDimension(editor: Editor, settings: CadSettings, kind: 
   const points = resolveDimensionLink(editor, link, pageId);
   if (!points) return false;
   const { start, end } = points;
+  const radialKind = radialDimensionKind(kind);
   return drawingTransaction(editor, () => {
     const id = createShapeId();
     editor.createShape({ id, type: 'cad-dimension', parentId: pageId, x: start.x, y: start.y,
-      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24, ...(linked ? { link } : {}) } });
+      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24, ...(linked ? { link } : radialKind ? { radialKind } : {}) } });
     if (!editor.getShape(id)) throw new Error('Dimension was not created');
     editor.setSelectedShapes([id]);
   });
@@ -231,8 +232,9 @@ function updateDimensionReference(editor: Editor, shape: DimensionSource, start:
   const localStart = editor.getPointInShapeSpace(shape, start), localEnd = editor.getPointInShapeSpace(shape, end);
   const delta = { x: localEnd.x - localStart.x, y: localEnd.y - localStart.y };
   if (!validCadPoint(origin) || !validCadPoint(delta)) return false;
+  const radialKind = link ? null : getDimensionEndpoints(editor, shape).radialKind;
   return drawingTransaction(editor, () => {
-    editor.updateShape({ id: shape.id, type: 'cad-dimension', x: origin.x, y: origin.y, props: { endX: delta.x, endY: delta.y, link } });
+    editor.updateShape({ id: shape.id, type: 'cad-dimension', x: origin.x, y: origin.y, props: { endX: delta.x, endY: delta.y, link, radialKind } });
     editor.setSelectedShapes([shape.id]);
   });
 }
