@@ -121,7 +121,7 @@ Draw a straight two-point line across the artwork. Select the artwork, then Shif
 
 The Knife splits one unfilled open path at every crossing within the finite knife line. Closed artwork, including concave and compound objects with holes, requires the blade to span every crossing on its line. The result has one editable object on each side. Each can contain multiple closed contours. Seams follow the intervals inside the artwork, leaving gaps through holes and between disjoint contours. Bézier spans are subdivided in place and straight segments stay straight. The pieces keep the source paint and stacking position. Dash patterns restart on each piece. By default **Apply** removes the knife line and replaces the source with the pieces in one undo step. Clear **Remove knife line after cutting** to reuse the line.
 
-Convert native shapes to curves first. For closed artwork, coincident crossings, tangencies on the blade and overlapping edges are rejected. A nonzero compound must alternate between filled and empty intervals along the cut. Use Weld to resolve overlapping filled contours or correct the direction of a hole if necessary. Open objects with a fill and mixed open/closed compounds are rejected. Both sides of a closed cut include copies of the shared edges. Move the pieces apart before exporting together for cutting.
+Convert native shapes to curves first. For closed artwork, coincident crossings, tangencies on the blade and overlapping edges are rejected. A nonzero compound must alternate between filled and empty intervals along the cut. Use Weld to resolve overlapping filled contours or correct the direction of a hole if necessary. Open objects with a fill and mixed open/closed compounds are rejected. Both sides of a closed cut include copies of the shared edges. Move the pieces apart or enable **Cut shared edges once** in DXF export.
 
 ## Operator flow
 
@@ -167,6 +167,8 @@ CAD rectangles/paths and ellipses use custom geometry so small parts are not cla
 `cad-transforms.ts` corrects tldraw 2.4's unaligned mirror rotation for CAD shapes inside rotated parents, including selection-handle mirrors. It retains native resize/history and is removed on editor cleanup. Recheck its nested-parent regression when upgrading tldraw.
 
 ## DXF contract
+
+**Cut shared edges once** writes one line per matching full straight span of distinct closed contours. The matching endpoints must agree within 0.000001 mm per coordinate, regardless of edge direction. Partial overlaps, differently segmented edges, open source paths and exact Bézier spans with control handles stay as drawn. With color layers, each color is matched separately. The shared lines go on `OMS_SHARED` or `OMS_SHARED_<RGB>`, and remaining runs of the affected outlines are exported as open paths. Review shows shared edges and removed passes. Leave the option off when the receiving CAM workflow needs individual closed contours.
 
 DXF is ASCII R2000 (`AC1015`), with `$INSUNITS = 4` (millimetres), Cartesian Y-up coordinates, and full-size model-space geometry. Export has no view padding or zoom scaling. A 1,200 × 600 mm rectangle at drawing scale 1:10 exports as 1,200 × 600 mm; choosing inches for display does not change that result.
 

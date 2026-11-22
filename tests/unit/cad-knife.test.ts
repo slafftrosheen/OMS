@@ -190,6 +190,11 @@ describe('CAD knife', () => {
     assert.equal(dxf.openContours, 0);
     assert.deepEqual(dxf.omitted, []);
     assert.equal((dxf.text.match(/\r\nLWPOLYLINE\r\n/g) ?? []).length, 2);
+    const common = buildCadDxf(editor, 'selected', DEFAULT_CAD_SETTINGS, { commonLines: true, colorLayers: true });
+    assert.deepEqual([common.sharedEdges, common.passesRemoved, common.closedContours], [1, 1, 0]);
+    assert.deepEqual(common.layers.map(layer => layer.name), ['OMS_SHARED_1166EE', 'OMS_OPEN_1166EE']);
+    near(common.widthMm, dxf.widthMm);
+    near(common.heightMm, dxf.heightMm);
     editor.bailToMark(marks[0].id);
     assert.ok(shapes.has('shape:target') && shapes.has('shape:blade'));
   });
@@ -229,5 +234,10 @@ describe('CAD knife', () => {
       assert.equal(shape.meta.omsVectorPaint.fill, '#aa6622');
       assert.deepEqual(seams(shape.props.contours), [[0, 30], [70, 100]]);
     }
+    const common = buildCadDxf(editor, 'selected', DEFAULT_CAD_SETTINGS, { commonLines: true });
+    assert.deepEqual([common.sharedEdges, common.passesRemoved, common.closedContours], [2, 2, 0]);
+    assert.deepEqual(common.layers.map(layer => [layer.name, layer.entities]), [['OMS_OPEN', 4], ['OMS_SHARED', 2]]);
+    near(common.widthMm, dxf.widthMm);
+    near(common.heightMm, dxf.heightMm);
   });
 });

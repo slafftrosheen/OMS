@@ -1,6 +1,7 @@
 import { validVectorPaint } from './cad-paint';
 import { rectangularClipContainsBounds } from './cad-appearance';
 import { dxfColor } from './cad-dxf-geometry';
+import { buildDxfCommonLines } from './cad-dxf-common-lines';
 import { vectorPaint } from './cad-vector';
 import type { CubicSpline2d, Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectName } from './drawing-operations';
@@ -17,6 +18,8 @@ export interface CadDxfResult {
   omitted: Array<{ id: string; name: string; reason: CadDxfOmission }>;
   widthMm: number; heightMm: number;
   layers: CadDxfLayer[];
+  sharedEdges: number;
+  passesRemoved: number;
 }
 interface CadDxfLayer { name: string; rgb?: string; entities: number }
 export type DxfEntity = (
@@ -24,7 +27,7 @@ export type DxfEntity = (
   { type: 'polyline'; points: CadPoint[]; closed: boolean } |
   { type: 'circle'; center: CadPoint; radius: number } |
   { type: 'ellipse'; center: CadPoint; major: CadPoint; ratio: number } |
-  { type: 'arc'; center: CadPoint; radius: number; start: number; end: number }) & { rgb?: string };
+  { type: 'arc'; center: CadPoint; radius: number; start: number; end: number }) & { rgb?: string; commonLine?: true };
 const MAX_ENTITIES = 4000, MAX_VERTICES = 100_000, MAX_MM = 100_000_000;
 const POLYGONS = new Set(['rectangle', 'triangle', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'trapezoid', 'rhombus']);
 const normAngle = (n: number) => ((n % 360) + 360) % 360;
@@ -182,7 +185,7 @@ function cuttingColor(shape: TLShape): string | undefined {
   if (paint.fill.startsWith('#') && paint.fillOpacity > 0 && !paint.gradient && !paint.raster) return paint.fill.toUpperCase();
 }
 
-interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean }
+interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean }
 
 /** Full model-space millimetres, Cartesian Y-up, no padding or view/zoom rescaling. */
 export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings: CadSettings, options: CadDxfOptions = {}): CadDxfResult {
@@ -225,11 +228,13 @@ export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings:
   }
   if (!entities.length) {
     if (!omitted.length) throw new CadDxfError('empty');
-    return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [] };
+    return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [], sharedEdges: 0, passesRemoved: 0 };
   }
-  const { text, widthMm, heightMm, layers } = serializeCadDxf(entities, options);
-  const closedContours = entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
-  return { text, widthMm, heightMm, entities: entities.length, closedContours, openContours: entities.length - closedContours, omitted, layers };
+  const output = options.commonLines ? buildDxfCommonLines(entities) : { entities, sharedEdges: 0, passesRemoved: 0 };
+  const { text, widthMm, heightMm, layers } = serializeCadDxf(output.entities, options);
+  const closedContours = output.entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
+  return { text, widthMm, heightMm, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted, layers,
+    sharedEdges: output.sharedEdges, passesRemoved: output.passesRemoved };
 }
 
 const rgbNumber = (hex: string) => parseInt(hex.slice(1), 16);
@@ -259,8 +264,8 @@ export function serializeCadDxf(entities: DxfEntity[], { colorLayers = false }: 
   };
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const bound = (x: number, y: number) => { finite(x); finite(y); minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
-  const startEntity = (type: string, subclass: string, closed: boolean, color?: string) => {
-    const base = closed ? 'OMS_CLOSED' : 'OMS_OPEN';
+  const startEntity = (type: string, subclass: string, closed: boolean, color?: string, commonLine = false) => {
+    const base = commonLine ? 'OMS_SHARED' : closed ? 'OMS_CLOSED' : 'OMS_OPEN';
     const rgb = colorLayers ? color?.toUpperCase() : undefined;
     if (rgb !== undefined && !/^#[0-9A-F]{6}$/.test(rgb)) throw new CadDxfError('invalid');
     const name = rgb ? `${base}_${rgb.slice(1)}` : base;
@@ -291,7 +296,7 @@ export function serializeCadDxf(entities: DxfEntity[], { colorLayers = false }: 
       vertexCount += e.points.length;
       if (vertexCount > MAX_VERTICES) throw new CadDxfError('limit');
       if (e.points.length === 2 && !e.closed) {
-        startEntity('LINE', 'AcDbLine', false, original.rgb);
+        startEntity('LINE', 'AcDbLine', false, original.rgb, original.commonLine);
         add(body, 10, e.points[0].x, 20, e.points[0].y, 30, 0, 11, e.points[1].x, 21, e.points[1].y, 31, 0);
       } else {
         startEntity('LWPOLYLINE', 'AcDbPolyline', e.closed, original.rgb); add(body, 90, e.points.length, 70, e.closed ? 1 : 0);
@@ -330,7 +335,7 @@ export function serializeCadDxf(entities: DxfEntity[], { colorLayers = false }: 
   for (const [i, { name, rgb }] of layerEntries.entries()) {
     const handle = i < 3 ? 0x13 + i : nextHandle + i - 3;
     const exact = rgb === undefined ? undefined : rgbNumber(rgb);
-    const indexed = exact === undefined ? (name === 'OMS_OPEN' ? 3 : 7) : fallbackColorIndex(exact);
+    const indexed = exact === undefined ? (name === 'OMS_OPEN' ? 3 : name === 'OMS_SHARED' ? 6 : 7) : fallbackColorIndex(exact);
     add(parts, 0, 'LAYER', 5, handle.toString(16).toUpperCase(), 330, '12', 100, 'AcDbSymbolTableRecord', 100,
       'AcDbLayerTableRecord', 2, name, 70, 0, 62, indexed);
     if (exact !== undefined) add(parts, 420, exact);

@@ -286,12 +286,13 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
   const [scope, setScope] = useState<'selected' | 'all'>('selected');
   const [curves, setCurves] = useState<'spline' | 'polyline'>('spline');
   const [colorLayers, setColorLayers] = useState(false);
+  const [commonLines, setCommonLines] = useState(false);
   const [tolerance, setTolerance] = useState('0.01');
   const toleranceErrorId = useId();
   const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
   const validOptions = curves === 'spline' || validTolerance;
-  const optionsKey = JSON.stringify([curves, tolerance, colorLayers]);
-  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; colorLayers: boolean } | null>(null);
+  const optionsKey = JSON.stringify([curves, tolerance, colorLayers, commonLines]);
+  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; colorLayers: boolean; commonLines: boolean } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadLabel | ''>('');
   const revision = useValue('cad dxf source revision', () => dxfSourceRevision(editor), [editor]);
@@ -302,7 +303,7 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
     if (!settings || !validOptions) return;
     setAcknowledged(false); setMessage('');
     const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
-    try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm, colorLayers }), revision, scope, optionsKey, curves, toleranceMm, colorLayers }); }
+    try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm, colorLayers, commonLines }), revision, scope, optionsKey, curves, toleranceMm, colorLayers, commonLines }); }
     catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
   }
   const canExport = !!report && !stale && !!report.data.entities && (!report.data.omitted.length || acknowledged);
@@ -336,6 +337,10 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
         <option value="color">{label('dxfColorLayers')}</option>
       </select></Field>
       {colorLayers && <p className="drawing-help">{label('dxfColorLayersHelp')}</p>}
+      <label className="drawing-cad-check"><input type="checkbox" checked={commonLines} onChange={event => { setCommonLines(event.target.checked); setAcknowledged(false); setMessage(''); }} />
+        <span>{label('dxfCommonLines')}</span>
+      </label>
+      {commonLines && <p className="drawing-help">{label('dxfCommonLinesHelp')}</p>}
       <button type="button" disabled={!settings || !hasObjects || !validOptions} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
@@ -346,10 +351,14 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
         <dt>{label('closedContours')}</dt><dd>{report.data.closedContours}</dd>
         <dt>{label('openContours')}</dt><dd>{report.data.openContours}</dd>
         <dt>{label('dxfLayers')}</dt><dd>{label(report.colorLayers ? 'dxfColorLayers' : 'dxfStandardLayers')}</dd>
+        {report.commonLines && <>
+          <dt>{label('dxfSharedEdges')}</dt><dd>{report.data.sharedEdges}</dd>
+          <dt>{label('dxfPassesRemoved')}</dt><dd>{report.data.passesRemoved}</dd>
+        </>}
         <dt>{label('dimensions')}</dt><dd>{format(report.data.widthMm, 4)} × {format(report.data.heightMm, 4)}</dd>
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
-      {report.colorLayers && !!report.data.layers.length && <details>
+      {(report.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
         <summary>{label('dxfLayerContents')} ({report.data.layers.length})</summary>
         <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => <li key={layer.name}><strong>{layer.name}</strong><span>{layer.entities}</span></li>)}</ul>
         {report.data.layers.length > 20 && <p className="drawing-help">{label('dxfLayerContentsMore')}</p>}

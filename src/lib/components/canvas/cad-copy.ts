@@ -3,6 +3,9 @@ import { get } from 'svelte/store';
 import { locale, t } from 'svelte-i18n';
 
 const en = {
+  dxfCommonLines: 'Cut shared edges once',
+  dxfCommonLinesHelp: 'Matching straight edges between closed contours go on OMS_SHARED layers. Their remaining outlines become open paths. Color export matches edges within each color.',
+  dxfSharedEdges: 'Shared edges', dxfPassesRemoved: 'Duplicate passes removed',
   dxfLayers: 'Cutting layers', dxfStandardLayers: 'Open and closed (R2000)', dxfColorLayers: 'By color (R2004)',
   dxfColorLayersHelp: 'Separates open and closed paths by outline color, using the solid fill when there is no visible outline. Exports cutting paths at full size. Use PDF or EPS to retain painted artwork.',
   dxfLayerContents: 'Layers and entity counts', dxfLayerContentsMore: 'Showing the first 20 layers. The DXF includes all layers.',
@@ -34,6 +37,9 @@ const en = {
 } as const;
 type CadDictionary = { [K in keyof typeof en]: string };
 const ru: CadDictionary = {
+  dxfCommonLines: 'Резать общие кромки один раз',
+  dxfCommonLinesHelp: 'Совпадающие прямые кромки замкнутых контуров попадут на слои OMS_SHARED. Остальные участки этих контуров станут открытыми. При экспорте по цвету кромки сравниваются внутри каждого цвета.',
+  dxfSharedEdges: 'Общие кромки', dxfPassesRemoved: 'Удалено повторных проходов',
   dxfLayers: 'Слои резки', dxfStandardLayers: 'Открытые и замкнутые (R2000)', dxfColorLayers: 'По цвету (R2004)',
   dxfColorLayersHelp: 'Открытые и замкнутые контуры разделяются по цвету обводки. Если видимой обводки нет, используется сплошная заливка. Контуры экспортируются в натуральном размере. Для сохранения оформления используйте PDF или EPS.',
   dxfLayerContents: 'Слои и число элементов', dxfLayerContentsMore: 'Показаны первые 20 слоёв. В DXF входят все слои.',
@@ -64,6 +70,9 @@ const ru: CadDictionary = {
   nudgeHelp: 'Стрелки: шаг в единицах чертежа · Shift: ×10 · Ctrl/⌘: ×0.1', repeatHint: 'Интервалы заданы в единицах чертежа. Строки и столбцы включают оригинал.',
 };
 const lv: CadDictionary = {
+  dxfCommonLines: 'Kopīgās malas griezt vienreiz',
+  dxfCommonLinesHelp: 'Slēgtu kontūru sakrītošās taisnās malas eksportē OMS_SHARED slāņos. Atlikušās kontūru daļas būs atvērtas. Eksportējot pēc krāsas, malas salīdzina katras krāsas ietvaros.',
+  dxfSharedEdges: 'Kopīgās malas', dxfPassesRemoved: 'Noņemtie atkārtotie griezumi',
   dxfLayers: 'Griešanas slāņi', dxfStandardLayers: 'Atvērtas un slēgtas kontūras (R2000)', dxfColorLayers: 'Pēc krāsas (R2004)',
   dxfColorLayersHelp: 'Atvērtās un slēgtās kontūras tiek sadalītas pēc kontūrlīnijas krāsas. Ja kontūrlīnija nav redzama, izmanto vienkrāsainu aizpildījumu. Griešanas kontūras eksportē faktiskajā izmērā. Lai saglabātu noformējumu, izmantojiet PDF vai EPS.',
   dxfLayerContents: 'Slāņi un elementu skaits', dxfLayerContentsMore: 'Parādīti pirmie 20 slāņi. DXF failā ir visi slāņi.',
