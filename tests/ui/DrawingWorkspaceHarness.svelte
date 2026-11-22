@@ -182,6 +182,21 @@
       bounds: (id:string) => { const bounds=editor.getShapePageBounds(id); return bounds ? {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h} : null; },
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       emptyArea: () => { editor.setCamera({ x: -2400, y: 0, z: 1 }); },
+      dimensionSample: (width: number | null) => {
+        const id = 'shape:dimension-sample';
+        if (width === null) { editor.deleteShapes([id]); return; }
+        const page = editor.getCurrentPage();
+        if (!readCadSettings(editor)) editor.updatePage({ id: page.id, meta: { ...page.meta, omsCad: DEFAULT_CAD_SETTINGS } });
+        const cad = readCadSettings(editor)!;
+        const w = unitLengthToCanvas(width, cad), h = unitLengthToCanvas(40, cad);
+        const props = { points: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }], closed: true, color: 'black' };
+        if (editor.getShape(id)) editor.updateShape({ id, type: 'cad-path', props });
+        else {
+          editor.createShape({ id, type: 'cad-path', x: 0, y: 0, props });
+          editor.setSelectedShapes([id]);
+          editor.zoomToSelection();
+        }
+      },
       selectSheetSample: () => {
         const cad = readCadSettings(editor);
         if (!cad || cad.unit !== 'mm') throw new Error('Set the sheet size in millimetres first');

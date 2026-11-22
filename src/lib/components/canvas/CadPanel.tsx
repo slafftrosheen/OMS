@@ -2,6 +2,7 @@ import sha256 from 'crypto-js/sha256.js';
 import { createUuid } from '$lib/utils/id';
 import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
 import { DrawingPageSetup } from './DrawingPageSetup';
+import { CadDimensionControls } from './CadDimensionControls';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { useVectorText } from './cad-vector-copy';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -14,7 +15,7 @@ import {
   type CadPoint, type CadSettings,
 } from './cad-settings';
 import {
-  calibrateCadSelection, convertSelectionToCadPath, createCadDimension, createCadGeometry, getCadArc, getCadPathPoints, getCadSelection,
+  calibrateCadSelection, convertSelectionToCadPath, createCadGeometry, getCadArc, getCadPathPoints, getCadSelection,
   setCadOriginToSelection, updateCadArc, updateCadPathPoints, type CadGeometryInput,
 } from './cad-geometry';
 import { buildCadDxf, CadDxfError, type DxfExportScope } from './cad-dxf';
@@ -63,7 +64,6 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
     setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
-  const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
   const selected = useValue('cad selected measurement', () => settings ? getCadSelection(editor, settings, 'bottom-left') : null, [editor, settings]);
   const [message, setMessage] = useState<CadLabel | ''>('');
   const settingsKey = JSON.stringify(settings);
@@ -82,7 +82,6 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
   const knownInvalid = known !== '' && (!Number.isFinite(numeric(known)) || numeric(known) <= 0);
   const knownErrorId = useId();
   const [axis, setAxis] = useState<'width' | 'height'>('width');
-  const [direction, setDirection] = useState<'horizontal' | 'vertical' | 'aligned'>('horizontal');
   const unit = settings?.unit ?? 'mm';
   const precision = settings?.precision ?? 2;
   function perform(success: boolean, successLabel: CadLabel) { setMessage(success ? successLabel : 'failed'); }
@@ -131,12 +130,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
         <dt>{label('width')}</dt><dd>{format(selected.w, precision)} {unit}</dd>
         <dt>{label('height')}</dt><dd>{format(selected.h, precision)} {unit}</dd>
       </dl> : <p className="drawing-help">{label('selectionRequired')}</p>}
-      <fieldset className="drawing-cad-fields" disabled={!settings || !selected || !controls.canEditSelection || protectedSelection}>
-        <Field label={label('dimensionKind')}><select value={direction} onChange={event => setDirection(event.target.value as typeof direction)}>
-          {(['horizontal', 'vertical', 'aligned'] as const).map(value => <option key={value} value={value}>{label(value)}</option>)}
-        </select></Field>
-        <button type="button" onClick={() => settings && perform(createCadDimension(editor, settings, direction), 'dimensionCreated')}>{label('addDimension')}</button>
-      </fieldset>
+      <CadDimensionControls settings={settings} />
       <p className="drawing-help">{label('dimensionHelp')}</p>
       <form onSubmit={event => { event.preventDefault(); if (settings && selected && numeric(known) > 0) perform(calibrateCadSelection(editor, numeric(known), axis, settings), 'calibrated'); }}>
         <fieldset className="drawing-cad-fields" disabled={!settings || !selected || controls.readOnly}>

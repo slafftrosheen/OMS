@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import { Box, Polygon2d, Vec, Mat, Editor, createTLStore, defaultShapeUtils, PageRecordType, getIndices } from '@tldraw/tldraw';
 import { DEFAULT_CAD_SETTINGS as defaults, validateCadSettings, readCadSettings, writeCadSettings, canvasLengthToUnit, unitLengthToCanvas, cadPointToCanvas, canvasPointToCad } from '../../src/lib/components/canvas/cad-settings';
 import { buildCadDxf, serializeCadDxf, CadDxfError } from '../../src/lib/components/canvas/cad-dxf';
-import { createCadGeometry, getCadSelection, transformCadSelection, getCadPathPoints, updateCadPathPoints, calibrateCadSelection, setCadOriginToSelection, nudgeCadSelection, createCadDimension, convertSelectionToCadPath, getCadArc, updateCadArc } from '../../src/lib/components/canvas/cad-geometry';
+import { createCadGeometry, getCadSelection, transformCadSelection, getCadPathPoints, updateCadPathPoints, calibrateCadSelection, setCadOriginToSelection, nudgeCadSelection, createCadDimension, detachCadDimension, relinkCadDimension, convertSelectionToCadPath, getCadArc, updateCadArc } from '../../src/lib/components/canvas/cad-geometry';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from '../../src/lib/components/canvas/shapes/CadShapes';
+import { getDimensionEndpoints } from '../../src/lib/components/canvas/cad-dimension-links';
 import { getCadSelectionPageBounds } from '../../src/lib/components/canvas/cad-bounds';
 import { snapCadPoint } from '../../src/lib/components/canvas/cad-snap';
 import { installCadTransforms } from '../../src/lib/components/canvas/cad-transforms';
@@ -34,6 +35,62 @@ describe('CAD physical coordinates and saved settings', () => {
     const restored = createTLStore({ shapeUtils }); restored.loadStoreSnapshot(snapshot);
     assert.deepEqual(restored.get(page.id), page);
     records.forEach(record => assert.deepEqual(restored.get(record.id), record));
+  });
+  it('serializes a dimension reference alongside existing manual annotations', () => {
+    const shapeUtils = [...defaultShapeUtils, CadDimensionShapeUtil];
+    const source = PageRecordType.create({ id: PageRecordType.createId('linked'), name: 'Linked', index: getIndices(1)[0] });
+    const store = createTLStore({ shapeUtils });
+    const props = fixture().utils['cad-dimension'].getDefaultProps();
+    const record = store.schema.types.shape.create({ id: 'shape:linked-dimension' as any, type: 'cad-dimension',
+      parentId: source.id, index: getIndices(1)[0],
+      props: { ...props, link: { kind: 'horizontal', sourceIds: ['shape:panel'] } } });
+    store.put([source, record]);
+    const restored = createTLStore({ shapeUtils });
+    restored.loadStoreSnapshot(JSON.parse(JSON.stringify(store.getStoreSnapshot('document'))));
+    assert.deepEqual(restored.get(record.id), record);
+  });
+  it('updates linked extents through group transforms and restores a broken reference on undo', () => {
+    const { editor, shapes, only, marks } = fixture();
+    editor.createShape({ id: 'shape:carrier', type: 'group', x: 50, y: 20 });
+    editor.createShape({ id: 'shape:panel', type: 'cad-path', parentId: 'shape:carrier',
+      props: { closed: true, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 30 }, { x: 0, y: 30 }] } });
+    editor.setSelectedShapes(['shape:carrier']);
+    assert.equal(createCadDimension(editor, defaults, 'horizontal'), true);
+    const dimension = only();
+    const endpoints = () => getDimensionEndpoints(editor, shapes.get(dimension.id));
+    near(endpoints().end.x - endpoints().start.x, 100);
+    editor.updateShape({ id: 'shape:carrier', type: 'group', x: 300, rotation: Math.PI / 2 });
+    near(endpoints().end.x - endpoints().start.x, 30);
+    near(endpoints().start.x, 220);
+    assert.deepEqual(shapes.get(dimension.id).props, dimension.props);
+    const mark = marks.length;
+    editor.mark('delete-source');
+    editor.deleteShapes(['shape:panel']);
+    assert.equal(endpoints().status, 'broken');
+    assert.equal(detachCadDimension(editor), false);
+    editor.bailToMark(marks[mark].id);
+    assert.equal(endpoints().status, 'linked');
+    editor.updateShape({ id: 'shape:carrier', type: 'group', parentId: 'page:other' });
+    assert.equal(endpoints().status, 'broken');
+  });
+  it('flags changed path topology and allows reattachment and detachment in place', () => {
+    const { editor, only } = fixture();
+    const points = [{ x: 0, y: 0 }, { x: 60, y: 30 }, { x: 100, y: 0 }];
+    editor.createShape({ id: 'shape:edge', type: 'cad-path', props: { points, closed: false } });
+    editor.setSelectedShapes(['shape:edge']);
+    assert.equal(createCadDimension(editor, defaults, 'aligned'), true);
+    const dimension = only();
+    editor.updateShape({ id: 'shape:edge', type: 'cad-path', props: { points: [...points, { x: 160, y: 0 }] } });
+    assert.equal(getDimensionEndpoints(editor, dimension).status, 'broken');
+    editor.setSelectedShapes([dimension.id, 'shape:edge']);
+    assert.equal(relinkCadDimension(editor, 'aligned'), true);
+    assert.deepEqual(only().props.link.path, { vertices: 4, closed: false });
+    editor.updateShape({ id: 'shape:edge', type: 'cad-path', x: 90 });
+    assert.equal(detachCadDimension(editor), true);
+    near(only().x, 90);
+    near(only().props.endX, 160);
+    editor.deleteShapes(['shape:edge']);
+    assert.equal(getDimensionEndpoints(editor, only()).status, 'free');
   });
   it('preserves physical size across units and converts Y-up independently of view zoom', () => {
     for (const unit of ['mm', 'cm', 'm', 'in'] as const) for (const scale of [0.1, 1, 10, 100]) {

@@ -7,6 +7,8 @@ import React from 'react';
 import { ShapeUtil, SVGContainer, Polyline2d, Polygon2d, Ellipse2d, Group2d, Box, Vec, T,
   DefaultColorStyle, getDefaultColorTheme, getIndices, resizeBox, useValue, type Editor, type TLBaseShape,
   type TLDefaultColorStyle, type TLHandle, type TLOnHandleDragHandler, type TLOnResizeHandler } from '@tldraw/tldraw';
+import { useCadText } from '../cad-copy';
+import { CAD_DIMENSION_SOURCE_LIMIT, getDimensionEndpoints, type CadDimensionLink } from '../cad-dimension-links';
 import { CAD_MAX_COORDINATE, CAD_MAX_POINTS, canvasLengthToUnit, readCadSettings, type CadPoint } from '../cad-settings';
 
 const bounded = T.number.check(n => { if (!Number.isFinite(n) || Math.abs(n) > CAD_MAX_COORDINATE) throw new Error('CAD coordinate out of bounds'); });
@@ -17,7 +19,7 @@ const pointsValidator = T.arrayOf(T.object({ x: bounded, y: bounded })).check(p 
 export type CadPathShape = TLBaseShape<'cad-path', { points: CadPoint[]; closed: boolean; color: TLDefaultColorStyle }>;
 export type CadEllipseShape = TLBaseShape<'cad-ellipse', { w: number; h: number; color: TLDefaultColorStyle }>;
 export type CadArcShape = TLBaseShape<'cad-arc', { radius: number; startAngle: number; endAngle: number; color: TLDefaultColorStyle }>;
-export type CadDimensionShape = TLBaseShape<'cad-dimension', { endX: number; endY: number; offset: number; decorationScale: number; color: TLDefaultColorStyle }>;
+export type CadDimensionShape = TLBaseShape<'cad-dimension', { endX: number; endY: number; offset: number; decorationScale: number; color: TLDefaultColorStyle; link?: CadDimensionLink | null }>;
 const vectors = (points: CadPoint[]) => points.map(p => new Vec(p.x, p.y));
 function pathData(points: CadPoint[], closed: boolean) { return points.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') + (closed ? ' Z' : ''); }
 function color(editor: Editor, value: TLDefaultColorStyle) { return getDefaultColorTheme({ isDarkMode: editor.user.getIsDarkMode() })[value].solid; }
@@ -177,54 +179,86 @@ export class CadArcShapeUtil extends ShapeUtil<CadArcShape> {
   override toSvg(shape: CadArcShape) { return analyticArtwork(this.editor, shape, 'svg'); }
 }
 
-function dimensionLines(shape: CadDimensionShape): CadPoint[][] {
-  const { endX: x, endY: y, offset } = shape.props;
-  const length = Math.hypot(x, y) || 1;
-  const n = { x: -y / length, y: x / length }, a = { x: n.x * offset, y: n.y * offset }, b = { x: x + a.x, y: y + a.y };
-  const tick = 5 * shape.props.decorationScale;
-  const extension = Math.sign(offset) * 8 * shape.props.decorationScale;
-  return [[{ x: 0, y: 0 }, { x: a.x + n.x * extension, y: a.y + n.y * extension }], [{ x, y }, { x: b.x + n.x * extension, y: b.y + n.y * extension }], [a, b],
-    [{ x: a.x - n.x * tick, y: a.y - n.y * tick }, { x: a.x + n.x * tick, y: a.y + n.y * tick }],
-    [{ x: b.x - n.x * tick, y: b.y - n.y * tick }, { x: b.x + n.x * tick, y: b.y + n.y * tick }]];
+const dimensionLinkValidator = T.object({
+  kind: T.literalEnum('horizontal', 'vertical', 'aligned'),
+  sourceIds: T.arrayOf(T.string.check(id => {
+    if (!id.startsWith('shape:') || id.length > 128) throw new Error('Invalid dimension source');
+  })).check(ids => {
+    if (!ids.length || ids.length > CAD_DIMENSION_SOURCE_LIMIT || new Set(ids).size !== ids.length)
+      throw new Error('Invalid dimension sources');
+  }),
+  path: T.optional(T.object({ vertices: T.number.check(count => {
+    if (!Number.isInteger(count) || count < 2 || count > CAD_MAX_POINTS) throw new Error('Invalid dimension path');
+  }), closed: T.boolean })),
+});
+
+function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
+  const { start, end, status } = getDimensionEndpoints(editor, shape);
+  const dx = end.x - start.x, dy = end.y - start.y;
+  const length = Math.hypot(dx, dy), divisor = length || 1;
+  const normal = { x: -dy / divisor, y: dx / divisor };
+  const { offset, decorationScale } = shape.props;
+  const shift = (p: CadPoint, distance: number) => ({ x: p.x + normal.x * distance, y: p.y + normal.y * distance });
+  const a = shift(start, offset), b = shift(end, offset), tick = 5 * decorationScale;
+  const extension = offset + Math.sign(offset) * 8 * decorationScale;
+  return {
+    start, end, length, normal, status, midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    lines: [[start, shift(start, extension)], [end, shift(end, extension)], [a, b],
+      [shift(a, -tick), shift(a, tick)], [shift(b, -tick), shift(b, tick)]],
+  };
 }
 function DimensionSvg({ shape, editor }: { shape: CadDimensionShape; editor: Editor }) {
+  const { label } = useCadText();
   const settings = useValue('CAD measurement settings', () => readCadSettings(editor), [editor]);
-  const length = Math.hypot(shape.props.endX, shape.props.endY);
-  const label = settings ? `${canvasLengthToUnit(length, settings).toFixed(settings.precision)} ${settings.unit}` : `${length.toFixed(2)} px`;
-  const lines = dimensionLines(shape), [a, b] = lines[2];
-  return <g fill="none" stroke={color(editor, shape.props.color)} strokeWidth={1}>
-    {lines.map((points, i) => <path key={i} d={pathData(points, false)} />)}
-    <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 6 * shape.props.decorationScale} textAnchor="middle" stroke="none" fill={color(editor, shape.props.color)} fontSize={14 * shape.props.decorationScale} fontFamily="sans-serif">{label}</text>
+  const { length, lines, midpoint, status } = useValue('CAD dimension geometry', () => dimensionLayout(editor, shape), [editor, shape]);
+  const broken = status === 'broken';
+  const ink = broken ? 'var(--status-warning, #b45309)' : color(editor, shape.props.color);
+  const value = broken ? label('dimensionBroken') : settings
+    ? `${canvasLengthToUnit(length, settings).toFixed(settings.precision)} ${settings.unit}` : `${length.toFixed(2)} px`;
+  return <g data-dimension-state={status} fill="none" stroke={ink} strokeWidth={1}>
+    {lines.map((points, i) => <path key={i} d={pathData(points, false)} strokeDasharray={broken ? '4 3' : undefined} />)}
+    <text x={midpoint.x} y={midpoint.y - 6 * shape.props.decorationScale} textAnchor="middle" stroke="none" fill={ink} fontSize={14 * shape.props.decorationScale} fontFamily="sans-serif">{value}</text>
   </g>;
 }
 export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   static override type = 'cad-dimension' as const;
-  static override props = { endX: bounded, endY: bounded, offset: bounded, decorationScale: positive, color: DefaultColorStyle };
+  static override props = { endX: bounded, endY: bounded, offset: bounded, decorationScale: positive, color: DefaultColorStyle,
+    link: T.optional(T.nullable(dimensionLinkValidator)) };
   override getDefaultProps(): CadDimensionShape['props'] { return { endX: 100, endY: 0, offset: 24, decorationScale: 1, color: 'blue' }; }
   override isAspectRatioLocked = () => true;
-  override onResize: TLOnResizeHandler<CadDimensionShape> = (shape, { scaleX, scaleY }) => ({ props: {
+  override canResize = (shape: CadDimensionShape) => !shape.props.link;
+  override hideResizeHandles = (shape: CadDimensionShape) => !!shape.props.link;
+  override hideRotateHandle = (shape: CadDimensionShape) => !!shape.props.link;
+  override onTranslate = (initial: CadDimensionShape) => initial.props.link ? { id: initial.id, type: initial.type, x: initial.x, y: initial.y } : undefined;
+  override onResize: TLOnResizeHandler<CadDimensionShape> = (shape, { scaleX, scaleY }) => shape.props.link ? undefined : ({ props: {
     endX: shape.props.endX * scaleX, endY: shape.props.endY * scaleY,
     offset: shape.props.offset * Math.abs(scaleX) * Math.sign(scaleX * scaleY),
     decorationScale: shape.props.decorationScale * Math.abs(scaleX)
   } });
-  override getGeometry(shape: CadDimensionShape) { return new CadTransformGeometry({ children: dimensionLines(shape).map(points => new Polyline2d({ points: vectors(points) })) }); }
+  override getGeometry(shape: CadDimensionShape) {
+    return new CadTransformGeometry({ children: dimensionLayout(this.editor, shape).lines.map(points => new Polyline2d({ points: vectors(points) })) });
+  }
   override component(shape: CadDimensionShape) { return <SVGContainer><DimensionSvg shape={shape} editor={this.editor} /></SVGContainer>; }
-  override indicator(shape: CadDimensionShape) { return <path d={dimensionLines(shape).map(p => pathData(p, false)).join(' ')} />; }
+  override indicator(shape: CadDimensionShape) { return <path d={dimensionLayout(this.editor, shape).lines.map(p => pathData(p, false)).join(' ')} />; }
   override toSvg(shape: CadDimensionShape) { return <DimensionSvg shape={shape} editor={this.editor} />; }
   override getHandles(shape: CadDimensionShape): TLHandle[] {
-    const indices = getIndices(3), { endX, endY, offset } = shape.props, length = Math.hypot(endX, endY) || 1;
-    return [{ id: 'start', x: 0, y: 0, index: indices[0], type: 'vertex', canSnap: false },
-      { id: 'end', x: endX, y: endY, index: indices[1], type: 'vertex', canSnap: false },
-      { id: 'offset', x: endX / 2 - endY / length * offset, y: endY / 2 + endX / length * offset, index: indices[2], type: 'vertex', canSnap: false }];
+    const { start, end, midpoint, status } = dimensionLayout(this.editor, shape);
+    if (status === 'broken') return [];
+    const indices = getIndices(3);
+    const offset: TLHandle = { id: 'offset', ...midpoint, index: indices[2], type: 'vertex', canSnap: false };
+    if (status === 'linked') return [offset];
+    return [{ id: 'start', ...start, index: indices[0], type: 'vertex', canSnap: false },
+      { id: 'end', ...end, index: indices[1], type: 'vertex', canSnap: false }, offset];
   }
   override onHandleDrag: TLOnHandleDragHandler<CadDimensionShape> = (shape, { handle }) => {
     if (this.editor.getInstanceState().isReadonly || this.editor.isShapeOrAncestorLocked(shape)) return;
-    if (handle.id !== 'offset' && !this.editor.inputs.shiftKey) handle = { ...handle, ...snapCadHandle(this.editor, shape, handle) };
-    if (handle.id === 'end') return { id: shape.id, type: shape.type, props: { endX: handle.x, endY: handle.y } };
+    const { start, normal, status } = dimensionLayout(this.editor, shape);
+    if (status === 'broken' || status === 'linked' && handle.id !== 'offset') return;
     if (handle.id === 'offset') {
-      const { endX, endY } = shape.props, length = Math.hypot(endX, endY) || 1;
-      return { id: shape.id, type: shape.type, props: { offset: (-endY * handle.x + endX * handle.y) / length } };
+      return { id: shape.id, type: shape.type, props: { offset: normal.x * (handle.x - start.x) + normal.y * (handle.y - start.y) } };
     }
+    if (!this.editor.inputs.shiftKey) handle = { ...handle, ...snapCadHandle(this.editor, shape, handle) };
+    if (handle.id === 'end') return { id: shape.id, type: shape.type, props: { endX: handle.x, endY: handle.y } };
     const c = Math.cos(shape.rotation), s = Math.sin(shape.rotation);
     return { id: shape.id, type: shape.type, x: shape.x + c * handle.x - s * handle.y, y: shape.y + s * handle.x + c * handle.y,
       props: { endX: shape.props.endX - handle.x, endY: shape.props.endY - handle.y } };

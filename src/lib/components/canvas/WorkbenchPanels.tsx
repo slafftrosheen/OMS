@@ -11,6 +11,8 @@ import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
 import {canvasLengthToUnit,readCadSettings,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {captureToolkitControls} from './toolkit-controls';
 import {getCadSelectionPageBounds} from './cad-bounds';
+import {CadDimensionControls} from './CadDimensionControls';
+import {getDimensionEndpoints,type DimensionSource} from './cad-dimension-links';
 import {cadConstruction} from './cad-construction';
 import {measureCadSelection} from './cad-measurements';
 import {applyArrangePlan,arrangementRoots,arrangeGapFromDisplay,MAX_ARRANGE_GAP,prepareArrangePlan,type ArrangeOptions} from './drawing-arrange';
@@ -206,15 +208,15 @@ export function MeasurePanel({settings,onTool,onDocument}:{settings:CadSettings|
  const state=useValue('measure selection',()=>{const shape=editor.getOnlySelectedShape();return {shape,bounds:getCadSelectionPageBounds(editor),readonly:editor.getInstanceState().isReadonly};},[editor]);
  const length=(n:number)=>`${(settings?canvasLengthToUnit(n,settings):n).toFixed(settings?.precision??2)} ${settings?.unit??'px'}`;
  const dimension=state.shape?.type==='cad-dimension'?state.shape:null;
- const p=dimension?.props as {endX:number;endY:number}|undefined;
+ const points=useValue('measured dimension endpoints',()=>dimension?getDimensionEndpoints(editor,dimension as DimensionSource):null,[editor,dimension]);
  return <><p className="drawing-help">{hint}</p><dl className="drawing-cad-values">
-  <dt>{t('width')}</dt><dd>{state.bounds?length(state.bounds.w):'—'}</dd><dt>{t('height')}</dt><dd>{state.bounds?length(state.bounds.h):'—'}</dd>
+  {!dimension&&<><dt>{t('width')}</dt><dd>{state.bounds?length(state.bounds.w):'—'}</dd><dt>{t('height')}</dt><dd>{state.bounds?length(state.bounds.h):'—'}</dd></>}
   {measurement.measured>0&&<><dt>{t('curveLength')}</dt><dd>{measurement.approximate?'≈ ':''}{length(measurement.length)}</dd><dt>{t('openPaths')}</dt><dd>{measurement.open}</dd><dt>{t('closedPaths')}</dt><dd>{measurement.closed}</dd></>}
   {measurement.radius!==undefined&&<><dt>{t('radius')}</dt><dd>{length(measurement.radius)}</dd><dt>{t('diameter')}</dt><dd>{length(measurement.radius*2)}</dd></>}
   {measurement.sweep!==undefined&&<><dt>{t('sweep')}</dt><dd>{measurement.sweep.toFixed(settings?.precision??2)}°</dd></>}
-  {measurement.omitted>0&&<><dt>{t('omittedMeasure')}</dt><dd>{measurement.omitted}</dd></>}
-  {p&&dimension&&<><dt>{t('distance')}</dt><dd>{length(Math.hypot(p.endX,p.endY))}</dd><dt>{t('angle')}</dt><dd>{((-Math.atan2(p.endY,p.endX)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(2)}°</dd></>}
- </dl><p className="drawing-help">{t('lengthHint')}</p>{state.shape?.type==='cad-arc'&&<p className="drawing-help">{t('arcHandles')}</p>}<div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-arc-three')}>{t('arcThree')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle-three')}>{t('circleThree')}</button></div></>;
+  {!dimension&&measurement.omitted>0&&<><dt>{t('omittedMeasure')}</dt><dd>{measurement.omitted}</dd></>}
+  {points&&points.status!=='broken'&&dimension&&<><dt>{t('distance')}</dt><dd>{length(Math.hypot(points.end.x-points.start.x,points.end.y-points.start.y))}</dd><dt>{t('angle')}</dt><dd>{((-Math.atan2(points.end.y-points.start.y,points.end.x-points.start.x)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(2)}°</dd></>}
+ </dl><CadDimensionControls settings={settings}/><p className="drawing-help">{t('lengthHint')}</p>{state.shape?.type==='cad-arc'&&<p className="drawing-help">{t('arcHandles')}</p>}<div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-arc-three')}>{t('arcThree')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle-three')}>{t('circleThree')}</button></div></>;
 }
 export function FormScaleControl(){
  const editor=useEditor(),t=useWorkbenchText();

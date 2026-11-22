@@ -2,6 +2,8 @@ import { createShapeId, type Editor, type TLShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { captureToolkitControls } from './toolkit-controls';
 import { getCadSelectionPageBounds } from './cad-bounds';
+import { CAD_DIMENSION_SOURCE_LIMIT, dimensionSources, getDimensionEndpoints, makeDimensionLink, resolveDimensionLink,
+  type CadDimensionKind, type CadDimensionLink, type DimensionSource } from './cad-dimension-links';
 import { CAD_MAX_COORDINATE, cadPointToCanvas, canvasPointToCad, canvasLengthToUnit, unitLengthToCanvas,
   validateCadSettings, validCadPoint, validCadPoints, writeCadSettings, type CadPoint, type CadSettings } from './cad-settings';
 
@@ -205,25 +207,55 @@ export function nudgeCadSelection(editor: Editor, dx: number, dy: number, settin
   return drawingTransaction(editor, () => { editor.nudgeShapes(ids, offset); });
 }
 
-/** Snapshot dimensions: independent endpoints, no misleading stale association with a moved source. */
-export function createCadDimension(editor: Editor, settings: CadSettings, kind: 'horizontal' | 'vertical' | 'aligned'): boolean {
+/** Attach to the selected drawing objects and retain initial endpoints for a broken-reference indicator. */
+export function createCadDimension(editor: Editor, settings: CadSettings, kind: CadDimensionKind, linked = true): boolean {
   if (!validateCadSettings(settings) || !permitted(editor) || editor.getCurrentPageShapeIds().size >= editor.options.maxShapesPerPage) return false;
-  const bounds = getCadSelectionPageBounds(editor);
-  if (!bounds) return false;
-  let start: CadPoint = { x: bounds.minX, y: bounds.maxY }, end: CadPoint;
-  if (kind === 'vertical') end = { x: bounds.minX, y: bounds.minY };
-  else if (kind === 'horizontal') end = { x: bounds.maxX, y: bounds.maxY };
-  else {
-    const path = getCadPathPoints(editor, settings);
-    if (path) { start = cadPointToCanvas(path.points[0], settings); end = cadPointToCanvas(path.points.at(-1)!, settings); }
-    else end = { x: bounds.maxX, y: bounds.minY };
-  }
-  if (Math.hypot(end.x - start.x, end.y - start.y) < 1e-8) return false;
+  const pageId = editor.getCurrentPageId();
+  const sources = dimensionSources(editor, [...editor.getSelectedShapeIds()]);
+  if (!sources.length || linked && sources.length > CAD_DIMENSION_SOURCE_LIMIT) return false;
+  const link = makeDimensionLink(sources, kind);
+  const points = resolveDimensionLink(editor, link, pageId);
+  if (!points) return false;
+  const { start, end } = points;
   return drawingTransaction(editor, () => {
     const id = createShapeId();
-    editor.createShape({ id, type: 'cad-dimension', parentId: editor.getCurrentPageId(), x: start.x, y: start.y,
-      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24 } });
+    editor.createShape({ id, type: 'cad-dimension', parentId: pageId, x: start.x, y: start.y,
+      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24, ...(linked ? { link } : {}) } });
     if (!editor.getShape(id)) throw new Error('Dimension was not created');
     editor.setSelectedShapes([id]);
   });
+}
+
+function updateDimensionReference(editor: Editor, shape: DimensionSource, start: CadPoint, end: CadPoint, link: CadDimensionLink | null): boolean {
+  const origin = editor.getPointInParentSpace(shape, start);
+  const localStart = editor.getPointInShapeSpace(shape, start), localEnd = editor.getPointInShapeSpace(shape, end);
+  const delta = { x: localEnd.x - localStart.x, y: localEnd.y - localStart.y };
+  if (!validCadPoint(origin) || !validCadPoint(delta)) return false;
+  return drawingTransaction(editor, () => {
+    editor.updateShape({ id: shape.id, type: 'cad-dimension', x: origin.x, y: origin.y, props: { endX: delta.x, endY: delta.y, link } });
+    editor.setSelectedShapes([shape.id]);
+  });
+}
+
+export function relinkCadDimension(editor: Editor, kind: CadDimensionKind): boolean {
+  if (!permitted(editor)) return false;
+  const selected = editor.getSelectedShapes();
+  const dimensions = selected.filter(shape => shape.type === 'cad-dimension') as DimensionSource[];
+  if (dimensions.length !== 1) return false;
+  const sources = dimensionSources(editor, selected.filter(shape => shape.type !== 'cad-dimension').map(shape => shape.id));
+  if (!sources.length || sources.length > CAD_DIMENSION_SOURCE_LIMIT) return false;
+  const link = makeDimensionLink(sources, kind);
+  const points = resolveDimensionLink(editor, link, editor.getCurrentPageId());
+  return !!points && updateDimensionReference(editor, dimensions[0], points.start, points.end, link);
+}
+
+export function detachCadDimension(editor: Editor): boolean {
+  if (!permitted(editor)) return false;
+  const shape = editor.getOnlySelectedShape();
+  if (shape?.type !== 'cad-dimension') return false;
+  const dimension = shape as DimensionSource;
+  const { start, end, status } = getDimensionEndpoints(editor, dimension);
+  if (status !== 'linked') return false;
+  const transform = editor.getShapePageTransform(dimension);
+  return updateDimensionReference(editor, dimension, transform.applyToPoint(start), transform.applyToPoint(end), null);
 }

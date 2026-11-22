@@ -42,6 +42,11 @@ export function fixture() {
     setCurrentTool: (tool: string) => (state.tool = tool),
     getCurrentPage: () => page,
     getCurrentPageId: () => page.id,
+    getAncestorPageId: (value: any) => {
+      let shape = typeof value === 'string' ? shapes.get(value) : shapes.get(value?.id);
+      while (shape && !shape.parentId.startsWith('page:')) shape = shapes.get(shape.parentId);
+      return shape?.parentId;
+    },
     updatePage: (p: any) => (page = { ...page, ...p }),
     getCurrentPageShapeIds: () => new Set(shapes.keys()),
     getCurrentPageShapesSorted: () => [...shapes.values()],

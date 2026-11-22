@@ -16,6 +16,31 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} associative dimensions follow geometry and expose broken links after reload`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(100));
+    await page.getByTestId('drawing-measure-toggle').click();
+    const controls = page.getByTestId('drawing-dimension-links');
+    await expect(controls.getByRole('checkbox', { name: 'Link to geometry' })).toBeChecked();
+    await controls.getByRole('button', { name: 'Add dimension', exact: true }).click();
+    const drawing = page.locator('[data-dimension-state]');
+    await expect(drawing).toHaveAttribute('data-dimension-state', 'linked');
+    await expect(drawing.getByText('100.00 mm', { exact: true })).toBeVisible();
+    const dimensionId = (await scene(page)).selected[0];
+    const bounds = () => page.evaluate(id => (window as any).__drawingFixture.bounds(id), dimensionId);
+    const original = await bounds();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(160));
+    await expect(drawing.getByText('160.00 mm', { exact: true })).toBeVisible();
+    expect((await bounds()).w / original.w).toBeCloseTo(1.6, 5);
+    await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
+    await expect(drawing.getByText('160.00 mm', { exact: true })).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(null));
+    await expect(drawing).toHaveAttribute('data-dimension-state', 'broken');
+    await expect(drawing.getByText('Dimension reference missing', { exact: true })).toBeVisible();
+    await expect(drawing.getByText('160.00 mm', { exact: true })).toHaveCount(0);
+  });
   test(`${mode} drops DXF as editable artwork and opens EPS in editable mode`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
