@@ -1,9 +1,10 @@
 import { validVectorPaint } from './cad-paint';
-import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
+import { rectangularClipContainsBounds } from './cad-appearance';
+import type { CubicSpline2d, Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectName } from './drawing-operations';
 import { CAD_MAX_COORDINATE, cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
 
-import { contourSegments, curveBounds, flattenContours, mapContours, validContours, type CadContour } from './cad-curves';
+import { contourSegments, curveBounds, flattenContours, mapContours, nodeAt, validContours, type CadContour } from './cad-curves';
 
 export class CadDxfError extends Error {
   constructor(public code: 'empty' | 'invalid' | 'limit' | 'settings') { super(code); this.name = 'CadDxfError'; }
@@ -81,7 +82,16 @@ export function cadShapeDxfGeometry(editor: Editor, shape: TLShape, settings: Ca
     const world = matrix.applyToPoint(point);
     return { x: finite((world.x - settings.originX) * factor), y: finite((settings.originY - world.y) * factor) };
   };
-  if (cadShapeIsClipped(editor, shape) || (shape.meta.omsVectorPaint as any)?.clips?.length) return { reason: 'clipped' };
+  if (cadShapeIsClipped(editor, shape)) return { reason: 'clipped' };
+  const paint = shape.meta.omsVectorPaint;
+  if ((paint as any)?.clips?.length) {
+    // EPS/PDF page clips may cut only the painted stroke at the page edge.
+    // A DXF cutting path can keep the centerline when it stays inside the clip.
+    if (shape.type !== 'cad-bezier' || !validVectorPaint(paint) || !validContours(p.contours))
+      return { reason: 'clipped' };
+    const bounds = curveBounds(p.contours);
+    if (!paint.clips?.every(clip => rectangularClipContainsBounds(clip, bounds))) return { reason: 'clipped' };
+  }
   if (cadShapeHasNonCuttingRaster(shape)) return { reason: 'unsupported' };
   if (shape.type === 'cad-bezier') {
     if (!validContours(p.contours)) return { reason: 'invalid' };
@@ -90,6 +100,25 @@ export function cadShapeDxfGeometry(editor: Editor, shape: TLShape, settings: Ca
   }
   if (shape.type === 'cad-path') return { entity: checkedPolyline(p.points.map(convert), p.closed) };
   if (shape.type === 'line') {
+    if (p.spline === 'cubic') {
+      // Export the cubic handles from the same native geometry used to draw
+      // the line. The stored point list has anchors but no Bézier handles.
+      const { segments } = editor.getShapeGeometry(shape) as CubicSpline2d;
+      if (!segments?.length) return { reason: 'invalid' };
+      const nodes = [nodeAt(convert(segments[0].a))];
+      for (const segment of segments) {
+        const previous = nodes[nodes.length - 1];
+        const out = convert(segment.b);
+        const incoming = convert(segment.c);
+        const next = nodeAt(convert(segment.d));
+        previous.outX = out.x - previous.x; previous.outY = out.y - previous.y;
+        next.inX = incoming.x - next.x; next.inY = incoming.y - next.y;
+        nodes.push(next);
+      }
+      const contour = { closed: false, nodes };
+      if (!validContours([contour])) return { reason: 'invalid' };
+      return { entity: { type: 'spline', contour } };
+    }
     if (p.spline !== 'line') return { reason: 'curved' };
     const points = Object.values(p.points ?? {}).sort((a: any, b: any) => a.index < b.index ? -1 : a.index > b.index ? 1 : 0) as CadPoint[];
     return { entity: checkedPolyline(points.map(convert), false) };

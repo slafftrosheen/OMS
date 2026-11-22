@@ -25,7 +25,8 @@ import { installDrawingPenInput } from './drawing-pen-input';
 import { CadFreehandTool, cancelCadFreehand } from './CadFreehandTool';
 import { CadFreehandOverlay } from './CadFreehandOverlay';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
-import {syncCreationFileDocuments} from './order-file-documents';
+import {orderPocketAtPoint,syncCreationFileDocuments} from './order-file-documents';
+import { routeCanvasCadImport } from './drawing-ui-requests';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
 import { CadBezierShapeUtil } from './shapes/CadBezierShape';
 import { CadBezierTool } from './CadBezierTool';
@@ -254,6 +255,7 @@ export function CanvasApp({
             // Route paste as well as drag/drop through private persistent
             // uploads, instead of tldraw's ephemeral data-URL asset store.
             editor.registerExternalContentHandler('files', async ({ files, point }) => {
+                if (routeCanvasCadImport(editor, files)) return;
                 callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
             });
             editor.registerExternalContentHandler('url', async ({ url, point }) => {
@@ -261,7 +263,14 @@ export function CanvasApp({
             });
         }
 
-        if(!toolkitBoardId)editor.registerExternalContentHandler('files',async({files,point})=>{const id=seedRef.current?.orderId;if(id)await uploadOrderCanvasFiles(editor,files,id,point??editor.getViewportPageBounds().center);});
+        const routeOrderDrawing = (files: File[], position: { x: number; y: number }) =>
+            !orderPocketAtPoint(editor, position) && routeCanvasCadImport(editor, files);
+        if (!toolkitBoardId) editor.registerExternalContentHandler('files', async ({ files, point }) => {
+            const position = point ?? editor.getViewportPageBounds().center;
+            if (routeOrderDrawing(files, position)) return;
+            const id = seedRef.current?.orderId;
+            if (id) await uploadOrderCanvasFiles(editor, files, id, position);
+        });
 
         // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
@@ -276,6 +285,7 @@ export function CanvasApp({
                     event.preventDefault();
                     event.stopPropagation();
                     const files = Array.from(event.dataTransfer.files);
+                    if (routeCanvasCadImport(editor, files)) return;
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.
                     const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
@@ -289,7 +299,7 @@ export function CanvasApp({
                 };
             } else {
                 dropCleanupRef.current = wireAssetDropHandler(
-                    containerRef.current, editor, () => seedRef.current?.orderId ?? null
+                    containerRef.current, editor, () => seedRef.current?.orderId ?? null, routeOrderDrawing
                 );
             }
         }

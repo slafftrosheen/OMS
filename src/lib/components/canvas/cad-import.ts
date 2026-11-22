@@ -730,7 +730,7 @@ export function readCadDxf(
     ],
     widthMm: bounds.w * cadMmPerPixel(settings),
     heightMm: bounds.h * cadMmPerPixel(settings),
-    shapes,
+    shapes: shapes.map(shape => ({ ...shape, opacity: 1 })),
     omitted,
     sourceUnit,
     requiresUnit,

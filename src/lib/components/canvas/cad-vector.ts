@@ -84,6 +84,7 @@ export function prepareVectorImport(
         type: "cad-bezier",
         x: 0,
         y: 0,
+        opacity: 1,
         props: { contours: p.contours, fillRule: p.fillRule },
         meta: { omsObjectName: `${name} · ${i + 1}`, omsVectorPaint: p.paint },
       })),

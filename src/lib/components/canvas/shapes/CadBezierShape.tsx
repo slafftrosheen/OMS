@@ -89,11 +89,11 @@ function inCurveClips(point: Vec, clips: CurveClip[]) {
 function curveClips(paint: VectorPaint): CurveClip[] {
   return (paint.clips ?? []).map(c => ({ points: flattenContours(c.contours, .25, 200000), fillRule: c.fillRule }));
 }
-type RoundStrokeHit = { radius: number; visible: boolean; inClips: (point: Vec) => boolean };
-function roundStrokeHit(paint: VectorPaint, opacity: number, clips?: CurveClip[]): RoundStrokeHit | null {
-  // A round solid stroke is the union of radius-sized disks along its path.
-  // Other caps/joins, dashes, and filled artwork keep their existing hit policy.
-  if (paint.fill !== 'none' || paint.gradient || paint.raster || paint.dash.length || paint.lineCap !== 'round' || paint.lineJoin !== 'round') return null;
+type StrokePick = { radius: number; visible: boolean; inClips: (point: Vec) => boolean };
+function strokePick(paint: VectorPaint, opacity: number, clips?: CurveClip[]): StrokePick | null {
+  if (paint.fill !== 'none' || paint.gradient || paint.raster) return null;
+  // Dashes are a visual style. Pick the continuous path so thin or dashed
+  // production outlines remain selectable anywhere near their geometry.
   const masks = clips ?? curveClips(paint);
   let x = NaN, y = NaN, included = false;
   return { radius: paint.strokeWidth / 2, visible: paint.stroke !== 'none' && paint.strokeWidth > 0 && paint.strokeOpacity > 0 && opacity > 0,
@@ -104,12 +104,12 @@ function roundStrokeHit(paint: VectorPaint, opacity: number, clips?: CurveClip[]
       return included;
     } };
 }
-class RoundStrokePolyline extends Polyline2d {
-  constructor(points: Vec[], private strokeHit: () => RoundStrokeHit | null) { super({ points }); }
+class StrokePolyline extends Polyline2d {
+  constructor(points: Vec[], private strokeHit: () => StrokePick | null) { super({ points }); }
   override distanceToPoint(point: Vec, hitInside = false) {
     const stroke = this.strokeHit();
-    // Editor.getShapeAtPoint bypasses the parent Group2d override. This child
-    // has filled *stroke area*, without treating the curve's interior as fill.
+    // Editor.getShapeAtPoint tests Group2d children directly and skips a
+    // hollow group that encloses the viewport. Only the stroke is pickable.
     this.isFilled = !!stroke;
     if (!stroke) return super.distanceToPoint(point, hitInside);
     if (!stroke.visible || !stroke.inClips(point)) return Infinity;
@@ -126,7 +126,7 @@ class CurveGeometry extends Group2d {
     private fillRule: "evenodd" | "nonzero",
     private filled: boolean,
     private clips: CurveClip[] = [],
-    private strokeHit: () => RoundStrokeHit | null = () => null,
+    private strokeHit: () => StrokePick | null = () => null,
   ) {
     super({ children });
     this.isFilled = filled;
@@ -212,28 +212,31 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
   override getGeometry(shape: CadBezierShape) {
     const bounds = curveBounds(shape.props.contours);
     const paint = vectorPaint(shape.meta, shape.props.color), clips = curveClips(paint);
-    let meta = shape.meta, opacity = shape.opacity, stroke = roundStrokeHit(paint, opacity, clips);
+    let meta = shape.meta, opacity = shape.opacity, stroke = strokePick(paint, opacity, clips);
     const strokeHit = () => {
       // The installed Editor's geometry cache compares props, not metadata or
       // opacity. Outline edits must change picking without changing saved nodes.
       const current = this.editor.getShape(shape.id) ?? shape;
       if (current.meta !== meta || current.opacity !== opacity) {
         meta = current.meta; opacity = current.opacity;
-        stroke = roundStrokeHit(vectorPaint(meta, shape.props.color), opacity);
+        stroke = strokePick(vectorPaint(meta, shape.props.color), opacity);
       }
       return stroke;
     };
-    // Hit testing is bounded and approximate; SVG rendering and saved control points are exact.
-    const points = flattenContours(
-      shape.props.contours,
-      Math.max(0.25, bounds.w / 500, bounds.h / 500),
-      200000,
-    );
+    // Use a subpixel approximation first. Tolerating error proportional to
+    // the artwork size makes full-sheet curves miss the pointer at working zoom.
+    let points: ReturnType<typeof flattenContours>;
+    try {
+      points = flattenContours(shape.props.contours, 0.25, 200000);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'limit') throw error;
+      points = flattenContours(shape.props.contours, Math.max(0.25, bounds.w / 500, bounds.h / 500), 200000);
+    }
     return new CurveGeometry(
       bounds,
       points.map(
         (p, i) =>
-          new RoundStrokePolyline(
+          new StrokePolyline(
             (shape.props.contours[i].closed ? [...p, p[0]] : p).map(
               (q) => new Vec(q.x, q.y),
             ),

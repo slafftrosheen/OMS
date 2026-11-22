@@ -1,5 +1,6 @@
 import {
   validAppearance,
+  rectangularClipContainsBounds,
   multiplyMatrix,
   type VectorClip,
   type VectorGradient,
@@ -139,29 +140,6 @@ export function pdfOperatorsToVectors(
       pathNodes--;
     }
   };
-  const containsRect = (clip: Clip, cs: CadContour[], padding = 0) => {
-    if (clip.contours.length !== 1) return false;
-    const ns = clip.contours[0].nodes,
-      b = curveBounds(clip.contours),
-      q = curveBounds(cs);
-    return (
-      ns.length === 4 &&
-      ns.every(
-        (n, i) =>
-          !n.inX &&
-          !n.inY &&
-          !n.outX &&
-          !n.outY &&
-          (n.x === ns[(i + 1) % 4].x || n.y === ns[(i + 1) % 4].y) &&
-          (n.x === b.x || n.x === b.x + b.w) &&
-          (n.y === b.y || n.y === b.y + b.h),
-      ) &&
-      q.x - padding >= b.x - 1e-6 &&
-      q.y - padding >= b.y - 1e-6 &&
-      q.x + q.w + padding <= b.x + b.w + 1e-6 &&
-      q.y + q.h + padding <= b.y + b.h + 1e-6
-    );
-  };
   const end = () => {
     if (pendingClip) {
       // PDF implicitly closes open subpaths when clipping.
@@ -209,12 +187,13 @@ export function pdfOperatorsToVectors(
     rule: "nonzero" | "evenodd",
   ) => {
     if (state.clips.some((c) => !c.contours.length)) return;
+    const bounds = curveBounds(cs);
     paint.clips = state.clips
       .filter(
         (c) =>
-          !containsRect(
+          !rectangularClipContainsBounds(
             c,
-            cs,
+            bounds,
             paint.stroke === "none"
               ? 0
               : (paint.strokeWidth * paint.miterLimit) / 2,

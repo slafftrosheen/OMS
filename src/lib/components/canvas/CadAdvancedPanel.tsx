@@ -13,7 +13,7 @@ import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { drawingObjectName } from './drawing-operations';
 import { cadCompoundFeedback, useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
-import { unitMm, type CadSettings, type CadUnit } from './cad-settings';
+import { DEFAULT_CAD_SETTINGS, unitMm, writeCadSettings, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
 import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, getCadCurveConversionIssue, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind, setCadStraightSegment } from './cad-editing';
@@ -25,7 +25,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -78,6 +78,7 @@ function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boole
 /** Shared advanced CAD controls for the order and idea workspace docker. */
 export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: CadTask }) {
   const editor = useEditor();
+  const { label } = useCadAdvancedText();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
   const revision = useValue('advanced cad revision', () => cadRevision(editor), [editor]);
   const [cornerFocus, setCornerFocus] = useState(0);
@@ -104,10 +105,13 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <ParametricShapePanel settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'polygon' ? focusRequest.sequence : undefined} />
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && (focusRequest?.section === 'lettering' || focusRequest?.section === 'convert' && state.text)} newText={focusRequest?.section === 'lettering'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'files'}>
-    <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
+    {!settings && !state.controls.readOnly && <button type="button" onClick={() => writeCadSettings(editor, DEFAULT_CAD_SETTINGS)}>{label('enableImportUnits')}</button>}
+    <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly}
+      focusRequest={task === 'files' && focusRequest?.section === 'importVector' ? focusRequest : undefined} />
     <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly}
       focusSequence={task === 'files' && focusRequest?.section === 'publishPdf' ? focusRequest.sequence : undefined} />
-    <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
+    <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly}
+      focusRequest={task === 'files' && focusRequest?.section === 'importDxf' ? focusRequest : undefined} />
     </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
     <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
   </>;
@@ -480,7 +484,7 @@ function Shaping({ settings, revision, disabled, focus, sequence, requestedOpera
   </details>;
 }
 
-function DxfImport({ settings, revision, disabled }: SharedProps) {
+function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps & { focusRequest?: CadFocusRequest }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const [file, setFile] = useState<File>(); const [unit, setUnit] = useState<CadUnit | ''>(''); const [keepCoordinates, setKeepCoordinates] = useState(true);
   const [projection,setProjection]=useState<'strict'|'xy'|'xz'|'yz'>('strict');
@@ -488,17 +492,35 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
   const [review, setReview] = useState<Review<CadImportPlan> | null>(null); const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false); const [busy, setBusy] = useState(false);
   const request = useRef(0); const alive = useRef(true);
+  const section = useRef<HTMLDetailsElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const consumedFocus = useRef<number>();
   const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, projection, font, fontFile?.name, fontFile?.lastModified, settings]);
   const currentKey = useRef(inputKey); currentKey.current = inputKey;
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   useEffect(() => { request.current++; setBusy(false); setAcknowledged(false); }, [revision, inputKey]);
+  useEffect(() => {
+    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence) return;
+    consumedFocus.current = focusRequest.sequence;
+    section.current.open = true;
+    section.current.querySelector('summary')?.focus();
+    section.current.scrollIntoView?.({ block: 'nearest' });
+    if (!focusRequest.file || disabled) return;
+    request.current++; setBusy(false); setFile(focusRequest.file);
+    setReview(null); setAcknowledged(false); setMessage('');
+    if (input.current) input.current.value = '';
+  }, [focusRequest, disabled]);
   async function prepare() {
     if (!settings || !file || disabled || !canChange(editor, false)) return;
     if (file.size > FILE_LIMIT || !/\.dxf$/i.test(file.name)) { setFailed(true); setMessage(file.size > FILE_LIMIT ? 'fileTooLarge' : 'invalidDxf'); return; }
     const id = ++request.current; const key = inputKey; const before = cadRevision(editor); setBusy(true); setReview(null); setAcknowledged(false); setMessage('');
     try {
       const [bytes,fontData]=await Promise.all([file.arrayBuffer(),font==='custom'?fontFile?.arrayBuffer():Promise.resolve(undefined)]);
-      const content = decodeDxf(new Uint8Array(bytes)), selectedFont=await getCadFont(font,fontData);
+      const content = decodeDxf(new Uint8Array(bytes));
+      // Geometry can import even when a lettering font is unavailable. The
+      // importer reports each affected text entity in the omission list.
+      const selectedFont = /(?:^|\n)[\t ]*0[\t ]*\r?\n[\t ]*(?:TEXT|MTEXT|ATTRIB|ATTDEF)[\t ]*(?:\r?\n|$)/i.test(content)
+        ? await getCadFont(font, fontData).catch(() => undefined) : undefined;
       if (!alive.current || id !== request.current) return;
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
       const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates, font:selectedFont, projection });
@@ -507,12 +529,13 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
     } catch (error) { if (alive.current && id === request.current) { setFailed(true); setMessage(errorLabel(error, 'invalidDxf')); } }
     finally { if (alive.current && id === request.current) setBusy(false); }
   }
-  return <details className="drawing-cad-section" data-testid="drawing-cad-import">
+  return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-import">
     <summary>{label('import')}</summary>
     <p className="drawing-help">{label('importHelp')}</p>
     <form onSubmit={event => { event.preventDefault(); void prepare(); }} aria-busy={busy}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings || busy}>
-        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input type="file" accept=".dxf,application/dxf" onChange={event => { request.current++; setFile(event.target.files?.[0]); setReview(null); setMessage(''); setAcknowledged(false); }} /></label>
+        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept=".dxf,application/dxf,image/vnd.dxf" onChange={event => { request.current++; setFile(event.target.files?.[0]); setReview(null); setMessage(''); setAcknowledged(false); }} /></label>
+        {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
         <Field label={label('sourceUnit')}><select value={unit} onChange={event => { setUnit(event.target.value as typeof unit); setMessage(''); }}><option value="">{label('automatic')}</option>{(['mm', 'cm', 'm', 'in'] as const).map(value => <option key={value} value={value}>{value}</option>)}</select></Field>
         <Field label={label('projection')}><select value={projection} onChange={event=>setProjection(event.target.value as typeof projection)}>{(['strict','xy','xz','yz'] as const).map(value=><option key={value} value={value}>{label(value==='strict'?'projection2d':value==='xy'?'projectionTop':value==='xz'?'projectionFront':'projectionSide')}</option>)}</select></Field>
         <Field label={label('importFont')}><select value={font} onChange={event=>setFont(event.target.value as typeof font)}>{(['sans','serif','mono','custom'] as const).map(value=><option key={value} value={value}>{label(value==='custom'?'custom':value)}</option>)}</select></Field>
@@ -523,7 +546,12 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
     </form>
     <p className="drawing-help">{label('coordinatesHelp')}</p>
     {busy && <Message value="preparing" />}
-    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.requiresUnit || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => { setFailed(!success); setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }}>
+    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.requiresUnit || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => {
+      setFailed(!success); setMessage(success ? 'applied' : 'failed');
+      if (success) {
+        setReview(null); setCadNodeEditing(editor, false); editor.zoomToSelection(); editor.focus();
+      }
+    }}>
       <dl className="drawing-cad-values"><dt>{label('sourceUnit')}</dt><dd>{review.plan.sourceUnit || '—'}</dd><dt>{label('omitted')}</dt><dd>{review.plan.omitted.length}</dd></dl>
       {review.plan.requiresUnit && <Message value="chooseUnit" error />}
       {review.plan.omitted.length || review.plan.warnings.length ? <>

@@ -16,6 +16,47 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} drops DXF as editable artwork and opens EPS in editable mode`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    if (mode === 'order') {
+      await expect.poll(async () => (await scene(page)).shapes.some((s: any) => s.type === 'order-details')).toBe(true);
+    }
+    const viewport = page.locator('.drawing-viewport');
+    async function drop(name: string, text: string) {
+      await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+      await viewport.evaluate((node, { name, text }) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(new File([text], name));
+        const bounds = node.getBoundingClientRect();
+        node.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer,
+          clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2 }));
+      }, { name, text });
+    }
+    const source = await readFile('tests/fixtures/cad-splines/mixed-ascii.dxf', 'utf8');
+    await drop('editable-splines.dxf', source);
+    const importer = page.getByTestId('drawing-cad-import');
+    await expect(importer.getByText('editable-splines.dxf', { exact: true })).toBeVisible();
+    const enable = page.getByRole('button', { name: 'Enable CAD in mm at 1:1', exact: true });
+    if (await enable.isVisible()) await enable.click();
+    await importer.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    const apply = importer.getByTestId('drawing-cad-apply-plan');
+    await expect(apply).toBeVisible();
+    const acknowledgment = importer.locator('.drawing-cad-report input[type=checkbox]');
+    if (await acknowledgment.count()) await acknowledgment.check();
+    await apply.click();
+    await expect.poll(async () => {
+      const { shapes, selected } = await scene(page);
+      return shapes.some((shape: any) => shape.type === 'cad-bezier' && shape.opacity === 1 && selected.includes(shape.id) &&
+        shape.props.contours.some((contour: any) => contour.nodes.some((node: any) => node.inX || node.inY || node.outX || node.outY)));
+    }).toBe(true);
+    await drop('editable-paths.eps', '%!PS-Adobe-3.0 EPSF-3.0');
+    const eps = page.getByTestId('vector-import');
+    await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
+    await expect(eps.getByRole('combobox', { name: 'Import mode' })).toHaveValue('editable');
+  });
+
   test(`${mode} builds production vectors and keeps controls in full screen`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

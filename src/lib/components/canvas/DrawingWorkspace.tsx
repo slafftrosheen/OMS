@@ -701,12 +701,12 @@ export function DrawingChrome() {
     };
   }, [toolGroup, context?.hosts.tools]);
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
-  function focusCad(section: CadFocusRequest['section']) {
+  function focusCad(section: CadFocusRequest['section'], file?: File) {
     if (section === 'nodes' || section === 'nodeArrange' || section === 'nodeReduce' || section === 'convert') {
       editor.complete(); editor.setCurrentTool('select'); setCadNodeEditing(editor, true);
     }
     context?.setPanel('cad'); closeMenus();
-    setCadFocus(previous => ({ section, sequence: (previous?.sequence ?? 0) + 1 }));
+    setCadFocus(previous => ({ section, file, sequence: (previous?.sequence ?? 0) + 1 }));
   }
   function compound(operation: CadCompoundOperation) {
     const settings = readCadSettings(editor);
@@ -782,7 +782,7 @@ export function DrawingChrome() {
       if (!isDrawingUiRequest(request)) return;
       setToolGroup(null); closeMenus();
       if (request.kind === 'command') command(request.action);
-      else if (request.kind === 'cad') focusCad(request.action);
+      else if (request.kind === 'cad') focusCad(request.action, request.file);
       else if (request.kind === 'objects') {
         if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
       }
@@ -1150,6 +1150,8 @@ export function DrawingChrome() {
           <button type="button" disabled={busy || !exportPlans?.svg.ok} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !exportPlans?.png.ok} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
           <button type="button" onClick={() => focusCad('publishPdf')}>{vectorLabel('publishPdf')}</button>
+          <button type="button" disabled={controls.readOnly} onClick={() => focusCad('importDxf')}>{advancedLabel('import')}</button>
+          <button type="button" disabled={controls.readOnly} onClick={() => focusCad('importVector')}>{vectorLabel('import')}</button>
           <button type="button" onClick={() => focusCad('files')}>{vectorLabel('files')}</button>
           <button type="button" onClick={() => focusCad('preflight')}>{preflightLabel('title')}</button>
           {order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{

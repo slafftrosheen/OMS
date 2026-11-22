@@ -397,6 +397,27 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
   });
 });
 describe("painted curves in the native editor store", () => {
+  it("makes stroke-only imported Béziers pickable at their outline with butt caps and dashes", () => {
+    const f = fixture();
+    const path = {
+      ...sample,
+      paint: { ...VECTOR_DEFAULT_PAINT, fill: 'none', lineCap: 'butt' as const, dash: [1, 2], strokeOpacity: 0.6 },
+    };
+    const plan = prepareVectorImport(f.editor, DEFAULT_CAD_SETTINGS,
+      { paths: [path], width: 72, height: 72, warnings: [] }, 72 * 25.4 / 96, { x: 0, y: 0 }, 'EPS');
+    assert.equal(plan.shapes?.[0].opacity, 1);
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    const shape = f.only(), geometry = f.utils['cad-bezier'].getGeometry(shape);
+    const child = geometry.children[0];
+    const point = shape.props.contours[0].nodes[0];
+    // Native getShapeAtPoint checks the children first, even when the drawing
+    // is zoomed so the whole viewport lies inside the curve's overall bounds.
+    assert.ok(child.distanceToPoint(new Vec(point.x, point.y)) <= 0);
+    assert.equal(child.isFilled, true);
+    assert.equal(shape.meta.omsVectorPaint.strokeOpacity, 0.6);
+    assert.equal(geometry.hitTestPoint(new Vec(-200, -200), 2), false);
+  });
+
   it("persists paint and cubic data and hit-tests fills without selecting holes", () => {
     const f = fixture(),
       plan = prepareVectorImport(

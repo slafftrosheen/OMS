@@ -1,4 +1,5 @@
 import { vectorUploadPayload } from "./cad-vector-file";
+import { base } from '$app/paths';
 import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fill';
 import {useSolidFillText} from './solid-fill-copy';
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
@@ -216,7 +217,9 @@ function Preview({
 }
 export { RasterTrace } from "./RasterTrace";
 
-export function VectorImport({ settings, revision, disabled }: Props) {
+export function VectorImport({ settings, revision, disabled, focusRequest }: Props & {
+  focusRequest?: { sequence: number; file?: File };
+}) {
   const editor = useEditor(),
     t = useVectorText(),
     work = useWork();
@@ -226,6 +229,27 @@ export function VectorImport({ settings, revision, disabled }: Props) {
     [mode,setMode]=useState<"auto"|"editable"|"appearance">("auto"),
     [dpi,setDpi]=useState(300),
     [review, setReview] = useState<Review>();
+  const section = useRef<HTMLDetailsElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const consumedFocus = useRef<number>();
+  function chooseFile(next?: File) {
+    setFile(next);
+    setPage('1');
+    setMode(/\.eps$/i.test(next?.name ?? '') ? 'editable' : 'auto');
+    setReview(undefined);
+    work.setMessage('');
+  }
+  useEffect(() => {
+    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence) return;
+    consumedFocus.current = focusRequest.sequence;
+    section.current.open = true;
+    section.current.querySelector('summary')?.focus();
+    section.current.scrollIntoView?.({ block: 'nearest' });
+    if (!focusRequest.file || disabled) return;
+    work.cancel();
+    chooseFile(focusRequest.file);
+    if (input.current) input.current.value = '';
+  }, [focusRequest, disabled]);
   const key = JSON.stringify([
     file?.name,
     file?.lastModified,
@@ -234,7 +258,7 @@ export function VectorImport({ settings, revision, disabled }: Props) {
     settings,
   ]);
   return (
-    <details className="drawing-cad-section" open data-testid="vector-import">
+    <details ref={section} className="drawing-cad-section" open data-testid="vector-import">
       <summary>{t("import")}</summary>
       <p className="drawing-help">{t("importHelp")}</p>
       <fieldset
@@ -243,15 +267,13 @@ export function VectorImport({ settings, revision, disabled }: Props) {
       >
         <Field label={t("file")}>
           <input
+            ref={input}
             type="file"
             accept=".pdf,.eps,application/pdf,application/postscript"
-            onChange={(e) => {
-              setFile(e.target.files?.[0]);
-              setPage("1");
-              setReview(undefined);
-            }}
+            onChange={(e) => chooseFile(e.target.files?.[0])}
           />
         </Field>
+        {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
         <Field label={t("page")}>
           <input
             type="number"
@@ -286,7 +308,7 @@ export function VectorImport({ settings, revision, disabled }: Props) {
               let selectedPage = kind === "eps" ? 1 : Number(page);
               if (kind === "eps" || outline) {
                 const response = await fetch(
-                  `/api/canvas/convert-vector?page=${selectedPage}`,
+                  `${base}/api/canvas/convert-vector?page=${selectedPage}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/octet-stream" },
@@ -341,6 +363,9 @@ export function VectorImport({ settings, revision, disabled }: Props) {
           disabled={disabled || work.busy || !settings}
           onApplied={() => {
             setReview(undefined);
+            setCadNodeEditing(editor, false);
+            editor.zoomToSelection();
+            editor.focus();
             work.setMessage("done");
           }}
         />
