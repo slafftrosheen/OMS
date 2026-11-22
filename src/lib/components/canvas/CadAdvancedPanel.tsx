@@ -550,6 +550,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
   const [file, setFile] = useState<File>(); const [unit, setUnit] = useState<CadUnit | ''>(''); const [keepCoordinates, setKeepCoordinates] = useState(true);
   const [dropPoint, setDropPoint] = useState<CadFocusRequest['dropPoint']>();
   const [group, setGroup] = useState(false);
+  const [preserveLayers, setPreserveLayers] = useState(false);
   const [projection,setProjection]=useState<'strict'|'xy'|'xz'|'yz'>('strict');
   const [font,setFont]=useState<'sans'|'serif'|'mono'|'custom'>('sans');const [fontFile,setFontFile]=useState<File>();
   const [review, setReview] = useState<Review<CadImportPlan> | null>(null); const [acknowledged, setAcknowledged] = useState(false);
@@ -558,7 +559,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const consumedFocus = useRef<number>();
-  const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, dropPoint, group, projection, font, fontFile?.name, fontFile?.lastModified, settings]);
+  const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, dropPoint, group, preserveLayers, projection, font, fontFile?.name, fontFile?.lastModified, settings]);
   const currentKey = useRef(inputKey); currentKey.current = inputKey;
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   useEffect(() => { request.current++; setBusy(false); setAcknowledged(false); }, [revision, inputKey]);
@@ -588,7 +589,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
       if (!alive.current || id !== request.current) return;
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
       const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates,
-        centerAt: dropPoint, groupName: group ? file.name : undefined, font: selectedFont, projection });
+        centerAt: dropPoint, groupName: group ? file.name : undefined, preserveLayers, font: selectedFont, projection });
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
       setReview({ plan, inputKey: key });
     } catch (error) { if (alive.current && id === request.current) { setFailed(true); setMessage(errorLabel(error, 'invalidDxf')); } }
@@ -611,19 +612,35 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
         <label className="drawing-cad-check"><input type="checkbox" checked={keepCoordinates} onChange={event => setKeepCoordinates(event.target.checked)} /><span>{label('keepCoordinates')}</span></label>
         {!keepCoordinates && dropPoint && <p className="drawing-help">{label('dropPlacement')}</p>}
         <label className="drawing-cad-check"><input type="checkbox" checked={group} onChange={event => setGroup(event.target.checked)} /><span>{label('groupImport')}</span></label>
+        <label className="drawing-cad-check"><input type="checkbox" checked={preserveLayers} onChange={event => setPreserveLayers(event.target.checked)} /><span>{label('preserveImportLayers')}</span></label>
         <button type="submit" disabled={!file}>{label('preview')}</button>
       </fieldset>
     </form>
     {!dropPoint && <p className="drawing-help">{label('coordinatesHelp')}</p>}
     {busy && <Message value="preparing" />}
-    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.requiresUnit || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => {
+    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.blocked || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => {
       setFailed(!success); setMessage(success ? 'applied' : 'failed');
       if (success) {
-        setReview(null); setCadNodeEditing(editor, false); editor.zoomToSelection(); editor.focus();
+        setReview(null); setCadNodeEditing(editor, false);
+        if (editor.getSelectedShapeIds().length) editor.zoomToSelection();
+        editor.focus();
       }
     }}>
       <dl className="drawing-cad-values"><dt>{label('sourceUnit')}</dt><dd>{review.plan.sourceUnit || '—'}</dd><dt>{label('omitted')}</dt><dd>{review.plan.omitted.length}</dd></dl>
       {review.plan.requiresUnit && <Message value="chooseUnit" error />}
+      {review.plan.layerLimitExceeded && <Message value="importLayerLimit" error />}
+      {!!review.plan.layerReview.length && <details open={preserveLayers}>
+        <summary>{label('importLayers')} ({review.plan.layerReview.length})</summary>
+        <ul className="drawing-cad-omissions">{review.plan.layerReview.map(layer => <li key={layer.sourceName}>
+          <strong>{layer.sourceName} ({layer.count})</strong>
+          {layer.destination && <span>{layer.destination.name}{layer.created && ` · ${label('importLayerNew')}`}
+            {!layer.destination.visible && ` · ${label('importLayerHidden')}`}
+            {layer.destination.locked && ` · ${label('importLayerLocked')}`}
+            {!layer.destination.includeInDxf && ` · ${label('importLayerExcluded')}`}
+          </span>}
+        </li>)}</ul>
+      </details>}
+      {!!review.plan.unassignedCount && <p className="drawing-help">{label('importLayerZero')} ({review.plan.unassignedCount})</p>}
       {review.plan.omitted.length || review.plan.warnings.length ? <>
         <ul className="drawing-cad-omissions">{review.plan.omitted.map((item, index) => <li key={`${item.type}-${index}`}><strong>{item.type}{item.handle ? ` · #${item.handle}` : ''}</strong>{item.layer && <span>{label('importLayer')}: {item.layer}</span>}<span>{label(errorLabel({ code: item.reason }, 'unsupported'))}</span></li>)}</ul>
         <label className="drawing-cad-check"><input type="checkbox" checked={acknowledged} disabled={disabled || busy || review.plan.revision !== revision || review.inputKey !== inputKey} onChange={event => setAcknowledged(event.target.checked)} /><span>{label('acceptOmissions')}</span></label>

@@ -100,13 +100,19 @@ function projectLayerState(editor: Editor, page: TLPage, layers: ProductionLayer
   }
 }
 
+/** Update definitions and project their policies inside the caller's drawing transaction. */
+export function applyProductionLayerDefinitions(editor: Editor, layers: ProductionLayer[]) {
+  const page = editor.getCurrentPage();
+  if (JSON.stringify(pageProductionLayers(page)) !== JSON.stringify(layers)) {
+    editor.updatePage({ id: page.id, meta: { ...page.meta, [PAGE_KEY]: layers } });
+    if (JSON.stringify(readProductionLayers(editor)) !== JSON.stringify(layers)) throw new Error('Production layers were not saved');
+  }
+  projectLayerState(editor, page, layers);
+}
+
 function writeProductionLayers(editor: Editor, layers: ProductionLayer[]): boolean {
   if (editor.getInstanceState().isReadonly) return false;
-  const page = editor.getCurrentPage();
-  return drawingTransaction(editor, () => {
-    editor.updatePage({ id: page.id, meta: { ...page.meta, [PAGE_KEY]: layers } });
-    projectLayerState(editor, page, layers);
-  });
+  return drawingTransaction(editor, () => { applyProductionLayerDefinitions(editor, layers); });
 }
 
 export function installProductionLayers(editor: Editor): () => void {

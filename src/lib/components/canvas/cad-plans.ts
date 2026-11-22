@@ -4,6 +4,7 @@ import { drawingTransaction } from './drawing-commands';
 import { cadMmPerPixel, validateCadSettings, type CadSettings } from './cad-settings';
 import { CAD_PLAN_GEOMETRY_LIMITS, curveBounds, validContours, type CadContour } from './cad-curves';
 import { retainCadSourceGroups } from './cad-source-groups';
+import { applyProductionLayerDefinitions, type ProductionLayer } from './cad-production-layers';
 
 export class CadOperationError extends Error {
   constructor(public code: string) {
@@ -33,6 +34,7 @@ export interface CadPlan {
   widthMm: number;
   heightMm: number;
   shapes?: CadPlannedShape[];
+  productionLayers?: ProductionLayer[];
   blocked?: boolean;
   /** Preserve each painted object; grouping never combines contours or paint. */
   groupResult?: boolean;
@@ -159,7 +161,8 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
     // Shared order/idea documents have a 2 MB persistence limit. Embedded PDF
     // bitmaps must fail before mutation, rather than create an unsaveable board.
     if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length + JSON.stringify(shapes).length +
-        (groupRecord ? JSON.stringify(groupRecord).length : 0) > 1_900_000) return false;
+        (groupRecord ? JSON.stringify(groupRecord).length : 0) +
+        (plan.productionLayers ? JSON.stringify(plan.productionLayers).length : 0) > 1_900_000) return false;
     const anchorCounts = new Map<TLShapeId, number>();
     for (const shape of shapes) {
       if (shape.aboveSourceId && (plan.placement || grouped)) return false;
@@ -220,12 +223,14 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
           return !shape || shape.parentId !== placement.parentId || shape.index <= placement.above.index ||
             !!placement.nextSibling && shape.index >= placement.nextSibling.index;
         })) throw new CadOperationError('placement');
-        // Include native defaults and grouping in the saved-size check.
-        if ((grouped || placements.size) && editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000)
+        editor.setSelectedShapes(selected);
+        if (plan.productionLayers) applyProductionLayerDefinitions(editor, plan.productionLayers);
+        // Check the size after native defaults, grouping and layer policies have been applied.
+        if ((grouped || placements.size || plan.productionLayers) &&
+            editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000)
           throw new CadOperationError('save-limit');
         if ((grouped || placements.size) && editor.getCurrentPageShapeIds().size > editor.options.maxShapesPerPage)
           throw new CadOperationError('capacity');
-        editor.setSelectedShapes(selected);
       });
       return committed;
     } finally {

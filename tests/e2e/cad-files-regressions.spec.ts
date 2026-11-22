@@ -86,6 +86,57 @@ test('carries the reviewed Production check scope into DXF after clearing the se
  await expect(panel.getByTestId('drawing-cad-review')).toBeDisabled();
  await expect(panel.getByTestId('drawing-cad-download')).toBeDisabled();
 });
+for (const mode of ['idea', 'order']) {
+  test(`${mode} DXF layer assignment is reviewed, grouped, exportable and undoable`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.getByTestId('drawing-cad-toggle').click();
+    await page.getByTestId('drawing-cad-apply').click();
+    const panel = page.getByTestId('drawing-cad-panel');
+    await panel.getByTestId('drawing-cad-task').selectOption('files');
+    const intake = panel.getByTestId('drawing-cad-import');
+    await intake.locator('summary').click();
+
+    const line = (layer: string, y: number) => [0, 'LINE', 8, layer, 10, 0, 20, y, 11, 100, 21, y];
+    const source = [
+      0, 'SECTION', 2, 'HEADER', 9, '$INSUNITS', 70, 4, 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES',
+      ...line('OMS_JOB_CUT', 0), ...line('Score guides', 10), ...line('0', 20), 0, 'ENDSEC', 0, 'EOF', '',
+    ].join('\n');
+    const inspect = () => page.evaluate(() => (window as any).__drawingFixture.inspect());
+    const before = await inspect();
+    await intake.getByLabel('DXF file', { exact: true }).setInputFiles({
+      name: 'production-layers.dxf', mimeType: 'application/dxf', buffer: Buffer.from(source),
+    });
+    const preview = intake.getByRole('button', { name: 'Prepare preview', exact: true });
+    const apply = intake.getByTestId('drawing-cad-apply-plan');
+    await preview.click();
+    await expect(apply).toBeEnabled();
+    await intake.getByRole('checkbox', { name: 'Preserve DXF layers', exact: true }).check();
+    await intake.getByRole('checkbox', { name: 'Keep imported objects together', exact: true }).check();
+    await expect(apply).toBeDisabled();
+    await preview.click();
+    await expect(intake.getByText('Score guides · New layer', { exact: true })).toBeVisible();
+    await expect(intake.getByText('Unassigned (DXF layer 0) (1)', { exact: true })).toBeVisible();
+    await apply.click();
+
+    const imported = await inspect();
+    const layer = imported.page.meta.omsProductionLayers.find((item: any) => item.name === 'Score guides');
+    const group = imported.shapes.find((shape: any) => shape.id === imported.selected[0]);
+    expect(group.type).toBe('group');
+    expect(imported.shapes.filter((shape: any) => shape.parentId === group.id)
+      .map((shape: any) => shape.meta.omsProductionLayer ?? '').sort()).toEqual(['', 'cut', layer.id].sort());
+    await panel.getByRole('combobox', { name: 'Cutting layers', exact: true }).selectOption('production');
+    await panel.getByTestId('drawing-cad-review').click();
+    const exportPreview = panel.getByTestId('drawing-dxf-preview');
+    await expect(exportPreview.locator('[data-dxf-layer="OMS_JOB_CUT"]')).toBeAttached();
+    await expect(exportPreview.locator('[data-dxf-layer="OMS_JOB_SCORE_GUIDES"]')).toBeAttached();
+
+    await page.getByTestId('drawing-undo').click();
+    const undone = await inspect();
+    expect(undone.shapes.length).toBe(before.shapes.length);
+    expect(undone.page.meta.omsProductionLayers).toEqual(before.page.meta.omsProductionLayers);
+  });
+}
 test('new draft previews a DXF with geometry and retains its source file',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/api/**',r=>r.fulfill({json:[]}));

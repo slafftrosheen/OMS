@@ -205,6 +205,8 @@ Limits: 2–256 vertices per simple CAD path, at least three for closed paths; B
 
 ## DXF import coverage
 
+Enable **Preserve DXF layers** in the import panel to assign geometry to production layers. The preview lists source names and object counts, the destination layers, and any visibility, lock or export restrictions that will apply. OMS export layer names and matching names are reused. New names get new layers up to the 32-layer canvas limit. Top-level geometry on DXF layer `0` stays unassigned. Block contents on layer `0` inherit their insert layer. One Undo removes the import and the layers it created.
+
 See the [vector exchange support matrix](canvas-vector-exchange.md#supported-exchange-and-explicit-limits) for DXF, EPS, PDF and CDR. The review distinguishes native analytic geometry, reconstructed or approximated curves, and unsupported entities. Unitless files require an explicit source unit before editable import. To treat nested outlines as one part, use **Combine** before offsetting so hole contours remain holes.
 
 ## Verification and remaining work

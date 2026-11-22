@@ -84,7 +84,7 @@ export function projectDxfRecords(
   layers = new Map<string, ProjectableDxfRecord>(),
 ) {
   const output: ProjectableDxfRecord[] = [],
-    omitted: Array<{ type: string; reason: string }> = [];
+    omitted: Array<{ type: string; reason: string; handle?: string; layer?: string }> = [];
   let seen = 0;
   const project = (p: V) =>
     plane === "xy"
@@ -112,7 +112,7 @@ export function projectDxfRecords(
       get(r, 62, 256) === 0
         ? parent
         : get(r, 62, 256) === 256
-          ? layers.get(layer)
+          ? layers.get(layer.toUpperCase())
           : r;
     const color = get(style ?? r, 62, 7),
       trueColor = str(r, 420) || str(style ?? r, 420);
@@ -151,7 +151,7 @@ export function projectDxfRecords(
           get(r, 67) ||
           get(r, 60) ||
           get(r, 39) ||
-          hiddenLayers.has(str(r, 8))
+          hiddenLayers.has(str(r, 8).toUpperCase())
         )
           throw new Error("unsupported");
         const normal: V = [get(r, 210), get(r, 220), get(r, 230, 1)],
@@ -440,7 +440,11 @@ export function projectDxfRecords(
         });
       } catch (error) {
         if ((error as Error).message === "limit") throw error;
-        omitted.push({ type: r.type, reason: "unsupported" });
+        const handle = str(r, 5), layer = str(r, 8);
+        omitted.push({ type: r.type, reason: "unsupported",
+          ...(handle ? { handle } : {}),
+          ...(layer !== "0" || str(list[i], 8) ? { layer } : {}),
+        });
         if (r.type === "POLYLINE")
           while (["VERTEX", "SEQEND"].includes(list[i + 1]?.type)) i++;
       }

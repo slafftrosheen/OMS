@@ -10,6 +10,14 @@ import {
 import { splineContours } from "./cad-nurbs";
 import { dxfSplineContours } from "./cad-dxf-spline";
 import type { Editor } from "@tldraw/tldraw";
+import { createUuid } from "$lib/utils/id";
+import {
+  MAX_PRODUCTION_LAYERS,
+  MAX_PRODUCTION_LAYER_NAME,
+  productionDxfNames,
+  readProductionLayers,
+  type ProductionLayer,
+} from "./cad-production-layers";
 import {
   cadMmPerPixel,
   unitMm,
@@ -34,11 +42,26 @@ import {
   type CadPlannedShape,
 } from "./cad-plans";
 
+interface DxfLayerReview {
+  sourceName: string;
+  count: number;
+  destination?: ProductionLayer;
+  created?: boolean;
+}
+
 export interface CadImportPlan extends CadPlan {
   omitted: { type: string; reason: string; handle?: string; layer?: string }[];
   sourceUnit: string;
   requiresUnit: boolean;
+  layerReview: DxfLayerReview[];
+  unassignedCount: number;
+  layerLimitExceeded: boolean;
 }
+
+type DxfShape = CadPlannedShape & { sourceLayer: string };
+type DxfDrawing = Omit<CadImportPlan, 'revision' | 'layerReview' | 'unassignedCount' | 'layerLimitExceeded' | 'shapes'> & {
+  shapes: DxfShape[];
+};
 type Pair = [number, string];
 type Record = ProjectableDxfRecord;
 type Matrix = [number, number, number, number, number, number];
@@ -212,8 +235,9 @@ function parse(text: string) {
     }
     if(section === "TABLES" && r.type === "STYLE") styles.set(word(r,2),r);
     if (section === "TABLES" && r.type === "LAYER") {
-      layers.set(word(r, 2), r);
-      if (get(r, 70) & 1 || get(r, 62, 7) < 0) hiddenLayers.add(word(r, 2));
+      const name = word(r, 2).toUpperCase();
+      layers.set(name, r);
+      if (get(r, 70) & 1 || get(r, 62, 7) < 0) hiddenLayers.add(name);
     }
     if (section === "ENTITIES") entities.push(r);
     else if (section === "BLOCKS") {
@@ -234,16 +258,77 @@ type CadImportOptions = {
   centerAt?: CadPoint;
 };
 
+function reviewDxfLayers(shapes: DxfShape[], currentLayers?: ProductionLayer[]) {
+  const layerReview = new Map<string, DxfLayerReview>();
+  let unassignedCount = 0;
+  for (const shape of shapes) {
+    if (shape.sourceLayer === "0") {
+      unassignedCount++;
+      continue;
+    }
+    const key = shape.sourceLayer.toUpperCase();
+    const current = layerReview.get(key);
+    if (current) current.count++;
+    else layerReview.set(key, { sourceName: shape.sourceLayer, count: 1 });
+  }
+
+  const layers = currentLayers?.slice();
+  let layerLimitExceeded = false;
+  if (layers) {
+    const byName = new Map(layers.map(layer => [layer.name.toUpperCase(), layer]));
+    const exportedNames = productionDxfNames(layers);
+    const byExportedName = new Map(layers.map(layer => [exportedNames.get(layer.id)!, layer]));
+    const occupied = new Set(byName.keys());
+
+    for (const [key, review] of layerReview) {
+      const existing = byExportedName.get(key) ?? byName.get(key);
+      if (existing) {
+        review.destination = existing;
+        continue;
+      }
+      if (layers.length >= MAX_PRODUCTION_LAYERS) {
+        layerLimitExceeded = true;
+        continue;
+      }
+      const base = review.sourceName.replace(/^OMS_JOB_(?=[A-Z0-9_]+$)/i, "")
+        .replace(/[\x00-\x1f\x7f]/g, " ").trim() || "DXF layer";
+      let name = base.slice(0, MAX_PRODUCTION_LAYER_NAME).trimEnd();
+      for (let index = 2; occupied.has(name.toUpperCase()); index++) {
+        const suffix = ` (${index})`;
+        name = base.slice(0, MAX_PRODUCTION_LAYER_NAME - suffix.length).trimEnd() + suffix;
+      }
+      const layer = { id: createUuid(), name, includeInDxf: true, visible: true, locked: false };
+      occupied.add(name.toUpperCase());
+      layers.push(layer);
+      review.destination = layer;
+      review.created = true;
+    }
+  }
+  return { layerReview, unassignedCount, layerLimitExceeded, layers };
+}
+
 export function prepareCadImport(
   editor: Editor,
   settings: CadSettings,
   text: string,
-  options: CadImportOptions & { groupName?: string },
+  options: CadImportOptions & { groupName?: string; preserveLayers?: boolean },
 ): CadImportPlan {
   assertCadEditable(editor);
-  const plan = readCadDxf(settings, text, options);
+  const { shapes, ...plan } = readCadDxf(settings, text, options);
+  const currentLayers = options.preserveLayers ? readProductionLayers(editor) : undefined;
+  const { layerReview, unassignedCount, layerLimitExceeded, layers } = reviewDxfLayers(shapes, currentLayers);
   return {
-    ...plan, revision: cadRevision(editor),
+    ...plan,
+    revision: cadRevision(editor),
+    shapes: shapes.map(({ sourceLayer, ...shape }) => {
+      const destination = layerReview.get(sourceLayer.toUpperCase())?.destination;
+      return destination ? { ...shape, meta: { ...shape.meta, omsProductionLayer: destination.id } } : shape;
+    }),
+    layerReview: [...layerReview.values()],
+    unassignedCount,
+    layerLimitExceeded,
+    blocked: plan.blocked || layerLimitExceeded,
+    ...(layers && layerReview.size && !layerLimitExceeded ? { productionLayers: layers } : {}),
     ...(options.groupName ? { groupResult: true, groupName: options.groupName } : {}),
   };
 }
@@ -253,7 +338,7 @@ export function readCadDxf(
   settings: CadSettings,
   text: string,
   options: CadImportOptions,
-): Omit<CadImportPlan, 'revision'> {
+): DxfDrawing {
   if (!validateCadSettings(settings)) throw new CadOperationError("geometry");
   const parsed = parse(text),
     known: { [key: number]: [string, number] } = {
@@ -283,8 +368,11 @@ export function readCadDxf(
     settings.originY,
   ];
   const contours: CadContour[] = [],
-    shapes: CadPlannedShape[] = [],
+    shapes: DxfShape[] = [],
     omitted: CadImportPlan["omitted"] = [];
+  const appendShape = (r: Record, shape: CadPlannedShape) => {
+    shapes.push({ ...shape, sourceLayer: word(r, 8) || "0" });
+  };
   let seen = 0,
     approximated = false;
   const extraWarnings = new Set<string>();
@@ -299,7 +387,7 @@ export function readCadDxf(
     if (!validContours(mapped)) throw new CadOperationError("geometry");
     const color = dxfColor(get(r, 420, -1), get(r, 62, 7));
     contours.push(...mapped);
-    shapes.push({
+    appendShape(r, {
       type: "cad-bezier",
       x: 0,
       y: 0,
@@ -326,12 +414,13 @@ export function readCadDxf(
     for (let index = 0; index < records.length; index++) {
       const original = records[index];
       if (++seen > 4000) throw new CadOperationError("limit");
+      const originalLayer = word(original, 8);
+      const layerName = originalLayer && originalLayer !== "0"
+        ? originalLayer
+        : word(inherited ?? original, 8) || "0";
       try {
-        const layerName =
-          !word(original, 8) || word(original, 8) === "0"
-            ? word(inherited ?? original, 8) || "0"
-            : word(original, 8);
-        const layer = parsed.layers.get(layerName);
+        const layerKey = layerName.toUpperCase();
+        const layer = parsed.layers.get(layerKey);
         const style =
           get(original, 62, 256) === 0
             ? inherited
@@ -380,7 +469,7 @@ export function readCadDxf(
           )
         )
           extraWarnings.add("import-elevation");
-        if (parsed.hiddenLayers.has(layerName))
+        if (parsed.hiddenLayers.has(layerKey))
           throw new CadOperationError("unsupported");
         if(r.projectedContours){appendCurves(r.projectedContours,m,r);approximated ||= r.type === "ELLIPSE";continue;}
         if (r.type === "SEQEND" || (r.type === "ATTDEF" && (!(get(r,70)&2)||!!(get(r,70)&1))))
@@ -630,7 +719,7 @@ export function readCadDxf(
             approximated = true;
           } else if (full) {
             contours.push(...mapped);
-            shapes.push({
+            appendShape(r, {
               type: "cad-ellipse",
               x: origin.x - rx * Math.cos(a) + ry * Math.sin(a),
               y: origin.y - rx * Math.sin(a) - ry * Math.cos(a),
@@ -658,7 +747,7 @@ export function readCadDxf(
                 180) /
               Math.PI;
             contours.push(...mapped);
-            shapes.push({
+            appendShape(r, {
               type: "cad-arc",
               x: origin.x,
               y: origin.y,
@@ -697,7 +786,7 @@ export function readCadDxf(
           type: original.type,
           reason: (error as CadOperationError).code ?? "geometry",
           ...(word(original, 5) ? { handle: word(original, 5) } : {}),
-          ...(word(original, 8) ? { layer: word(original, 8) } : {}),
+          ...(layerName !== "0" || originalLayer ? { layer: layerName } : {}),
         });
         // Discard remaining children of a rejected legacy POLYLINE as one omitted entity.
         if (original.type === "POLYLINE") {
