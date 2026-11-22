@@ -13,19 +13,20 @@ import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { drawingObjectName } from './drawing-operations';
 import { cadCompoundFeedback, useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
-import { DEFAULT_CAD_SETTINGS, unitMm, writeCadSettings, type CadSettings, type CadUnit } from './cad-settings';
+import { DEFAULT_CAD_SETTINGS, unitMm, writeCadSettings, type CadPoint, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
 import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, getCadCurveConversionIssue, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind, setCadStraightSegment } from './cad-editing';
 import { getSelectedCadNode, selectCadNode, setCadNodeEditing } from './cad-node-selection';
 import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-join';
+import { prepareCadKnife, type CadKnifePlan } from './cad-knife';
 import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping, type CadShapingOptions } from './cad-shaping';
 import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -46,6 +47,8 @@ function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadA
 }
 function warningLabel(code: string): CadAdvancedLabel {
   if (code === 'import-fit-spline-reconstructed') return 'importFitSplineReconstructed';
+  if (code === 'knife-dash') return 'knifeDash';
+  if (code === 'knife-shared-edge') return 'knifeSharedEdge';
   return ({ 'join-arc-approximation': 'joinApproximation', 'reference-appearance': 'referenceAppearance', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'midline-sampled': 'midlineSampled', 'curves-retained': 'curvesRetained', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -98,6 +101,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} onCorner={() => setCornerFocus(value => value + 1)} />
     <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />
+    <KnifeCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'knife'} sequence={focusRequest?.sequence} />
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && ['shaping', 'offset', 'midline'].includes(focusRequest?.section ?? '')} sequence={focusRequest?.sequence}
       requestedOperation={task === 'edit' && (focusRequest?.section === 'offset' || focusRequest?.section === 'midline') ? focusRequest.section : undefined} />
     </div><div hidden={task !== 'draw'}>
@@ -134,8 +138,8 @@ function CompoundControls({ settings, disabled }: { settings: CadSettings | null
   </section>;
 }
 
-function PlanReview({ review, inputKey, revision, disabled, onApplied, blocked = false, children }: {
-  review: Review; inputKey: string; revision: string; disabled: boolean; onApplied: (success: boolean) => void; blocked?: boolean; children?: ReactNode;
+function PlanReview({ review, inputKey, revision, disabled, onApplied, blocked = false, markers, children }: {
+  review: Review; inputKey: string; revision: string; disabled: boolean; onApplied: (success: boolean) => void; blocked?: boolean; markers?: readonly CadPoint[]; children?: ReactNode;
 }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const plan = review.plan; const stale = plan.revision !== revision || review.inputKey !== inputKey;
@@ -148,6 +152,8 @@ function PlanReview({ review, inputKey, revision, disabled, onApplied, blocked =
     <p className="drawing-cad-preview-title">{label('result')}</p>
     {hasGeometry && <svg className="drawing-cad-preview" role="img" aria-label={label('result')} viewBox={`${bounds.x - padding} ${bounds.y - padding} ${Math.max(bounds.w, 0.001) + padding * 2} ${Math.max(bounds.h, 0.001) + padding * 2}`}>
       <path d={path} className={closed === plan.contours.length ? 'is-closed' : undefined} fillRule={plan.fillRule ?? 'evenodd'} vectorEffect="non-scaling-stroke" />
+      {markers?.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r={padding / 4}
+        fill="var(--bg-1)" stroke="var(--ink-primary)" vectorEffect="non-scaling-stroke" />)}
     </svg>}
     <dl className="drawing-cad-values">
       <dt>{label('contours')}</dt><dd>{plan.contours.length}</dd>
@@ -437,6 +443,52 @@ function JoinCurves({ settings, revision, disabled, focus, sequence }: SharedPro
       <dl className="drawing-cad-values"><dt>{label('joinGap')}</dt><dd>{format(review.plan.gapMm)}</dd><dt>{label('pairing')}</dt><dd>{label(review.plan.pairing)}</dd></dl>
     </PlanReview>}
     <Message value={message} error={failed} />
+  </details>;
+}
+
+const knifeErrors: Record<string, CadAdvancedLabel> = {
+  'knife-selection': 'knifeHelp', 'knife-blade': 'knifeBladeError', 'knife-target': 'knifeTargetError',
+  'knife-fill': 'knifeFill', 'knife-miss': 'knifeMiss', 'knife-closed': 'knifeClosed', 'knife-overlap': 'knifeOverlap',
+};
+
+function KnifeCurves({ settings, revision, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
+  const editor = useEditor(); const { label } = useCadAdvancedText();
+  const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
+  const selected = useValue('knife selection', () => editor.getSelectedShapeIds().map(id => editor.getShape(id)), [editor]);
+  const [swap, setSwap] = useState(false);
+  const [remove, setRemove] = useState(true);
+  const [review, setReview] = useState<Review<CadKnifePlan> | null>(null);
+  const [message, setMessage] = useState<CadAdvancedLabel | ''>('');
+  const inputKey = JSON.stringify([swap, remove, settings]);
+  const target = selected[swap ? 1 : 0], blade = selected[swap ? 0 : 1];
+  const ready = selected.length === 2 && !!target && !!blade && !disabled && !!settings;
+  return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-knife">
+    <summary>{label('knife')}</summary>
+    <p className="drawing-help">{label('knifeHelp')}</p>
+    <form onSubmit={event => {
+      event.preventDefault();
+      if (!ready || !settings || !canChange(editor)) return;
+      setMessage(''); setReview(null);
+      try { setReview({ plan: prepareCadKnife(editor, settings, swap, remove), inputKey }); }
+      catch (error) {
+        const code = (error as { code?: string })?.code ?? '';
+        setMessage(knifeErrors[code] ?? errorLabel(error));
+      }
+    }}>
+      <fieldset className="drawing-cad-fields" disabled={!ready}>
+        {selected.length === 2 && target && blade && <dl className="drawing-cad-values">
+          <dt>{label('knifeTarget')}</dt><dd>{drawingObjectName(target)}</dd>
+          <dt>{label('knifeBlade')}</dt><dd>{drawingObjectName(blade)}</dd>
+        </dl>}
+        <button type="button" onClick={() => { setSwap(!swap); setMessage(''); }}>{label('knifeSwap')}</button>
+        <label className="drawing-cad-check"><input type="checkbox" checked={remove} onChange={event => { setRemove(event.target.checked); setMessage(''); }} />
+          <span>{label('knifeRemove')}</span></label>
+        <button type="submit" data-testid="drawing-cad-knife-preview">{label('preview')}</button>
+      </fieldset>
+    </form>
+    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={!ready} markers={review.plan.cutPoints}
+      onApplied={success => { setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }} />}
+    <Message value={message} error={message !== '' && message !== 'applied'} />
   </details>;
 }
 

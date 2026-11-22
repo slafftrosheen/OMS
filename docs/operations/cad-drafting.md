@@ -115,6 +115,14 @@ Closing a broken contour merges its exactly coincident seam endpoints and retain
 
 **To straight segment** removes only the outgoing/incoming controls of the selected segment; adjacent segments retain their controls. **To Bézier segment** adds one-third/two-thirds controls to a straight segment, preserving its line geometry and making its handles draggable. It does not straighten an existing Bézier curve. For an open contour, the last node has no outgoing segment. Node operations are undoable and respect locks/read-only state.
 
+## Knife
+
+Draw a straight two-point line across the artwork. Select the artwork, then Shift-select the line and open **Object → Knife**. Both objects must be in the same group, frame or page. **Swap roles** changes which object is cut. **Preview** marks the crossings and shows the resulting contours before any changes.
+
+The Knife splits one unfilled open path at every crossing within the finite knife line. A single closed contour requires exactly two crossings of the knife's supporting line, both on the knife segment, with no additional touches on it. Each resulting object closes with a straight edge. Bézier spans are subdivided in place and straight segments stay straight. The pieces keep the source appearance and stacking position. Dash patterns restart on each piece. By default **Apply** removes the knife line and replaces the source with the pieces in one undo step. Clear **Remove knife line after cutting** to reuse the line.
+
+Convert native shapes to curves first. Compound contours, open contours with a fill and coincident knife edges are refused. To cut separate components of a compound, use Break apart first and inspect the fill of each resulting component. Both closed pieces include a copy of the straight cut edge. Move them apart before exporting together for cutting.
+
 ## Operator flow
 
 1. Open **Layout → Document units & scale**, or the **CAD** docker. Select mm, cm, m or inches; set drawing scale and decimal places, then **Apply settings**. An old drawing stays in pixels until explicitly configured.

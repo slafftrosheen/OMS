@@ -3,6 +3,17 @@ import { get } from 'svelte/store';
 import { locale } from 'svelte-i18n';
 
 const en = {
+  knife: 'Knife',
+  knifeHelp: 'Select one CAD path or curve, then Shift-select a straight two-point line in the same group or page. Preview the split before applying it. A closed contour becomes two closed pieces with a straight cut edge.',
+  knifeTarget: 'Object to cut', knifeBlade: 'Knife line', knifeSwap: 'Swap roles', knifeRemove: 'Remove knife line after cutting',
+  knifeBladeError: 'The knife must be one straight two-point line.',
+  knifeTargetError: 'Select a single CAD contour to cut. Convert shapes to curves and break apart compounds first.',
+  knifeFill: 'Remove the fill from the open contour before cutting.',
+  knifeMiss: 'The knife line does not cross the contour. Extend it or move it across the shape.',
+  knifeClosed: 'For a closed contour, use a straight cut with exactly two crossings and no other touches.',
+  knifeOverlap: 'Part of the contour lies along the knife line. Move the line or change its angle.',
+  knifeDash: 'The dash pattern will restart on each piece.',
+  knifeSharedEdge: 'Both pieces include the same cut edge. Separate the pieces before exporting them together for cutting.',
   joinCurves: 'Join open curves', joinHelp: 'Select two open curves, or one compound containing exactly two open contours. Source order follows the selection. Preview the connection before replacing the sources.',
   joinMode: 'Connection', bridge: 'Add straight bridge', merge: 'Merge endpoints', pairing: 'Endpoints', nearest: 'Nearest pair',
   'end-start': 'First end → second start', 'start-start': 'First start → second start', 'end-end': 'First end → second end', 'start-end': 'First start → second end',
@@ -122,6 +133,17 @@ const en = {
 } as const;
 type Dictionary = { [K in keyof typeof en]: string };
 const ru: Dictionary = {
+  knife: 'Нож',
+  knifeHelp: 'Выберите CAD-контур или кривую, затем с Shift выберите прямую из двух точек в той же группе или на той же странице. Проверьте результат перед разрезанием. Замкнутый контур даст две замкнутые части с прямой кромкой разреза.',
+  knifeTarget: 'Разрезаемый объект', knifeBlade: 'Линия разреза', knifeSwap: 'Поменять местами', knifeRemove: 'Удалить линию после разрезания',
+  knifeBladeError: 'Линией разреза должен быть один прямой отрезок из двух точек.',
+  knifeTargetError: 'Выберите один CAD-контур. Сначала преобразуйте фигуры в кривые и разделите составные кривые.',
+  knifeFill: 'Удалите заливку открытого контура перед разрезанием.',
+  knifeMiss: 'Линия разреза не пересекает контур. Удлините её или переместите поперёк фигуры.',
+  knifeClosed: 'Для замкнутого контура линия должна пересекать его ровно два раза и не касаться в других точках.',
+  knifeOverlap: 'Часть контура лежит на линии разреза. Переместите линию или измените её наклон.',
+  knifeDash: 'Штриховой рисунок начнётся заново на каждой части.',
+  knifeSharedEdge: 'Обе части содержат общую кромку разреза. Раздвиньте их перед совместным экспортом на резку.',
   joinCurves: 'Соединить открытые кривые', joinHelp: 'Выберите две открытые кривые или один объект ровно с двумя открытыми контурами. Порядок соответствует выбору объектов. Проверьте соединение перед заменой исходников.',
   joinMode: 'Соединение', bridge: 'Добавить прямой отрезок', merge: 'Слить конечные узлы', pairing: 'Концы контуров', nearest: 'Ближайшая пара',
   'end-start': 'Конец первого → начало второго', 'start-start': 'Начало первого → начало второго', 'end-end': 'Конец первого → конец второго', 'start-end': 'Начало первого → конец второго',
@@ -240,6 +262,17 @@ const ru: Dictionary = {
   unrecognizedWarning: 'При подготовке результата возникло предупреждение. Проверьте геометрию перед применением.',
 };
 const lv: Dictionary = {
+  knife: 'Griezt ar nazi',
+  knifeHelp: 'Atlasiet CAD kontūru vai līkni, tad ar Shift atlasiet taisnu divpunktu līniju tajā pašā grupā vai lapā. Pirms griešanas pārbaudiet rezultātu. Slēgta kontūra tiek sadalīta divās slēgtās daļās ar taisnu griezuma malu.',
+  knifeTarget: 'Griežamais objekts', knifeBlade: 'Griezuma līnija', knifeSwap: 'Mainīt lomas', knifeRemove: 'Pēc griešanas dzēst griezuma līniju',
+  knifeBladeError: 'Griezuma līnijai jābūt vienam taisnam divpunktu nogrieznim.',
+  knifeTargetError: 'Atlasiet vienu CAD kontūru. Vispirms pārveidojiet figūras par līknēm un sadaliet saliktās līknes.',
+  knifeFill: 'Pirms griešanas noņemiet atvērtās kontūras aizpildījumu.',
+  knifeMiss: 'Griezuma līnija nešķērso kontūru. Pagariniet līniju vai pārvietojiet to pāri figūrai.',
+  knifeClosed: 'Slēgtai kontūrai līnijai jāveido tieši divi šķērsojumi bez papildu pieskārieniem.',
+  knifeOverlap: 'Daļa kontūras atrodas uz griezuma līnijas. Pārvietojiet līniju vai mainiet tās leņķi.',
+  knifeDash: 'Pārtrauktās līnijas raksts katrā daļā sāksies no jauna.',
+  knifeSharedEdge: 'Abām daļām ir kopīga griezuma mala. Atdaliet daļas, pirms tās kopā eksportējat griešanai.',
   joinCurves: 'Savienot atvērtas līknes', joinHelp: 'Atlasiet divas atvērtas līknes vai vienu objektu ar tieši divām atvērtām kontūrām. Avotu secība atbilst atlasei. Pirms avotu aizstāšanas pārbaudiet savienojumu.',
   joinMode: 'Savienojums', bridge: 'Pievienot taisnu posmu', merge: 'Sapludināt galapunktus', pairing: 'Galapunkti', nearest: 'Tuvākais pāris',
   'end-start': 'Pirmās beigas → otrās sākums', 'start-start': 'Pirmās sākums → otrās sākums', 'end-end': 'Pirmās beigas → otrās beigas', 'start-end': 'Pirmās sākums → otrās beigas',

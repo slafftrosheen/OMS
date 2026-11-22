@@ -1187,6 +1187,7 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('nodeArrange')}>{nodeArrangeLabel('title')}</button>
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
+          <button type="button" onClick={() => focusCad('knife')}>{advancedLabel('knife')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
           <button type="button" onClick={() => focusCad('offset')}>{advancedLabel('offset')}</button>
           <button type="button" onClick={() => focusCad('midline')}>{advancedLabel('midline')}</button>
