@@ -48,6 +48,7 @@ export function fixture() {
       return shape?.parentId;
     },
     updatePage: (p: any) => (page = { ...page, ...p }),
+    getPageShapeIds: (pageId: string) => new Set([...shapes.values()].filter(shape => editor.getAncestorPageId(shape) === pageId).map(shape => shape.id)),
     getCurrentPageShapeIds: () => new Set(shapes.keys()),
     getCurrentPageShapesSorted: () => [...shapes.values()],
     getSelectedShapeIds: () => selected,

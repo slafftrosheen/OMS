@@ -16,6 +16,33 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} production visibility and locking survive a snapshot reload`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.dimensionSample(100));
+    await page.getByTestId('drawing-objects-toggle').click();
+    const panel = page.getByTestId('drawing-production-layers');
+    await panel.getByText('Production layers', { exact: true }).click();
+    await panel.getByRole('combobox', { name: 'Layer for selection' }).selectOption('cut');
+    const member = async () => (await scene(page)).shapes.find((shape: any) => shape.id === 'shape:dimension-sample');
+    const visible = panel.getByRole('checkbox', { name: 'Show layer', exact: true });
+    const lock = panel.getByRole('checkbox', { name: 'Lock layer', exact: true });
+    const select = panel.getByRole('button', { name: /Select layer objects/ });
+    await visible.uncheck();
+    await expect.poll(async () => ({ opacity: (await member()).opacity, locked: (await member()).isLocked })).toEqual({ opacity: 0, locked: true });
+    await expect(select).toBeDisabled();
+    await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
+    await expect(visible).not.toBeChecked();
+    await expect.poll(async () => (await member()).opacity).toBe(0);
+    await lock.check();
+    await visible.check();
+    await expect.poll(async () => ({ opacity: (await member()).opacity, locked: (await member()).isLocked })).toEqual({ opacity: 1, locked: true });
+    await expect(select).toBeDisabled();
+    await lock.uncheck();
+    await select.click();
+    await expect.poll(async () => (await scene(page)).selected).toEqual(['shape:dimension-sample']);
+  });
   test(`${mode} can dimension an arc sweep and export it on a named production layer`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

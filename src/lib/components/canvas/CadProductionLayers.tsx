@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { useCadText } from './cad-copy';
 import { addProductionLayer, assignableProductionObjects, assignProductionLayer, MAX_PRODUCTION_LAYER_NAME,
-  MAX_PRODUCTION_LAYERS, productionDxfNames, productionLayerId, readProductionLayers, updateProductionLayer } from './cad-production-layers';
+  MAX_PRODUCTION_LAYERS, productionDxfNames, productionLayerId, readProductionLayers, selectableProductionLayerObjects, selectProductionLayer, updateProductionLayer } from './cad-production-layers';
 
 export function CadProductionLayers() {
   const editor = useEditor(), { label } = useCadText();
@@ -13,6 +13,7 @@ export function CadProductionLayers() {
   }), [editor]);
   const current = layers.find(layer => layer.id === picked) ?? layers[0];
   const names = productionDxfNames(layers);
+  const selectable = useValue('selectable layer objects', () => current ? selectableProductionLayerObjects(editor, current.id) : [], [editor, current?.id]);
   const ids = new Set(selected.map(shape => productionLayerId(shape) ?? ''));
   const assigned = ids.size === 1 ? ids.values().next().value : undefined;
   const assignment = assigned === undefined ? selected.length ? 'mixed' : '' : layers.some(layer => layer.id === assigned) ? assigned : '';
@@ -27,14 +28,27 @@ export function CadProductionLayers() {
         {layers.map(layer => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
       </select>
     </label>
+    {current && <div className="drawing-cad-fields">
+      <label className="drawing-cad-field"><span>{label('productionLayerEdit')}</span>
+        <select value={current.id} onChange={event => { setPicked(event.target.value); setRename(''); setFailed(false); }}>
+          {layers.map(layer => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
+        </select>
+      </label>
+      <button type="button" disabled={!selectable.length} onClick={() => setFailed(!selectProductionLayer(editor, current.id))}>
+        {label('productionSelectLayer')}{selectable.length ? ` · ${selectable.length}` : ''}
+      </button>
+    </div>}
     <fieldset className="drawing-cad-fields" disabled={readonly}>
       {current && <>
-        <label className="drawing-cad-field"><span>{label('productionLayerEdit')}</span>
-          <select value={current.id} onChange={event => { setPicked(event.target.value); setRename(''); setFailed(false); }}>
-            {layers.map(layer => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
-          </select>
-        </label>
         <p className="drawing-help"><code>{names.get(current.id)}</code></p>
+        <label className="drawing-cad-check">
+          <input type="checkbox" checked={current.visible} onChange={event => setFailed(!updateProductionLayer(editor, current.id, { visible: event.target.checked }))} />
+          <span>{label('productionVisible')}</span>
+        </label>
+        <label className="drawing-cad-check">
+          <input type="checkbox" checked={current.locked} onChange={event => setFailed(!updateProductionLayer(editor, current.id, { locked: event.target.checked }))} />
+          <span>{label('productionLocked')}</span>
+        </label>
         <label className="drawing-cad-check">
           <input type="checkbox" checked={current.includeInDxf} onChange={event => setFailed(!updateProductionLayer(editor, current.id, { includeInDxf: event.target.checked }))} />
           <span>{label('productionInclude')}</span>

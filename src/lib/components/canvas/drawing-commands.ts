@@ -1,3 +1,4 @@
+import { isProductionLayerProtected } from './cad-production-layers';
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
 import { applyToolkitToolbarAction, captureToolkitControls } from './toolkit-controls';
 
@@ -52,7 +53,7 @@ export function applyDrawingCommand(editor: Editor, command: string): boolean {
 export function toggleDrawingObjectLock(editor: Editor, id: TLShapeId): boolean {
   if (editor.getInstanceState().isReadonly) return false;
   const shape = editor.getShape(id);
-  if (!shape) return false;
+  if (!shape || isProductionLayerProtected(shape)) return false;
   const parent = editor.getShape(shape.parentId as TLShapeId);
   if (parent && editor.isShapeOrAncestorLocked(parent)) return false;
   return drawingTransaction(editor, () => { editor.toggleLock([id]); });

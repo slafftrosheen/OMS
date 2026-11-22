@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
 import { buildDxfCommonLines } from '../../src/lib/components/canvas/cad-dxf-common-lines';
 import { buildCadDxf, CadDxfError, serializeCadDxf, type DxfEntity } from '../../src/lib/components/canvas/cad-dxf';
-import { addProductionLayer, assignProductionLayer, productionDxfNames, readProductionLayers, updateProductionLayer } from '../../src/lib/components/canvas/cad-production-layers';
+import { addProductionLayer, assignProductionLayer, isProductionLayerHidden, isProductionLayerProtected, productionDxfNames, readProductionLayers, selectProductionLayer, updateProductionLayer } from '../../src/lib/components/canvas/cad-production-layers';
 import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
 import { fixture } from '../helpers/cad-editor';
 
@@ -13,6 +13,42 @@ function box(x: number, y: number, w: number, h: number, rgb = '#112233'): DxfEn
 }
 
 describe('DXF cut preview', () => {
+  it('restores native opacity and manual locks while keeping layer visibility independent of DXF', () => {
+    const { editor, shapes, marks } = fixture();
+    editor.createShape({ id: 'shape:assembly', type: 'group' });
+    const props = { points: [{ x: 0, y: 0 }, { x: 50, y: 0 }], closed: false };
+    editor.createShape({ id: 'shape:member', type: 'cad-path', parentId: 'shape:assembly', opacity: 0.4, props });
+    editor.createShape({ id: 'shape:loose', type: 'cad-path', x: 60, props });
+    editor.setSelectedShapes(['shape:member', 'shape:loose']);
+    assert.equal(assignProductionLayer(editor, 'cut'), true);
+    editor.updateShapes([{ id: 'shape:loose', type: 'cad-path', isLocked: true }]);
+    editor.setSelectedShapes(['shape:assembly']);
+    const original = buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: { only: 'cut' } }).text;
+    const mark = marks.length;
+    assert.equal(updateProductionLayer(editor, 'cut', { visible: false }), true);
+    assert.equal(shapes.get('shape:member').opacity, 0);
+    assert.equal(shapes.get('shape:member').isLocked, true);
+    assert.ok(isProductionLayerHidden(shapes.get('shape:member')));
+    assert.ok(isProductionLayerProtected(shapes.get('shape:assembly')));
+    assert.equal(editor.getSelectedShapeIds().length, 0);
+    assert.equal(selectProductionLayer(editor, 'cut'), false);
+    assert.equal(buildCadDxf(editor, 'all', DEFAULT_CAD_SETTINGS, { productionLayers: { only: 'cut' } }).text, original);
+    editor.bailToMark(marks[mark].id);
+    assert.equal(shapes.get('shape:member').opacity, 0.4);
+    assert.equal(shapes.get('shape:assembly').isLocked, false);
+
+    assert.equal(updateProductionLayer(editor, 'cut', { visible: false, locked: true }), true);
+    assert.equal(updateProductionLayer(editor, 'cut', { visible: true }), true);
+    assert.equal(shapes.get('shape:member').opacity, 0.4);
+    assert.equal(shapes.get('shape:member').isLocked, true);
+    assert.equal(isProductionLayerHidden(shapes.get('shape:member')), false);
+    assert.equal(updateProductionLayer(editor, 'cut', { locked: false }), true);
+    assert.equal(shapes.get('shape:member').isLocked, false);
+    assert.equal(shapes.get('shape:loose').isLocked, true);
+    assert.equal(selectProductionLayer(editor, 'cut'), true);
+    assert.deepEqual(editor.getSelectedShapeIds(), ['shape:member']);
+  });
+
   it('exports enabled production layers separately and scopes the preview and cut lengths to one layer', () => {
     const { editor, state } = fixture();
     const make = (id: string, x: number) => editor.createShape({ id, type: 'cad-path', x, props: {
@@ -55,7 +91,7 @@ describe('DXF cut preview', () => {
     assert.equal(updateProductionLayer(editor, 'cut', { name: 'Router', includeInDxf: false }), true);
     assert.equal(readProductionLayers(editor).find(layer => layer.id === 'cut')?.includeInDxf, false);
     editor.bailToMark(marks[mark].id);
-    assert.deepEqual(readProductionLayers(editor).find(layer => layer.id === 'cut'), { id: 'cut', name: 'Cut', includeInDxf: true });
+    assert.deepEqual(readProductionLayers(editor).find(layer => layer.id === 'cut'), { id: 'cut', name: 'Cut', includeInDxf: true, visible: true, locked: false });
   });
 
   it('uses the emitted layers and lengths for a partially shared section without changing DXF bytes', () => {

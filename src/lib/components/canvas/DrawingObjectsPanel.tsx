@@ -1,3 +1,5 @@
+import { isProductionLayerHidden, isProductionLayerProtected } from './cad-production-layers';
+import { useCadText } from './cad-copy';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useEditor, useValue, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectAlias, drawingObjectName, renameDrawingObject } from './drawing-operations';
@@ -11,6 +13,7 @@ const sessions = new WeakMap<Editor, { page: string; search: string; collapsed: 
 
 export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: number } = {}) {
   const editor = useEditor(), t = useObjectTreeText(), helpId = useId();
+  const { label } = useCadText();
   const state = useValue('drawing object hierarchy', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(),
     selected: editor.getSelectedShapeIds(), readonly: editor.getInstanceState().isReadonly, canReorder: canReorderDrawingObjects(editor), stack: captureDrawingObjectStack(editor),
     locked: new Set(editor.getCurrentPageShapesSorted().filter(shape => editor.isShapeOrAncestorLocked(shape)).map(shape => shape.id)) }), [editor]);
@@ -29,6 +32,7 @@ export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: numbe
   useEffect(() => { sessions.set(editor, { page: state.page, search, collapsed }); }, [editor, state.page, search, collapsed]);
   const rows = useMemo(() => drawingObjectTree(state.shapes, collapsed, search), [state.shapes, collapsed, search]);
   const ids = rows.map(row => row.shape.id);
+  const selectableIds = rows.filter(row => !isProductionLayerHidden(row.shape)).map(row => row.shape.id);
   const tabId = focused && ids.includes(focused) ? focused : state.selected.find(id => ids.includes(id)) ?? ids[0];
   const single = state.selected.length === 1 ? state.shapes.find(shape => shape.id === state.selected[0]) : undefined;
   const alias = single ? drawingObjectAlias(single) : '';
@@ -57,7 +61,8 @@ export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: numbe
   const focusRow = (id: TLShapeId | undefined) => { if (!id) return; setFocused(id); rowRefs.current.get(id)?.focus(); };
   const toggle = (id: TLShapeId) => { setCollapsed(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; }); };
   const select = (id: TLShapeId, options: ObjectSelectionOptions = {}) => {
-    setFailed(!selectDrawingObject(editor, ids, id, { ...options, anchor: anchor.current }));
+    if (!selectableIds.includes(id)) return;
+    setFailed(!selectDrawingObject(editor, selectableIds, id, { ...options, anchor: anchor.current }));
     if (!options.range || !anchor.current) anchor.current = id;
     setFocused(id);
   };
@@ -107,18 +112,19 @@ export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: numbe
       {rows.map(row => {
         const shape = row.shape, selected = state.selected.includes(shape.id), locked = state.locked.has(shape.id);
         const parentLocked = state.locked.has(shape.parentId as TLShapeId), name = drawingObjectName(shape);
+        const hiddenByLayer = isProductionLayerHidden(shape), layerProtected = isProductionLayerProtected(shape);
         return <div key={shape.id} ref={node => { if (node) rowRefs.current.set(shape.id, node); else rowRefs.current.delete(shape.id); }}
-          role="treeitem" aria-label={`${name}${locked ? `, ${t('locked')}` : ''}`} aria-level={row.depth + 1} aria-posinset={row.position} aria-setsize={row.siblings}
-          aria-expanded={row.children ? row.expanded : undefined} aria-selected={selected} tabIndex={shape.id === tabId ? 0 : -1}
+          role="treeitem" aria-label={`${name}${hiddenByLayer ? `, ${label('productionHiddenObject')}` : locked ? `, ${t('locked')}` : ''}`} aria-level={row.depth + 1} aria-posinset={row.position} aria-setsize={row.siblings}
+          aria-expanded={row.children ? row.expanded : undefined} aria-selected={selected} aria-disabled={hiddenByLayer || undefined} tabIndex={shape.id === tabId ? 0 : -1}
           className={`drawing-tree-row${selected ? ' is-selected' : ''}${search.trim() && !row.matched ? ' is-context' : ''}`}
           style={{ paddingInlineStart: Math.min(row.depth, 8) * 12 + 3 }} data-testid="drawing-object-row"
           onFocus={() => setFocused(shape.id)} onKeyDown={event => onTreeKey(event, row)}
           onClick={event => { select(shape.id, { toggle: event.ctrlKey || event.metaKey, range: event.shiftKey }); focusRow(shape.id); }}
-          onDoubleClick={() => { select(shape.id); editor.zoomToSelection(); }}>
+          onDoubleClick={() => { if (!hiddenByLayer) { select(shape.id); editor.zoomToSelection(); } }}>
           {row.children ? <button type="button" tabIndex={-1} className="drawing-tree-expander" disabled={!!search.trim()} aria-label={t(row.expanded ? 'collapse' : 'expand')} onClick={event => { event.stopPropagation(); toggle(shape.id); }} onDoubleClick={event => event.stopPropagation()}><TreeIcon kind={row.expanded ? 'expanded' : 'collapsed'} /></button> : <span className="drawing-tree-expander" />}
           <TreeIcon kind={shape.type === 'group' || row.children ? 'group' : shape.type === 'text' ? 'text' : shape.type === 'image' || shape.type === 'document' ? 'file' : 'object'} />
-          <span className="drawing-tree-name" title={name}>{name}</span>{row.children > 0 && <span className="drawing-tree-count" aria-hidden="true">{row.children}</span>}
-          <button type="button" tabIndex={-1} className="drawing-tree-lock" title={parentLocked ? t('lockedParent') : t(shape.isLocked ? 'unlock' : 'lock')} aria-label={t(shape.isLocked ? 'unlock' : 'lock')} disabled={state.readonly || parentLocked}
+          <span className="drawing-tree-name" title={name}>{name}</span>{hiddenByLayer && <small>{label('productionHiddenObject')}</small>}{row.children > 0 && <span className="drawing-tree-count" aria-hidden="true">{row.children}</span>}
+          <button type="button" tabIndex={-1} className="drawing-tree-lock" title={layerProtected ? label('productionObjectProtected') : parentLocked ? t('lockedParent') : t(shape.isLocked ? 'unlock' : 'lock')} aria-label={t(shape.isLocked ? 'unlock' : 'lock')} disabled={state.readonly || parentLocked || layerProtected}
             onClick={event => { event.stopPropagation(); setFailed(!toggleDrawingObjectLock(editor, shape.id)); }} onDoubleClick={event => event.stopPropagation()}><TreeIcon kind={locked ? 'lock' : 'unlock'} /></button>
         </div>;
       })}
@@ -146,7 +152,7 @@ export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: numbe
       {!orderTargets.length && <p className="drawing-help">{t('noReference')}</p>}
     </details>
     {single && <>
-      <div className="drawing-tree-actions"><button type="button" disabled={renameDisabled} onClick={() => setRenaming(value => !value)}>{t('rename')}</button><button type="button" disabled={state.readonly || state.locked.has(single.parentId as TLShapeId)} onClick={() => setFailed(!toggleDrawingObjectLock(editor, single.id))}>{t(single.isLocked ? 'unlock' : 'lock')}</button><button type="button" onClick={() => editor.zoomToSelection()}>{t('locate')}</button></div>
+      <div className="drawing-tree-actions"><button type="button" disabled={renameDisabled} onClick={() => setRenaming(value => !value)}>{t('rename')}</button><button type="button" disabled={state.readonly || isProductionLayerProtected(single) || state.locked.has(single.parentId as TLShapeId)} onClick={() => setFailed(!toggleDrawingObjectLock(editor, single.id))}>{t(single.isLocked ? 'unlock' : 'lock')}</button><button type="button" onClick={() => editor.zoomToSelection()}>{t('locate')}</button></div>
       {renaming && <form className="drawing-object-name" onSubmit={event => { event.preventDefault(); const ok = renameDrawingObject(editor, single.id, draft); setFailed(!ok); if (ok) setRenaming(false); }}>
         <label><span>{t('name')}</span><input ref={nameRef} disabled={renameDisabled} maxLength={80} value={draft} placeholder={drawingObjectName(single)} onChange={event => { setDraft(event.target.value); setFailed(false); }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(false); focusRow(single.id); } }} /></label>
         <button type="submit" disabled={renameDisabled}>{t('applyName')}</button><p className="drawing-help">{t('renameHint')}</p>

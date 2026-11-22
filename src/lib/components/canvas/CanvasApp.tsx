@@ -1,3 +1,4 @@
+import { installProductionLayers } from './cad-production-layers';
 import { captureCanvasDocument } from './canvas-document';
 import { applyCanvasSurface, watchCanvasSurface } from './canvas-surface';
 import { DrawingGrid } from './DrawingGrid';
@@ -199,7 +200,8 @@ export function CanvasApp({
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
         const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
-        cleanupCadTransformsRef.current = () => { stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        const stopLayers = installProductionLayers(editor);
+        cleanupCadTransformsRef.current = () => { stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
             const page = editor.getCurrentPage();
