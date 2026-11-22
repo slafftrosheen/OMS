@@ -448,7 +448,7 @@ function JoinCurves({ settings, revision, disabled, focus, sequence }: SharedPro
 
 const knifeErrors: Record<string, CadAdvancedLabel> = {
   'knife-selection': 'knifeHelp', 'knife-blade': 'knifeBladeError', 'knife-target': 'knifeTargetError',
-  'knife-fill': 'knifeFill', 'knife-miss': 'knifeMiss', 'knife-closed': 'knifeClosed', 'knife-overlap': 'knifeOverlap',
+  'knife-fill': 'knifeFill', 'knife-miss': 'knifeMiss', 'knife-closed': 'knifeClosed', 'knife-overlap': 'knifeOverlap', 'knife-winding': 'knifeWinding',
 };
 
 function KnifeCurves({ settings, revision, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
@@ -487,7 +487,12 @@ function KnifeCurves({ settings, revision, disabled, focus, sequence }: SharedPr
       </fieldset>
     </form>
     {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={!ready} markers={review.plan.cutPoints}
-      onApplied={success => { setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }} />}
+      onApplied={success => { setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }}>
+      <dl className="drawing-cad-values">
+        <dt>{label('knifeObjects')}</dt><dd>{review.plan.shapes?.length}</dd>
+        <dt>{label('knifeCrossings')}</dt><dd>{review.plan.cutPoints.length}</dd>
+      </dl>
+    </PlanReview>}
     <Message value={message} error={message !== '' && message !== 'applied'} />
   </details>;
 }
