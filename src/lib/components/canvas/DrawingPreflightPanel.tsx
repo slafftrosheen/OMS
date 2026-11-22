@@ -15,7 +15,7 @@ export function DrawingPreflightPanel({settings,focusSequence}:{settings:CadSett
  const thresholdMm=threshold.trim()?Number(threshold)*unitMm(settings?.unit??'mm'):NaN;
  const valid=Number.isFinite(thresholdMm)&&thresholdMm>0&&thresholdMm<=100;
  const stale=!!report&&(revision!==report.revision||report.scope!==scope||Math.abs(report.thresholdMm-thresholdMm)>1e-12||!valid);
- const issueKinds:PreflightKind[]=['open','zero','short','duplicate','clipped','invalid','text','unsupported'];
+ const issueKinds:PreflightKind[]=['open','zero','short','duplicate','shared','clipped','invalid','text','unsupported'];
  const display=(mm:number)=>(mm/unitMm(settings?.unit??'mm')).toLocaleString(undefined,{maximumFractionDigits:6})+' '+(settings?.unit??'mm');
  return <section ref={root} data-testid="drawing-preflight">
   <p className="drawing-help">{t('help')}</p>
@@ -31,15 +31,18 @@ export function DrawingPreflightPanel({settings,focusSequence}:{settings:CadSett
    <dl className="drawing-cad-values">
     <dt>{t('checked')}</dt><dd>{report.checked}</dd><dt>{t('omitted')}</dt><dd>{report.omitted}</dd>
     <dt>{t('openCount')}</dt><dd>{report.open}</dd><dt>{t('closedCount')}</dt><dd>{report.closed}</dd><dt>{t('issues')}</dt><dd>{report.issueCount}</dd>
+    {report.sharedEdges>0&&<><dt>{t('sharedEdges')}</dt><dd>{report.sharedEdges}</dd><dt>{t('duplicatePasses')}</dt><dd>{report.duplicatePasses}</dd></>}
    </dl>
+   {report.sharedEdges>0&&<p className="drawing-help">{t('sharedHelp')}</p>}
    {stale&&<p className="drawing-help is-error" role="alert">{t('stale')}</p>}
    {report.truncated&&<p className="drawing-help" role="status">{t('truncated')}</p>}
    {!report.issueCount?<p className="drawing-help" role="status">{t('none')}</p>:<>
     <label className="drawing-cad-field"><span>{t('filter')}</span><select value={filter} onChange={event=>setFilter(event.target.value as typeof filter)}><option value="all">{t('everything')}</option>{issueKinds.map(kind=><option key={kind} value={kind}>{t(kind)}</option>)}</select></label>
     <ul className="drawing-cad-omissions">{report.issues.map((issue,index)=>filter!=='all'&&issue.kind!==filter?null:<li key={index}>
      <strong>{issue.name}</strong><span>{t(issue.kind)}{issue.contour!==undefined?' · '+t('contour')+' '+(issue.contour+1):''}{issue.segment!==undefined?' · '+t('segment')+' '+(issue.segment+1):''}</span>
-     {issue.otherName&&<span>{t('duplicateOf')}: {issue.otherName}{issue.otherContour!==undefined?' · '+t('contour')+' '+(issue.otherContour+1):''}</span>}
-     {issue.lengthMm!==undefined&&<span>{t('upper')}: {display(issue.lengthMm)}</span>}
+     {issue.otherName&&<span>{t(issue.kind==='shared'?'overlapsWith':'duplicateOf')} · {issue.otherName}{issue.otherContour!==undefined?' · '+t('contour')+' '+(issue.otherContour+1):''}</span>}
+     {issue.lengthMm!==undefined&&<span>{t(issue.kind==='shared'?'sharedLength':'upper')} · {display(issue.lengthMm)}</span>}
+     {issue.coveringContours!==undefined&&issue.coveringContours>2&&<span>{t('coveringContours')} · {issue.coveringContours}</span>}
      <button type="button" disabled={stale} onClick={()=>{if(!locatePreflightIssue(editor,report,index))setError('failed');}}>{t('locate')}</button>
     </li>)}</ul>
    </>}

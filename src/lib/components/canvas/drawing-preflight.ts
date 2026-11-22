@@ -2,17 +2,19 @@ import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { contourSegments, mapContours, type CadContour } from './cad-curves';
 import { shapeCadContours } from './cad-editing';
 import { cadShapeDxfGeometry, type DxfEntity } from './cad-dxf';
+import { visitDxfCommonLines } from './cad-dxf-common-lines';
 import { drawingObjectName } from './drawing-operations';
 import { cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
 
 export const PREFLIGHT_MAX_SHAPES = 1000;
 export const PREFLIGHT_MAX_SEGMENTS = 12000;
 export const PREFLIGHT_MAX_ISSUES = 500;
-export type PreflightKind = 'open' | 'zero' | 'short' | 'duplicate' | 'clipped' | 'invalid' | 'text' | 'unsupported';
-export type PreflightIssue = { kind: PreflightKind; id: TLShapeId; name: string; contour?: number; segment?: number; otherId?: TLShapeId; otherName?: string; otherContour?: number; lengthMm?: number };
+export type PreflightKind = 'open' | 'zero' | 'short' | 'duplicate' | 'shared' | 'clipped' | 'invalid' | 'text' | 'unsupported';
+export type PreflightIssue = { kind: PreflightKind; id: TLShapeId; name: string; contour?: number; segment?: number; otherId?: TLShapeId; otherName?: string; otherContour?: number; lengthMm?: number; relatedIds?: TLShapeId[]; coveringContours?: number };
 export interface DrawingPreflight {
   revision: string; pageId: string; scope: 'selected' | 'all'; thresholdMm: number;
   checked: number; omitted: number; open: number; closed: number; segments: number;
+  sharedEdges: number; duplicatePasses: number;
   issues: PreflightIssue[]; issueCount: number; truncated: boolean; sourceIds: TLShapeId[];
 }
 /** Selection is deliberately excluded: locating an issue must not stale the report. */
@@ -59,8 +61,10 @@ export function inspectDrawingPreflight(editor:Editor,settings:CadSettings,scope
   const ids=[...new Set(scope==='all'?[...editor.getCurrentPageShapeIds()]:[...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])])];
   if(!ids.length)throw new Error('empty');
   if(ids.length>PREFLIGHT_MAX_SHAPES)throw new Error('limit');
-  const result:DrawingPreflight={revision:preflightRevision(editor),pageId:editor.getCurrentPageId(),scope,thresholdMm,checked:0,omitted:0,open:0,closed:0,segments:0,issues:[],issueCount:0,truncated:false,sourceIds:ids};
+  const result:DrawingPreflight={revision:preflightRevision(editor),pageId:editor.getCurrentPageId(),scope,thresholdMm,checked:0,omitted:0,open:0,closed:0,segments:0,sharedEdges:0,duplicatePasses:0,issues:[],issueCount:0,truncated:false,sourceIds:ids};
   const seen=new Map<string,{id:TLShapeId;name:string;contour?:number}>();
+  const sharedCandidates: DxfEntity[] = [];
+  const sharedSources: Array<{ id: TLShapeId; name: string; contour: number }> = [];
   const issue=(value:PreflightIssue)=>{result.issueCount++;if(result.issues.length<PREFLIGHT_MAX_ISSUES)result.issues.push(value);else result.truncated=true;};
   const duplicate=(key:string,shape:TLShape,contour?:number)=>{
     const existing=seen.get(key),name=drawingObjectName(shape);
@@ -107,6 +111,31 @@ export function inspectDrawingPreflight(editor:Editor,settings:CadSettings,scope
         else if(upper<thresholdMm)issue({kind:'short',id,name,contour:ci,segment:si,lengthMm:upper});
       }
     }
+    if (geometry.reason) continue;
+    for (const [contour, entity] of (geometry.entities ?? (geometry.entity ? [geometry.entity] : [])).entries()) {
+      if (entity.type === 'polyline' && entity.closed || entity.type === 'spline' && entity.contour.closed) {
+        sharedCandidates.push(entity);
+        sharedSources.push({ id, name, contour });
+      }
+    }
+  }
+  try {
+    visitDxfCommonLines(sharedCandidates, (lengthMm, indices, passes) => {
+      result.sharedEdges++;
+      result.duplicatePasses += passes;
+      if (result.issues.length >= PREFLIGHT_MAX_ISSUES) {
+        result.issueCount++;
+        result.truncated = true;
+        return;
+      }
+      const participants = Array.from(indices, index => sharedSources[index]);
+      const [first, second] = participants;
+      issue({ kind: 'shared', ...first, otherId: second.id, otherName: second.name, otherContour: second.contour,
+        lengthMm, coveringContours: participants.length, relatedIds: [...new Set(participants.map(source => source.id))] });
+    });
+  } catch (error) {
+    if (error instanceof RangeError) throw new Error('limit');
+    throw error;
   }
   return result;
 }
@@ -116,6 +145,7 @@ export function locatePreflightIssue(editor:Editor,report:DrawingPreflight,index
   const issue=report.issues[index];if(!issue||!editor.getShape(issue.id))return false;
   editor.complete();editor.setCurrentTool('select');
   if(report.revision!==preflightRevision(editor))return false;
-  editor.setSelectedShapes([...new Set([issue.id,...(issue.otherId&&editor.getShape(issue.otherId)?[issue.otherId]:[])])]);
+  const related = issue.relatedIds ?? (issue.otherId ? [issue.otherId] : []);
+  editor.setSelectedShapes([...new Set([issue.id, ...related.filter(id => !!editor.getShape(id))])]);
   editor.zoomToSelection();return true;
 }

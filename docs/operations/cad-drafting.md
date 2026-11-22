@@ -168,6 +168,8 @@ CAD rectangles/paths and ellipses use custom geometry so small parts are not cla
 
 ## DXF contract
 
+In **Production check**, the **Shared straight cut** finding reports the length of each shared section. **Locate** selects all objects on that section, and the summary counts shared sections and duplicate passes. The check uses straight spans from exportable closed contours and includes overlaps across colors. When exporting by color, DXF merges cuts only within the same color.
+
 **Cut shared edges once** writes one line over each overlapping section of straight spans from distinct closed contours. A long edge can share sections with several shorter edges. Shared lines break at the overlap junctions, and unshared sections stay in their original outlines. Line matching uses fixed model-space roundoff tolerances independent of curve flattening. Point contacts, open source paths and exact Bézier spans with control handles stay as drawn. With color layers, each color is matched separately. The shared lines go on `OMS_SHARED` or `OMS_SHARED_<RGB>`, and remaining runs of affected outlines are exported as open paths. Review counts shared sections and duplicate passes removed across those sections. Leave the option off when the receiving CAM workflow needs individual closed contours.
 
 DXF is ASCII R2000 (`AC1015`), with `$INSUNITS = 4` (millimetres), Cartesian Y-up coordinates, and full-size model-space geometry. Export has no view padding or zoom scaling. A 1,200 × 600 mm rectangle at drawing scale 1:10 exports as 1,200 × 600 mm; choosing inches for display does not change that result.

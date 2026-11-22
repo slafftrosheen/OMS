@@ -89,30 +89,22 @@ function groupEdges(edges: Edge[], extent: number) {
       buckets.set(key, entries);
     }
   }
-  return groups;
+  return groups.filter(group => group.edges.some(edge => edge.entity !== group.edges[0].entity));
 }
 
 /** Sweep overlapping spans once. Track distinct contours separately from
  * edge count so a self-overlapping contour cannot create a shared cut. */
-function sharedIntervals(group: Group, shared: DxfEntity[]) {
+function visitSharedIntervals(group: Group, visit: (from: number, to: number, active: ReadonlyMap<number, number>, passes: number) => void) {
   const axis = group.line.axis;
   const events = group.edges.flatMap(({ a, b, entity }) => [
     { position: Math.min(a[axis], b[axis]), entity, delta: 1 },
     { position: Math.max(a[axis], b[axis]), entity, delta: -1 },
   ]).sort((a, b) => a.position - b.position);
   const active = new Map<number, number>();
-  const coverage: Interval[] = [];
-  let previous = events[0].position, activeEdges = 0, passesRemoved = 0;
+  let previous = events[0].position, activeEdges = 0;
   for (let i = 0; i < events.length;) {
     const { position } = events[i];
-    if (active.size > 1) {
-      shared.push({ type: 'polyline', points: [pointOnLine(group, previous), pointOnLine(group, position)],
-        closed: false, rgb: group.edges[0].rgb, commonLine: true });
-      passesRemoved += activeEdges - 1;
-      const last = coverage.at(-1);
-      if (last?.[1] === previous) last[1] = position;
-      else coverage.push([previous, position]);
-    }
+    if (active.size > 1) visit(previous, position, active, activeEdges - 1);
     // Endpoints close enough to represent the same junction share one event.
     while (i < events.length && events[i].position - position <= MATCH_MM) {
       const { entity, delta } = events[i++];
@@ -123,7 +115,19 @@ function sharedIntervals(group: Group, shared: DxfEntity[]) {
     }
     previous = position;
   }
-  return { coverage, passesRemoved };
+}
+
+/** Scan the same shared sections as export without constructing cut paths.
+ * The contour indices are available during the callback. */
+export function visitDxfCommonLines(
+  entities: DxfEntity[],
+  visit: (lengthMm: number, contours: Iterable<number>, duplicatePasses: number) => void,
+) {
+  const { edges, extent } = straightEdges(entities);
+  for (const group of groupEdges(edges, extent)) {
+    const factor = Math.hypot(1, group.line.slope);
+    visitSharedIntervals(group, (from, to, active, passes) => visit((to - from) * factor, active.keys(), passes));
+  }
 }
 
 function overlapIntervals(start: number, end: number, coverage: Interval[]): Interval[] {
@@ -186,13 +190,19 @@ export function buildDxfCommonLines(entities: DxfEntity[]) {
   const cuts = new Map<number, Map<number, Cut>>();
   let passesRemoved = 0, intervalsProcessed = 0;
   for (const group of groupEdges(edges, extent)) {
-    if (group.edges.every(edge => edge.entity === group.edges[0].entity)) continue;
-    const result = sharedIntervals(group, shared);
-    passesRemoved += result.passesRemoved;
-    if (!result.coverage.length) continue;
+    const coverage: Interval[] = [];
+    visitSharedIntervals(group, (from, to, _active, passes) => {
+      shared.push({ type: 'polyline', points: [pointOnLine(group, from), pointOnLine(group, to)],
+        closed: false, rgb: group.edges[0].rgb, commonLine: true });
+      passesRemoved += passes;
+      const last = coverage.at(-1);
+      if (last?.[1] === from) last[1] = to;
+      else coverage.push([from, to]);
+    });
+    if (!coverage.length) continue;
     const axis = group.line.axis;
     for (const { a, b, entity, segment } of group.edges) {
-      const intervals = overlapIntervals(a[axis], b[axis], result.coverage);
+      const intervals = overlapIntervals(a[axis], b[axis], coverage);
       if (!intervals.length) continue;
       intervalsProcessed += intervals.length;
       if (intervalsProcessed > MAX_SPLIT_INTERVALS) throw new RangeError('DXF common-line split limit');

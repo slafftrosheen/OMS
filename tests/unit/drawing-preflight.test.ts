@@ -10,6 +10,7 @@ const settings={...DEFAULT_CAD_SETTINGS},mm=cadMmPerPixel(settings);
 const rectangle=[{x:0,y:0},{x:100,y:0},{x:100,y:50},{x:0,y:50}];
 const make=(type:string,id:string,props:any):any=>({id:'shape:'+id,type,x:0,y:0,rotation:0,parentId:'page:one',props,meta:{omsObjectName:id},isLocked:false,opacity:1});
 const path=(id:string,points=rectangle,closed=true)=>make('cad-path',id,{points:structuredClone(points),closed,color:'black'});
+const panel=(id:string,x:number,y:number,w:number,h:number)=>path(id,[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}]);
 function fixture(items:any[]){
  const shapes=new Map(items.map(s=>[s.id,s]));let selected=items.map(s=>s.id),zoomed=false;
  const page={id:'page:one',meta:{omsCad:settings}};
@@ -71,8 +72,10 @@ describe('production drawing check',()=>{
   const child=path('child');child.parentId=group.id;
   const world=rectangle.map(p=>({x:100-p.y,y:250+p.x}));
   const f=fixture([group,child,path('world',world)]);f.editor.setSelectedShapes([group.id]);
-  const selected=inspectDrawingPreflight(f.editor,settings,'selected');assert.equal(selected.checked,1);
-  assert.equal(inspect(f).issues.filter(i=>i.kind==='duplicate').length,1);
+  const selected=inspectDrawingPreflight(f.editor,settings,'selected');assert.equal(selected.checked,1);assert.equal(selected.sharedEdges,0);
+  const all=inspect(f);
+  assert.equal(all.issues.filter(i=>i.kind==='duplicate').length,1);
+  assert.equal(all.sharedEdges,4);
  });
  it('does not merge nearby distinct paths or different cubic controls',()=>{
   const f=fixture([path('a'),path('b',rectangle.map(p=>({x:p.x+.01,y:p.y})))]);
@@ -80,6 +83,43 @@ describe('production drawing check',()=>{
   const a={closed:false,nodes:[nodeAt({x:0,y:0}),nodeAt({x:10,y:0})]};
   const b=structuredClone(a);b.nodes[0].outY=1;
   assert.notEqual(preflightContourKey(a),preflightContourKey(b));
+ });
+ it('reports partial shared sections in millimetres and locates all covering objects',()=>{
+  const large=panel('large',0,0,100,50),first=panel('first',100,10,40,20),second=panel('second',100,20,60,20);
+  const f=fixture([large,first,second]),before=JSON.stringify([...f.shapes.values()]);
+  const report=inspect(f),exported=buildCadDxf(f.editor,'all',settings,{commonLines:true});
+  assert.deepEqual([report.sharedEdges,report.duplicatePasses],[3,4]);
+  assert.deepEqual([report.sharedEdges,report.duplicatePasses],[exported.sharedEdges,exported.passesRemoved]);
+  const findings=report.issues.filter(i=>i.kind==='shared');
+  assert.equal(findings.length,3);
+  assert.ok(findings.every(i=>Math.abs(i.lengthMm!-10*mm)<1e-10));
+  const triple=findings.find(i=>i.coveringContours===3)!;
+  assert.equal(locatePreflightIssue(f.editor,report,report.issues.indexOf(triple)),true);
+  assert.deepEqual(new Set(f.selection()),new Set([large.id,first.id,second.id]));
+  assert.equal(f.zoomed(),true);
+  assert.equal(JSON.stringify([...f.shapes.values()]),before);
+ });
+ it('honors the captured scope and skips open, clipped and non-cutting geometry',()=>{
+  const left=panel('left',0,0,100,50),right=panel('right',100,10,30,20);
+  const clipped=panel('clipped',100,10,30,20);clipped.mask=[];
+  const f=fixture([left,right,clipped,path('open',[{x:100,y:10},{x:100,y:30}],false)]);
+  f.editor.setSelectedShapes([left.id,clipped.id,'shape:open']);
+  assert.equal(inspectDrawingPreflight(f.editor,settings,'selected').sharedEdges,0);
+  const all=inspect(f);
+  assert.equal(all.sharedEdges,1);
+  assert.deepEqual(new Set(all.issues.find(i=>i.kind==='shared')!.relatedIds),new Set([left.id,right.id]));
+ });
+ it('reports potential duplicate cuts across colors while preserving color-specific export behavior',()=>{
+  const first=panel('red',0,0,100,50),second=panel('blue',100,10,40,20);
+  first.meta.omsVectorPaint={...VECTOR_DEFAULT_PAINT,stroke:'#ff0000'};
+  second.meta.omsVectorPaint={...VECTOR_DEFAULT_PAINT,stroke:'#0000ff'};
+  const f=fixture([first,second]);
+  assert.equal(inspect(f).duplicatePasses,1);
+  assert.equal(buildCadDxf(f.editor,'all',settings,{commonLines:true,colorLayers:true}).sharedEdges,0);
+ });
+ it('counts shared sections and duplicate passes when the finding list reaches its cap',()=>{
+  const r=inspect(fixture(Array.from({length:503},(_,i)=>panel(String(i),i*100,0,100,50))));
+  assert.deepEqual([r.sharedEdges,r.duplicatePasses,r.issueCount,r.issues.length,r.truncated],[502,502,502,500,true]);
  });
  it('matches exact circles and ellipses independently of path seam',()=>{
   const a=make('cad-ellipse','ellipse',{w:100,h:50,color:'black'}),b=structuredClone(a);b.id='shape:copy';
