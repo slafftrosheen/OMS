@@ -1,4 +1,5 @@
 import type {Editor} from '@tldraw/tldraw';
+import type {CanvasDxfRelease} from '$lib/order/canvas-dxf-release';
 import {base} from '$app/paths';
 import {frameFilePocket,type ProductionFilePocket} from '$lib/order/file-pockets';
 import {announceOrderFilesChanged} from '$lib/order/order-files-client';
@@ -12,7 +13,7 @@ export function canSaveProductionExport(editor:Editor,pocket:ProductionFilePocke
  return !!bridge?.orderId && !!frame && !editor.getInstanceState().isReadonly && !editor.isShapeOrAncestorLocked(frame);
 }
 /** Both persisted orders and unsaved drafts use the same canonical pocket type. */
-export async function saveProductionExport(editor:Editor,file:File,pocket:ProductionFilePocket,signal?:AbortSignal){
+export async function saveProductionExport(editor:Editor,file:File,pocket:ProductionFilePocket,signal?:AbortSignal,release?:CanvasDxfRelease){
  if(!canSaveProductionExport(editor,pocket)||pending.has(editor))throw new Error('readOnly');
  const bridge=getOrderBridge(editor)!,orderId=bridge.orderId!,pageId=editor.getCurrentPageId();
  pending.add(editor);
@@ -21,9 +22,10 @@ export async function saveProductionExport(editor:Editor,file:File,pocket:Produc
   const queued=!!bridge.onFilesUpload;
   if(queued){
    if(!bridge.onStoreCanvasFile)throw new Error('saveFailed');
-   stored=await bridge.onStoreCanvasFile(file,pocket);
+   stored=await bridge.onStoreCanvasFile(file,pocket,release);
   }else{
    const body=new FormData();body.set('file',file);body.set('order_id',orderId);body.set('file_type',pocket);
+   if(release)body.set('canvas_dxf_release',JSON.stringify(release));
    const response=await fetch(base+'/api/files/upload',{method:'POST',body,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(60_000)]):AbortSignal.timeout(60_000)});
    const result=await response.json().catch(()=>({}));
    if(!response.ok||typeof result.file?.id!=='string')throw new Error('saveFailed');

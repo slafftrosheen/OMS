@@ -1,10 +1,27 @@
 import { error as kitError, isHttpError } from '@sveltejs/kit';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readCanvasDxfRelease } from '$lib/order/canvas-dxf-release';
+import { PRODUCTION_FILE_POCKETS, type ProductionFilePocket } from '$lib/order/file-pockets';
 import { logger } from '$lib/server/logging/logger';
 import { buildOrderFileLink, formatFileRecord } from './contract';
 import { ORDER_FILE_BUCKET, normalizeOrderFile, storedOrderFileKey, isOrderUuid,
   MAX_ORDER_FILE_BYTES, matchesOrderFileSignature } from './order-storage';
 import { canManageOrderFile } from '$lib/server/order/draft-contract';
+
+function parseRelease(value: FormDataEntryValue | null) {
+  if (value === null) return null;
+  if (typeof value !== 'string' || value.length > 3000) throw kitError(400, 'Invalid Canvas DXF review');
+  let payload: unknown;
+  try { payload = JSON.parse(value); } catch { throw kitError(400, 'Invalid Canvas DXF review'); }
+  const release = readCanvasDxfRelease(payload);
+  if (!release) throw kitError(400, 'Invalid Canvas DXF review');
+  return release;
+}
+
+export function canvasDxfFileId(orderId: string, userId: string, pocket: string, filename: string, reviewId: string, bytes: Uint8Array): string {
+  const digest = createHash('sha256').update(JSON.stringify([orderId, userId, pocket, filename, reviewId])).update(bytes).digest('hex');
+  return `${digest.slice(0,8)}-${digest.slice(8,12)}-8${digest.slice(13,16)}-a${digest.slice(17,20)}-${digest.slice(20,32)}`;
+}
 
 export async function uploadOrderFile(request: Request, locals: App.Locals) {
   const user = locals.user;
@@ -48,12 +65,32 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
 
   const fileTypeRaw=String(form.get('file_type') ?? 'attachment').trim();
   const fileType=/^[a-zA-Z0-9_-]{1,60}$/.test(fileTypeRaw) ? fileTypeRaw : 'attachment';
-  const id=randomUUID();
-  const storageKey=storedOrderFileKey(order.id,user.id,id,metadata.fileName);
+  const release = parseRelease(form.get('canvas_dxf_release'));
+  if (release && (metadata.extension !== 'dxf' || !PRODUCTION_FILE_POCKETS.includes(fileType as ProductionFilePocket))) {
+    throw kitError(400, 'Canvas review metadata requires a DXF and a production pocket');
+  }
   const buffer=Buffer.from(await candidate.arrayBuffer());
   if (!matchesOrderFileSignature(metadata.extension,buffer.subarray(0,4096))) {
     throw kitError(415,'File contents do not match the declared image/PDF/archive format');
   }
+  if (release && (!buffer.subarray(0, 23).toString('ascii').startsWith('0\r\nSECTION\r\n2\r\nHEADER\r\n') ||
+      !buffer.subarray(-8).toString('ascii').endsWith('\r\nEOF\r\n'))) {
+    throw kitError(415, 'Reviewed Canvas releases require an ASCII OMS DXF');
+  }
+  const id = release ? canvasDxfFileId(order.id, user.id, fileType, metadata.fileName, release.reviewId, buffer) : randomUUID();
+  if (release) {
+    const { data: prior, error } = await locals.supabase.from('order_files')
+      .select('file_type, display_name, files!inner(*)').eq('draft_order_id', order.id).eq('file_id', id).maybeSingle();
+    if (error) throw kitError(503, 'Could not check the existing Canvas DXF release');
+    if (prior) {
+      const file = Array.isArray(prior.files) ? prior.files[0] : prior.files;
+      if (!file || file.uploaded_by !== user.id ||
+          JSON.stringify(readCanvasDxfRelease(file.metadata?.canvas_dxf_release)) !== JSON.stringify(release)) throw kitError(409, 'Canvas DXF review conflicts with an existing release');
+      return { success: true, file: formatFileRecord({ ...file, file_type: prior.file_type, display_name: prior.display_name }) };
+    }
+  }
+  // Competing uploads have independent storage keys; the database chooses one canonical file.
+  const storageKey=storedOrderFileKey(order.id,user.id,release ? randomUUID() : id,metadata.fileName);
   const { error: storageError }=await locals.supabase.storage.from(ORDER_FILE_BUCKET)
     .upload(storageKey,buffer,{contentType:metadata.mime,upsert:false});
   if(storageError) {
@@ -71,6 +108,29 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
       'Private files Storage bucket not found. Inspect the applied Storage bucket migration.');
     throw kitError(503,
       'Private files upload failed. Check Supabase Storage logs and connectivity.');
+  }
+  if (release) {
+    const { data: file, error } = await locals.supabase.rpc('register_canvas_dxf_release', {
+      p_order_id: order.id, p_file_id: id, p_pocket: fileType, p_name: metadata.fileName,
+      p_original_name: candidate.name.slice(0,255), p_storage_key: storageKey, p_size: buffer.length, p_release: release
+    });
+    if (error || !file) {
+      logger.error('Canvas DXF release registration failed', error ?? new Error('Missing release response'), { orderId: order.id });
+      // Only remove a blob when PostgreSQL explicitly rejected and rolled back the transaction.
+      // A connection failure can occur after a successful commit.
+      if (['22023', '23503', '23505', '42501', 'PGRST202'].includes(error?.code ?? '')) {
+        const { error: cleanup } = await locals.supabase.storage.from(ORDER_FILE_BUCKET).remove([storageKey]);
+        if (cleanup) logger.error('Unused Canvas DXF upload cleanup failed', cleanup as Error, { orderId: order.id });
+      }
+      if (error?.code === '23505') throw kitError(409, 'Canvas DXF review conflicts with an existing release');
+      if (error?.code === '42501') throw kitError(403, 'Unable to link this DXF to the order');
+      throw kitError(503, 'Could not register the reviewed DXF. Retry from the same review.');
+    }
+    if (file.filepath !== storageKey) {
+      const { error: cleanup } = await locals.supabase.storage.from(ORDER_FILE_BUCKET).remove([storageKey]);
+      if (cleanup) logger.error('Duplicate Canvas DXF upload cleanup failed', cleanup as Error, { orderId: order.id });
+    }
+    return { success: true, file: formatFileRecord(file) };
   }
   let dbFileId:string|null=null;
   let registrationPhase: 'files metadata' | 'order attachment link' = 'files metadata';

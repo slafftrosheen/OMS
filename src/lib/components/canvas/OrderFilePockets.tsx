@@ -6,12 +6,13 @@ import {base} from '$app/paths';
 import {fetchAllOrderFiles, watchOrderFilesChanged} from '$lib/order/order-files-client';
 import {filePocket, frameFilePocket, PRODUCTION_FILE_POCKETS, type ProductionFilePocket, type CanvasOrderAttachment} from '$lib/order/file-pockets';
 import {filePreviewCopy} from '$lib/order/file-preview-copy';
+import {readCanvasDxfRelease, type CanvasDxfRelease} from '$lib/order/canvas-dxf-release';
 import {uploadOrderCanvasFiles} from './asset-uploader';
 import {getOrderBridge} from './state-bridge';
 import {arrangeProductionPocket} from './production-layout';
 import {documentFilePocket} from './order-file-documents';
 
-type PocketFile = {id:string; originalName:string; mimeType?:string; file_type?:string; url?:string};
+type PocketFile = {id:string; originalName:string; mimeType?:string; file_type?:string; url?:string; canvasDxfRelease?:CanvasDxfRelease};
 const Context = createContext<{enabled:boolean;local:boolean;files:PocketFile[];loading:boolean;failed:boolean;refresh:()=>void}>({enabled:false,local:false,files:[],loading:false,failed:false,refresh:()=>{}});
 export function OrderFilePocketsProvider({orderId,local,attachments=[],children}:{orderId?:string;local:boolean;attachments?:CanvasOrderAttachment[];children:ReactNode}) {
   const [files,setFiles]=useState<PocketFile[]>([]),[loading,setLoading]=useState(false),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
@@ -73,10 +74,25 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
         }}/>
       </div>
       {context.loading?<p role="status">…</p>:context.failed?<p role="alert">{copy.unavailable} <button type="button" onClick={context.refresh}>{copy.retry}</button></p>:
-        !files.length?<p>{copy.empty}</p>:<ul style={{margin:'8px 0 0',paddingLeft:18}}>{files.map(file=><li key={file.id} style={{overflowWrap:'anywhere',padding:'3px 0'}}>
-          <a href={context.local?file.url:`${base}/api/files/${encodeURIComponent(file.id)}/download`} download={file.originalName}
-            aria-label={`${copy.download} ${file.originalName}`}>{file.originalName}</a>
-        </li>)}</ul>}
+        !files.length?<p>{copy.empty}</p>:<ul style={{margin:'8px 0 0',paddingLeft:18}}>{files.map(file=>{
+          const release = readCanvasDxfRelease(file.canvasDxfRelease);
+          return <li key={file.id} style={{overflowWrap:'anywhere',padding:'3px 0'}}>
+            <a href={context.local?file.url:`${base}/api/files/${encodeURIComponent(file.id)}/download`} download={file.originalName}
+              aria-label={`${copy.download} ${file.originalName}`}>{file.originalName}</a>
+            {release && <details>
+              <summary>{copy.reviewedDxf}</summary>
+              <dl className="drawing-cad-values">
+                <dt>{copy.sourcePage}</dt><dd>{release.pageName}</dd>
+                <dt>{copy.sourceRevision}</dt><dd><code title={release.revision}>{release.revision.slice(0, 12)}</code></dd>
+                <dt>{copy.scope}</dt><dd>{copy[release.scope]}</dd>
+                <dt>{copy.curveMode}</dt><dd>{release.curves === 'spline' ? 'SPLINE' : `LWPOLYLINE · ${release.toleranceMm} mm`}</dd>
+                <dt>{copy.cuttingLayers}</dt><dd>{release.colorLayers ? copy.byColor : copy.standard}</dd>
+                <dt>{copy.sharedCuts}</dt><dd>{release.commonLines ? copy.enabled : copy.disabled}</dd>
+                <dt>{copy.omissions}</dt><dd>{release.omitted}</dd>
+              </dl>
+            </details>}
+          </li>;
+        })}</ul>}
     </section>
   </HTMLContainer>;
 }

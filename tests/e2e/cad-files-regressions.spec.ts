@@ -180,3 +180,59 @@ test('initially readonly orders without a saved canvas still list permitted file
  await expect(pocket.getByRole('link',{name:/reader-part.dxf/})).toBeVisible({timeout:15000});
  await expect(pocket.getByRole('button',{name:'Add files'})).toBeDisabled();
 });
+
+test('saves the reviewed DXF to CNC with provenance and reuses the review after retry', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  const uploads: Array<{ review: any; body: Buffer }> = [];
+  let attachment: Record<string, unknown> | null = null;
+  await page.route('**/api/files?*', async route => {
+    await route.fulfill({ json: attachment ? [attachment] : [], headers: { 'X-Total-Count': attachment ? '1' : '0' } });
+  });
+  await page.route('**/api/files/upload', async route => {
+    const body = route.request().postDataBuffer()!;
+    const contentType = route.request().headers()['content-type'];
+    const parsed = await new Response(new Uint8Array(body), { headers: { 'content-type': contentType } }).formData();
+    const review = JSON.parse(String(parsed.get('canvas_dxf_release')));
+    uploads.push({ review, body });
+    expect(parsed.get('file_type')).toBe('cnc');
+    if (uploads.length === 1) {
+      await route.fulfill({ status: 503, json: { message: 'Try again' } });
+      return;
+    }
+    attachment = { id: fileId, originalName: 'Panel.dxf', mimeType: 'application/dxf', file_type: 'cnc', canvasDxfRelease: review };
+    await route.fulfill({ status: 201, json: { success: true, file: attachment } });
+  });
+  await page.goto('/drawing-workspace.html?mode=order&persisted');
+  await page.getByTestId('drawing-files').click();
+  const enable = page.getByRole('button', { name: 'Enable CAD in mm at 1:1', exact: true });
+  if (await enable.isVisible()) await enable.click();
+  const intake = page.getByTestId('drawing-cad-import');
+  await intake.locator('summary').click();
+  await intake.getByLabel('DXF file', { exact: true }).setInputFiles({
+    name: 'Panel-source.dxf', mimeType: 'application/dxf', buffer: dxf,
+  });
+  await intake.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+  await intake.getByTestId('drawing-cad-apply-plan').click();
+  await page.getByTestId('drawing-cad-review').click();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('drawing-cad-download').click();
+  const exported = readFileSync((await (await download).path())!);
+
+  const save = page.getByTestId('production-export');
+  await save.getByRole('textbox').fill('Panel');
+  const release = save.getByRole('button', { name: /Save into CNC/ });
+  await release.click();
+  await expect.poll(() => uploads.length).toBe(1);
+  await expect(release).toBeEnabled();
+  await release.click();
+  await expect.poll(() => uploads.length).toBe(2);
+  expect(uploads[0].review).toEqual(uploads[1].review);
+  expect(uploads[1].review).toMatchObject({ scope: 'selected', curves: 'spline', toleranceMm: null, omitted: 0 });
+  expect(uploads[1].review.revision).toMatch(/^[0-9a-f]{64}$/);
+  expect(uploads[1].body.includes(exported)).toBe(true);
+
+  const pocket = page.getByTestId('production-pocket-cnc');
+  await expect(pocket.getByRole('link', { name: 'Download Panel.dxf' })).toHaveAttribute('href', `/api/files/${fileId}/download`);
+  await pocket.getByText('Reviewed DXF', { exact: true }).click();
+  await expect(pocket.getByText(uploads[1].review.revision.slice(0, 12), { exact: true })).toBeVisible();
+});

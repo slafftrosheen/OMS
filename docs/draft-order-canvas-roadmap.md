@@ -45,6 +45,15 @@ and appears in the chosen box. On a new order, it joins the existing draft queue
 reviews must still be current, and any omissions must be acknowledged. Saving
 an export does not convert text or silently remove the format's restrictions.
 
+A DXF prepared in CAD Review records its source page, drawing revision digest,
+scope, curve mode, tolerance, cutting layer settings, shared-edge setting and
+acknowledged omission count. Expand **Reviewed DXF** in the pocket to inspect
+these details. A retry from the same review, with the same file and destination,
+reuses the attachment. This also applies to retries when saving a queued draft.
+Existing manual uploads and earlier export attachments use the usual download
+flow. Apply migration `20261122000003_canvas_dxf_releases.sql` before deploying
+this upload path.
+
 New file cards arrange in rows; boxes grow vertically and move following boxes
 in the same vertical stack. File lists show all entries without a fixed-height
 scroll window. Manually placed artwork and grouped documents retain their

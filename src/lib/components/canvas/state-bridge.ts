@@ -7,12 +7,13 @@
 
 import type { Editor } from '@tldraw/tldraw';
 import type { ProductionFilePocket } from '$lib/order/file-pockets';
+import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
 
 export interface OrderBridge {
     orderId?:string;
     toolkitBoardId?:string|null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
-    onStoreCanvasFile?: (file:File,pocket?:ProductionFilePocket)=>Promise<{id:string;url:string}>;
+    onStoreCanvasFile?: (file:File,pocket?:ProductionFilePocket,release?:CanvasDxfRelease)=>Promise<{id:string;url:string}>;
     onFilesUpload?: (files:File[],position:{x:number;y:number},pocket?:ProductionFilePocket)=>Promise<void>;
     onOrderChange?: (orderId: string, patch: Record<string, unknown>) => void;
     onProfileChange?: (orderId: string, profileIndex: number, profileData: Record<string, unknown>) => void;

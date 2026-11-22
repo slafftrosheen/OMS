@@ -1,7 +1,9 @@
+import type { CanvasDxfRelease } from './canvas-dxf-release';
+
 export const PRODUCTION_FILE_POCKETS = ['laser', 'cnc', 'bender', 'visuals'] as const;
 export type ProductionFilePocket = typeof PRODUCTION_FILE_POCKETS[number];
 export interface CanvasOrderAttachment {
-  id: string; originalName: string; mimeType: string; url: string; file_type: ProductionFilePocket;
+  id: string; originalName: string; mimeType: string; url: string; file_type: ProductionFilePocket; canvasDxfRelease?: CanvasDxfRelease;
 }
 export function filePocket(type: unknown): ProductionFilePocket {
   const value = String(type ?? '').toLowerCase();

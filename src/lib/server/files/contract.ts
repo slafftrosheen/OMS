@@ -1,9 +1,13 @@
+import { readCanvasDxfRelease } from '$lib/order/canvas-dxf-release';
+
 export function buildOrderFileLink(orderId: string, fileId: string, fileType: string, displayName: string) {
   return { draft_order_id: orderId, file_id: fileId, file_type: fileType, display_name: displayName };
 }
 
 export function formatFileRecord(row: Record<string, any>) {
+  const release = readCanvasDxfRelease(row.metadata?.canvas_dxf_release);
   return {
+    ...(release ? { canvasDxfRelease: release } : {}),
     id: row.id,
     file_name: row.original_name || row.filename,
     originalName: row.original_name || row.filename,

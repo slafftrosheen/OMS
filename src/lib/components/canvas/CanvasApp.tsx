@@ -107,7 +107,7 @@ export interface CanvasAppProps {
     /** When set, auto-spawns the DraftOrderTemplate on first mount */
     orderSeed?: OrderSeed | null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
-    onStoreCanvasFile?: (file:File,pocket?:import('$lib/order/file-pockets').ProductionFilePocket)=>Promise<{id:string;url:string}>;
+    onStoreCanvasFile?: import('./state-bridge').OrderBridge['onStoreCanvasFile'];
     onFilesUpload?: OrderBridge['onFilesUpload'];
     /** Called when a form shape field changes, bridges data back to Svelte */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;

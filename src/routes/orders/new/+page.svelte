@@ -19,6 +19,7 @@
   import Icon from '$lib/ui/Icon.svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
+  import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { can } from '$lib/auth/permission-utils';
   import { base } from '$app/paths';
@@ -96,6 +97,7 @@
   // Files with preview
   interface FileWithPreview {
     uploadId: string;
+    release?: CanvasDxfRelease;
     file: File;
     preview?: string;
     pdfDataUrl?: string;
@@ -517,9 +519,12 @@
     const target=document.getElementById(id);
     target?.scrollIntoView({block:'start'});target?.focus({preventScroll:true});
   }
-  async function storeCanvasFile(file:File,pocket:ProductionFilePocket='visuals'){
+  async function storeCanvasFile(file:File,pocket:ProductionFilePocket='visuals',release?:CanvasDxfRelease){
     if(saving)throw new Error('asset-upload');
-    const entries=await addFiles([file],pocket),entry=entries[0];if(!entry)throw new Error('asset-upload');
+    const existing = release && uploadedFiles.find(entry => entry.release?.reviewId === release.reviewId &&
+      entry.pocket === pocket && entry.file.name === file.name);
+    if (existing) return { id: existing.uploadId, url: existing.url };
+    const entries=await addFiles([file],pocket,release),entry=entries[0];if(!entry)throw new Error('asset-upload');
     return {id:entry.uploadId,url:entry.url};
   }
   async function addCanvasFiles(files:File[],position:{x:number;y:number},targetPocket?:ProductionFilePocket){
@@ -727,7 +732,7 @@
     input.value = '';
   }
 
-  async function addFiles(newFiles: File[],pocket:ProductionFilePocket='visuals') {
+  async function addFiles(newFiles: File[],pocket:ProductionFilePocket='visuals', release?: CanvasDxfRelease) {
     if (saving || preparingFiles || removingFileId || successMessage) return [];
     const added:FileWithPreview[]=[];
     preparingFiles = true;
@@ -735,7 +740,7 @@
       for (const file of newFiles) {
         const type = getFileType(file);
         const url=URL.createObjectURL(file);localUrls.push(url);
-        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket };
+        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket, ...(release ? { release } : {}) };
         if (type === 'image') {
           fileWithPreview.preview = await createImagePreview(file);
         } else if (type === 'pdf') {
@@ -911,6 +916,7 @@
         formData.append('file', fileItem.file);
         formData.append('order_id', String(orderId));
         formData.append('file_type', fileItem.pocket);
+        if (fileItem.release) formData.append('canvas_dxf_release', JSON.stringify(fileItem.release));
 
         try {
           const uploadResponse = await fetch(`${base}/api/files/upload`, { method: 'POST', body: formData });
@@ -1096,7 +1102,7 @@
         <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot} onDocumentChange={()=>canvasRevision++}
           onError={message=>error=message} onFilesUpload={addCanvasFiles} onStoreCanvasFile={storeCanvasFile} toolkitReadOnly={saving||!!successMessage}
           orderSeed={{orderId:creationId,isRd,rdNotes,title,clientName,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,profiles,
-            attachments:uploadedFiles.map(entry=>({id:entry.uploadId,originalName:entry.file.name,mimeType:entry.file.type,url:entry.url,file_type:entry.pocket}))}}
+            attachments:uploadedFiles.map(entry=>({id:entry.uploadId,originalName:entry.file.name,mimeType:entry.file.type,url:entry.url,file_type:entry.pocket,canvasDxfRelease:entry.release}))}}
           onOrderChange={(_id,patch)=>applyIntakeFields(patch)}
           onProfileQuantityChange={(_id,index,quantity)=>{if(!saving&&!successMessage)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
           onProfileChange={(_id,index,configuration)=>{if(!saving&&!successMessage)profiles=profiles.map((profile,i)=>i===index?{...profile,configuration}:profile);}}/>

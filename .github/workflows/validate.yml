@@ -50,6 +50,10 @@ jobs:
         id: unit_tests
         continue-on-error: true
         run: npm run test:unit
+      - name: Database migration tests
+        id: database_tests
+        continue-on-error: true
+        run: node --test tests/db/canvas-dxf-releases.test.mjs
       - name: Svelte and TypeScript
         id: check
         continue-on-error: true
@@ -63,10 +67,48 @@ jobs:
         env:
           SOURCE_TESTS: ${{ steps.source_tests.outcome }}
           UNIT_TESTS: ${{ steps.unit_tests.outcome }}
+          DATABASE_TESTS: ${{ steps.database_tests.outcome }}
           CHECK: ${{ steps.check.outcome }}
           BUILD: ${{ steps.build.outcome }}
         run: |
           test "$SOURCE_TESTS" = success &&
           test "$UNIT_TESTS" = success &&
+          test "$DATABASE_TESTS" = success &&
           test "$CHECK" = success &&
           test "$BUILD" = success
+
+  canvas-browser:
+    name: Canvas browser (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [drawing-workspace, cad-files, order-canvas]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Run Canvas regressions
+        env:
+          OMS_CANVAS_SUITE: ${{ matrix.suite }}
+        run: >
+          npx --no-install playwright test
+          --config "tests/ui/playwright.$OMS_CANVAS_SUITE.config.ts"
+          --trace retain-on-failure
+          --reporter line,html
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure()
+        with:
+          name: canvas-browser-${{ matrix.suite }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -51,7 +51,8 @@ for (const mode of ['idea', 'order']) {
       return shapes.some((shape: any) => shape.type === 'cad-bezier' && shape.opacity === 1 && selected.includes(shape.id) &&
         shape.props.contours.some((contour: any) => contour.nodes.some((node: any) => node.inX || node.inY || node.outX || node.outY)));
     }).toBe(true);
-    await drop('editable-paths.eps', '%!PS-Adobe-3.0 EPSF-3.0');
+    const epsSource = await readFile('tests/fixtures/cad-external/artwork.eps', 'utf8');
+    await drop('editable-paths.eps', epsSource);
     const eps = page.getByTestId('vector-import');
     await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
     await expect(eps.getByRole('combobox', { name: 'Import mode' })).toHaveValue('editable');

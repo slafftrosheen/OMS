@@ -3,6 +3,7 @@
   import { locale } from 'svelte-i18n';
   import { getSnapshot, loadSnapshot } from '@tldraw/tldraw';
   import TldrawWrapper from '../../src/lib/components/canvas/TldrawWrapper.svelte';
+  import type { CanvasDxfRelease } from '../../src/lib/order/canvas-dxf-release';
   import type { OrderSeed } from '../../src/lib/components/canvas/templates/DraftOrderTemplate';
   import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
   import { captureCanvasDocument } from '../../src/lib/components/canvas/canvas-document';
@@ -21,9 +22,9 @@
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
   let seed = $state<OrderSeed>({ orderId: 'drawing-order', title: 'Production form', clientName: 'Test client', profiles: [{name:'Production profile',quantity:1,configuration:{profileName:'Test production profile'}}],attachments:[] });
-  async function storeFile(file:File,pocket:import('../../src/lib/order/file-pockets').ProductionFilePocket='visuals'){
+  async function storeFile(file:File,pocket:import('../../src/lib/order/file-pockets').ProductionFilePocket='visuals',release?:CanvasDxfRelease){
     const id=crypto.randomUUID(),url=URL.createObjectURL(file);
-    seed={...seed,attachments:[...(seed.attachments??[]),{id,url,originalName:file.name,mimeType:file.type,file_type:pocket}]};
+    seed={...seed,attachments:[...(seed.attachments??[]),{id,url,originalName:file.name,mimeType:file.type,file_type:pocket,canvasDxfRelease:release}]};
     return {id,url};
   }
   let editor: any;

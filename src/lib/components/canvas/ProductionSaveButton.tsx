@@ -4,13 +4,14 @@ import {PRODUCTION_FILE_POCKETS,type ProductionFilePocket} from '$lib/order/file
 import {getOrderBridge} from './state-bridge';
 import {canSaveProductionExport,saveProductionExport} from './production-export';
 import {useWorkbenchText} from './workbench-copy';
+import type {CanvasDxfRelease} from '$lib/order/canvas-dxf-release';
 
-export function ProductionSaveButton({extension,disabled=false,createFile,errorMessage,onStatus}:{extension:string;disabled?:boolean;createFile:(signal:AbortSignal)=>Blob|Promise<Blob>;errorMessage?:(error:unknown)=>string;onStatus?:(message:string)=>void}){
+export function ProductionSaveButton({extension,disabled=false,createFile,release,errorMessage,onStatus}:{extension:string;disabled?:boolean;createFile:(signal:AbortSignal)=>Blob|Promise<Blob>;release?:CanvasDxfRelease;errorMessage?:(error:unknown)=>string;onStatus?:(message:string)=>void}){
  const editor=useEditor(),t=useWorkbenchText();
  const [pocket,setPocket]=useState<ProductionFilePocket>(extension==='dxf'?'cnc':'visuals');
  const [name,setName]=useState('OMS-drawing'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  useEffect(()=>{if(message)onStatus?.(message);},[message,onStatus]);
- const lifetime=useRef<AbortController>();const latest=useRef({disabled,createFile});latest.current={disabled,createFile};
+ const lifetime=useRef<AbortController>();const latest=useRef({disabled,createFile,release});latest.current={disabled,createFile,release};
  useEffect(()=>{const controller=new AbortController();lifetime.current=controller;return ()=>controller.abort();},[]);
  const allowed=useValue('save export permission',()=>canSaveProductionExport(editor,pocket),[editor,pocket]);
  if(!getOrderBridge(editor)?.orderId)return null;
@@ -21,11 +22,12 @@ export function ProductionSaveButton({extension,disabled=false,createFile,errorM
    if(latest.current.disabled||!canSaveProductionExport(editor,pocket))return;
    setBusy(true);setMessage(t('saving'));const controller=lifetime.current!;
    try{
-    const blob=await latest.current.createFile(controller.signal);
+    const reviewed=latest.current;
+    const blob=await reviewed.createFile(controller.signal);
     if(controller.signal.aborted)return;
-    if(latest.current.disabled)throw new Error('changed');
+    if(latest.current.disabled || reviewed.release !== latest.current.release)throw new Error('changed');
     const filename=name.trim().replace(/[\\/\r\n\0<>]/g,'_').replace(new RegExp(`\\.${extension}$`,'i'),'')+'.'+extension;
-    const result=await saveProductionExport(editor,new File([blob],filename,{type:blob.type}),pocket,controller.signal);
+    const result=await saveProductionExport(editor,new File([blob],filename,{type:blob.type}),pocket,controller.signal,reviewed.release);
     if(!controller.signal.aborted)setMessage(t(result.queued?'queued':'saved'));
    }catch(error){if(!controller.signal.aborted)setMessage(error instanceof Error&&['readOnly','changed'].includes(error.message)?t(error.message as 'readOnly'|'changed'):errorMessage?.(error)??t('saveFailed'));}
    finally{if(!controller.signal.aborted)setBusy(false);}
