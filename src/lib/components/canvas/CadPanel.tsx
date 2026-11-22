@@ -285,12 +285,13 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
   const editor = useEditor(); const { label } = useCadText();
   const [scope, setScope] = useState<'selected' | 'all'>('selected');
   const [curves, setCurves] = useState<'spline' | 'polyline'>('spline');
+  const [colorLayers, setColorLayers] = useState(false);
   const [tolerance, setTolerance] = useState('0.01');
   const toleranceErrorId = useId();
   const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
   const validOptions = curves === 'spline' || validTolerance;
-  const optionsKey = JSON.stringify([curves, tolerance]);
-  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number } | null>(null);
+  const optionsKey = JSON.stringify([curves, tolerance, colorLayers]);
+  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; colorLayers: boolean } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadLabel | ''>('');
   const revision = useValue('cad dxf source revision', () => dxfSourceRevision(editor), [editor]);
@@ -301,7 +302,7 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
     if (!settings || !validOptions) return;
     setAcknowledged(false); setMessage('');
     const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
-    try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm }), revision, scope, optionsKey, curves, toleranceMm }); }
+    try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm, colorLayers }), revision, scope, optionsKey, curves, toleranceMm, colorLayers }); }
     catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
   }
   const canExport = !!report && !stale && !!report.data.entities && (!report.data.omitted.length || acknowledged);
@@ -330,6 +331,11 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
       <Field label={label('exportTolerance')}><input type="number" min="0.001" max="1" step="any" value={tolerance} disabled={curves === 'spline'} aria-invalid={curves === 'polyline' && !validTolerance} aria-describedby={curves === 'polyline' && !validTolerance ? toleranceErrorId : undefined} onChange={event => { setTolerance(event.target.value); setAcknowledged(false); setMessage(''); }} /></Field>
       <p className="drawing-help">{label(curves === 'spline' ? 'splineExportHelp' : 'polylineExportHelp')}</p>
       {curves === 'polyline' && !validTolerance && <p id={toleranceErrorId} className="drawing-help is-error" role="alert">{label('exportToleranceInvalid')}</p>}
+      <Field label={label('dxfLayers')}><select value={colorLayers ? 'color' : 'standard'} onChange={event => { setColorLayers(event.target.value === 'color'); setAcknowledged(false); setMessage(''); }}>
+        <option value="standard">{label('dxfStandardLayers')}</option>
+        <option value="color">{label('dxfColorLayers')}</option>
+      </select></Field>
+      {colorLayers && <p className="drawing-help">{label('dxfColorLayersHelp')}</p>}
       <button type="button" disabled={!settings || !hasObjects || !validOptions} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
@@ -339,9 +345,15 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
         <dt>{label('entities')}</dt><dd>{report.data.entities}</dd>
         <dt>{label('closedContours')}</dt><dd>{report.data.closedContours}</dd>
         <dt>{label('openContours')}</dt><dd>{report.data.openContours}</dd>
+        <dt>{label('dxfLayers')}</dt><dd>{label(report.colorLayers ? 'dxfColorLayers' : 'dxfStandardLayers')}</dd>
         <dt>{label('dimensions')}</dt><dd>{format(report.data.widthMm, 4)} × {format(report.data.heightMm, 4)}</dd>
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
+      {report.colorLayers && !!report.data.layers.length && <details>
+        <summary>{label('dxfLayerContents')} ({report.data.layers.length})</summary>
+        <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => <li key={layer.name}><strong>{layer.name}</strong><span>{layer.entities}</span></li>)}</ul>
+        {report.data.layers.length > 20 && <p className="drawing-help">{label('dxfLayerContentsMore')}</p>}
+      </details>}
       {report.data.omitted.length ? <>
         <ul className="drawing-cad-omissions">{report.data.omitted.map(item => <li key={item.id}><strong>{item.name}</strong><span>{label(reasonLabels[item.reason] ?? 'unsupported')}</span></li>)}</ul>
         <label className="drawing-cad-check"><input type="checkbox" checked={acknowledged} disabled={stale} onChange={event => setAcknowledged(event.target.checked)} /><span>{label('acknowledge')}</span></label>

@@ -34,6 +34,14 @@ export type VectorExportScope = "selected" | "all" | { pageBleedMm: number };
 type PdfSheet = DrawingPageSize & { bleedMm: number };
 const POINTS_PER_MM = 72 / 25.4;
 const MAX_PRINT_POINTS = 14400;
+const LARGE_PAGE_USER_UNIT = 10;
+
+function pdfPageUserUnit(width: number, height: number): number {
+  const longest = Math.max(width, height);
+  if (!Number.isFinite(longest) || longest > MAX_PRINT_POINTS * LARGE_PAGE_USER_UNIT + 1e-7)
+    throw new Error("page-limit");
+  return longest > MAX_PRINT_POINTS ? LARGE_PAGE_USER_UNIT : 1;
+}
 
 function pdfSheetFrame({ widthMm, heightMm, bleedMm }: PdfSheet) {
   if (!Number.isFinite(bleedMm) || bleedMm < 0 || bleedMm > MAX_PDF_BLEED_MM)
@@ -41,14 +49,16 @@ function pdfSheetFrame({ widthMm, heightMm, bleedMm }: PdfSheet) {
   const bleed = bleedMm * POINTS_PER_MM;
   const w = (widthMm + 2 * bleedMm) * POINTS_PER_MM;
   const h = (heightMm + 2 * bleedMm) * POINTS_PER_MM;
-  if (![widthMm, heightMm].every(value => Number.isFinite(value) && value > 0) ||
-      w > MAX_PRINT_POINTS || h > MAX_PRINT_POINTS) throw new Error("page-limit");
+  if (![widthMm, heightMm].every(value => Number.isFinite(value) && value > 0))
+    throw new Error("page-limit");
+  pdfPageUserUnit(w, h);
   return { x: -bleed, y: -bleed, w, h };
 }
 
 const num = (n: number) => {
   if (!Number.isFinite(n) || Math.abs(n) > 1e8) throw new Error("geometry");
-  return String(Number(n.toFixed(7)));
+  const decimal = n.toFixed(7).replace(/\.?0+$/, "");
+  return decimal === "-0" ? "0" : decimal;
 };
 const rgb = (hex: string) =>
   [1, 3, 5].map((i) => num(parseInt(hex.slice(i, i + 2), 16) / 255)).join(" ");
@@ -100,11 +110,14 @@ export function serializeVectorDocument(
   const bounds = frame ?? { x: left, y: top, w: right - left, h: bottom - top };
   const padding = frame ? 0 : 0.01, width = bounds.w + 2 * padding, height = bounds.h + 2 * padding;
   const pdf = format === "pdf";
-  if (pdf && (width > MAX_PRINT_POINTS || height > MAX_PRINT_POINTS)) throw new Error("page-limit");
-  const body: string[] = frame ? ["q", `0 0 ${num(width)} ${num(height)} re W n`] : [],
+  const userUnit = pdf ? pdfPageUserUnit(width, height) : 1;
+  const body: string[] = [],
     shadings: string[] = [],
     images: string[] = [],
     extraObjects: string[] = [];
+  // Keep content in physical points. The outer transform maps all artwork into the scaled page.
+  if (userUnit !== 1) body.push(`${num(1 / userUnit)} 0 0 ${num(1 / userUnit)} 0 0 cm`);
+  if (frame) body.push("q", `0 0 ${num(width)} ${num(height)} re W n`);
   const pageMatrix: VectorMatrix = [
     1,
     0,
@@ -296,13 +309,16 @@ export function serializeVectorDocument(
         `/GS${i} << /Type /ExtGState /ca ${num(p.paint.fillOpacity)} /CA ${num(p.paint.strokeOpacity)} >>`,
     )
     .join(" ");
+  const pageValue = (points: number) => num(points / userUnit);
+  const mediaBox = `[0 0 ${pageValue(width)} ${pageValue(height)}]`;
   const boxes = frame
-    ? ` /TrimBox [${num(-frame.x)} ${num(-frame.y)} ${num(width + frame.x)} ${num(height + frame.y)}] /BleedBox [0 0 ${num(width)} ${num(height)}]`
+    ? ` /TrimBox [${pageValue(-frame.x)} ${pageValue(-frame.y)} ${pageValue(width + frame.x)} ${pageValue(height + frame.y)}] /BleedBox ${mediaBox}`
     : "";
+  const units = userUnit === 1 ? "" : ` /UserUnit ${userUnit}`;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(width)} ${num(height)}]${boxes} /Resources << /ExtGState << ${states} >> /Shading << ${shadings.join(" ")} >> /XObject << ${images.join(" ")} >> >> /Contents 4 0 R >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox ${mediaBox}${boxes}${units} /Resources << /ExtGState << ${states} >> /Shading << ${shadings.join(" ")} >> /XObject << ${images.join(" ")} >> >> /Contents 4 0 R >>`,
     `<< /Length ${stream.length} >>\nstream\n${stream}endstream`,
     ...extraObjects,
   ];

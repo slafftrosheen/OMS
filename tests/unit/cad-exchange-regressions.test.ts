@@ -33,6 +33,61 @@ function exportEditor(shapes: any[]) {
 }
 
 describe('CAD interchange regressions', () => {
+  it('exports solid outline and fill colors by cutting layer without scaling or duplicating geometry', () => {
+    const shape = (id: string, contours: CadContour[], paint: object) => ({
+      id, type: 'cad-bezier', props: { contours },
+      meta: { omsVectorPaint: { ...VECTOR_DEFAULT_PAINT, ...paint } },
+    });
+    const editor = exportEditor([
+      shape('spline', [curve], { stroke: '#E42135', fill: '#ffffff' }),
+      shape('compound', [...rect(125).contours, ...rect(80).contours], { stroke: 'none', fill: '#e42135' }),
+      shape('hidden-outline', rect(180).contours, { strokeOpacity: 0, stroke: '#0000ff', fill: '#17b58c' }),
+      shape('unpainted', rect(190).contours, { stroke: 'NONE' }),
+      shape('black', [curve], { stroke: '#000000' }),
+    ]);
+    const standard = buildCadDxf(editor, 'all', settings);
+    const colored = buildCadDxf(editor, 'all', settings, { colorLayers: true });
+    assert.match(standard.text, /\$ACADVER\r\n1\r\nAC1015/);
+    assert.ok(!standard.text.includes('\r\n420\r\n'));
+    assert.match(colored.text, /\$ACADVER\r\n1\r\nAC1018/);
+    assert.deepEqual(colored.layers, [
+      { name: 'OMS_CLOSED', entities: 1 },
+      { name: 'OMS_OPEN_E42135', rgb: '#E42135', entities: 1 },
+      { name: 'OMS_CLOSED_E42135', rgb: '#E42135', entities: 2 },
+      { name: 'OMS_CLOSED_17B58C', rgb: '#17B58C', entities: 1 },
+      { name: 'OMS_OPEN_000000', rgb: '#000000', entities: 1 },
+    ]);
+    assert.deepEqual([colored.widthMm, colored.heightMm, colored.entities, colored.omitted],
+      [standard.widthMm, standard.heightMm, standard.entities, []]);
+    const reopened = readCadDxf(settings, colored.text, { keepCoordinates: true });
+    assert.deepEqual(reopened.contours, readCadDxf(settings, standard.text, { keepCoordinates: true }).contours);
+    assert.deepEqual(reopened.shapes?.map(s => s.meta?.omsVectorPaint.stroke),
+      ['#e42135', '#e42135', '#e42135', '#17b58c', '#000000', '#000000']);
+    const flattened = buildCadDxf(editor, 'all', settings, { colorLayers: true, curves: 'polyline' });
+    assert.deepEqual(flattened.layers, colored.layers);
+    assert.doesNotMatch(flattened.text, /\r\nSPLINE\r\n/);
+  });
+
+  it('writes unique handles and a correct next handle for every added color layer', () => {
+    const entities = ['#ff0000', '#ffff00', '#00ff00', '#12ABCD'].map((rgb, i) => ({
+      type: 'circle' as const, center: { x: i * 20, y: 0 }, radius: 5, rgb,
+    }));
+    const { text } = serializeCadDxf(entities, { colorLayers: true });
+    const tags = text.split('\r\n');
+    const handles: number[] = [];
+    let seed = 0;
+    for (let i = 0; i < tags.length - 1; i += 2) {
+      if (tags[i] !== '5') continue;
+      const handle = parseInt(tags[i + 1], 16);
+      if (tags[i - 1] === '$HANDSEED') seed = handle;
+      else handles.push(handle);
+    }
+    assert.equal(new Set(handles).size, handles.length);
+    assert.equal(seed, Math.max(...handles) + 1);
+    assert.match(text, /2\r\nOMS_CLOSED_FF0000\r\n70\r\n0\r\n62\r\n1\r\n420\r\n16711680\r\n/);
+    assert.throws(() => serializeCadDxf([{ ...entities[0], rgb: '#BAD' }], { colorLayers: true }), /invalid/);
+  });
+
   it('centers imported geometry at an explicit point without changing scale, paint, or source coordinates on request', () => {
     const dropPoint = { x: -420, y: 185 };
     const { text } = serializeCadDxf([{ type: 'spline', contour: curve }]);

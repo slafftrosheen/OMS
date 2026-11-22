@@ -218,7 +218,7 @@ const en = {
   busy: "Converter is busy. Try again shortly.",
   timeout: "Conversion exceeded the time limit.",
   pageLimit:
-    "The exported page exceeds 5080 mm. Split the drawing into smaller exports.",
+    "The exported page exceeds 50,800 mm including bleed. Split the drawing into smaller exports.",
 };
 type Key = keyof typeof en;
 const ru: Record<Key, string> = {
@@ -438,7 +438,7 @@ const ru: Record<Key, string> = {
     "Выберите одну кривую. Палитра: левая кнопка — заливка, правая — обводка. F12 открывает настройки.",
   busy: "Конвертер занят. Повторите позже.",
   timeout: "Превышено время конвертации.",
-  pageLimit: "Страница экспорта превышает 5080 мм. Разделите чертёж на части.",
+  pageLimit: "Размер экспортируемой страницы с вылетами превышает 50 800 мм. Разделите чертёж на части.",
 };
 const lv: Record<Key, string> = {
   "ellipseSegments": "Elipse / sektors / loks",
@@ -655,7 +655,7 @@ const lv: Record<Key, string> = {
   busy: "Pārveidotājs aizņemts. Mēģiniet vēlāk.",
   timeout: "Pārsniegts pārveidošanas laiks.",
   pageLimit:
-    "Eksporta lapa pārsniedz 5080 mm. Sadaliet rasējumu mazākās daļās.",
+    "Eksporta lapa ar pārlaidēm pārsniedz 50 800 mm. Sadaliet rasējumu mazākās daļās.",
 };
 export function useVectorText() {
   const language = useSyncExternalStore(

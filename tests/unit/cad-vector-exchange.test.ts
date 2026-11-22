@@ -86,7 +86,9 @@ async function readPdf(bytes: Uint8Array) {
   try {
     const doc = await task.promise,
       page = await doc.getPage(1),
-      viewport = page.getViewport({ scale: 1 }),
+      base = page.getViewport({ scale: 1 }),
+      viewport = (base as typeof base & { userUnit?: number }).userUnit === undefined
+        ? page.getViewport({ scale: page.userUnit }) : base,
       list = await page.getOperatorList();
     return {
       result: pdfOperatorsToVectors(list, pdfjs.OPS, viewport),
@@ -280,7 +282,16 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
     const originalBounds = curveBounds(contours), exportedBounds = curveBounds(reopened);
     near(exportedBounds.w, originalBounds.w, 0.1);
     near(exportedBounds.h, originalBounds.h, 0.1);
-    assert.throws(() => serializeVectorDocument(doc.paths, "pdf"), /page-limit/);
+    const largePdf = serializeVectorDocument(doc.paths, "pdf");
+    assert.match(largePdf, /\/UserUnit 10\b/);
+    const pdf = (await readPdf(new TextEncoder().encode(largePdf))).result;
+    const pdfContours = pdf.paths.flatMap(p => p.contours);
+    assert.deepEqual(pdf.warnings, []);
+    assert.equal(pdfContours.length, contours.length);
+    const pdfBounds = curveBounds(pdfContours);
+    near(pdfBounds.w, originalBounds.w);
+    near(pdfBounds.h, originalBounds.h);
+    near(pdf.paths[0].paint.strokeWidth, doc.paths[0].paint.strokeWidth);
 
     // The same compound path may contain holes when filled and must stay intact.
     await assert.rejects(readEps(source.replace("\nstroke\n", "\neofill\n")), /limit/);
@@ -298,6 +309,24 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
     assert.ok(outlined.result.paths.some((p) => p.contours.length > 1));
     assert.ok(!outlined.result.warnings.includes("pdf-text"));
     assert.equal(outlined.text.items.length, 0);
+  });
+  it("exports large sheet and bleed boxes in scaled page units, and keeps ordinary PDF units", async () => {
+    const normal = serializeVectorDocument([sample], "pdf");
+    assert.doesNotMatch(normal, /\/UserUnit\b/);
+    const page = { widthMm: 6000, heightMm: 1200, bleedMm: 10 };
+    const pdf = serializeVectorDocument([sample], "pdf", page);
+    assert.match(pdf, /\/UserUnit 10\b/);
+    const boxes = pdf.match(/\/MediaBox \[0 0 ([.\d]+) ([.\d]+)\] \/TrimBox \[([.\d]+) ([.\d]+) ([.\d]+) ([.\d]+)\] \/BleedBox \[0 0 ([.\d]+) ([.\d]+)\]/);
+    assert.ok(boxes);
+    const [w, h, trimX, trimY, trimR, trimT, bleedW, bleedH] = boxes.slice(1).map(n => Number(n) * 10 * 25.4 / 72);
+    near(w, 6020); near(h, 1220);
+    near(trimX, 10); near(trimY, 10); near(trimR, 6010); near(trimT, 1210);
+    near(bleedW, w); near(bleedH, h);
+    const read = (await readPdf(new TextEncoder().encode(pdf))).result;
+    near(read.width * 25.4 / 72, w);
+    near(read.height * 25.4 / 72, h);
+    near(curveBounds(read.paths[0].contours).w, 72);
+    assert.throws(() => serializeVectorDocument([sample], "pdf", { ...page, widthMm: 50801 }), /page-limit/);
   });
   it("selects one source page and rejects invalid files, pages and EPS transparency", async () => {
     const pdf = new jsPDF();
