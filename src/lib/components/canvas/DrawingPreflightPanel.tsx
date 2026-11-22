@@ -1,9 +1,9 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
 import {useEditor,useValue} from '@tldraw/tldraw';
 import {unitMm,type CadSettings} from './cad-settings';
-import {inspectDrawingPreflight,locatePreflightIssue,preflightRevision,type DrawingPreflight,type PreflightKind} from './drawing-preflight';
+import {capturePreflightDxfScope,inspectDrawingPreflight,locatePreflightIssue,preflightRevision,type DrawingPreflight,type PreflightDxfScope,type PreflightKind} from './drawing-preflight';
 import {usePreflightText} from './preflight-copy';
-export function DrawingPreflightPanel({settings,focusSequence}:{settings:CadSettings|null;focusSequence?:number}){
+export function DrawingPreflightPanel({settings,focusSequence,onOpenDxf}:{settings:CadSettings|null;focusSequence?:number;onOpenDxf?:(scope:PreflightDxfScope)=>void}){
  const editor=useEditor(),t=usePreflightText(),root=useRef<HTMLElement>(null),errorId=useId();
  const [scope,setScope]=useState<'selected'|'all'>('selected'),[threshold,setThreshold]=useState('0.1');
  const [report,setReport]=useState<DrawingPreflight>(),[filter,setFilter]=useState<PreflightKind|'all'>('all');
@@ -34,6 +34,9 @@ export function DrawingPreflightPanel({settings,focusSequence}:{settings:CadSett
     {report.sharedEdges>0&&<><dt>{t('sharedEdges')}</dt><dd>{report.sharedEdges}</dd><dt>{t('duplicatePasses')}</dt><dd>{report.duplicatePasses}</dd></>}
    </dl>
    {report.sharedEdges>0&&<p className="drawing-help">{t('sharedHelp')}</p>}
+   {!!report.checked&&onOpenDxf&&<button type="button" disabled={!settings||stale} data-testid="drawing-preflight-open-dxf" onClick={()=>{
+    const captured=capturePreflightDxfScope(editor,report);if(captured)onOpenDxf(captured);else setError('failed');
+   }}>{t('openDxf')}</button>}
    {stale&&<p className="drawing-help is-error" role="alert">{t('stale')}</p>}
    {report.truncated&&<p className="drawing-help" role="status">{t('truncated')}</p>}
    {!report.issueCount?<p className="drawing-help" role="status">{t('none')}</p>:<>

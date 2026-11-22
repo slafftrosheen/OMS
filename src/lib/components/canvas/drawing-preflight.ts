@@ -1,7 +1,7 @@
 import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { contourSegments, mapContours, type CadContour } from './cad-curves';
 import { shapeCadContours } from './cad-editing';
-import { cadShapeDxfGeometry, type DxfEntity } from './cad-dxf';
+import { cadShapeDxfGeometry, type DxfCapturedScope, type DxfEntity } from './cad-dxf';
 import { visitDxfCommonLines } from './cad-dxf-common-lines';
 import { drawingObjectName } from './drawing-operations';
 import { cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
@@ -17,6 +17,7 @@ export interface DrawingPreflight {
   sharedEdges: number; duplicatePasses: number;
   issues: PreflightIssue[]; issueCount: number; truncated: boolean; sourceIds: TLShapeId[];
 }
+export interface PreflightDxfScope extends DxfCapturedScope { revision: string }
 /** Selection is deliberately excluded: locating an issue must not stale the report. */
 export function preflightRevision(editor: Editor): string {
   return JSON.stringify([editor.getCurrentPage(), editor.getCurrentPageShapesSorted()]);
@@ -148,4 +149,10 @@ export function locatePreflightIssue(editor:Editor,report:DrawingPreflight,index
   const related = issue.relatedIds ?? (issue.otherId ? [issue.otherId] : []);
   editor.setSelectedShapes([...new Set([issue.id, ...related.filter(id => !!editor.getShape(id))])]);
   editor.zoomToSelection();return true;
+}
+
+/** Export the objects from the check, even after Locate changes the selection. */
+export function capturePreflightDxfScope(editor: Editor, report: DrawingPreflight): PreflightDxfScope | null {
+  if (!report.checked || report.pageId !== editor.getCurrentPageId() || report.revision !== preflightRevision(editor)) return null;
+  return { pageId: report.pageId, shapeIds: [...report.sourceIds], revision: report.revision };
 }

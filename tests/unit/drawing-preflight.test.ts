@@ -1,6 +1,6 @@
 import {describe,it} from 'vitest';
 import assert from 'node:assert/strict';
-import {inspectDrawingPreflight,locatePreflightIssue,preflightContourKey} from '../../src/lib/components/canvas/drawing-preflight';
+import {capturePreflightDxfScope,inspectDrawingPreflight,locatePreflightIssue,preflightContourKey} from '../../src/lib/components/canvas/drawing-preflight';
 import {buildCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {measureCadSelection} from '../../src/lib/components/canvas/cad-measurements';
 import {nodeAt} from '../../src/lib/components/canvas/cad-curves';
@@ -116,6 +116,43 @@ describe('production drawing check',()=>{
   const f=fixture([first,second]);
   assert.equal(inspect(f).duplicatePasses,1);
   assert.equal(buildCadDxf(f.editor,'all',settings,{commonLines:true,colorLayers:true}).sharedEdges,0);
+ });
+ it('hands the checked group scope to DXF after Locate changes the selection',()=>{
+  const group=make('group','group',{}),left=panel('left',0,0,100,50),right=panel('right',100,10,40,20);
+  const extra=panel('extra',180,0,20,50),outside=panel('outside',300,0,20,50);
+  left.parentId=right.parentId=extra.parentId=group.id;
+  const f=fixture([group,left,right,extra,outside]);
+  f.editor.setSelectedShapes([group.id]);
+  const report=inspectDrawingPreflight(f.editor,settings,'selected');
+  const index=report.issues.findIndex(i=>i.kind==='shared');
+  assert.equal(locatePreflightIssue(f.editor,report,index),true);
+  assert.deepEqual(new Set(f.selection()),new Set([left.id,right.id]));
+  const scope=capturePreflightDxfScope(f.editor,report);
+  assert.ok(scope);
+  const normal=buildCadDxf(f.editor,scope,settings);
+  assert.equal(normal.entities,3);
+  assert.equal(normal.closedContours,3);
+  assert.equal(normal.sharedEdges,0);
+  const shared=buildCadDxf(f.editor,scope,settings,{commonLines:true});
+  assert.equal(shared.sharedEdges,1);
+  assert.equal(shared.widthMm,200*mm);
+  assert.deepEqual(new Set(f.selection()),new Set([left.id,right.id]));
+  assert.equal(buildCadDxf(f.editor,'selected',settings).entities,2);
+  assert.equal(buildCadDxf(f.editor,'all',settings).entities,4);
+ });
+ it('rejects stale or empty handoffs and validates captured DXF scope against the page',()=>{
+  const f=fixture([panel('checked',0,0,10,10)]);
+  const report=inspect(f),captured=capturePreflightDxfScope(f.editor,report);
+  assert.ok(captured);
+  assert.throws(()=>buildCadDxf(f.editor,{...captured,shapeIds:['shape:missing']},settings),/invalid/);
+  f.shapes.get('shape:checked')!.x=20;
+  assert.equal(capturePreflightDxfScope(f.editor,report),null);
+  const fresh=inspect(f);
+  f.page.id='page:another';
+  assert.equal(capturePreflightDxfScope(f.editor,fresh),null);
+  assert.throws(()=>buildCadDxf(f.editor,captured,settings),/invalid/);
+  const unsupported=fixture([make('text','label',{text:'Sign'})]);
+  assert.equal(capturePreflightDxfScope(unsupported.editor,inspect(unsupported)),null);
  });
  it('counts shared sections and duplicate passes when the finding list reaches its cap',()=>{
   const r=inspect(fixture(Array.from({length:503},(_,i)=>panel(String(i),i*100,0,100,50))));

@@ -187,14 +187,26 @@ function cuttingColor(shape: TLShape): string | undefined {
 
 interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean }
 
+export interface DxfCapturedScope { pageId: string; shapeIds: readonly TLShapeId[] }
+export type DxfExportScope = 'selected' | 'all' | DxfCapturedScope;
+
+function dxfSourceIds(editor: Editor, scope: DxfExportScope): TLShapeId[] {
+  if (scope === 'all') return [...editor.getCurrentPageShapeIds()];
+  if (scope === 'selected') return [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])];
+  if (!scope || typeof scope !== 'object' || scope.pageId !== editor.getCurrentPageId() || !Array.isArray(scope.shapeIds))
+    throw new CadDxfError('invalid');
+  const ids = [...scope.shapeIds], pageIds = editor.getCurrentPageShapeIds();
+  if (ids.some(id => !pageIds.has(id))) throw new CadDxfError('invalid');
+  return ids;
+}
+
 /** Full model-space millimetres, Cartesian Y-up, no padding or view/zoom rescaling. */
-export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings: CadSettings, options: CadDxfOptions = {}): CadDxfResult {
+export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: CadSettings, options: CadDxfOptions = {}): CadDxfResult {
   if (!validateCadSettings(settings)) throw new CadDxfError('settings');
-  if (!['selected', 'all'].includes(scope)) throw new CadDxfError('invalid');
   const tolerance = options.toleranceMm ?? 0.01;
   if (options.curves === 'polyline' && (!Number.isFinite(tolerance) || tolerance < 0.001 || tolerance > 1))
     throw new CadDxfError('invalid');
-  const ids = scope === 'all' ? [...editor.getCurrentPageShapeIds()] : [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])];
+  const ids = dxfSourceIds(editor, scope);
   if (ids.length > MAX_ENTITIES * 2) throw new CadDxfError('limit');
   const entities: DxfEntity[] = [], omitted: CadDxfResult['omitted'] = [];
   let vertices = 0;

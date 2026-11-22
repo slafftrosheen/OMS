@@ -5,6 +5,7 @@ import {OutlineToObjectPanel} from './OutlineToObjectPanel';
 import {CadNodeArrangePanel} from './CadNodeArrangePanel';
 import {CadNodeReducePanel} from './CadNodeReducePanel';
 import {DrawingPreflightPanel} from './DrawingPreflightPanel';
+import type { PreflightDxfScope } from './drawing-preflight';
 import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
 import {readDrawingFonts, uploadDrawingFont, MAX_DRAWING_FONT_BYTES, MAX_DRAWING_FONTS_BYTES, MAX_DRAWING_FONTS} from './drawing-fonts';
 import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, EllipseSegmentControls } from './CadVectorPanel';
@@ -80,7 +81,9 @@ function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boole
 }
 
 /** Shared advanced CAD controls for the order and idea workspace docker. */
-export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: CadTask }) {
+export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf }: {
+  settings: CadSettings | null; focusRequest?: CadFocusRequest; task: CadTask; onOpenDxf?: (scope: PreflightDxfScope) => void;
+}) {
   const editor = useEditor();
   const { label } = useCadAdvancedText();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
@@ -118,7 +121,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly}
       focusRequest={task === 'files' && focusRequest?.section === 'importDxf' ? focusRequest : undefined} />
     </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
-    <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
+    <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} onOpenDxf={onOpenDxf} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
   </>;
 }
 

@@ -3,6 +3,8 @@ import { get } from 'svelte/store';
 import { locale, t } from 'svelte-i18n';
 
 const en = {
+  dxfPreflightScope: 'Production check scope',
+  dxfRefreshPreflight: 'The drawing changed. Run Production check again or choose another export scope.',
   dxfCommonLines: 'Cut shared edges once',
   dxfCommonLinesHelp: 'Overlapping sections of straight edges between closed contours go on OMS_SHARED layers. Their remaining outlines become open paths. Color export matches edges within each color.',
   dxfSharedEdges: 'Shared edges', dxfPassesRemoved: 'Duplicate passes removed',
@@ -37,6 +39,8 @@ const en = {
 } as const;
 type CadDictionary = { [K in keyof typeof en]: string };
 const ru: CadDictionary = {
+  dxfPreflightScope: 'Область проверки для производства',
+  dxfRefreshPreflight: 'Чертёж изменился. Повторите проверку для производства или выберите другую область экспорта.',
   dxfCommonLines: 'Резать общие кромки один раз',
   dxfCommonLinesHelp: 'Перекрывающиеся участки прямых кромок замкнутых контуров попадут на слои OMS_SHARED. Остальные участки этих контуров станут открытыми. При экспорте по цвету кромки сравниваются внутри каждого цвета.',
   dxfSharedEdges: 'Общие кромки', dxfPassesRemoved: 'Удалено повторных проходов',
@@ -70,6 +74,8 @@ const ru: CadDictionary = {
   nudgeHelp: 'Стрелки: шаг в единицах чертежа · Shift: ×10 · Ctrl/⌘: ×0.1', repeatHint: 'Интервалы заданы в единицах чертежа. Строки и столбцы включают оригинал.',
 };
 const lv: CadDictionary = {
+  dxfPreflightScope: 'Ražošanas pārbaudes apgabals',
+  dxfRefreshPreflight: 'Zīmējums ir mainījies. Atkārtojiet ražošanas pārbaudi vai izvēlieties citu eksporta apgabalu.',
   dxfCommonLines: 'Kopīgās malas griezt vienreiz',
   dxfCommonLinesHelp: 'Slēgtu kontūru taisno malu pārklājošos posmus eksportē OMS_SHARED slāņos. Atlikušās kontūru daļas būs atvērtas. Eksportējot pēc krāsas, malas salīdzina katras krāsas ietvaros.',
   dxfSharedEdges: 'Kopīgās malas', dxfPassesRemoved: 'Noņemtie atkārtotie griezumi',
