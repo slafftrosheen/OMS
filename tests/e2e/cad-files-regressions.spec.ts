@@ -36,13 +36,18 @@ test('locates a shared DXF section and previews the exported shared layer',async
  const common=page.getByRole('checkbox',{name:'Cut shared edges once',exact:true});
  await common.check();
  await page.getByTestId('drawing-cad-review').click();
+ const report=page.getByTestId('drawing-cad-report');
+ await expect(report.getByText('400 mm',{exact:true})).toBeVisible();
  const preview=page.getByTestId('drawing-dxf-preview');
  await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toBeAttached();
  await preview.getByLabel('Preview layer',{exact:true}).selectOption('OMS_SHARED');
  await expect(preview.locator('[data-dxf-layer]')).toHaveCount(1);
+ await expect(preview.getByText('20 mm',{exact:true})).toBeVisible();
  await common.uncheck();
  await expect(preview).toHaveCount(0);
+ await expect(report.getByText('400 mm',{exact:true})).toHaveCount(0);
  await page.getByTestId('drawing-cad-review').click();
+ await expect(report.getByText('420 mm',{exact:true})).toBeVisible();
  await expect(preview.locator('[data-dxf-layer="OMS_CLOSED"]')).toBeAttached();
  await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toHaveCount(0);
 });

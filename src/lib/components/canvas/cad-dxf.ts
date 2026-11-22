@@ -2,6 +2,7 @@ import { validVectorPaint } from './cad-paint';
 import { rectangularClipContainsBounds } from './cad-appearance';
 import { dxfColor } from './cad-dxf-geometry';
 import { buildDxfCommonLines } from './cad-dxf-common-lines';
+import { measureDxfCutLengths, type DxfCutLengths } from './cad-dxf-cut-lengths';
 import { buildDxfPreview, type DxfPreview, type DxfPreviewSource } from './cad-dxf-preview';
 import { vectorPaint } from './cad-vector';
 import type { CubicSpline2d, Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
@@ -22,6 +23,7 @@ export interface CadDxfResult {
   sharedEdges: number;
   passesRemoved: number;
   preview?: DxfPreview;
+  cutLengths?: DxfCutLengths;
 }
 interface CadDxfLayer { name: string; rgb?: string; entities: number }
 export type DxfEntity = (
@@ -245,10 +247,10 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
     return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted, layers: [], sharedEdges: 0, passesRemoved: 0 };
   }
   const output = options.commonLines ? buildDxfCommonLines(entities) : { entities, sharedEdges: 0, passesRemoved: 0 };
-  const { text, widthMm, heightMm, layers, preview } = serializeCadDxf(output.entities, options);
+  const dxf = serializeCadDxf(output.entities, options);
   const closedContours = output.entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
-  return { text, widthMm, heightMm, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted, layers,
-    sharedEdges: output.sharedEdges, passesRemoved: output.passesRemoved, ...(preview ? { preview } : {}) };
+  return { ...dxf, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted,
+    sharedEdges: output.sharedEdges, passesRemoved: output.passesRemoved };
 }
 
 const rgbNumber = (hex: string) => parseInt(hex.slice(1), 16);
@@ -268,7 +270,7 @@ function fallbackColorIndex(rgb: number) {
 export function serializeCadDxf(
   entities: DxfEntity[],
   { colorLayers = false, includePreview = false }: Pick<CadDxfOptions, 'colorLayers' | 'includePreview'> = {},
-) {
+): Pick<CadDxfResult, 'text' | 'widthMm' | 'heightMm' | 'layers' | 'preview' | 'cutLengths'> {
   if (!entities.length) throw new CadDxfError('empty');
   if (entities.length > MAX_ENTITIES) throw new CadDxfError('limit');
   let nextHandle = 0x100, vertexCount = 0;
@@ -372,7 +374,7 @@ export function serializeCadDxf(
   add(parts, 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES'); parts.push(...body); add(parts, 0, 'ENDSEC', 0, 'EOF');
   const text = parts.join('\r\n') + '\r\n';
   if (text.length > 16_000_000) throw new CadDxfError('limit');
-  const preview = previewSources && buildDxfPreview(previewSources, { minX, minY, maxX, maxY });
-  return { text, widthMm: maxX - minX, heightMm: maxY - minY, layers: layerEntries.filter(layer => layer.entities > 0),
-    ...(preview ? { preview } : {}) };
+  const result = { text, widthMm: maxX - minX, heightMm: maxY - minY, layers: layerEntries.filter(layer => layer.entities > 0) };
+  if (!previewSources) return result;
+  return { ...result, preview: buildDxfPreview(previewSources, { minX, minY, maxX, maxY }), cutLengths: measureDxfCutLengths(previewSources) };
 }

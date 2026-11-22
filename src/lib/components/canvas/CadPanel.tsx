@@ -319,6 +319,10 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
   const captureStale = scope === 'preflight' && preflightScope?.revision !== revision;
   const stale = !!report && (report.revision !== revision || report.selectionKey !== selectionKey || report.source !== source || report.optionsKey !== optionsKey);
   const reasonLabels: Record<string, CadLabel> = { unsupported: 'unsupported', text: 'annotation', annotation: 'annotation', form: 'form', invalid: 'invalid', curved: 'curved', clipped: 'clipped', empty: 'empty' };
+  const cutLengths = !stale && !captureStale ? report?.data.cutLengths : undefined;
+  const cutLengthLabel = (length: number | null) =>
+    length === null ? label('dxfCutLengthUnavailable') : format(length, 2) + ' mm';
+
   function prepare() {
     if (!settings || !validOptions || !source || (scope === 'preflight' && preflightScope?.revision !== preflightRevision(editor))) return;
     setAcknowledged(false); setMessage('');
@@ -370,7 +374,8 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       <button type="button" disabled={!settings || !hasObjects || !validOptions || captureStale} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
-      {!stale && !captureStale && report.data.preview && <DxfReviewPreview preview={report.data.preview} />}
+      {cutLengths && report.data.preview && <DxfReviewPreview
+        preview={report.data.preview} layerLengths={cutLengths.byLayer} formatLength={cutLengthLabel} />}
       <dl className="drawing-cad-values">
         <dt>{label('curveExport')}</dt><dd>{label(report.curves === 'spline' ? 'splineExport' : 'polylineExport')}</dd>
         {report.curves === 'polyline' && <><dt>{label('exportTolerance')}</dt><dd>{format(report.toleranceMm, 4)}</dd></>}
@@ -383,11 +388,18 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
           <dt>{label('dxfPassesRemoved')}</dt><dd>{report.data.passesRemoved}</dd>
         </>}
         <dt>{label('dimensions')}</dt><dd>{format(report.data.widthMm, 4)} × {format(report.data.heightMm, 4)}</dd>
+        {cutLengths && <><dt>{label('dxfCutLength')}</dt><dd>{cutLengthLabel(cutLengths.totalMm)}</dd></>}
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
-      {(report.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
-        <summary>{label('dxfLayerContents')} ({report.data.layers.length})</summary>
-        <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => <li key={layer.name}><strong>{layer.name}</strong><span>{layer.entities}</span></li>)}</ul>
+      {(cutLengths || report.colorLayers || report.data.sharedEdges > 0) && !!report.data.layers.length && <details>
+        <summary>{label(cutLengths ? 'dxfLayerCutLengths' : 'dxfLayerContents')} ({report.data.layers.length})</summary>
+        <ul className="drawing-cad-omissions">{report.data.layers.slice(0, 20).map(layer => {
+          const length = cutLengths?.byLayer[layer.name];
+          return <li key={layer.name}>
+            <strong>{layer.name}</strong>
+            <span>{layer.entities}{length !== undefined ? ' · ' + cutLengthLabel(length) : ''}</span>
+          </li>;
+        })}</ul>
         {report.data.layers.length > 20 && <p className="drawing-help">{label('dxfLayerContentsMore')}</p>}
       </details>}
       {report.data.omitted.length ? <>

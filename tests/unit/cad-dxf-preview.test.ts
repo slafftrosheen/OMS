@@ -17,7 +17,9 @@ describe('DXF cut preview', () => {
     const reviewed = serializeCadDxf(output.entities, { colorLayers: true, includePreview: true });
     assert.equal(reviewed.text, normal.text);
     assert.equal(normal.preview, undefined);
+    assert.equal(normal.cutLengths, undefined);
     assert.deepEqual(reviewed.layers, normal.layers);
+    assert.deepEqual(reviewed.cutLengths, { totalMm: 190, byLayer: { OMS_OPEN_112233: 180, OMS_SHARED_112233: 10 } });
     const preview = reviewed.preview!;
     assert.deepEqual(preview.layers.map(layer => layer.name), reviewed.layers.map(layer => layer.name));
     assert.deepEqual(preview.layers.find(layer => layer.name === 'OMS_SHARED_112233'),
@@ -49,6 +51,37 @@ describe('DXF cut preview', () => {
     assert.match(paths[2], / A10,10 0 1 0 /);
     assert.doesNotMatch(paths[2], /Z/);
     assert.match(result.text, /\r\n50\r\n0\r\n51\r\n270\r\n/);
+    const lengths = result.cutLengths!;
+    assert.equal(lengths.byLayer.OMS_CLOSED_010101, 10 * Math.PI);
+    assert.ok(Math.abs(lengths.byLayer.OMS_CLOSED_020202! - 48.4422411027) < 0.001);
+    assert.ok(Math.abs(lengths.byLayer.OMS_OPEN_030303! - 15 * Math.PI) < 1e-9);
+  });
+
+  it('includes the closing segments of splines and polylines exactly once', () => {
+    const nodes = [nodeAt({ x: 0, y: 0 }), nodeAt({ x: 10, y: 0 })];
+    nodes[0].outY = 10;
+    nodes[1].inY = 10;
+    nodes.push(nodeAt({ x: 10, y: -4 }), nodeAt({ x: 0, y: -4 }));
+    const rectangle = box(0, 0, 3, 4);
+    if (rectangle.type !== 'polyline') throw new Error('Expected polyline');
+    rectangle.points.push(rectangle.points[0]);
+    const { cutLengths } = serializeCadDxf([
+      { type: 'spline', contour: { nodes, closed: true } }, rectangle,
+    ], { includePreview: true });
+    // The cubic is 20 mm, its three straight sides total 18 mm, and the rectangle is 14 mm.
+    assert.ok(Math.abs(cutLengths!.totalMm! - 52) < 0.001);
+    assert.equal(cutLengths!.byLayer.OMS_CLOSED, cutLengths!.totalMm);
+  });
+
+  it('retains the DXF and measurable layers if the curve calculation budget is exhausted', () => {
+    const nodes = [nodeAt({ x: 0, y: 0 }), nodeAt({ x: 1_000_000, y: 0 })];
+    nodes[0].outY = 1_000_000;
+    nodes[1].inY = 1_000_000;
+    const curve: DxfEntity = { type: 'spline', contour: { nodes, closed: false } };
+    const result = serializeCadDxf([...Array<DxfEntity>(400).fill(curve), box(0, 0, 3, 4)], { includePreview: true });
+    assert.deepEqual(result.cutLengths, { totalMm: null, byLayer: { OMS_OPEN: null, OMS_CLOSED: 14 } });
+    assert.equal(result.preview?.layers.length, 2);
+    assert.match(result.text, /\r\nEOF\r\n$/);
   });
 
   it('keeps an open single-axis drawing visible and translates distant coordinates to the local preview origin', () => {
