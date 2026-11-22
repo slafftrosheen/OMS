@@ -353,6 +353,35 @@ for (const mode of ['idea', 'order']) {
     await page.getByRole('combobox', { name: 'Theme', exact: true }).selectOption('DarkVim');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
+  test(`${mode} stock presets and Fit to Sheet create editable copies in one undo step`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.locator('[data-drawing-menu="tools"] > summary').click();
+    await page.locator('[data-drawing-menu="tools"]').getByRole('button', { name: 'Page setup', exact: true }).click();
+    const setup = page.getByTestId('drawing-page-setup');
+    await setup.getByLabel('Size preset', { exact: true }).selectOption('1500 × 3000 mm');
+    await expect(setup.getByLabel('Page width (mm)', { exact: true })).toHaveValue('1500');
+    await expect(setup.getByLabel('Page height (mm)', { exact: true })).toHaveValue('3000');
+    await setup.getByRole('button', { name: 'Apply page setup', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).page.meta.omsPageSize).toEqual({ widthMm: 1500, heightMm: 3000 });
+    await page.evaluate(() => (window as any).__drawingFixture.selectSheetSample());
+    await page.getByTestId('drawing-arrange-toggle').click();
+    await page.getByRole('combobox', { name: 'Arrange task', exact: true }).selectOption('repeat');
+    const panel = page.getByTestId('drawing-repeat');
+    await panel.getByLabel('Layout mode', { exact: true }).selectOption('sheet');
+    await panel.getByLabel('Edge margin (mm)', { exact: true }).fill('10');
+    await panel.getByRole('button', { name: 'Preview layout', exact: true }).click();
+    await expect(panel.getByRole('img', { name: /Sheet layout with the edge margin/ })).toBeVisible();
+    await expect(panel.getByText('3 × 3', { exact: true })).toBeVisible();
+    await panel.getByLabel('Edge margin (mm)', { exact: true }).fill('11');
+    await expect(panel.getByRole('button', { name: 'Create copies', exact: true })).toBeDisabled();
+    await panel.getByLabel('Edge margin (mm)', { exact: true }).fill('10');
+    await panel.getByRole('button', { name: 'Preview layout', exact: true }).click();
+    await panel.getByRole('button', { name: 'Create copies', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'geo').length).toBe(9);
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'geo').length).toBe(1);
+  });
   test(`${mode} object aliases and repeat grids preserve artwork and undo as one command`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

@@ -1330,7 +1330,8 @@ export function DrawingChrome() {
           </select></label>
           <div hidden={arrangeTask !== 'transform'}><DrawingTransformPanel settings={settings} focusRequest={arrangeTask === 'transform' ? transformFocusRequest : 0}/></div>
           <div hidden={arrangeTask !== 'align'}><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel></div>
-          <div hidden={arrangeTask !== 'repeat'}><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0} expanded/></div>
+          <div hidden={arrangeTask !== 'repeat'}><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}
+            focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0} onSetup={() => focusCad('pageSetup')} expanded/></div>
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
         </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>

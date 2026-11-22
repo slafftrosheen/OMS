@@ -14,6 +14,12 @@ export const DRAWING_PAGE_PRESETS = {
   A1: { widthMm: 594, heightMm: 841 },
   A0: { widthMm: 841, heightMm: 1189 }
 };
+export const DRAWING_STOCK_PRESETS = {
+  '1000 × 2000 mm': { widthMm: 1000, heightMm: 2000 },
+  '1220 × 2440 mm': { widthMm: 1220, heightMm: 2440 },
+  '1250 × 2500 mm': { widthMm: 1250, heightMm: 2500 },
+  '1500 × 3000 mm': { widthMm: 1500, heightMm: 3000 },
+};
 
 function parsePageSize(value: unknown): DrawingPageSize | null {
   if (!value || typeof value !== 'object') return null;

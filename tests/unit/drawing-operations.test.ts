@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, prepareRepeatGrid, applyRepeatGrid, planDrawingExport } from '../../src/lib/components/canvas/drawing-operations';
+import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, prepareRepeatGrid, applyRepeatGrid, planDrawingExport, type RepeatSheetOptions } from '../../src/lib/components/canvas/drawing-operations';
+import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
 
 function fixture() {
   const a: any = { id: 'shape:a', type: 'geo', parentId: 'page:one', props: { text: 'Production artwork', w: 100, h: 50 }, meta: { audit: 'keep' } };
@@ -98,6 +99,88 @@ describe('Drawing names and repeat grid', () => {
     assert.deepEqual([...f.shapes.keys()], [f.a.id, f.b.id]);
     assert.deepEqual(f.selected(), [f.a.id, f.b.id]);
     assert.deepEqual(f.calls.at(-1), ['camera', { x: 12, y: 15, z: 1 }]);
+  });
+});
+
+describe('Fit to production sheet', () => {
+  const options: RepeatSheetOptions = { mode: 'sheet', margin: 10, gapX: 10, gapY: 5 };
+  function sheetFixture() {
+    const f = fixture();
+    const sheet = { widthMm: 400, heightMm: 180 };
+    const cad = { ...DEFAULT_CAD_SETTINGS, scale: 96 / 25.4, originX: 100, originY: -100 };
+    const page = { meta: { omsPageSize: sheet, omsCad: cad } };
+    f.editor.getCurrentPage = () => page;
+    f.editor.getSelectionPageBounds = () => ({ x: 10, y: 10, w: 120, h: 50 });
+    f.editor.getShapePageBounds = () => f.editor.getSelectionPageBounds();
+    return { ...f, sheet, page, cad };
+  }
+
+  it('fills up to all four margins using the existing selection as the first cell', () => {
+    const f = sheetFixture(), result = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const plan = result.value;
+    assert.deepEqual([plan.rows, plan.columns, plan.generated], [3, 3, 16]);
+    assert.deepEqual(plan.offsets.at(-1), { x: 260, y: 110 });
+    assert.deepEqual(applyRepeatGrid(f.editor, plan), { ok: true, value: 16 });
+    const marks = f.calls.filter(call => call[0] === 'mark').map(([, name]) => name);
+    assert.deepEqual(marks, [marks[0], `${marks[0]}-complete`]);
+    assert.equal(f.shapes.has(f.a.id), true);
+  });
+
+  it('fits to the opposite edges with left and up directions', () => {
+    const f = sheetFixture();
+    f.editor.getSelectionPageBounds = () => ({ x: 270, y: 120, w: 120, h: 50 });
+    const result = prepareRepeatGrid(f.editor, { ...options, directionX: -1, directionY: -1 }, f.selected());
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual([result.value.rows, result.value.columns], [3, 3]);
+    assert.deepEqual(result.value.offsets.at(-1), { x: -260, y: -110 });
+  });
+
+  it('reports each unusable sheet case without creating shapes', () => {
+    const f = sheetFixture();
+    assert.deepEqual(prepareRepeatGrid(f.editor, { ...options, gapX: -1 }, f.selected()), { ok: false, error: 'invalidOptions' });
+    assert.deepEqual(prepareRepeatGrid(f.editor, { ...options, margin: 11 }, f.selected()), { ok: false, error: 'repeatOutsideSheet' });
+    f.editor.getSelectionPageBounds = () => ({ x: 270, y: 120, w: 120, h: 50 });
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, f.selected()), { ok: false, error: 'repeatNoRoom' });
+    f.editor.getCurrentPage = () => ({ meta: {} });
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, f.selected()), { ok: false, error: 'pageNeedsSize' });
+    assert.equal(f.calls.length, 0);
+  });
+
+  it('checks exact CAD arc extrema against the margin instead of generic selection bounds', () => {
+    const f = sheetFixture();
+    f.a.type = 'cad-arc'; f.a.props = { radius: 14, startAngle: 0, endAngle: 180 };
+    f.editor.getShapePageTransform = () => ({ point: () => ({ x: 24, y: 20 }), rotation: () => 0 });
+    f.editor.setSelectedShapes([f.a.id]);
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, f.selected()), { ok: false, error: 'repeatOutsideSheet' });
+    assert.equal(f.calls.length, 0);
+  });
+
+  it('rejects a stale sheet preview after the physical page size or scale changes', () => {
+    const f = sheetFixture(), result = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    f.sheet.widthMm = 401;
+    assert.deepEqual(applyRepeatGrid(f.editor, result.value), { ok: false, error: 'selectionChanged' });
+    f.sheet.widthMm = 400; f.cad.scale *= 2;
+    assert.deepEqual(applyRepeatGrid(f.editor, result.value), { ok: false, error: 'selectionChanged' });
+    assert.equal(f.shapes.size, 2);
+  });
+
+  it('reports a capped layout and still enforces the editor capacity', () => {
+    const f = sheetFixture();
+    f.sheet.widthMm = 3000; f.sheet.heightMm = 6000;
+    f.editor.setSelectedShapes([f.a.id]);
+    const result = prepareRepeatGrid(f.editor, options, f.selected());
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.value.sheet?.capped, true);
+    assert.deepEqual([result.value.rows, result.value.columns, result.value.generated], [20, 20, 399]);
+    f.editor.setSelectedShapes([f.a.id, f.b.id]);
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, f.selected()), { ok: false, error: 'repeatLimit' });
+    assert.equal(f.shapes.size, 2);
   });
 });
 
