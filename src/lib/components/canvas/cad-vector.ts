@@ -94,7 +94,7 @@ export function prepareVectorImport(
         y: 0,
         opacity: 1,
         props: { contours: p.contours, fillRule: p.fillRule },
-        meta: { omsObjectName: `${name} · ${i + 1}`, omsVectorPaint: p.paint },
+        meta: { omsObjectName: `${name} · ${i + 1}`, omsVectorPaint: paintMetadata(p.paint) },
       })),
     },
   );
