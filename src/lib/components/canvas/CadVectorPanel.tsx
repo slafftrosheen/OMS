@@ -4,7 +4,7 @@ import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fil
 import {useSolidFillText} from './solid-fill-copy';
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
 import {ProductionSaveButton} from './ProductionSaveButton';
-import { storeCanvasImage } from "./cad-asset-store";
+import { createVectorImportImages } from "./cad-vector-import-images";
 import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
 import { VectorArtwork } from "./VectorArtwork";
 import React, { useEffect, useRef, useState } from "react";
@@ -36,6 +36,7 @@ type Props = {
   focusSequence?: number;
 };
 type Review = { plan: CadPlan; key: string; original?: string; originalContours?: CadPlan['contours']; previewBounds?: ReturnType<typeof curveBounds> };
+type VectorImportImages = ReturnType<typeof createVectorImportImages>;
 function Field({
   label,
   children,
@@ -74,14 +75,15 @@ function useWork() {
       setBusy(false);
       setMessage('cancelled');
     },
-    run: async (action: (signal: AbortSignal) => Promise<void>) => {
+    run: async <T,>(action: (signal: AbortSignal) => Promise<T>): Promise<T | undefined> => {
       controller.current?.abort();
       const next = new AbortController();
       controller.current = next;
       setBusy(true);
       setMessage("");
       try {
-        await action(next.signal);
+        const result = await action(next.signal);
+        if (controller.current === next && !next.signal.aborted) return result;
       } catch (error) {
         if (controller.current === next)
           setMessage(next.signal.aborted ? "cancelled" : vectorError(error));
@@ -127,7 +129,7 @@ function Preview({
   revision: string;
   disabled: boolean;
   onApplied: () => void;
-  onApply?: () => boolean;
+  onApply?: () => boolean | Promise<boolean | undefined>;
 }) {
   const editor = useEditor(),
     t = useVectorText();
@@ -215,10 +217,12 @@ function Preview({
         type="button"
         data-testid="vector-apply"
         disabled={disabled || stale || (!!plan.warnings.length && !ack)}
-        onClick={() => {
+        onClick={async () => {
           if (disabled || stale || plan.warnings.length && !ack) return;
-          if (onApply ? onApply() : applyCadPlan(editor, plan)) onApplied();
-          else setFailed(true);
+          setFailed(false);
+          const result = onApply ? await onApply() : applyCadPlan(editor, plan);
+          if (result === true) onApplied();
+          else if (result === false) setFailed(true);
         }}
       >
         {t("apply")}
@@ -249,11 +253,12 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
     [outline, setOutline] = useState(false),
     [mode,setMode]=useState<"auto"|"editable"|"appearance">("auto"),
     [dpi,setDpi]=useState(300),
-    [review, setReview] = useState<Review>();
+    [review, setReview] = useState<Review & { images: VectorImportImages }>();
   const [dropPoint, setDropPoint] = useState<{ x: number; y: number }>();
   const [group, setGroup] = useState(true);
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const stagedImages = useRef<VectorImportImages>();
   const consumedFocus = useRef<number>();
   const kind = drawingFileKind(file);
   const automaticOutlines = kind === 'eps' || kind === 'cdr';
@@ -261,6 +266,12 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
   const singlePage = svg || kind === 'eps';
   const pageNumber = Number(page);
   const validPage = singlePage || Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= 5000;
+  function clearReview() {
+    stagedImages.current?.dispose();
+    stagedImages.current = undefined;
+    setReview(undefined);
+  }
+  useEffect(() => () => stagedImages.current?.dispose(), []);
   function chooseFile(next?: File, point?: { x: number; y: number }) {
     setFile(next);
     setDropPoint(point);
@@ -268,7 +279,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
     setOutline(false);
     const nextKind = drawingFileKind(next);
     setMode(nextKind === 'eps' || nextKind === 'cdr' ? 'editable' : 'auto');
-    setReview(undefined);
+    clearReview();
     work.setMessage('');
   }
   useEffect(() => {
@@ -341,38 +352,48 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           disabled={!file || !validPage}
           onClick={() =>
             void work.run(async (signal) => {
-              setReview(undefined);
+              clearReview();
               if (!file || !settings || !validPage) return;
+              const images = createVectorImportImages(editor);
+              stagedImages.current = images;
+              let ready = false;
               const before = cadRevision(editor);
               const center = dropPoint ?? editor.getViewportPageBounds().center;
-              const result = await loadVectorDrawing(file, pageNumber, outline, signal, {
-                mode, dpi, name: file.name, store: resource => storeCanvasImage(editor, resource, signal),
-              }).catch(error => {
-                if (vectorError(error) === 'limit') throw new Error('vector-import-geometry');
-                throw error;
-              });
-              if (signal.aborted) throw new Error("cancelled");
-              if (before !== cadRevision(editor)) throw new Error("stale");
-              if (!result.document.paths.length) {
-                work.setMessage(
-                  result.kind === 'svg' ? 'svg-empty'
-                    : result.document.warnings.includes('pdf-text') ? 'pdf-text' : 'empty',
+              try {
+                const result = await loadVectorDrawing(file, pageNumber, outline, signal, {
+                  mode, dpi, name: file.name, store: images.stage,
+                }).catch(error => {
+                  if (vectorError(error) === 'limit') throw new Error('vector-import-geometry');
+                  throw error;
+                });
+                if (signal.aborted) throw new Error("cancelled");
+                if (before !== cadRevision(editor)) throw new Error("stale");
+                if (!result.document.paths.length) {
+                  work.setMessage(result.kind === 'svg' ? 'svg-empty'
+                    : result.document.warnings.includes('pdf-text') ? 'pdf-text' : 'empty');
+                  return;
+                }
+                if (result.kind === 'cdr') result.document.warnings.push('cdr-review');
+                const plan = prepareVectorImport(
+                  editor,
+                  settings,
+                  result.document,
+                  result.widthMm,
+                  center,
+                  result.kind === 'svg' ? file.name : `${file.name} · ${result.sourcePage}`,
+                  [],
+                  [],
+                  { center: true, group, compactForSave: true },
                 );
-                return;
+                images.retain(plan);
+                setReview({ plan, key, original: result.preview, images });
+                ready = true;
+              } finally {
+                if (!ready) {
+                  images.dispose();
+                  if (stagedImages.current === images) stagedImages.current = undefined;
+                }
               }
-              if (result.kind === 'cdr') result.document.warnings.push('cdr-review');
-              const plan = prepareVectorImport(
-                editor,
-                settings,
-                result.document,
-                result.widthMm,
-                center,
-                result.kind === 'svg' ? file.name : `${file.name} · ${result.sourcePage}`,
-                [],
-                [],
-                { center: true, group, compactForSave: true },
-              );
-              setReview({ plan, key, original: result.preview });
             })
           }
         >
@@ -380,21 +401,25 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
         </button>
       </fieldset>
       <WorkStatus work={work} />
-      {review && (
+      {review && <>
         <Preview
           review={review}
           inputKey={key}
           revision={revision}
           disabled={disabled || work.busy || !settings}
+          onApply={() => work.run(signal => review.images.apply(review.plan, signal))}
           onApplied={() => {
-            setReview(undefined);
+            clearReview();
             setCadNodeEditing(editor, false);
             editor.zoomToSelection();
             editor.focus();
             work.setMessage("done");
           }}
         />
-      )}
+        <button type="button" disabled={work.busy} onClick={() => { clearReview(); work.setMessage(''); }}>
+          {t('discardPreview')}
+        </button>
+      </>}
     </details>
   );
 }

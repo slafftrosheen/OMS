@@ -18,6 +18,21 @@ export async function readVectorPdfPage(
   signal: AbortSignal,
   options: PdfImportOptions = {},
 ) {
+  const check = () => { if (signal.aborted) throw new Error("cancelled"); };
+  check();
+  async function render(canvas: HTMLCanvasElement, viewport: unknown, background?: string) {
+    check();
+    const task = page.render({ canvasContext: canvas.getContext("2d")!, viewport, background });
+    const cancel = () => task.cancel?.();
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      await task.promise;
+      check();
+    } catch (error) {
+      check();
+      throw error;
+    } finally { signal.removeEventListener("abort", cancel); }
+  }
   const pdfjs = { OPS };
   const baseViewport = page.getViewport({ scale: 1 });
   // PDF.js 4.x reports UserUnit on the page but does not apply it to the viewport.
@@ -35,10 +50,7 @@ export async function readVectorPdfPage(
   const canvas = window.document.createElement("canvas");
   canvas.width = Math.ceil(preview.width);
   canvas.height = Math.ceil(preview.height);
-  await page.render({
-    canvasContext: canvas.getContext("2d")!,
-    viewport: preview,
-  }).promise;
+  await render(canvas, preview);
   const get = (id: string) => {
     try {
       return (id.startsWith("g_") ? page.commonObjs : page.objs).get(id);
@@ -57,12 +69,7 @@ export async function readVectorPdfPage(
     const imageCanvas = window.document.createElement("canvas");
     imageCanvas.width = w;
     imageCanvas.height = h;
-    await page.render({
-      canvasContext: imageCanvas.getContext("2d")!,
-      viewport: full,
-      background: "rgba(0,0,0,0)",
-    }).promise;
-    if (signal.aborted) throw new Error("cancelled");
+    await render(imageCanvas, full, "rgba(0,0,0,0)");
     const raster = await encodePdfRaster(
       { width: w, height: h, bitmap: imageCanvas },
       {
@@ -70,6 +77,7 @@ export async function readVectorPdfPage(
         name: `${options.name ?? "PDF"}-page-${pageNumber}.png`,
       },
     );
+    check();
     return {
       document: {
         width: viewport.width,
@@ -132,7 +140,7 @@ export async function readVectorPdfPage(
     imageWarnings = new Set<string>();
   let budget = 0;
   for (let i = 0; i < list.fnArray.length; i++) {
-    if (signal.aborted) throw new Error("cancelled");
+    check();
     const op = list.fnArray[i],
       a = list.argsArray[i];
     if (
@@ -154,6 +162,7 @@ export async function readVectorPdfPage(
         store: options.store,
         name: `${options.name ?? "PDF"}-image-${images.size + 1}.png`,
       });
+      check();
       budget += pixels;
       images.set(a[0], raster);
       if (raster.width !== raw.width || raster.height !== raw.height)

@@ -8,6 +8,11 @@ import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import {pdfOperatorsToVectors} from "../../src/lib/components/canvas/cad-pdf";
 import { readVectorPdfPage } from "../../src/lib/components/canvas/cad-pdf-page";
+import { createVectorImportImages } from "../../src/lib/components/canvas/cad-vector-import-images";
+import { prepareVectorImport } from "../../src/lib/components/canvas/cad-vector";
+import { DEFAULT_CAD_SETTINGS } from "../../src/lib/components/canvas/cad-settings";
+import { setOrderBridge } from "../../src/lib/components/canvas/state-bridge";
+import { fixture } from "../helpers/cad-editor";
 const native = createRequire(resolve("package.json"))("@napi-rs/canvas"),
   { createCanvas, loadImage } = native;
 class CanvasFactory {
@@ -191,5 +196,56 @@ describe("PDF effects appearance import", () => {
           }),
         /render-limit/,
       );
+    }));
+  it("cancels a running appearance render before encoding or storing the page", async () =>
+    withPage(async (page, OPS) => {
+      const controller = new AbortController();
+      let startFull!: () => void, cancelled = 0, renders = 0;
+      const fullStarted = new Promise<void>(resolve => { startFull = resolve; });
+      const interruptible = {
+        getViewport: (...args: any[]) => page.getViewport(...args),
+        getOperatorList: () => page.getOperatorList(),
+        render: (args: any) => {
+          if (++renders === 1) return page.render(args);
+          let rejectRender!: (error: Error) => void;
+          const promise = new Promise<void>((_, reject) => { rejectRender = reject; });
+          startFull();
+          return { promise, cancel: () => { cancelled++; rejectRender(new Error("Rendering cancelled")); } };
+        },
+      };
+      const pending = readVectorPdfPage(interruptible, OPS, 1, 1, controller.signal, {
+        mode: 'appearance', store: async () => assert.fail('cancelled render must not store an image'),
+      });
+      await fullStarted;
+      controller.abort();
+      await assert.rejects(pending, /^Error: cancelled$/);
+      assert.equal(cancelled, 1);
+    }));
+  it("renders a real PDF page locally and stores its PNG only when the review is applied", async () =>
+    withPage(async (page, OPS) => {
+      const original = URL.createObjectURL, revoke = URL.revokeObjectURL;
+      const url = 'blob:http://localhost:3000/preview';
+      URL.createObjectURL = () => url;
+      URL.revokeObjectURL = () => {};
+      const { editor, only } = fixture(), files: File[] = [];
+      const id = '12345678-1234-4234-8234-123456789abc';
+      const persisted = `/api/files/${id}/download`;
+      setOrderBridge(editor, { orderId: id, onStoreCanvasFile: async file => {
+        files.push(file);
+        return { id, url: persisted };
+      } });
+      const images = createVectorImportImages(editor), signal = new AbortController().signal;
+      try {
+        const result = await readVectorPdfPage(page, OPS, 1, 1, signal, { mode: 'appearance', dpi: 150, store: images.stage });
+        const plan = prepareVectorImport(editor, DEFAULT_CAD_SETTINGS, result.document, result.widthMm, { x:0, y:0 }, 'PDF');
+        images.retain(plan);
+        assert.equal(plan.shapes?.[0].meta?.omsVectorPaint.raster.png, url);
+        assert.deepEqual(files, []);
+        assert.equal(await images.apply(plan, signal), true);
+        assert.equal(files.length, 1);
+        assert.equal(files[0].type, 'image/png');
+        assert.equal(only().meta.omsVectorPaint.raster.png, persisted);
+        assert.equal(only().meta.omsVectorPaint.raster.width, 300);
+      } finally { images.dispose(); URL.createObjectURL = original; URL.revokeObjectURL = revoke; }
     }));
 });
