@@ -112,7 +112,7 @@ export const drawingCommands = {
   knife: { icon: 'knife' },
   convert: { icon: 'text-curves', keys: 'Ctrl+Q' },
   outlineObject: { icon: 'outline-object', keys: 'Ctrl+Shift+Q' },
-  artworkClip: { icon: 'shaping' },
+  artworkClip: { icon: 'artwork-clip' },
   nodes: { icon: 'nodes', keys: 'F10', readOnly: true },
   nodeArrange: { icon: 'node-arrange' },
   nodeReduce: { icon: 'node-reduce' },

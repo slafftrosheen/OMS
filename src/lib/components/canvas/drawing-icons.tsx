@@ -42,6 +42,7 @@ export const drawingIconPaths: Record<string, ReactNode> = {
   'fx-repeat': <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" strokeDasharray="2 2" /><rect x="3" y="14" width="7" height="7" strokeDasharray="2 2" /><rect x="14" y="14" width="7" height="7" strokeDasharray="2 2" /></>,
   'fx-radial': <><circle cx="12" cy="12" r="2" /><circle cx="12" cy="4" r="1.6" /><circle cx="19" cy="9" r="1.6" /><circle cx="16.5" cy="18" r="1.6" /><circle cx="7.5" cy="18" r="1.6" /><circle cx="5" cy="9" r="1.6" /></>,
   'fx-shaping': <><rect x="3" y="3" width="11" height="11" /><circle cx="15" cy="15" r="6" /></>,
+  'artwork-clip': <><rect x="4" y="4" width="14" height="14" rx="1" /><path d="M18 8a7 7 0 0 0-10 10" /><path d="M18 8a7 7 0 1 1-10 10" strokeDasharray="2 2" /></>,
   'fx-midline': <><path d="M3 6c6 0 12 12 18 12M3 2c6 0 12 12 18 12" /><path d="M3 4c6 0 12 12 18 12" strokeDasharray="2 2" /></>,
   lettering: <><path d="M3 18c4-8 14-8 18 0" strokeDasharray="2 2" /><path d="M8 13V7m-2 0h4M12 11V5m-2 0h4M16 13V7m-2 0h4" /></>,
   // Colour and production
