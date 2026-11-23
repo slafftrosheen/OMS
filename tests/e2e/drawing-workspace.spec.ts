@@ -114,7 +114,7 @@ for (const mode of ['idea', 'order']) {
     await expect(drawing.getByText('Dimension reference missing', { exact: true })).toBeVisible();
     await expect(drawing.getByText('160.00 mm', { exact: true })).toHaveCount(0);
   });
-  test(`${mode} drops DXF as editable artwork and opens EPS in editable mode`, async ({ page }) => {
+  test(`${mode} drops DXF and SVG as editable artwork and opens EPS in editable mode`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
     await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
@@ -154,6 +154,17 @@ for (const mode of ['idea', 'order']) {
     const eps = page.getByTestId('vector-import');
     await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
     await expect(eps.getByRole('combobox', { name: 'Import mode' })).toHaveValue('editable');
+    await drop('editable-logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50"><path fill="#145abc" fill-rule="evenodd" d="M10 10H30V30H10Z M15 15H25V25H15Z"/></svg>');
+    const svg = page.getByTestId('vector-import');
+    await expect(svg.getByText('editable-logo.svg', { exact: true })).toBeVisible();
+    await expect(svg.getByRole('combobox', { name: 'Import mode' })).toHaveCount(0);
+    await svg.getByRole('button', { name: /preview/i }).click();
+    await svg.getByTestId('vector-apply').click();
+    await expect.poll(async () => {
+      const { shapes, selected } = await scene(page);
+      const logo = shapes.find((shape: any) => selected.includes(shape.id) && shape.type === 'cad-bezier');
+      return { fill: logo?.meta.omsVectorPaint?.fill, rule: logo?.props.fillRule, contours: logo?.props.contours.length };
+    }).toEqual({ fill: '#145abc', rule: 'evenodd', contours: 2 });
   });
 
   test(`${mode} builds production vectors and keeps controls in full screen`, async ({ page }) => {

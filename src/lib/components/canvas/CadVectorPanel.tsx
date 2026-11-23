@@ -217,6 +217,39 @@ function Preview({
 }
 export { RasterTrace } from "./RasterTrace";
 
+const isSvgDrawing = (file?: File) => !!file && (/\.svg$/i.test(file.name) || file.type === 'image/svg+xml');
+
+async function loadVectorDrawing(
+  file: File, pageNumber: number, outline: boolean, signal: AbortSignal,
+  options: import('./cad-pdf-page').PdfImportOptions,
+) {
+  if (isSvgDrawing(file)) {
+    const { readVectorSvg, SVG_IMPORT_LIMIT } = await import('./cad-svg-import');
+    if (file.size > SVG_IMPORT_LIMIT) throw new Error('svg-input-limit');
+    const source = await file.text();
+    if (signal.aborted) throw new Error('cancelled');
+    return { ...readVectorSvg(source), sourcePage: 1, kind: 'svg', preview: undefined };
+  }
+  const { body, kind } = await vectorUploadPayload(file);
+  const sourcePage = kind === 'eps' ? 1 : pageNumber;
+  let selectedPage = sourcePage, bytes: ArrayBuffer;
+  if (kind === 'eps' || kind === 'cdr' || outline) {
+    const response = await fetch(`${base}/api/canvas/convert-vector?page=${selectedPage}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body, signal,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.code ?? (response.status === 413 ? 'vector-transport-limit' : 'conversion'));
+    }
+    bytes = await response.arrayBuffer();
+    selectedPage = 1;
+  } else {
+    bytes = await body.arrayBuffer();
+  }
+  const { readVectorPdf } = await import('./cad-pdf-client');
+  return { ...await readVectorPdf(new Uint8Array(bytes), selectedPage, signal, options), sourcePage, kind };
+}
+
 export function VectorImport({ settings, revision, disabled, focusRequest }: Props & {
   focusRequest?: { sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 }) {
@@ -235,7 +268,8 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
   const input = useRef<HTMLInputElement>(null);
   const consumedFocus = useRef<number>();
   const automaticOutlines = /\.(?:eps|cdr)$/i.test(file?.name ?? '');
-  const singlePage = /\.eps$/i.test(file?.name ?? '');
+  const svg = isSvgDrawing(file);
+  const singlePage = svg || /\.eps$/i.test(file?.name ?? '');
   const pageNumber = Number(page);
   const validPage = singlePage || Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= 5000;
   function chooseFile(next?: File, point?: { x: number; y: number }) {
@@ -268,7 +302,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
   return (
     <details ref={section} className="drawing-cad-section" open data-testid="vector-import">
       <summary>{t("import")}</summary>
-      <p className="drawing-help">{t("importHelp")}</p>
+      <p className="drawing-help">{t(svg ? "svg-file" : "importHelp")}</p>
       <fieldset
         className="drawing-cad-fields"
         disabled={disabled || !settings || work.busy}
@@ -277,7 +311,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           <input
             ref={input}
             type="file"
-            accept=".pdf,.eps,.cdr,application/pdf,application/postscript,application/vnd.corel-draw"
+            accept=".pdf,.svg,.eps,.cdr,application/pdf,image/svg+xml,application/postscript,application/vnd.corel-draw"
             onChange={(e) => chooseFile(e.target.files?.[0])}
           />
         </Field>
@@ -295,9 +329,9 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           />
         </Field>
         {file && !validPage && <p className="drawing-help is-error" role="alert">{t('pageError')}</p>}
-        <Field label={t('pdfMode')}><select value={mode} onChange={event=>setMode(event.target.value as typeof mode)}><option value="auto">{t('pdfAuto')}</option><option value="editable">{t('pdfEditable')}</option><option value="appearance">{t('pdfAppearance')}</option></select></Field>
-        {mode!=='editable'&&<Field label={t('renderDpi')}><select value={dpi} onChange={event=>setDpi(Number(event.target.value))}>{[72,150,300,600].map(value=><option key={value} value={value}>{value} DPI</option>)}</select></Field>}
-        <label className="drawing-vector-check">
+        {!svg && <Field label={t('pdfMode')}><select value={mode} onChange={event=>setMode(event.target.value as typeof mode)}><option value="auto">{t('pdfAuto')}</option><option value="editable">{t('pdfEditable')}</option><option value="appearance">{t('pdfAppearance')}</option></select></Field>}
+        {!svg&&mode!=='editable'&&<Field label={t('renderDpi')}><select value={dpi} onChange={event=>setDpi(Number(event.target.value))}>{[72,150,300,600].map(value=><option key={value} value={value}>{value} DPI</option>)}</select></Field>}
+        {!svg && <label className="drawing-vector-check">
           <input
             type="checkbox"
             checked={automaticOutlines || outline}
@@ -305,7 +339,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
             onChange={(e) => setOutline(e.target.checked)}
           />
           {t("outline")}
-        </label>
+        </label>}
         <label className="drawing-vector-check">
           <input type="checkbox" checked={group} onChange={event=>setGroup(event.target.checked)} />
           {t("groupImport")}
@@ -320,55 +354,29 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
               if (!file || !settings || !validPage) return;
               const before = cadRevision(editor);
               const center = dropPoint ?? editor.getViewportPageBounds().center;
-              const { body, kind } = await vectorUploadPayload(file);
-              let bytes: Uint8Array;
-              const sourcePage = kind === "eps" ? 1 : pageNumber;
-              let selectedPage = sourcePage;
-              if (kind === "eps" || kind === "cdr" || outline) {
-                const response = await fetch(
-                  `${base}/api/canvas/convert-vector?page=${selectedPage}`,
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/octet-stream" },
-                    body,
-                    signal,
-                  },
-                );
-                if (!response.ok) {
-                  const error = await response
-                    .json()
-                    .catch(() => ({}));
-                  throw new Error(error.code ?? (response.status === 413 ? "vector-transport-limit" : "conversion"));
-                }
-                bytes = new Uint8Array(await response.arrayBuffer());
-                selectedPage = 1;
-              } else {
-                bytes = new Uint8Array(await body.arrayBuffer());
-              }
-              const { readVectorPdf } = await import("./cad-pdf-client");
-              const result = await readVectorPdf(bytes, selectedPage, signal, {mode,dpi,name:file.name,store:resource=>storeCanvasImage(editor,resource,signal)})
-                .catch(error => {
-                  if (vectorError(error) === "limit") throw new Error("vector-import-geometry");
-                  throw error;
-                });
+              const result = await loadVectorDrawing(file, pageNumber, outline, signal, {
+                mode, dpi, name: file.name, store: resource => storeCanvasImage(editor, resource, signal),
+              }).catch(error => {
+                if (vectorError(error) === 'limit') throw new Error('vector-import-geometry');
+                throw error;
+              });
               if (signal.aborted) throw new Error("cancelled");
               if (before !== cadRevision(editor)) throw new Error("stale");
               if (!result.document.paths.length) {
                 work.setMessage(
-                  result.document.warnings.includes("pdf-text")
-                    ? "pdf-text"
-                    : "empty",
+                  result.kind === 'svg' ? 'svg-empty'
+                    : result.document.warnings.includes('pdf-text') ? 'pdf-text' : 'empty',
                 );
                 return;
               }
-              if (kind === 'cdr') result.document.warnings.push('cdr-review');
+              if (result.kind === 'cdr') result.document.warnings.push('cdr-review');
               const plan = prepareVectorImport(
                 editor,
                 settings,
                 result.document,
                 result.widthMm,
                 center,
-                `${file.name} · ${sourcePage}`,
+                result.kind === 'svg' ? file.name : `${file.name} · ${result.sourcePage}`,
                 [],
                 [],
                 { center: true, group, compactForSave: true },

@@ -309,6 +309,32 @@ describe('physical drawing pages', () => {
 });
 
 describe('portable artwork export through native SVG and PNG APIs', () => {
+  it('reimports a full-size OMS SVG with the same cubic and hole geometry and exports its cutting curves', async () => harness(async h => {
+    const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
+    const { readVectorSvg } = await import('../../src/lib/components/canvas/cad-svg-import');
+    const { prepareVectorImport } = await import('../../src/lib/components/canvas/cad-vector');
+    const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
+    const { buildCadDxf } = await import('../../src/lib/components/canvas/cad-dxf');
+    const outer = h.rectangle(0, 0, 160, 100);
+    outer.nodes[0].outX = 48;
+    outer.nodes[1].inX = -41;
+    const source = h.create([outer, h.rectangle(50, 20, 60, 60)], { fill: '#007e5d', stroke: 'none' });
+    h.editor.select(source.id);
+    const svg = await exportDrawingArtwork(h.editor, 'svg', { ...exportOptions, scope: 'selected' }, new AbortController().signal);
+    const imported = readVectorSvg(await svg.blob.text());
+    near(imported.widthMm, svg.physical!.widthMm);
+    assert.equal(imported.document.paths.length, 1);
+    const plan = prepareVectorImport(h.editor, h.cad.DEFAULT_CAD_SETTINGS, imported.document, imported.widthMm, { x:350, y:150 }, 'Round trip');
+    assert.equal(applyCadPlan(h.editor, plan), true);
+    const result = h.editor.getOnlySelectedShape();
+    assert.equal(result.props.fillRule, 'evenodd');
+    assert.equal(result.props.contours.length, 2);
+    near(result.props.contours[0].nodes[0].outX, 48);
+    const dxf = buildCadDxf(h.editor, 'selected', h.cad.DEFAULT_CAD_SETTINGS);
+    assert.equal(dxf.closedContours, 2);
+    assert.deepEqual(dxf.omitted, []);
+  }));
+
   it('embeds authenticated order and Idea rasters, deduplicates repeated fills, and emits an uploadable SVG', async () => harness(async h => nativeRasterApis(h, async png => {
     const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
     const { normalizeOrderFile, matchesOrderFileSignature } = await import('../../src/lib/server/files/order-storage');
