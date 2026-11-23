@@ -3,13 +3,15 @@ import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
 import { base } from '$app/paths';
 import { frameFilePocket, type ProductionFilePocket } from '$lib/order/file-pockets';
 import { announceOrderFilesChanged } from '$lib/order/order-files-client';
+import { createUuid } from '$lib/utils/id';
 import { getOrderBridge } from './state-bridge';
 import { addOrderFileDocument } from './order-file-documents';
 import { drawingTransaction } from './drawing-commands';
 
 const pending = new WeakSet<Editor>();
 type Receipt = { id: string; url: string };
-const receipts = new WeakMap<Editor, WeakMap<File, Map<string, Receipt>>>();
+type Attempt = { requestId?: string; receipt?: Receipt };
+const attempts = new WeakMap<Editor, WeakMap<File, Map<string, Attempt>>>();
 
 export function productionExportTarget(editor: Editor, pocket: ProductionFilePocket) {
   const bridge = getOrderBridge(editor);
@@ -37,14 +39,19 @@ export async function saveProductionExport(
   if (pending.has(editor)) throw new Error('saveFailed');
   const { orderId, queued } = target;
   const key = JSON.stringify([orderId, pocket, queued, release?.reviewId]);
-  let files = receipts.get(editor);
-  if (!files) { files = new WeakMap(); receipts.set(editor, files); }
-  let confirmations = files.get(file);
-  if (!confirmations) { confirmations = new Map(); files.set(file, confirmations); }
+  let files = attempts.get(editor);
+  if (!files) { files = new WeakMap(); attempts.set(editor, files); }
+  let destinations = files.get(file);
+  if (!destinations) { destinations = new Map(); files.set(file, destinations); }
+  let attempt = destinations.get(key);
+  if (!attempt) {
+    attempt = { requestId: queued || release ? undefined : createUuid() };
+    destinations.set(key, attempt);
+  }
 
   pending.add(editor);
   try {
-    let stored = confirmations.get(key);
+    let stored = attempt.receipt;
     if (!stored) {
       if (queued) {
         const store = getOrderBridge(editor)?.onStoreCanvasFile;
@@ -56,6 +63,7 @@ export async function saveProductionExport(
         body.set('order_id', orderId);
         body.set('file_type', pocket);
         if (release) body.set('canvas_dxf_release', JSON.stringify(release));
+        if (attempt.requestId) body.set('canvas_export_request_id', attempt.requestId);
         const timeout = AbortSignal.timeout(60_000);
         const response = await fetch(base + '/api/files/upload', {
           method: 'POST', body, signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -64,7 +72,7 @@ export async function saveProductionExport(
         if (!response.ok || typeof result.file?.id !== 'string' || !result.file.id) throw new Error('saveFailed');
         stored = { id: result.file.id, url: `${base}/api/files/${encodeURIComponent(result.file.id)}/download` };
       }
-      confirmations.set(key, stored);
+      attempt.receipt = stored;
       if (!queued) announceOrderFilesChanged(orderId);
     }
 

@@ -53,7 +53,7 @@ jobs:
       - name: Database migration tests
         id: database_tests
         continue-on-error: true
-        run: node --test tests/db/canvas-dxf-releases.test.mjs
+        run: node --test tests/db/canvas-dxf-releases.test.mjs tests/db/canvas-export-retries.test.mjs
       - name: Svelte and TypeScript
         id: check
         continue-on-error: true

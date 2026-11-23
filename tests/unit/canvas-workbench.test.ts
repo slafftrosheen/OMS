@@ -134,6 +134,29 @@ describe('stored production export contract',()=>{
    await assert.rejects(()=>saveProductionExport(f.editor,new File(['x'],'other.dxf'),'laser'));assert.equal(f.shapes.size,2);
   }finally{globalThis.fetch=original;}
  });
+ it('reuses the upload request after a lost response and assigns a fresh one to another save',async()=>{
+  const f=fixture();
+  f.editor.createShape({id:'shape:laser',type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
+  setOrderBridge(f.editor,{orderId:'order-123'});
+  const file=new File(['%PDF-1.7'],'part.pdf',{type:'application/pdf'});
+  const requests:FormDataEntryValue[]=[];
+  const original=globalThis.fetch;
+  try {
+   globalThis.fetch=async(_input,init)=>{
+    const requestId=(init?.body as FormData).get('canvas_export_request_id');
+    assert.equal(typeof requestId,'string');
+    requests.push(requestId!);
+    if(requests.length===1)throw new TypeError('Response lost');
+    return Response.json({file:{id:requests.length===2?'recovered':'another-save'}},{status:201});
+   };
+   await assert.rejects(saveProductionExport(f.editor,file,'laser'),/Response lost/);
+   assert.equal(f.shapes.size,1);
+   assert.equal((await saveProductionExport(f.editor,file,'laser')).placed,true);
+   assert.equal(requests[1],requests[0]);
+   assert.equal((await saveProductionExport(f.editor,new File([file],file.name,{type:file.type}),'laser')).placed,true);
+   assert.notEqual(requests[2],requests[0]);
+  } finally { globalThis.fetch=original; }
+ });
  it('skips upload for a stale target and skips placement in a replacement pocket',async()=>{
   const f=fixture(), file=new File(['drawing'],'part.svg',{type:'image/svg+xml'});
   const frame=(id:string)=>f.editor.createShape({id,type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
