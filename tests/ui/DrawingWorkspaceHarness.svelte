@@ -183,6 +183,19 @@
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       // Order drawings carry production pockets to the right of the form; stay clear of every shape.
       emptyArea: () => { const bounds = editor.getCurrentPageBounds(); editor.setCamera({ x: -Math.max(2400, (bounds?.maxX ?? 0) + 240), y: 0, z: 1 }); },
+        pathRepeatSample: () => {
+          if (!readCadSettings(editor)) {
+            const page = editor.getCurrentPage();
+            editor.updatePage({ id: page.id, meta: { ...page.meta, omsCad: DEFAULT_CAD_SETTINGS } });
+          }
+          const { x, y } = editor.getViewportPageBounds().center;
+          const motif = 'shape:path-repeat-motif', guide = 'shape:path-repeat-guide';
+          editor.createShape({ id: motif, type: 'geo', x: x - 95, y: y - 65,
+            props: { geo: 'rectangle', w: 28, h: 18, fill: 'none', dash: 'solid' }, meta: { omsObjectName: 'Path repeat module' } });
+          editor.createShape({ id: guide, type: 'cad-path', x: x - 40, y: y - 60,
+            props: { points: [{ x: 0, y: 0 }, { x: 190, y: 0 }], closed: false }, meta: { omsObjectName: 'Path repeat guide' } });
+          editor.setSelectedShapes([motif, guide]);
+        },
       dimensionSample: (width: number | null, ellipseHeight?: number) => {
         const id = 'shape:dimension-sample';
         if (width === null) { editor.deleteShapes([id]); return; }

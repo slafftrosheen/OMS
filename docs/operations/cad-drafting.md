@@ -70,6 +70,14 @@ Original pixels are retained up to 25 MiB / 32 megapixels (maximum 16,384 pixels
 
 Canvas/SVG/PDF visualizations include the clipped texture. EPS accepts opaque images; transparency is explicitly reported as an omission. DXF and measurements use the unchanged manufacturing outlines, including holes. Imported raster-page rectangles remain excluded from cutting export. Texture-bearing objects retain the existing restrictions on destructive shaping and selected-node corner operations; clear the texture before those operations.
 
+## Repeat artwork along a path
+
+Select page-level artwork or complete groups and a separate, continuous guide on the same page. Open **Effects → Repeat along path** and choose the guide. A line, polyline, single Bézier contour, arc, ellipse, or unlabelled geometric shape can guide the array.
+
+**Evenly spaced** fills the usable path with the specified copy count. **Fixed pitch** advances by a centre-to-centre distance along the guide. Start and end insets, pitch and side offset use the document units. **Reverse path direction** changes the start and heading. **Rotate copies with the path** turns each motif along the guide, while the default preserves the original orientation. Closed loops leave the seam occupied only once.
+
+**Preview** shows the guide, copy bounds, pitch and number of objects. **Create copies** creates normal editable objects in one undo step and selects them. The original artwork and guide remain in the drawing. Use **Selected objects** in DXF review to export the new copies. Curved spacing is measured against a sampled guide. Use a straight line for exact linear pitch. A preview can contain up to 200 motif placements, subject to the drawing's object and storage limits.
+
 ## Precise rotation and circular copies
 
 **Arrange → Rotate / circular copies** rotates a selection around its centre, the document origin, or a custom X/Y point. Coordinates follow the saved drawing unit, origin and scale; uncalibrated documents explicitly use px with Y up. Positive angles turn counterclockwise. The operation preserves native geometry, text, images, curve controls and group ancestry rather than flattening them.

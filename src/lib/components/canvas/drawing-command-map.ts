@@ -123,6 +123,7 @@ export const drawingCommands = {
   contour: { icon: 'fx-contour', keys: 'Ctrl+F9' },
   midline: { icon: 'fx-midline' },
   radial: { icon: 'fx-radial' },
+  repeatPath: { icon: 'fx-repeat' },
   lettering: { icon: 'lettering' },
   // Bitmaps
   trace: { icon: 'trace' },
@@ -171,7 +172,7 @@ export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly 
     { sub: 'shapeProperties', items: ['rectangleCorners', 'polygonShape', 'ellipseSegments'] },
     '-', 'paint', 'outline',
   ] },
-  { id: 'effects', items: ['contour', 'midline', '-', 'repeat', 'radial', '-', 'lettering'] },
+  { id: 'effects', items: ['contour', 'midline', '-', 'repeat', 'repeatPath', 'radial', '-', 'lettering'] },
   { id: 'bitmaps', items: ['trace'] },
   { id: 'text', items: ['textDocker', 'fonts', 'findReplace', '-', 'convert', 'lettering'] },
   { id: 'tools', items: [

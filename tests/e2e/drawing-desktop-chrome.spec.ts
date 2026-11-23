@@ -124,6 +124,23 @@ for (const mode of ['idea', 'order']) {
     await expect(layers).toHaveAttribute('open', '');
     await expect(layers.locator('summary')).toBeFocused();
   });
+
+  test(`${mode} previews, creates and undoes editable copies along a guide`, async ({ page }) => {
+    await open(page, mode);
+    await page.evaluate(() => (window as any).__drawingFixture.pathRepeatSample());
+    const before = (await scene(page)).shapes.length;
+    await page.locator('[data-drawing-menu="effects"] > summary').click();
+    await page.locator('[data-command="repeatPath"]').click();
+    await page.getByTestId('drawing-path-repeat-count').fill('4');
+    await page.getByTestId('drawing-path-repeat-preview').click();
+    await expect(page.getByTestId('drawing-path-repeat-overlay').locator('polygon')).toHaveCount(4);
+    expect((await scene(page)).shapes.length).toBe(before);
+    await page.getByTestId('drawing-path-repeat-apply').click();
+    await expect.poll(async () => (await scene(page)).shapes.length).toBe(before + 4);
+    await expect.poll(async () => (await scene(page)).selected.length).toBe(4);
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => (await scene(page)).shapes.length).toBe(before);
+  });
 }
 
 async function rectangleAt(page: Page) {
