@@ -2,7 +2,7 @@ import { installProductionLayers } from './cad-production-layers';
 import { captureCanvasDocument } from './canvas-document';
 import { applyCanvasSurface, watchCanvasSurface } from './canvas-surface';
 import { DrawingGridBackground } from './DrawingGrid';
-import { installDrawingGridSnapping } from './cad-snap-settings';
+import { installDrawingSnapTargets } from './cad-snap-settings';
 import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
 import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
@@ -210,8 +210,8 @@ export function CanvasApp({
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
         const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
-        const stopLayers = installProductionLayers(editor), stopGridSnap = installDrawingGridSnapping(editor);
-        cleanupCadTransformsRef.current = () => { stopGridSnap(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        const stopLayers = installProductionLayers(editor), stopSnapTargets = installDrawingSnapTargets(editor);
+        cleanupCadTransformsRef.current = () => { stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
             const page = editor.getCurrentPage();

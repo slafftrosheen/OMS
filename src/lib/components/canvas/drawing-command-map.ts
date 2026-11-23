@@ -68,6 +68,7 @@ export const drawingCommands = {
   grid: { icon: 'grid', keys: "Ctrl+'", check: true, readOnly: true },
   guidesVisible: { icon: 'guides', check: true, testId: 'drawing-menu-guides-visible' },
   snap: { icon: 'snap', keys: 'Alt+Q', check: true, readOnly: true },
+  snapObjects: { icon: 'objects', keys: 'Alt+Z', check: true },
   snapGrid: { icon: 'grid', keys: 'Alt+Y', check: true },
   snapGuides: { icon: 'guides', check: true },
   snapOptions: { icon: 'snap', readOnly: true, testId: 'drawing-menu-snap-options' },
@@ -91,6 +92,8 @@ export const drawingCommands = {
   productionLayers: { icon: 'objects', readOnly: true },
   front: { icon: 'front', keys: 'Ctrl+Home', testId: 'drawing-action-front' },
   back: { icon: 'back', keys: 'Ctrl+End', testId: 'drawing-action-back' },
+  frontLayer: { icon: 'front', keys: 'Shift+PageUp' },
+  backLayer: { icon: 'back', keys: 'Shift+PageDown' },
   forward: { icon: 'forward', keys: 'Ctrl+PageUp', testId: 'drawing-action-forward' },
   backward: { icon: 'backward', keys: 'Ctrl+PageDown', testId: 'drawing-action-backward' },
   reverseOrder: { icon: 'reverse-order', testId: 'drawing-menu-reverse-order' },
@@ -169,11 +172,11 @@ export type DrawingMenuEntry = DrawingCommandId | '-' | { sub: DrawingSubmenuId;
 export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly DrawingMenuEntry[] }> = [
   { id: 'file', items: ['import', 'importDxf', 'importVector', '-', 'export', { embed: 'exportSettings' }, 'exportDxf', 'publishPdf', { embed: 'saveToOrder' }, '-', 'files', 'preflight'] },
   { id: 'edit', items: ['undo', 'redo', 'repeatLast', '-', 'cut', 'copy', 'paste', 'duplicate', 'duplicateInPlace', 'repeat', 'delete', '-', 'select-all', 'selectNext', 'selectPrevious', 'selectSame', 'findReplace', '-', 'copyProperties'] },
-  { id: 'view', items: ['zoom-in', 'zoomArea', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', { sub: 'snapTo', items: ['snapGrid', 'snapGuides'] }, 'snap', 'snapOptions', 'penSettings'] },
+  { id: 'view', items: ['zoom-in', 'zoomArea', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', { sub: 'snapTo', items: ['snapObjects', 'snapGrid', 'snapGuides'] }, 'snap', 'snapOptions', 'penSettings'] },
   { id: 'layout', items: ['pageSetup', 'document', 'previousPage', 'nextPage', '-', 'guidesSetup', 'measure', '-', 'nest', 'clipart'] },
   { id: 'object', items: [
     'group', 'ungroup', 'combine', 'breakApart', 'lock', 'productionLayers', '-',
-    { sub: 'order', items: ['front', 'back', 'forward', 'backward', '-', 'reverseOrder', 'relativeOrder'] },
+    { sub: 'order', items: ['front', 'back', 'frontLayer', 'backLayer', 'forward', 'backward', '-', 'reverseOrder', 'relativeOrder'] },
     { sub: 'transformations', items: ['transform', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'mirrorCopy', '-', 'skew'] },
     { sub: 'alignDistribute', items: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', '-', 'distribute-horizontal', 'distribute-vertical', '-', 'centerToPage', 'arrange'] },
     { sub: 'shapingTools', items: ['shaping', 'join', 'knife', 'corners'] },
@@ -321,7 +324,7 @@ export function drawingCommandPath(command: DrawingCommandId): Array<DrawingMenu
 export const drawingAlignKeys: ReadonlySet<string> = new Set(['L', 'R', 'T', 'B', 'C', 'E']);
 /** Commands that Ctrl+R can repeat (desktop "Repeat last"). */
 export const drawingRepeatable: ReadonlySet<string> = new Set(['duplicate', 'duplicateInPlace', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical',
-  'front', 'back', 'forward', 'backward', 'group', 'ungroup', 'combine', 'breakApart', 'centerToPage',
+  'front', 'back', 'frontLayer', 'backLayer', 'forward', 'backward', 'group', 'ungroup', 'combine', 'breakApart', 'centerToPage',
   'align-left', 'align-right', 'align-top', 'align-bottom', 'align-center', 'align-middle', 'distribute-horizontal', 'distribute-vertical']);
 
 const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);

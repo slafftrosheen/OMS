@@ -3,7 +3,7 @@ import {locale} from 'svelte-i18n';
 import {get} from 'svelte/store';
 
 const en = {
-  title:'Snap options',open:'Snap options…',enabled:'Enable snapping',gridShow:'Show document grid',targets:'Snap targets',
+  title:'Snap options',open:'Snap options…',enabled:'Enable snapping',gridShow:'Show document grid',targets:'Snap targets',objects:'Objects',objectPoints:'CAD object snap points',
   endpoints:'Endpoints and nodes',midpoints:'Segment midpoints',centers:'Centres',quadrants:'Quadrants',intersections:'Intersections',nearest:'Nearest point',grid:'Grid points',
   guidelines:'Document guidelines',guidelinesHelp:'CAD tools snap to document guidelines after exact object targets and before nearest points or the grid. Locked and hidden guidelines remain snap targets while this option is on. Pick snaps selection bounds to guidelines too.',
   perpendicular:'Perpendicular to straight edges and Bézier curves',tangent:'Tangent to circles, arcs, ellipses and Bézier curves',
@@ -16,7 +16,7 @@ const en = {
 };
 type Key=keyof typeof en;
 const ru:Record<Key,string> = {
-  title:'Параметры привязки',open:'Параметры привязки…',enabled:'Включить привязку',gridShow:'Показать сетку документа',targets:'Объекты привязки',
+  title:'Параметры привязки',open:'Параметры привязки…',enabled:'Включить привязку',gridShow:'Показать сетку документа',targets:'Цели привязки',objects:'Объекты',objectPoints:'Точки привязки к объектам CAD',
   endpoints:'Концы и узлы',midpoints:'Середины сегментов',centers:'Центры',quadrants:'Квадранты',intersections:'Пересечения',nearest:'Ближайшая точка',grid:'Точки сетки',
   guidelines:'Направляющие документа',guidelinesHelp:'Инструменты CAD привязываются к направляющим после точных точек объектов и перед ближайшими точками или сеткой. Заблокированные и скрытые направляющие остаются целями привязки, пока эта опция включена. Инструмент выбора также привязывает границы выделения к направляющим.',
   perpendicular:'Перпендикуляр к прямым и кривым Безье',tangent:'Касательная к окружностям, дугам, эллипсам и кривым Безье',
@@ -28,7 +28,7 @@ const ru:Record<Key,string> = {
   gridHelp:'Точки сетки используются инструментами CAD и при перемещении инструментом выбора. Отображение сетки включается отдельно.',intersectionsHelp:'Пересечения прямых отрезков с отрезками, окружностями, эллипсами, дугами окружностей или кубическими кривыми Безье; кубических кривых Безье друг с другом, с окружностями, эллипсами или дугами окружностей; окружностей и их дуг между собой. Учитываются только отдельные точки на нарисованных фигурах и в пределах дуг, включая точки касания и концы. Пары совпадающих или частично перекрывающихся кривых пропускаются. Пересечения эллипса, не являющегося окружностью, с эллипсом, окружностью или дугой не поддерживаются.',readOnly:'В этом чертеже параметры и расстояния привязки доступны только для чтения.'
 };
 const lv:Record<Key,string> = {
-  title:'Piesaistes iestatījumi',open:'Piesaistes iestatījumi…',enabled:'Iespējot piesaisti',gridShow:'Rādīt dokumenta režģi',targets:'Piesaistes punkti',
+  title:'Piesaistes iestatījumi',open:'Piesaistes iestatījumi…',enabled:'Iespējot piesaisti',gridShow:'Rādīt dokumenta režģi',targets:'Piesaistes mērķi',objects:'Objekti',objectPoints:'CAD objektu piesaistes punkti',
   endpoints:'Galapunkti un mezgli',midpoints:'Segmentu viduspunkti',centers:'Centri',quadrants:'Kvadranti',intersections:'Krustpunkti',nearest:'Tuvākais punkts',grid:'Režģa punkti',
   guidelines:'Dokumenta vadlīnijas',guidelinesHelp:'CAD rīki piesaistās dokumenta vadlīnijām pēc precīzajiem objektu punktiem un pirms tuvākajiem punktiem vai režģa. Bloķētas un paslēptas vadlīnijas paliek piesaistes mērķi, kamēr šī opcija ir ieslēgta. Atlases rīks piesaista arī atlases robežas pie vadlīnijām.',
   perpendicular:'Perpendikuls pret taisnām malām un Bezjē līknēm',tangent:'Pieskare apļiem, lokiem, elipsēm un Bezjē līknēm',

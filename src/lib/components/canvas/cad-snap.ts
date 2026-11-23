@@ -79,7 +79,7 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
     const delta = distance(point, candidate);
     if (delta <= bestDistance) { best = { point: { x: candidate.x, y: candidate.y }, kind }; bestDistance = delta; }
   };
-  for (const shape of editor.getCurrentPageShapesSorted()) {
+  for (const shape of settings.objects ? editor.getCurrentPageShapesSorted() : []) {
     if (shape.id === exclude || shape.opacity === 0 || ['group', 'order-details', 'order-address', 'profile-7st', 'cad-dimension'].includes(shape.type)) continue;
     // Clipped artwork has a different visible boundary. Do not target hidden nodes.
     if (editor.getShapeMask?.(shape.id) || (shape.meta.omsVectorPaint as any)?.clips?.length) continue;

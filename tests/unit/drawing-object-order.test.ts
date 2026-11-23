@@ -32,6 +32,43 @@ function fakeEditor(initial = fixture()) {
 }
 const relative = (target: string, side: 'front' | 'behind'): DrawingObjectOrderOperation => ({ kind: 'relative', target: id(target), side });
 
+describe('Production layer order', () => {
+  const layered = () => fakeEditor(fixture().map((shape, index) => ({
+    ...shape, meta: { ...shape.meta, omsProductionLayer: [0, 2, 4].includes(index) ? 'cut' : 'print' },
+  })));
+
+  it('moves a selection to the front or back of its own layer and only changes selected indices', () => {
+    const f = layered();
+    f.select('c', 'a');
+    const original = structuredClone(f.shapes());
+    assert.equal(f.apply({ kind: 'layer-edge', side: 'front' }), true);
+    assert.deepEqual(f.order(), ['b', 'd', 'e', 'a', 'c', 'f']);
+    assert.equal(prepareDrawingObjectOrder(f.editor, { kind: 'layer-edge', side: 'front' }), null);
+    assert.equal(f.apply({ kind: 'layer-edge', side: 'behind' }), true);
+    assert.deepEqual(f.order(), ['b', 'd', 'a', 'c', 'e', 'f']);
+    assert.deepEqual(f.api.getSelectedShapeIds(), [id('c'), id('a')]);
+    for (const before of original) {
+      const after = f.api.getShape(before.id)!;
+      assert.deepEqual({ ...after, index: before.index }, before);
+      if (before.id !== id('a') && before.id !== id('c')) assert.equal(after.index, before.index);
+    }
+    f.api.bailToMark(f.marks[0]);
+    assert.deepEqual(f.shapes(), original);
+  });
+
+  it('rejects mixed-layer selections and invalidates old plans after layer assignments change', () => {
+    const f = layered();
+    f.select('a', 'b');
+    assert.equal(prepareDrawingObjectOrder(f.editor, { kind: 'layer-edge', side: 'front' }), null);
+    f.select('a');
+    const plan = prepareDrawingObjectOrder(f.editor, { kind: 'layer-edge', side: 'front' })!;
+    f.api.getShape(id('e'))!.meta.omsProductionLayer = 'print';
+    assert.ok(prepareDrawingObjectOrder(f.editor, { kind: 'layer-edge', side: 'front' }));
+    assert.equal(applyDrawingObjectOrder(f.editor, plan), false);
+    assert.deepEqual(f.marks, []);
+  });
+});
+
 describe('Relative object order', () => {
   it('moves a disjoint selection in front of a target in its original stack order', () => {
     const f = fakeEditor(); f.select('e', 'a');

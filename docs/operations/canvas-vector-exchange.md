@@ -17,7 +17,11 @@ When an order save succeeds and the canvas card cannot be placed, **Place saved 
 
 **F2** zooms once and returns to the previous tool. **Z** keeps Zoom active. **F3** zooms out, **F4** fits the drawing, **Shift+F2** fits the selection, and **Shift+F4** fits the sheet. **F5–F8** select Freehand, Rectangle, Ellipse and Text. **X** selects Eraser. **Page Up** and **Page Down** switch between sheets when the canvas has focus.
 
-In **Shape (F10)** on a Bézier curve, **Ctrl+A** selects its nodes, arrow keys nudge the selected nodes, and **Delete** removes the selected nodes in one undoable edit. **Shift** multiplies the nudge distance by ten. **Ctrl** divides it by ten. In **View → Snap to**, **Alt+Y** toggles the document grid target, and **Guidelines** toggles the guide target for Pick and CAD. **Alt+Q** suspends snapping while keeping target settings. Grid visibility has its own switch. Double-click a ruler guideline to reveal its pivot and rotation handle.
+In **Shape (F10)** on a Bézier curve, **Ctrl+A** selects its nodes, arrow keys nudge the selected nodes, and **Delete** removes the selected nodes in one undoable edit. **Shift** multiplies the nudge distance by ten. **Ctrl** divides it by ten.
+
+In **View → Snap to**, **Alt+Z** toggles object targets, **Alt+Y** toggles grid snapping, and **Guidelines** toggles guideline snapping. Pick and CAD share these choices. **Alt+Q** suspends or restores snapping, and changes to target choices while suspended take effect on resume. Grid visibility has its own switch. Double-click a ruler guideline to reveal its pivot and rotation handle.
+
+In **Object → Order**, **Shift+Page Up** and **Shift+Page Down** move a selection to the front or back of its production layer. Unassigned objects share the default layer. Select objects with the same parent and layer. The moves keep every layer assignment and update only the selected objects' stacking order.
 
 ## Supported exchange and explicit limits
 

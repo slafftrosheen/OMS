@@ -5,7 +5,7 @@ import { drawingFileKind } from './drawing-file-types';
 // Editor-local navigation keeps a menu in one drawing from opening another
 // drawing's docker. Commands still run through DrawingChrome's fresh guards.
 export const DRAWING_UI_REQUEST = 'oms:drawing-ui-request';
-const commands = ['undo', 'redo', 'duplicate', 'delete', 'group', 'ungroup', 'front', 'back',
+const commands = ['undo', 'redo', 'duplicate', 'delete', 'group', 'ungroup', 'front', 'back', 'frontLayer', 'backLayer', 'convert',
   'forward', 'backward', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical',
   'lock', 'fit', 'fit-selection', 'select-all'] as const;
 const panels = ['properties', 'objects', 'text', 'transform', 'align', 'repeat', 'radial', 'guides'] as const;

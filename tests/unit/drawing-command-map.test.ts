@@ -91,9 +91,12 @@ describe('OMS Draw command map', () => {
     assert.equal(key('F2'), 'zoomArea');
     assert.equal(key('F2', { shiftKey: true }), 'fit-selection');
     assert.equal(key('y', { altKey: true }), 'snapGrid');
+    assert.equal(key('z', { altKey: true }), 'snapObjects');
     assert.equal(key('q', { altKey: true }), 'snap');
     assert.equal(key('PageDown'), 'nextPage');
     assert.equal(key('PageUp'), 'previousPage');
+    assert.equal(key('PageUp', { shiftKey: true }), 'frontLayer');
+    assert.equal(key('PageDown', { shiftKey: true }), 'backLayer');
     assert.equal(key('/', { ctrlKey: true }), 'quickAccess');
     assert.equal(key('F1'), 'shortcuts');
     assert.equal(key('Enter', { altKey: true }), 'dock-properties');

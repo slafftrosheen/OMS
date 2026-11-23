@@ -87,6 +87,23 @@ describe('selectable CAD snap targets', () => {
     f.editor.updatePage({ meta: { ...f.editor.getCurrentPage().meta, omsCad: { originX: 7, originY: 9 } } });
     close(findCadSnap(f.editor, { x: -18, y: 22 }, null)?.point, { x: -20, y: 20 });
   });
+
+  it('ignores object geometry when object snapping is off while leaving grid and saved points active', () => {
+    const f = setup('endpoints', 'grid');
+    line(f, 'shape:reference', { x: 4, y: 4 }, { x: 40, y: 4 });
+    const point = { x: 5, y: 4 };
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'endpoints');
+    assert.equal(writeCadSnapSettings(f.editor, { objects: false }), true);
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'grid');
+    assert.equal(readCadSnapSettings(f.editor).endpoints, true);
+    assert.equal(readCadSnapSettings(f.editor).guidelines, true);
+    f.state.snap = false;
+    f.editor.inputs.ctrlKey = true;
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'grid');
+    assert.equal(writeCadSnapSettings(f.editor, { objects: true }), true);
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'endpoints');
+    assert.equal(f.state.snap, false);
+  });
   it('excludes self, invisible and clipped artwork, but permits locked reference geometry', () => {
     const f = setup('endpoints'); line(f, 'shape:path');
     assert.equal(findCadSnap(f.editor, { x: 1, y: 0 }, 'shape:path' as any), null);
@@ -143,11 +160,12 @@ describe('saved snap settings', () => {
     const editor: any = { store, getInstanceState: () => ({ isReadonly: false }), getCurrentPage: () => store.get('page:page' as any), getDocumentSettings: () => store.get('document:document' as any),
       updatePage: (patch: any) => store.put([{ ...editor.getCurrentPage(), ...patch }]), run: history.batch, mark: history.mark.bind(history), bailToMark: history.bailToMark };
     try {
-      assert.equal(writeCadSnapSettings(editor, { midpoints: true, perpendicular: true, tangent: true, grid: true, gridSpacing: 25, tolerance: 12 }), true);
+      assert.equal(writeCadSnapSettings(editor, { objects: false, midpoints: true, perpendicular: true, tangent: true, grid: true, gridSpacing: 25, tolerance: 12 }), true);
       const saved = JSON.parse(JSON.stringify(store.serialize())); assert.equal(saved['page:page'].meta.omsCadSnap.midpoints, true); assert.equal(saved['document:document'].gridSize, 25);
       assert.equal(saved['page:page'].meta.omsCadSnap.perpendicular, true); assert.equal(saved['page:page'].meta.omsCadSnap.tangent, true);
       history.undo(); assert.deepEqual(readCadSnapSettings(editor), DEFAULT_CAD_SNAP_SETTINGS);
       history.redo(); assert.equal(readCadSnapSettings(editor).gridSpacing, 25); assert.equal(readCadSnapSettings(editor).midpoints, true); assert.equal(editor.getCurrentPage().meta.keep, true);
+      assert.equal(readCadSnapSettings(editor).objects, false);
       assert.equal(readCadSnapSettings(editor).perpendicular, true); assert.equal(readCadSnapSettings(editor).tangent, true);
     } finally { history.dispose(); }
   });

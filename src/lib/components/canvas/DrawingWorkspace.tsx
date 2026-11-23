@@ -61,7 +61,7 @@ import {CadSnapPanel} from './CadSnapPanel';
 import { convertSelectionToCurves, deleteCadCurveNodes, getCadCurveConversionIssue, nudgeCadCurveNodes } from './cad-editing';
 import { hasCanvasDraft } from './canvas-document';
 import { drawingGridVisible } from './drawing-grid-state';
-import { readCadSnapSettings, writeCadSnapSettings } from './cad-snap-settings';
+import { canWriteCadSnapSettings, readCadSnapSettings, writeCadSnapSettings } from './cad-snap-settings';
 import {useSnapText} from './snap-copy';
 import {DrawingFontPicker, NextDrawingFontPicker} from './DrawingFonts';
 import {applySelectedDrawingFont, clearSelectedDrawingFontOverrides, drawingFontValue, setNextDrawingFont} from './drawing-fonts';
@@ -129,7 +129,7 @@ function isEditorCommand(id: DrawingCommandId): id is typeof editorCommands[numb
 }
 const selectionShortcuts: ReadonlySet<DrawingCommandId> = new Set([
   'selectNext', 'selectPrevious', 'centerToPage', 'duplicateInPlace', 'combine', 'breakApart', 'group', 'ungroup',
-  'front', 'back', 'forward', 'backward',
+  'front', 'back', 'frontLayer', 'backLayer', 'forward', 'backward',
 ]);
 const arrowDelta = {
   ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1],
@@ -979,7 +979,9 @@ export function DrawingChrome() {
       }
       if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
-      if (!(event.target instanceof Element) || isTypingTarget(editor, event.target) || event.isComposing ||
+      const snapPanelShortcut = event.altKey && event.target instanceof Element &&
+        !!event.target.closest('[data-testid="drawing-snap-options"] input[type="checkbox"]');
+      if (!(event.target instanceof Element) || !snapPanelShortcut && isTypingTarget(editor, event.target) || event.isComposing ||
           event.target.closest('[role="dialog"],dialog[open]')) return;
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
@@ -1323,14 +1325,11 @@ export function DrawingChrome() {
       case 'rulers': return make(true, () => context!.setRulers(!context!.rulers), context!.rulers);
       case 'grid': return make(true, () => command('grid'), state.grid);
       case 'snap': return make(true, () => command('snap'), !state.snap);
+      case 'snapObjects':
       case 'snapGrid':
       case 'snapGuides': {
-        const target = id === 'snapGrid' ? 'grid' : 'guidelines';
-        return make(!editor.inputs.isDragging, () => {
-          const enabled = !editor.user.getIsSnapMode() || !readCadSnapSettings(editor)[target];
-          if (editor.inputs.isDragging || !writeCadSnapSettings(editor, { [target]: enabled })) return false;
-          if (enabled && !editor.user.getIsSnapMode()) editor.user.updateUserPreferences({ isSnapMode: true });
-        }, state.snap && state.snapTargets[target]);
+        const target = id === 'snapObjects' ? 'objects' : id === 'snapGrid' ? 'grid' : 'guidelines';
+        return make(canWriteCadSnapSettings(editor), () => writeCadSnapSettings(editor, { [target]: !readCadSnapSettings(editor)[target] }), state.snapTargets[target]);
       }
       case 'guidesVisible': return make(guides.valid && !drawingGuidesBusy(editor), toggleGuides, guides.visible);
       case 'snapOptions': return make(true, () => setPanel('snap'));
@@ -1354,6 +1353,14 @@ export function DrawingChrome() {
       case 'combine': return make(controls.canEditSelection && !!settings, () => compound('combine'));
       case 'breakApart': return make(controls.canEditSelection && !!settings, () => compound('breakApart'));
       case 'reverseOrder': return make((captureDrawingObjectStack(editor)?.selected.length ?? 0) >= 2, reverseObjectOrder);
+      case 'frontLayer':
+      case 'backLayer': {
+        const plan = prepareDrawingObjectOrder(editor, { kind: 'layer-edge', side: id === 'frontLayer' ? 'front' : 'behind' });
+        return make(!!plan, () => {
+          if (!plan || !applyDrawingObjectOrder(editor, plan)) return false;
+          editor.focus();
+        });
+      }
       case 'relativeOrder': return make(true, openObjectOrder);
       case 'productionLayers': return make(true, openProductionLayers);
       case 'transform': return make(true, openTransform);

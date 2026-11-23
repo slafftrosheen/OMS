@@ -71,6 +71,23 @@ for (const mode of ['idea', 'order']) {
     expect(stack(await artwork(page))).toEqual(['shape:corel-b', 'shape:corel-c', 'shape:corel-a']);
   });
 
+  test(`${mode} orders the default layer with keyboard and context menu`, async ({ page }) => {
+    await load(page, mode);
+    await pick(page, 'shape:corel-a');
+    const selectionOrder = async () => {
+      const shapes: {id: string; index: string}[] = await artwork(page);
+      return shapes.sort((a, b) => a.index < b.index ? -1 : 1).map(shape => shape.id);
+    };
+    await page.keyboard.press('Shift+PageUp');
+    await expect.poll(selectionOrder).toEqual(['shape:corel-b', 'shape:corel-c', 'shape:corel-a']);
+    await pick(page, 'shape:corel-a', 'right');
+    await page.getByTestId('context-menu-sub-trigger.oms-order').hover();
+    await page.getByTestId('context-menu.oms-backLayer').click();
+    await expect.poll(selectionOrder).toEqual(['shape:corel-a', 'shape:corel-b', 'shape:corel-c']);
+    await page.keyboard.press('Control+z');
+    await expect.poll(selectionOrder).toEqual(['shape:corel-b', 'shape:corel-c', 'shape:corel-a']);
+  });
+
   test(`${mode} skews compound curves with stale preview and read-only guards`, async ({ page }) => {
     await load(page, mode);
     await pick(page, 'shape:corel-a', 'right');

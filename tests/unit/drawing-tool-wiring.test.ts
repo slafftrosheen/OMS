@@ -57,6 +57,10 @@ describe('drawing workspace tool wiring', () => {
     assert.equal(formatDrawingKeys('+', true), '+');
   });
 
+  it('routes the context menu layer and curve commands through shared drawing actions', () => {
+    for (const action of ['frontLayer', 'backLayer', 'convert']) assert.ok(isDrawingUiRequest({ kind: 'command', action }));
+  });
+
   it('keeps view tools on read-only drawings and starts backwards at the last object', () => {
     assert.deepEqual([...drawingReadOnlyTools].sort(), ['cad-measure-tools', 'clipart', 'hand', 'nodes', 'paint', 'select', 'zoom']);
     assert.equal(drawingCycleIndex(4, -1, -1), 3);

@@ -57,8 +57,17 @@ for (const mode of ['idea', 'order']) {
     await page.keyboard.press('Alt+y');
     await expect(page.getByTestId('drawing-snap-grid')).toBeChecked();
     await expect(page.getByTestId('drawing-snap-grid-show')).not.toBeChecked();
+    await expect(page.getByTestId('drawing-snap-objects')).toBeChecked();
+    await page.keyboard.press('Alt+z');
+    await expect(page.getByTestId('drawing-snap-objects')).not.toBeChecked();
+    await expect(page.getByTestId('drawing-snap-endpoints')).toBeDisabled();
+    await expect(page.getByTestId('drawing-snap-grid')).toBeChecked();
+    await expect(page.getByTestId('drawing-snap-guidelines')).toBeChecked();
     await page.keyboard.press('Alt+q');
     await expect(page.getByTestId('drawing-snap-master')).not.toBeChecked();
+    await page.keyboard.press('Alt+z');
+    await expect(page.getByTestId('drawing-snap-master')).not.toBeChecked();
+    await expect(page.getByTestId('drawing-snap-objects')).toBeChecked();
     await expect(page.getByTestId('drawing-snap-grid')).toBeChecked();
   });
 

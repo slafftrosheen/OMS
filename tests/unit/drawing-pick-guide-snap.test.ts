@@ -90,7 +90,7 @@ async function harness(run: (h: any) => Promise<void>) {
 describe('ordinary Pick guideline snapping through native public hooks', () => {
   it('snaps Pick and CAD to a hidden grid only while grid snapping is enabled', async () => {
     await harness(async ({ editor, snaps, add, ready, down, move, up }) => {
-      const disposeGrid = snaps.installDrawingGridSnapping(editor);
+      const disposeGrid = snaps.installDrawingSnapTargets(editor);
       try {
         const id = add();
         assert.equal(drawingGridVisible(editor).get(), false);
@@ -197,6 +197,33 @@ describe('ordinary Pick guideline snapping through native public hooks', () => {
       near(editor.getShape(id).x, 296); near(editor.getShape(id).y, 460);
       assert.ok(editor.snaps.getIndicators().length); assert.deepEqual(snapping.drawingPickGuideSnap(editor).get()?.guides.map((g: any) => g.axis), ['y']);
       await up({ x: 310, y: 475 }); near(editor.getShape(id).x, 296); near(editor.getShape(id).y, 460);
+    });
+  });
+
+  it('switches native object targets off without affecting guide movement, and restores them on undo', async () => {
+    await harness(async ({ editor, snaps, snapping, add, addGuide, ready, down, move, up }) => {
+      const id = add(), reference = add('shape:reference', 306, 200, 60, 60);
+      addGuide('x', 300); addGuide('y', 500); ready(id);
+      const disposeTargets = snaps.installDrawingSnapTargets(editor);
+      try {
+        const handle = { currentShapeId: id, handle: { id: 'test', type: 'vertex', index: 'a1', x: 203, y: 110 } };
+        assert.ok(editor.snaps.getSnappableShapes().has(reference));
+        assert.ok(editor.snaps.handles.snapHandle(handle));
+        assert.equal(snaps.writeCadSnapSettings(editor, { objects: false }), true);
+        assert.equal(editor.user.getIsSnapMode(), true);
+        assert.equal(editor.snaps.getSnappableShapes().size, 0);
+        assert.equal(editor.snaps.handles.snapHandle(handle), null);
+        ready(id);
+        await down({ x: 110, y: 110 }); await move({ x: 313, y: 475 });
+        near(editor.getShape(id).x, 300); near(editor.getShape(id).y, 460);
+        assert.deepEqual(snapping.drawingPickGuideSnap(editor).get()?.guides.map((g: any) => g.axis), ['x', 'y']);
+        assert.equal(snaps.writeCadSnapSettings(editor, { objects: true }), false);
+        await up({ x: 313, y: 475 });
+        editor.undo(); editor.undo();
+        assert.equal(snaps.readCadSnapSettings(editor).objects, true);
+        assert.ok(editor.snaps.getSnappableShapes().has(reference));
+        assert.ok(editor.snaps.handles.snapHandle(handle));
+      } finally { disposeTargets(); }
     });
   });
 
