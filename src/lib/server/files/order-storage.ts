@@ -1,11 +1,13 @@
 import { drawingFileKind } from '$lib/components/canvas/drawing-file-types';
+import { MAX_ORDER_FILE_BYTES } from '$lib/order/file-limits';
+
+export { MAX_ORDER_FILE_BYTES } from '$lib/order/file-limits';
 
 /** Order files are private Supabase Storage objects, never public URLs.
  * Request-scoped Supabase client supplies the authenticated user's RLS JWT.
  * The canonical parent is draft_orders.id both before and after confirmation.
  */
 export const ORDER_FILE_BUCKET = 'files';
-export const MAX_ORDER_FILE_BYTES = 25 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MIME: Record<string,string> = {
  pdf:'application/pdf', eps:'application/postscript', svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',

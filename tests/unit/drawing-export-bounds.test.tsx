@@ -98,9 +98,11 @@ describe('production save control', () => {
     const host = document.createElement('div'); document.body.append(host);
     const root = createRoot(host);
     const oldAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    const previousFetch = globalThis.fetch;
     Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { value:true, configurable:true });
     const render = (source: string, disabled = false) => act(async () => root.render(<EditorContext.Provider value={f.editor}>
-      <ProductionSaveButton extension="pdf" source={source} disabled={disabled} createFile={() => ++renders === 1 ? pending : blob}/>
+      <ProductionSaveButton extension="pdf" source={source} disabled={disabled} createFile={() => ++renders === 1 ? pending : blob}
+        errorMessage={() => 'Artwork export failed'} />
     </EditorContext.Provider>));
     try {
       await render('original');
@@ -123,7 +125,15 @@ describe('production save control', () => {
       assert.equal(uploads, 1);
       assert.equal(renders, 2);
       assert.equal([...f.shapes.values()].find(shape => shape.type === 'document')?.parentId, 'shape:pocket');
+
+      setOrderBridge(f.editor, { orderId:'stored-order' });
+      globalThis.fetch = async () => new Response('<html>Payload too large</html>', { status:413 });
+      await render('saved-order');
+      await act(async () => host.querySelector('button')!.click());
+      assert.match(host.querySelector('[role="status"]')?.textContent ?? '', /server rejected the attachment size/i);
+      assert.equal(f.shapes.size, 2);
     } finally {
+      globalThis.fetch = previousFetch;
       await act(async () => root.unmount());
       host.remove();
       if (oldAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', oldAct);

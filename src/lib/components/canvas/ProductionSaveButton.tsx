@@ -4,7 +4,7 @@ import { PRODUCTION_FILE_POCKETS, type ProductionFilePocket } from '$lib/order/f
 import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
 import { cadRevision } from './cad-plans';
 import { getOrderBridge } from './state-bridge';
-import { matchesProductionExportTarget, productionExportTarget, saveProductionExport, type ProductionExportTarget } from './production-export';
+import { matchesProductionExportTarget, ProductionExportError, productionExportTarget, saveProductionExport, type ProductionExportTarget } from './production-export';
 import { useWorkbenchText } from './workbench-copy';
 
 type Props = {
@@ -75,7 +75,8 @@ export function ProductionSaveButton({ extension, source, disabled = false, crea
     } catch (error) {
       if (!controller.signal.aborted) {
         const code = error instanceof Error ? error.message : '';
-        setMessage(code === 'readOnly' || code === 'changed' ? t(code) : errorMessage?.(error) ?? t('saveFailed'));
+        if (error instanceof ProductionExportError) setMessage(t(error.issue));
+        else setMessage(code === 'readOnly' || code === 'changed' ? t(code) : errorMessage?.(error) ?? t('saveFailed'));
       }
     } finally {
       running.current = false;

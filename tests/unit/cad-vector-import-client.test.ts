@@ -60,9 +60,28 @@ describe('drawing file preparation for vector review', () => {
       globalThis.fetch = async () => new Response('{}', { status: 403 });
       await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), /vector-access/);
       globalThis.fetch = async () => new Response('<html>Proxy fallback</html>');
-      await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), /conversion/);
+      await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), /vector-response/);
       globalThis.fetch = async () => assert.fail('cancelled conversion must not upload');
       await assert.rejects(readVectorDrawingFile(file, 1, false, AbortSignal.abort()), /cancelled/);
+    } finally { globalThis.fetch = oldFetch; }
+  });
+
+  it('distinguishes proxy trouble, converter limits and an interrupted response body', async () => {
+    const oldFetch = globalThis.fetch;
+    const file = new File([eps], 'art.eps');
+    try {
+      for (const [status, code] of [[413, 'vector-transport-limit'], [429, 'busy'], [503, 'vector-service'], [504, 'timeout']] as const) {
+        globalThis.fetch = async () => new Response('<html>Proxy error</html>', { status });
+        await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), { message: code });
+      }
+      globalThis.fetch = async () => Response.json({ code: 'vector-output-limit' }, { status: 413 });
+      await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), { message: 'vector-output-limit' });
+      globalThis.fetch = async () => Response.json({ code: 'cdr-converter-unavailable' }, { status: 503 });
+      await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), { message: 'cdr-converter-unavailable' });
+      globalThis.fetch = async () => new Response(new ReadableStream({
+        start(stream) { stream.error(new TypeError('Connection interrupted')); }
+      }));
+      await assert.rejects(readVectorDrawingFile(file, 1, false, signal()), { message: 'vector-network' });
     } finally { globalThis.fetch = oldFetch; }
   });
 

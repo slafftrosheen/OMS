@@ -8,6 +8,7 @@ import {arrangeProductionPocket} from '../../src/lib/components/canvas/productio
 import {uploadOrderCanvasFiles} from '../../src/lib/components/canvas/asset-uploader';
 import {productionExportTarget,saveProductionExport} from '../../src/lib/components/canvas/production-export';
 import {setOrderBridge} from '../../src/lib/components/canvas/state-bridge';
+import {MAX_ORDER_FILE_BYTES} from '../../src/lib/order/file-limits';
 
 describe('CAD drawing and text workbench',()=>{
  it('constructs exact centre-radius circles and rejects zero/oversized geometry',()=>{
@@ -149,12 +150,37 @@ describe('stored production export contract',()=>{
     if(requests.length===1)throw new TypeError('Response lost');
     return Response.json({file:{id:requests.length===2?'recovered':'another-save'}},{status:201});
    };
-   await assert.rejects(saveProductionExport(f.editor,file,'laser'),/Response lost/);
+   await assert.rejects(saveProductionExport(f.editor,file,'laser'),{message:'exportUnconfirmed'});
    assert.equal(f.shapes.size,1);
    assert.equal((await saveProductionExport(f.editor,file,'laser')).placed,true);
    assert.equal(requests[1],requests[0]);
    assert.equal((await saveProductionExport(f.editor,new File([file],file.name,{type:file.type}),'laser')).placed,true);
    assert.notEqual(requests[2],requests[0]);
+  } finally { globalThis.fetch=original; }
+ });
+ it('checks the attachment limit before saving and distinguishes HTTP recovery cases',async()=>{
+  const f=fixture();
+  f.editor.createShape({id:'shape:laser',type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
+  setOrderBridge(f.editor,{orderId:'order-123'});
+  const oversized=new File([new Uint8Array(MAX_ORDER_FILE_BYTES+1)],'large.png',{type:'image/png'});
+  const file=new File(['%PDF-1.7'],'part.pdf',{type:'application/pdf'});
+  const original=globalThis.fetch;
+  try {
+   globalThis.fetch=async()=>assert.fail('invalid attachment must not be sent');
+   await assert.rejects(saveProductionExport(f.editor,oversized,'laser'),{message:'exportAttachmentLimit'});
+   await assert.rejects(saveProductionExport(f.editor,new File([],'empty.pdf'),'laser'),{message:'exportEmptyFile'});
+   const requestIds=new Set<FormDataEntryValue|null>();
+   for(const [status,issue] of [[401,'exportSignIn'],[403,'exportForbidden'],[409,'exportConflict'],[413,'exportUploadLimit'],
+       [429,'exportBusy'],[503,'exportStoreUnavailable'],[504,'exportTimeout'],[200,'exportUnconfirmed']] as const){
+    globalThis.fetch=async(_input,init)=>{
+     requestIds.add((init?.body as FormData).get('canvas_export_request_id'));
+     return new Response('<html>Unexpected response</html>',{status});
+    };
+    await assert.rejects(saveProductionExport(f.editor,file,'laser'),{message:issue});
+   }
+   assert.equal(requestIds.size,1);
+   assert.ok([...requestIds][0]);
+   assert.equal(f.shapes.size,1);
   } finally { globalThis.fetch=original; }
  });
  it('skips upload for a stale target and skips placement in a replacement pocket',async()=>{

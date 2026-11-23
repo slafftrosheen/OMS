@@ -2,6 +2,26 @@ import { base } from '$app/paths';
 import { vectorPayloadKind, vectorUploadPayload } from './cad-vector-file';
 import { drawingFileKind } from './drawing-file-types';
 
+const conversionCodes = new Set([
+  'format', 'page', 'font', 'conversion', 'cdr-conversion', 'converter-unavailable', 'cdr-converter-unavailable',
+  'cancelled', 'busy', 'timeout', 'vector-input-limit', 'vector-output-limit',
+]);
+
+async function conversionFailure(response: Response, signal: AbortSignal) {
+  if (response.status === 401 || response.status === 403) return 'vector-access';
+  const payload = await response.json().catch(() => null);
+  if (signal.aborted) return 'cancelled';
+  const code = payload?.code;
+  if (typeof code === 'string' && conversionCodes.has(code) && (code !== 'conversion' || response.status < 500)) return code;
+  switch (response.status) {
+    case 413: return 'vector-transport-limit';
+    case 415: return 'format';
+    case 429: return 'busy';
+    case 408: case 504: return 'timeout';
+    default: return response.status >= 500 || response.status === 404 ? 'vector-service' : 'conversion';
+  }
+}
+
 export async function readVectorDrawingFile(
   file: File, pageNumber: number, outline: boolean, signal: AbortSignal,
 ) {
@@ -28,22 +48,28 @@ export async function readVectorDrawingFile(
   if (!Number.isInteger(sourcePage) || sourcePage < 1 || sourcePage > 5000) throw new Error('page');
   let selectedPage = sourcePage, bytes: ArrayBuffer;
   if (kind === 'eps' || kind === 'cdr' || outline) {
-    const response = await fetch(`${base}/api/canvas/convert-vector?page=${sourcePage}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body, signal,
-    });
-    check();
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) throw new Error('vector-access');
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.code ?? (response.status === 413 ? 'vector-transport-limit' : 'conversion'));
+    let response: Response;
+    try {
+      response = await fetch(`${base}/api/canvas/convert-vector?page=${sourcePage}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body, signal,
+      });
+    } catch {
+      check();
+      throw new Error('vector-network');
     }
-    bytes = await response.arrayBuffer();
+    check();
+    if (!response.ok) throw new Error(await conversionFailure(response, signal));
+    try { bytes = await response.arrayBuffer(); }
+    catch {
+      check();
+      throw new Error('vector-network');
+    }
     selectedPage = 1;
   } else {
     bytes = await body.arrayBuffer();
   }
   check();
   const data = new Uint8Array(bytes);
-  if (vectorPayloadKind(data) !== 'pdf') throw new Error('conversion');
+  if (vectorPayloadKind(data) !== 'pdf') throw new Error('vector-response');
   return { bytes: data, selectedPage, sourcePage, kind };
 }

@@ -2,6 +2,7 @@ import type { Editor } from '@tldraw/tldraw';
 import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
 import { base } from '$app/paths';
 import { frameFilePocket, type ProductionFilePocket } from '$lib/order/file-pockets';
+import { MAX_ORDER_FILE_BYTES } from '$lib/order/file-limits';
 import { announceOrderFilesChanged } from '$lib/order/order-files-client';
 import { createUuid } from '$lib/utils/id';
 import { getOrderBridge } from './state-bridge';
@@ -12,6 +13,19 @@ const pending = new WeakSet<Editor>();
 type Receipt = { id: string; url: string };
 type Attempt = { requestId?: string; receipt?: Receipt };
 const attempts = new WeakMap<Editor, WeakMap<File, Map<string, Attempt>>>();
+
+type ExportIssue = 'exportEmptyFile' | 'exportAttachmentLimit' | 'exportSignIn' | 'exportForbidden' |
+  'exportOrderMissing' | 'exportConflict' | 'exportUploadLimit' | 'exportRejected' | 'exportBusy' |
+  'exportTimeout' | 'exportStoreUnavailable' | 'exportUnconfirmed';
+
+export class ProductionExportError extends Error {
+  constructor(readonly issue: ExportIssue) { super(issue); }
+}
+
+const uploadIssues: Partial<Record<number, ExportIssue>> = {
+  401: 'exportSignIn', 403: 'exportForbidden', 404: 'exportOrderMissing', 409: 'exportConflict',
+  408: 'exportTimeout', 413: 'exportUploadLimit', 415: 'exportRejected', 429: 'exportBusy', 504: 'exportTimeout',
+};
 
 export function productionExportTarget(editor: Editor, pocket: ProductionFilePocket) {
   const bridge = getOrderBridge(editor);
@@ -36,7 +50,9 @@ export async function saveProductionExport(
   const current = productionExportTarget(editor, pocket);
   if (!target || !current) throw new Error('readOnly');
   if (!matchesProductionExportTarget(current, target)) throw new Error('changed');
-  if (pending.has(editor)) throw new Error('saveFailed');
+  if (pending.has(editor)) throw new ProductionExportError('exportBusy');
+  if (!file.size) throw new ProductionExportError('exportEmptyFile');
+  if (file.size > MAX_ORDER_FILE_BYTES) throw new ProductionExportError('exportAttachmentLimit');
   const { orderId, queued } = target;
   const key = JSON.stringify([orderId, pocket, queued, release?.reviewId]);
   let files = attempts.get(editor);
@@ -65,11 +81,25 @@ export async function saveProductionExport(
         if (release) body.set('canvas_dxf_release', JSON.stringify(release));
         if (attempt.requestId) body.set('canvas_export_request_id', attempt.requestId);
         const timeout = AbortSignal.timeout(60_000);
-        const response = await fetch(base + '/api/files/upload', {
-          method: 'POST', body, signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || typeof result.file?.id !== 'string' || !result.file.id) throw new Error('saveFailed');
+        let response: Response;
+        try {
+          response = await fetch(base + '/api/files/upload', {
+            method: 'POST', body, signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+          });
+        } catch {
+          if (signal?.aborted) throw new Error('cancelled');
+          throw new ProductionExportError(timeout.aborted ? 'exportTimeout' : 'exportUnconfirmed');
+        }
+        if (!response.ok) {
+          const issue = uploadIssues[response.status] ?? (response.status >= 500 ? 'exportStoreUnavailable' : 'exportRejected');
+          throw new ProductionExportError(issue);
+        }
+        const result = await response.json().catch(() => null);
+        if (signal?.aborted) throw new Error('cancelled');
+        if (timeout.aborted) throw new ProductionExportError('exportTimeout');
+        if (typeof result?.file?.id !== 'string' || !result.file.id.trim()) {
+          throw new ProductionExportError('exportUnconfirmed');
+        }
         stored = { id: result.file.id, url: `${base}/api/files/${encodeURIComponent(result.file.id)}/download` };
       }
       attempt.receipt = stored;
