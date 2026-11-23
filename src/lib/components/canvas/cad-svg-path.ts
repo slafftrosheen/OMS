@@ -96,7 +96,11 @@ export function svgContours(element: Element, matrix: VectorMatrix, warnings: Se
     if (count > CAD_CURVE_NODE_LIMIT) throw new Error('limit');
     last = point;
   }
-  return mapContours(contours.filter(c => c.nodes.length >= 2), p => ({
+  return contours.filter(c => c.nodes.length >= 2);
+}
+
+export function svgTransformedContours(contours: CadContour[], matrix: VectorMatrix): CadContour[] {
+  return mapContours(contours, p => ({
     x: matrix[0] * p.x + matrix[2] * p.y + matrix[4], y: matrix[1] * p.x + matrix[3] * p.y + matrix[5],
   }));
 }

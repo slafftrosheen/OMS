@@ -309,27 +309,38 @@ describe('physical drawing pages', () => {
 });
 
 describe('portable artwork export through native SVG and PNG APIs', () => {
-  it('reimports a full-size OMS SVG with the same cubic and hole geometry and exports its cutting curves', async () => harness(async h => {
+  it('reimports a full-size OMS SVG with editable gradient, cubic and hole geometry and exports its cutting curves', async () => harness(async h => {
     const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
     const { readVectorSvg } = await import('../../src/lib/components/canvas/cad-svg-import');
     const { prepareVectorImport } = await import('../../src/lib/components/canvas/cad-vector');
     const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
     const { buildCadDxf } = await import('../../src/lib/components/canvas/cad-dxf');
+    const { getGradientFillSettings } = await import('../../src/lib/components/canvas/gradient-fill');
     const outer = h.rectangle(0, 0, 160, 100);
     outer.nodes[0].outX = 48;
     outer.nodes[1].inX = -41;
-    const source = h.create([outer, h.rectangle(50, 20, 60, 60)], { fill: '#007e5d', stroke: 'none' });
+    const gradient = { type: 'linear', matrix: [1, 0, 0, 1, 0, 0], start: [0, 0], end: [160, 100],
+      r0: 0, r1: 0, stops: [{ offset: 0, color: '#007e5d' }, { offset: 1, color: '#ac125f' }] };
+    const source = h.create([outer, h.rectangle(50, 20, 60, 60)], { fill: 'none', stroke: 'none', gradient });
     h.editor.select(source.id);
     const svg = await exportDrawingArtwork(h.editor, 'svg', { ...exportOptions, scope: 'selected' }, new AbortController().signal);
     const imported = readVectorSvg(await svg.blob.text());
     near(imported.widthMm, svg.physical!.widthMm);
     assert.equal(imported.document.paths.length, 1);
+    assert.deepEqual(imported.document.warnings, []);
     const plan = prepareVectorImport(h.editor, h.cad.DEFAULT_CAD_SETTINGS, imported.document, imported.widthMm, { x:350, y:150 }, 'Round trip');
     assert.equal(applyCadPlan(h.editor, plan), true);
     const result = h.editor.getOnlySelectedShape();
     assert.equal(result.props.fillRule, 'evenodd');
     assert.equal(result.props.contours.length, 2);
     near(result.props.contours[0].nodes[0].outX, 48);
+    const appliedGradient = result.meta.omsVectorPaint.gradient;
+    assert.deepEqual(appliedGradient.stops, gradient.stops);
+    assert.deepEqual(getGradientFillSettings(h.editor)?.stops, gradient.stops);
+    assert.deepEqual(appliedGradient.end, gradient.end);
+    appliedGradient.matrix.slice(0, 4).forEach((value: number, i: number) => near(value, gradient.matrix[i]));
+    near(appliedGradient.matrix[4], result.props.contours[0].nodes[0].x);
+    near(appliedGradient.matrix[5], result.props.contours[0].nodes[0].y);
     const dxf = buildCadDxf(h.editor, 'selected', h.cad.DEFAULT_CAD_SETTINGS);
     assert.equal(dxf.closedContours, 2);
     assert.deepEqual(dxf.omitted, []);

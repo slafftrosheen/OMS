@@ -7,6 +7,17 @@ const number = String.raw`[+-]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][+-]?\d+)?`;
 const units: Record<string, number> = { '': 1, px: 1, mm: 96 / 25.4, cm: 96 / 2.54,
   in: 96, pt: 96 / 72, pc: 16, q: 96 / 101.6 };
 const lengthPattern = new RegExp(`^(${number})([a-z]*)$`, 'i');
+const unitlessPattern = new RegExp(`^${number}$`);
+
+export function svgGradientLength(value: string, extent: number, objectBox: boolean): number {
+  const percent = value.endsWith('%');
+  if (!percent && !objectBox) return svgLength(value);
+  const literal = percent ? value.slice(0, -1) : value;
+  if (!unitlessPattern.test(literal)) throw new Error('svg-format');
+  const length = Number(literal) * (percent ? extent / 100 : 1);
+  if (!Number.isFinite(length)) throw new Error('svg-format');
+  return length;
+}
 
 export function svgLength(value: string): number {
   const match = lengthPattern.exec(value.trim());
@@ -70,16 +81,17 @@ export function svgViewport(root: Element) {
   if (width === undefined || height === undefined || width <= 0 || height <= 0)
     throw new Error('svg-size');
   if (width > 1e6 || height > 1e6) throw new Error('limit');
-  if (!box) return { width, height, matrix: SVG_IDENTITY, estimated };
+  const viewport = { width, height, estimated, userViewport: { width: box?.[2] ?? width, height: box?.[3] ?? height } };
+  if (!box) return { ...viewport, matrix: SVG_IDENTITY };
   const [x, y, w, h] = box;
   const sx = width / w, sy = height / h;
   const aspect = (root.getAttribute('preserveAspectRatio') ?? 'xMidYMid meet').trim();
-  if (aspect === 'none') return { width, height, matrix: [sx, 0, 0, sy, -x * sx, -y * sy] as VectorMatrix, estimated };
+  if (aspect === 'none') return { ...viewport, matrix: [sx, 0, 0, sy, -x * sx, -y * sy] as VectorMatrix };
   const alignment = /^x(Min|Mid|Max)Y(Min|Mid|Max)(?:\s+(meet|slice))?$/.exec(aspect);
   if (!alignment) throw new Error('svg-format');
   const scale = alignment[3] === 'slice' ? Math.max(sx, sy) : Math.min(sx, sy);
   const fraction = { Min: 0, Mid: 0.5, Max: 1 };
   const dx = (width - scale * w) * fraction[alignment[1] as keyof typeof fraction] - x * scale;
   const dy = (height - scale * h) * fraction[alignment[2] as keyof typeof fraction] - y * scale;
-  return { width, height, matrix: [scale, 0, 0, scale, dx, dy] as VectorMatrix, estimated };
+  return { ...viewport, matrix: [scale, 0, 0, scale, dx, dy] as VectorMatrix };
 }

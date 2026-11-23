@@ -80,6 +80,72 @@ describe('editable SVG exchange', () => {
     assert.deepEqual(document.warnings, ['svg-effects']);
   });
 
+  it('uses the local Bézier bounds before the element and gradient transforms', () => {
+    const { document } = load(`<defs><linearGradient id="paint" x2="75%" y2="50%" gradientTransform="translate(.1 .2)">
+      <stop offset="25%" stop-color="#123456"/><stop offset="80%" stop-color="#abcdef"/>
+      </linearGradient></defs><path transform="translate(60 0) rotate(90)" fill="url(#paint)"
+      d="M10 20C10 60 30 60 30 20L30 10H10Z"/>`, 'width="100" height="100"');
+    const [path] = document.paths;
+    const gradient = path.paint.gradient!;
+    assert.equal(gradient.type, 'linear');
+    assert.deepEqual(gradient.start, [0, 0]);
+    assert.deepEqual(gradient.end, [.75, .5]);
+    gradient.matrix.forEach((value, i) => near(value, [0, 20, -40, 0, 42, 12][i]));
+    assert.deepEqual(gradient.stops, [
+      { offset: 0, color: '#123456' }, { offset: .25, color: '#123456' },
+      { offset: .8, color: '#abcdef' }, { offset: 1, color: '#abcdef' },
+    ]);
+    assert.deepEqual(document.warnings, []);
+  });
+
+  it('inherits local gradient templates and resolves radial lengths in user space', () => {
+    const { document } = load(`<defs color="#0483a4">
+      <radialGradient id="base" color="#998877" gradientUnits="userSpaceOnUse" r="50%" fx="20%" fr="5%" cx="25%" cy="40%">
+        <stop offset="0" style="stop-color:currentColor;stop-opacity:.5"/>
+        <stop offset="1" stop-color="rgba(195, 32, 41, 0.5)"/>
+      </radialGradient><radialGradient id="link" href="#base" gradientTransform="translate(3)"/>
+      <radialGradient id="paint" xlink:href="#link" color="#058394"/>
+      </defs><rect x="11" y="8" width="30" height="20" fill="url( '#paint' )" fill-opacity="40%"
+        stroke="#000000" stroke-opacity="80%" color="#ffffff"/>
+      <rect x="65" y="8" width="30" height="20" fill="url(#link)"/>`,
+      'xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100" viewBox="10 5 100 50"');
+    const [path] = document.paths;
+    const gradient = path.paint.gradient!;
+    assert.equal(gradient.type, 'radial');
+    assert.deepEqual(gradient.start, [20, 20]);
+    assert.deepEqual(gradient.end, [25, 20]);
+    assert.deepEqual(gradient.matrix, [2, 0, 0, 2, -14, -10]);
+    near(gradient.r0, Math.sqrt(6250) * .05);
+    near(gradient.r1, Math.sqrt(6250) * .5);
+    assert.deepEqual(gradient.stops, [{ offset: 0, color: '#058394' }, { offset: 1, color: '#c32029' }]);
+    assert.equal(document.paths[1].paint.gradient?.stops[0].color, '#0483a4');
+    near(path.paint.fillOpacity, .2);
+    near(path.paint.strokeOpacity, .8);
+    assert.deepEqual(document.warnings, []);
+  });
+
+  it('keeps a solid fallback and reports unsupported or unresolved gradient paint', () => {
+    const { document } = load(`<defs>
+      <linearGradient id="cycle" href="#cycle"/>
+      <linearGradient id="external" href="https://example.test/paint.svg#g"/>
+      <linearGradient id="fade"><stop stop-color="black"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient>
+      <linearGradient id="stripe" spreadMethod="repeat"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient>
+      <linearGradient id="hard"><stop stop-color="black"/><stop stop-color="white"/><stop offset="1" stop-color="white"/></linearGradient>
+      <linearGradient id="short" x2="0"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient>
+      </defs><rect width="5" height="5" fill="url(#cycle) #123"/>
+      <rect x="10" width="5" height="5" fill="url(#fade) #234"/>
+      <rect x="20" width="5" height="5" fill="url(#external) #345"/>
+      <rect x="30" width="5" height="5" fill="url(#stripe) #456"/>
+      <rect x="40" width="5" height="5" fill="url(#hard) #567"/>
+      <rect x="50" width="5" height="5" fill="url(#short) black" stroke="url(#short) #678"/>`);
+    assert.deepEqual(document.paths.map(path => path.paint.fill),
+      ['#112233', '#223344', '#334455', '#445566', '#556677', '#ffffff']);
+    assert.ok(document.paths.every(path => !path.paint.gradient));
+    assert.equal(document.paths[5].paint.stroke, '#667788');
+    assert.deepEqual(document.warnings, ['svg-gradient', 'svg-paint']);
+    assert.doesNotMatch(JSON.stringify(document), /https:/);
+  });
+
   it('reports unsupported effects and resources and only returns numeric geometry and solid paint', () => {
     const { document } = load(`<style>.painted { fill: url(https://example.test/fill); }</style>
       <script>throw new Error('must remain inert')</script><image href="https://example.test/a.svg"/>
@@ -90,7 +156,7 @@ describe('editable SVG exchange', () => {
     assert.equal(document.paths[0].paint.fill, '#123456');
     assert.equal(document.paths[0].contours[0].closed, true);
     near(document.paths[0].paint.fillOpacity, .5);
-    assert.deepEqual(document.warnings, ['svg-style', 'svg-elements','svg-image','svg-text','svg-paint','svg-effects']);
+    assert.deepEqual(document.warnings, ['svg-style', 'svg-elements','svg-image','svg-text','svg-gradient','svg-effects']);
     assert.doesNotMatch(JSON.stringify(document), /https:|onload|throw new Error/);
   });
 

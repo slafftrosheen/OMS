@@ -2,7 +2,8 @@ import { multiplyMatrix, rectangularClipContainsBounds, type VectorClip, type Ve
 import { CAD_PLAN_GEOMETRY_LIMITS, curveBounds, nodeAt, validContours } from './cad-curves';
 import { VECTOR_DEFAULT_PAINT, validVectorPaint, type VectorDocument } from './cad-paint';
 import { SVG_MM_PER_PIXEL, SVG_NS, svgLength, svgNumbers, svgTransform, svgViewport } from './cad-svg-coordinates';
-import { SVG_SHAPES, svgContours } from './cad-svg-path';
+import { readSvgGradient, svgPaintReference, type SvgGradientFill } from './cad-svg-gradient';
+import { SVG_SHAPES, svgContours, svgTransformedContours } from './cad-svg-path';
 
 export const SVG_IMPORT_LIMIT = 8 * 1024 * 1024;
 
@@ -11,7 +12,7 @@ const inherited = [
   'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset', 'visibility',
 ] as const;
 type Style = Partial<Record<typeof inherited[number], string>>;
-const passive = new Set(['title', 'desc', 'metadata', 'defs']);
+const passive = new Set(['title', 'desc', 'metadata', 'defs', 'linearGradient', 'radialGradient']);
 const unsupportedEffects = ['mask', 'filter', 'marker', 'marker-start', 'marker-mid', 'marker-end', 'mix-blend-mode'];
 
 function styleReader(element: Element) {
@@ -45,14 +46,17 @@ function normalizedColor(raw: string): { ink: string; a: number } | null {
 }
 
 function savePaint(style: Style, scale: number, opacity: number, vectorEffect: string | undefined,
-  color: (value: string) => { ink: string; a: number } | null, warnings: Set<string>) {
+  color: (value: string) => { ink: string; a: number } | null, warnings: Set<string>, gradientFill?: SvgGradientFill) {
   const current = style.color ?? 'black';
   const parse = (value: string) => {
-    const ink = color(value.toLowerCase() === 'currentcolor' ? current : value);
+    const reference = svgPaintReference(value);
+    if (reference) warnings.add('svg-paint');
+    const literal = reference ? reference.fallback ?? 'none' : value;
+    const ink = color(literal.toLowerCase() === 'currentcolor' ? current : literal);
     if (!ink) warnings.add('svg-paint');
     return ink ?? { ink: 'none', a: 1 };
   };
-  const fill = parse(style.fill ?? 'black'), stroke = parse(style.stroke ?? 'none');
+  const fill = gradientFill ?? parse(style.fill ?? 'black'), stroke = parse(style.stroke ?? 'none');
   const width = svgLength(style['stroke-width'] ?? '1');
   const hasStroke = stroke.ink !== 'none' && width > 0;
   let dash: number[] = [], dashOffset = 0;
@@ -67,10 +71,11 @@ function savePaint(style: Style, scale: number, opacity: number, vectorEffect: s
   const strokeScale = vectorEffect === 'non-scaling-stroke' ? 1 : scale;
   const fillOpacity = opacity * fill.a * alpha(style['fill-opacity']);
   const strokeOpacity = opacity * stroke.a * alpha(style['stroke-opacity']);
-  if (opacity < 1 && fill.ink !== 'none' && hasStroke) warnings.add('svg-opacity');
+  if (opacity < 1 && fillOpacity && (fill.ink !== 'none' || gradientFill?.gradient) && hasStroke) warnings.add('svg-opacity');
   return {
     ...VECTOR_DEFAULT_PAINT,
     fill: fillOpacity ? fill.ink : 'none',
+    ...(fillOpacity && gradientFill?.gradient ? { gradient: gradientFill.gradient } : {}),
     stroke: hasStroke && strokeOpacity ? stroke.ink : 'none',
     fillOpacity, strokeOpacity,
     strokeWidth: Math.max(0, width) * strokeScale,
@@ -90,7 +95,7 @@ export function readVectorSvg(source: string) {
   const root = xml.documentElement;
   if (root.localName !== 'svg' || root.namespaceURI && root.namespaceURI !== SVG_NS || xml.querySelector('parsererror'))
     throw new Error('svg-format');
-  const { width, height, matrix, estimated } = svgViewport(root);
+  const { width, height, matrix, estimated, userViewport } = svgViewport(root);
   const warnings = new Set<string>();
   if (estimated) warnings.add('svg-estimated-size');
   if (xml.querySelector('style') || Array.from(xml.childNodes).some(n => n.nodeName === 'xml-stylesheet'))
@@ -137,7 +142,7 @@ export function readVectorSvg(source: string) {
     if (child.namespaceURI !== root.namespaceURI || !SVG_SHAPES.has(child.localName) ||
         style('clip-path') || clipStyle('clip-path') || style('display') === 'none' || style('visibility') === 'hidden') return null;
     const m = multiplyMatrix(multiplyMatrix(transform, svgTransform(clipStyle('transform') ?? null)), svgTransform(style('transform') ?? null));
-    const contours = svgContours(child, m, warnings);
+    const contours = svgTransformedContours(svgContours(child, m, warnings), m);
     return validContours(contours) ? {
       contours: contours.map(c => ({ ...c, closed: true })),
       fillRule: (style('clip-rule') ?? clipStyle('clip-rule')) === 'evenodd' ? 'evenodd' : 'nonzero',
@@ -180,20 +185,31 @@ export function readVectorSvg(source: string) {
         return;
       }
       if (resolved.visibility === 'hidden' || resolved.visibility === 'collapse') return;
-      let contours = svgContours(element, transform, warnings);
+      const local = svgContours(element, transform, warnings);
+      let contours = svgTransformedContours(local, transform);
       if (!contours.length) return;
       if (!validContours(contours)) { warnings.add('svg-geometry'); return; }
       const a = Math.hypot(transform[0], transform[1]), b = Math.hypot(transform[2], transform[3]);
       const vectorEffect = attr('vector-effect');
-      const paint = savePaint(resolved, a, opacity * ownOpacity, vectorEffect, color, warnings);
-      if (tag === 'line') paint.fill = 'none';
+      if (tag === 'line') resolved.fill = 'none';
+      const fillRef = svgPaintReference(resolved.fill ?? 'black');
+      let gradientFill: SvgGradientFill | null = null;
+      if (fillRef) {
+        gradientFill = readSvgGradient({ id: fillRef.id, ids, namespace: root.namespaceURI, style: styleReader,
+          color, alpha, viewport: userViewport, bounds: curveBounds(local), transform });
+        if (!gradientFill) {
+          warnings.add('svg-gradient');
+          resolved.fill = fillRef.fallback ?? 'none';
+        }
+      }
+      const paint = savePaint(resolved, a, opacity * ownOpacity, vectorEffect, color, warnings, gradientFill ?? undefined);
       if (paint.stroke !== 'none' && vectorEffect !== 'non-scaling-stroke' &&
           (Math.abs(a - b) > 1e-8 * Math.max(a, b) ||
           Math.abs(transform[0] * transform[2] + transform[1] * transform[3]) > 1e-8 * a * b)) {
         warnings.add('svg-stroke');
         paint.stroke = 'none';
       }
-      if (paint.fill === 'none' && paint.stroke === 'none') return;
+      if (paint.fill === 'none' && !paint.gradient && paint.stroke === 'none') return;
       // SVG closes the fill boundary implicitly. Keep an authored open
       // stroke open, but retain the visible closure for fill-only artwork.
       if (paint.stroke === 'none') {
