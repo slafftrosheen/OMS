@@ -86,6 +86,14 @@ describe('OMS Draw command map', () => {
     assert.equal(key('F7', { altKey: true }), 'transform');
     assert.equal(key('F9', { ctrlKey: true }), 'contour');
     assert.equal(key('F11', { shiftKey: true }), 'paint');
+    assert.equal(key('F11'), 'gradientFill');
+    assert.equal(key('F12', { shiftKey: true }), 'outlineColor');
+    assert.equal(key('F2'), 'zoomArea');
+    assert.equal(key('F2', { shiftKey: true }), 'fit-selection');
+    assert.equal(key('y', { altKey: true }), 'snapGrid');
+    assert.equal(key('q', { altKey: true }), 'snap');
+    assert.equal(key('PageDown'), 'nextPage');
+    assert.equal(key('PageUp'), 'previousPage');
     assert.equal(key('/', { ctrlKey: true }), 'quickAccess');
     assert.equal(key('F1'), 'shortcuts');
     assert.equal(key('Enter', { altKey: true }), 'dock-properties');
@@ -109,6 +117,8 @@ describe('OMS Draw command map', () => {
     assert.equal(drawingToolKeys.nodes, 'F10');
     assert.equal(drawingToolKeys.pentagon, 'Y');
     assert.equal(drawingToolKeys.outline, 'F12');
+    assert.equal(drawingToolKeys.eraser, 'X');
+    assert.equal(Object.values(drawingToolKeys).includes('E'), false);
   });
 });
 

@@ -39,6 +39,12 @@ function guideGeometry(guide: DrawingGuideGeometry): DrawingGuideGeometry | null
     ? { axis: guide.axis, position: guide.position } : null;
 }
 
+export function drawingGuideRotationPose(guide: DrawingGuideGeometry, pivot?: CadPoint): Extract<DrawingGuideGeometry, { axis: 'angle' }> | null {
+  if (guide.axis === 'angle') return guide;
+  if (!pivot || !validPivot(pivot)) return null;
+  return { axis: 'angle', pivot: projectToDrawingGuide(guide, pivot), angle: guide.axis === 'x' ? 270 : 0 };
+}
+
 export function drawingGuideLine(guide: DrawingGuideGeometry) {
   if (guide.axis === 'x') return { point: { x: guide.position, y: 0 }, along: { x: 0, y: 1 }, normal: { x: 1, y: 0 } };
   if (guide.axis === 'y') return { point: { x: 0, y: guide.position }, along: { x: 1, y: 0 }, normal: { x: 0, y: 1 } };
@@ -135,7 +141,8 @@ function changedState(current: DrawingGuidesState, change: DrawingGuideChange): 
     next.guides = next.guides.filter(guide => !change.ids.includes(guide.id));
   } else if (change.kind === 'move' || change.kind === 'pose' || change.kind === 'guide-visible' || change.kind === 'guide-locked') {
     const update = change;
-    const guide = next.guides.find(guide => guide.id === update.id);
+    const index = next.guides.findIndex(guide => guide.id === update.id);
+    const guide = next.guides[index];
     if (!guide) throw new DrawingGuideError('missing');
     if (update.kind === 'move') {
       if (current.locked || guide.locked) throw new DrawingGuideError('locked');
@@ -143,9 +150,10 @@ function changedState(current: DrawingGuidesState, change: DrawingGuideChange): 
       guide.position = update.position;
     } else if (update.kind === 'pose') {
       if (current.locked || guide.locked) throw new DrawingGuideError('locked');
-      if (guide.axis !== 'angle' || !validPivot(update.pivot) || !validAngle(update.angle)) throw new DrawingGuideError('invalid');
-      guide.pivot = { x: update.pivot.x, y: update.pivot.y };
-      guide.angle = normalizedAngle(update.angle);
+      if (!validPivot(update.pivot) || !validAngle(update.angle)) throw new DrawingGuideError('invalid');
+      next.guides[index] = { id: guide.id,
+        axis: 'angle', pivot: { x: update.pivot.x, y: update.pivot.y }, angle: normalizedAngle(update.angle),
+        visible: guide.visible, locked: guide.locked };
     } else if (update.kind === 'guide-visible') {
       if (typeof update.visible !== 'boolean') throw new DrawingGuideError('invalid');
       guide.visible = update.visible;

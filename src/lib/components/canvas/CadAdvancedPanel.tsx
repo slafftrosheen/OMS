@@ -31,7 +31,7 @@ import { drawingFileKind, DXF_FILE_ACCEPT } from './drawing-file-types';
 import type { DrawingImportQueue, QueuedImportControls } from './drawing-ui-requests';
 import { useDrawingText } from './drawing-copy';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'exportDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'corners' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'exportDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'corners' | 'trace' | 'paint' | 'gradientFill' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineColor' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -107,8 +107,10 @@ export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf, impo
     {!settings && task !== 'paint' && <Message value="settingsRequired" />}
     {task !== 'preflight' && (state.controls.readOnly || state.controls.selectionLocked || state.protected) && <Message value="blocked" />}
     <div hidden={task !== 'paint'}>
-    <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'paint' ? focusRequest.sequence : undefined} />
-    <OutlinePenPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'outline' ? focusRequest.sequence : undefined} />
+    <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'paint' ? focusRequest.sequence : undefined}
+      gradientFocusSequence={task === 'paint' && focusRequest?.section === 'gradientFill' ? focusRequest.sequence : undefined} />
+    <OutlinePenPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && (focusRequest?.section === 'outline' || focusRequest?.section === 'outlineColor') ? focusRequest.sequence : undefined}
+      focusColor={focusRequest?.section === 'outlineColor'} />
     <OutlineToObjectPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'outlineObject' ? focusRequest.sequence : undefined} />
     </div><div hidden={task !== 'edit'}>
     <CadNodeArrangePanel settings={settings} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeArrange' ? focusRequest.sequence : undefined} />

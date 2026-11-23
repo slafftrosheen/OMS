@@ -1,7 +1,8 @@
 import { installProductionLayers } from './cad-production-layers';
 import { captureCanvasDocument } from './canvas-document';
 import { applyCanvasSurface, watchCanvasSurface } from './canvas-surface';
-import { DrawingGrid } from './DrawingGrid';
+import { DrawingGridBackground } from './DrawingGrid';
+import { installDrawingGridSnapping } from './cad-snap-settings';
 import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
 import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
@@ -40,7 +41,7 @@ import { installCadTransforms } from './cad-transforms';
 import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
-import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor } from '@tldraw/tldraw';
+import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor, type TLUiOverrides } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import './drawing-pick-skew.css';
 import './drawing-guides.css';
@@ -100,7 +101,13 @@ const drawingUi = {
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: DrawingContextMenu,
     DebugPanel: null, DebugMenu: null, PageMenu: null,
-    Grid: DrawingGrid,
+    Background: DrawingGridBackground, Grid: null,
+};
+
+const drawingUiOverrides: TLUiOverrides = {
+    // OMS owns the toolbox shortcuts. Suppress the hidden toolbox's aliases
+    // so E, R, T and other alignment keys cannot start a native drawing tool.
+    tools: (_editor, tools) => Object.fromEntries(Object.entries(tools).map(([id, tool]) => [id, { ...tool, kbd: undefined }])),
 };
 
 export interface CanvasAppProps {
@@ -203,8 +210,8 @@ export function CanvasApp({
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
         const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
-        const stopLayers = installProductionLayers(editor);
-        cleanupCadTransformsRef.current = () => { stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        const stopLayers = installProductionLayers(editor), stopGridSnap = installDrawingGridSnapping(editor);
+        cleanupCadTransformsRef.current = () => { stopGridSnap(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
             const page = editor.getCurrentPage();
@@ -362,6 +369,7 @@ export function CanvasApp({
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}
+                    overrides={drawingUiOverrides}
                 >{!hideUI && <DrawingChrome />}</Tldraw>
                 </OrderFilePocketsProvider>
                 </DrawingWorkspace>

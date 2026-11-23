@@ -1,14 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import {
-  applyDrawingGuideChange, drawingGuideLine, drawingGuidesRevision, guidePositionToUnit, prepareDrawingGuideChange,
+  applyDrawingGuideChange, drawingGuideLine, drawingGuideRotationPose, drawingGuidesRevision, guidePositionToUnit, prepareDrawingGuideChange,
   projectToDrawingGuide, readDrawingGuides, selectedDrawingGuide, selectDrawingGuide, type DrawingGuide, type DrawingGuideGeometry,
 } from './drawing-guides';
 import {
   beginDrawingGuideDrag, cancelDrawingGuideDrag, canDragDrawingGuide, drawingGuideDrag,
   drawingGuideNotice,
 } from './drawing-guide-drag';
-import { readCadSettings, unitLengthToCanvas } from './cad-settings';
+import { readCadSettings, unitLengthToCanvas, type CadPoint } from './cad-settings';
 import { requestDrawingUi } from './drawing-ui-requests';
 import { useGuideText } from './guide-copy';
 import { drawingPickGuideSnap } from './drawing-pick-guide-snap';
@@ -49,13 +49,18 @@ function handleGuideKey(editor: Editor, id: string, event: React.KeyboardEvent<S
  * in page coordinates and never enter the shape list, fit bounds or exports. */
 export function DrawingGuideOverlay() {
   const editor = useEditor(), t = useGuideText();
+  const [rotation, setRotation] = useState<{ id: string; revision: string; pivot: CadPoint } | null>(null);
   const state = useValue('Document guidelines overlay', () => ({
     pageId: editor.getCurrentPageId(), guides: readDrawingGuides(editor), bounds: editor.getViewportPageBounds(),
     zoom: editor.getZoomLevel(), settings: readCadSettings(editor), selected: selectedDrawingGuide(editor).get(),
     preview: drawingGuideDrag(editor).get(), canEdit: canDragDrawingGuide(editor), pickSnap: drawingPickGuideSnap(editor).get(),
+    revision: drawingGuidesRevision(editor),
   }), [editor]);
   useEffect(() => () => cancelDrawingGuideDrag(editor, null), [editor]);
   useEffect(() => { if (!state.canEdit) cancelDrawingGuideDrag(editor, 'stale'); }, [editor, state.canEdit, state.pageId]);
+  useEffect(() => {
+    if (rotation && (rotation.id !== state.selected || rotation.revision !== state.revision || !state.canEdit)) setRotation(null);
+  }, [rotation, state.selected, state.revision, state.canEdit]);
   const scale = 1 / state.zoom;
   const lineProps = (guide: DrawingGuideGeometry) => {
     if (guide.axis === 'x') return { x1: guide.position, y1: state.bounds.y, x2: guide.position, y2: state.bounds.maxY };
@@ -67,7 +72,9 @@ export function DrawingGuideOverlay() {
   const guideName = (guide: DrawingGuide) => guide.axis === 'angle' ? `${t('angled')} · ${Number(guide.angle.toFixed(2))}°`
     : `${t(guide.axis === 'x' ? 'vertical' : 'horizontal')} · ${Number(guidePositionToUnit(guide.axis, guide.position, state.settings).toFixed(state.settings?.precision ?? 2))} ${state.settings?.unit ?? 'px'}`;
   const visibleGuides = state.guides.visible ? state.guides.guides.filter(guide => guide.visible) : [];
-  const selectedAngle = visibleGuides.find(guide => guide.id === state.selected && !guide.locked && guide.axis === 'angle');
+  const selectedGuide = visibleGuides.find(guide => guide.id === state.selected && !guide.locked);
+  const selectedPose = selectedGuide && drawingGuideRotationPose(selectedGuide,
+    rotation?.id === selectedGuide.id && rotation.revision === state.revision ? rotation.pivot : undefined);
   return <>
     <svg width={1} height={1} className="drawing-guide-overlay" data-testid="drawing-guide-overlay" data-page={state.pageId} aria-hidden="true">
       {visibleGuides.map(guide => <g key={guide.id} data-guide-id={guide.id} data-guide-axis={guide.axis} data-guide-position={guide.position}
@@ -94,20 +101,25 @@ export function DrawingGuideOverlay() {
               event.preventDefault(); event.stopPropagation(); event.currentTarget.focus();
             }
           }}
+          onDoubleClick={event => {
+            if (event.button !== 0 || !canDragDrawingGuide(editor) || !selected || guide.axis === 'angle') return;
+            event.preventDefault(); event.stopPropagation();
+            setRotation({ id: guide.id, revision: state.revision, pivot: editor.screenToPage({ x: event.clientX, y: event.clientY }) });
+          }}
           onContextMenu={event => { event.preventDefault(); event.stopPropagation(); selectDrawingGuide(editor, guide.id); requestDrawingUi(editor, { kind: 'panel', action: 'guides' }); }}
           onKeyDown={event => handleGuideKey(editor, guide.id, event)}>
           <title>{`${guideName(guide)}. ${t('dragHelp')}`}</title>
         </line>;
     })}
-    {state.canEdit && selectedAngle?.axis === 'angle' && (() => {
-      const pose = state.preview?.axis === 'angle' && state.preview.valid && !state.preview.outside ? state.preview : selectedAngle;
+    {state.canEdit && selectedGuide && selectedPose && (() => {
+      const pose = state.preview?.guideId === selectedGuide.id && state.preview.axis === 'angle' && state.preview.valid && !state.preview.outside ? state.preview : selectedPose;
       const { along } = drawingGuideLine(pose);
       return (['pivot', 'rotate'] as const).map(mode => {
         const offset = mode === 'rotate' ? 64 * scale : 0;
         return <circle key={mode} cx={pose.pivot.x + along.x * offset} cy={pose.pivot.y + along.y * offset}
           r={5 * scale} strokeWidth={1.5 * scale} className={`drawing-guide-handle is-${mode}`} data-testid={`drawing-guide-${mode}-handle`}
           onPointerDown={event => {
-            if (beginDrawingGuideDrag(editor, { axis: 'angle', guideId: selectedAngle.id, mode }, event.nativeEvent, event.currentTarget)) {
+            if (beginDrawingGuideDrag(editor, { axis: selectedGuide.axis, guideId: selectedGuide.id, mode, pivot: selectedPose.pivot }, event.nativeEvent, event.currentTarget)) {
               event.preventDefault(); event.stopPropagation();
             }
           }}><title>{t(mode === 'pivot' ? 'pivotHandle' : 'rotateHandle')}</title></circle>;

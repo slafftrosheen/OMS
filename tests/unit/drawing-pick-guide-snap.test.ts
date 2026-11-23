@@ -1,5 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
+import { drawingGridVisible } from '../../src/lib/components/canvas/drawing-grid-state';
+import { findCadSnap } from '../../src/lib/components/canvas/cad-snap';
 import { createRequire } from 'node:module';
 
 const { JSDOM } = createRequire(`${process.cwd()}/package.json`)('jsdom');
@@ -86,6 +88,34 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('ordinary Pick guideline snapping through native public hooks', () => {
+  it('snaps Pick and CAD to a hidden grid only while grid snapping is enabled', async () => {
+    await harness(async ({ editor, snaps, add, ready, down, move, up }) => {
+      const disposeGrid = snaps.installDrawingGridSnapping(editor);
+      try {
+        const id = add();
+        assert.equal(drawingGridVisible(editor).get(), false);
+        assert.equal(snaps.writeCadSnapSettings(editor, { grid: true }), true);
+        await Promise.resolve();
+        assert.equal(editor.getInstanceState().isGridMode, true);
+        assert.equal(drawingGridVisible(editor).get(), false);
+        assert.equal(findCadSnap(editor, { x: 303, y: 363 }, null)?.kind, 'grid');
+        ready(id); await down({ x: 110, y: 110 }); await move({ x: 313, y: 373 }); await up({ x: 313, y: 373 });
+        near(editor.getShape(id).x, 300); near(editor.getShape(id).y, 360);
+        editor.user.updateUserPreferences({ isSnapMode: false });
+        await Promise.resolve();
+        drawingGridVisible(editor).set(true);
+        assert.equal(editor.getInstanceState().isGridMode, false);
+        assert.equal(findCadSnap(editor, { x: 503, y: 363 }, null), null);
+        ready(id); await down({ x: 310, y: 370 }); await move({ x: 333, y: 393 }); await up({ x: 333, y: 393 });
+        near(editor.getShape(id).x, 323); near(editor.getShape(id).y, 383);
+        editor.user.updateUserPreferences({ isSnapMode: true });
+        await Promise.resolve();
+        assert.equal(editor.getInstanceState().isGridMode, true);
+        assert.equal(drawingGridVisible(editor).get(), true);
+      } finally { disposeGrid(); }
+    });
+  });
+
   it('snaps the selection center perpendicularly to an angled guide and preserves Undo', async () => {
     await harness(async ({ editor, guides, snapping, add, ready, down, move, up, snapshot }) => {
       const id = add();

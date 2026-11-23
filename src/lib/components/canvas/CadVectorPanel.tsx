@@ -668,7 +668,7 @@ export function CornerControls({ settings, revision, disabled, focusSequence, me
     </details>
   );
 }
-export function VectorPaintControls({ settings, revision, disabled, focusSequence }: Props) {
+export function VectorPaintControls({ settings, revision, disabled, focusSequence, gradientFocusSequence }: Props & { gradientFocusSequence?: number }) {
   const editor = useEditor(), t = useSolidFillText();
   const section = useRef<HTMLDetailsElement>(null);
   const source = useValue('solid CAD fill', () => drawingSolidFillSource(editor), [editor]);
@@ -704,7 +704,7 @@ export function VectorPaintControls({ settings, revision, disabled, focusSequenc
       }}>{t('apply')}</button>
     </fieldset>
     {result && result.signature === signature && <p role={result.success?'status':'alert'} className="drawing-help">{t(result.success?'applied':'failed')}</p>}
-    <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings}/>
+    <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings} focusSequence={gradientFocusSequence} />
     <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings}/>
   </details>;
 }

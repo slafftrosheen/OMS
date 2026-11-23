@@ -57,6 +57,7 @@ export const drawingCommands = {
   copyProperties: { icon: 'eyedropper' },
   // View
   'zoom-in': { icon: 'zoom-in', keys: 'Ctrl+=', native: true, readOnly: true },
+  zoomArea: { icon: 'zoom', keys: 'F2', readOnly: true },
   'zoom-out': { icon: 'zoom-out', keys: 'F3', readOnly: true },
   fit: { icon: 'fit', keys: 'F4', readOnly: true, testId: 'drawing-action-fit' },
   'fit-selection': { icon: 'fit-selection', keys: 'Shift+F2', readOnly: true, testId: 'drawing-action-fit-selection' },
@@ -64,14 +65,18 @@ export const drawingCommands = {
   'zoom-reset': { icon: 'zoom-reset', keys: 'Shift+0', native: true, readOnly: true, testId: 'drawing-action-zoom-reset' },
   fullscreen: { icon: 'fullscreen', keys: 'F9', check: true, readOnly: true },
   rulers: { icon: 'rulers', keys: 'Alt+Shift+R', check: true, readOnly: true, testId: 'drawing-menu-rulers' },
-  grid: { icon: 'grid', keys: "Ctrl+'", native: true, check: true, readOnly: true },
+  grid: { icon: 'grid', keys: "Ctrl+'", check: true, readOnly: true },
   guidesVisible: { icon: 'guides', check: true, testId: 'drawing-menu-guides-visible' },
-  snap: { icon: 'snap', keys: 'Alt+Y', check: true, readOnly: true },
+  snap: { icon: 'snap', keys: 'Alt+Q', check: true, readOnly: true },
+  snapGrid: { icon: 'grid', keys: 'Alt+Y', check: true },
+  snapGuides: { icon: 'guides', check: true },
   snapOptions: { icon: 'snap', readOnly: true, testId: 'drawing-menu-snap-options' },
   surface: { icon: 'surface', check: true, readOnly: true, testId: 'drawing-menu-surface' },
   penSettings: { icon: 'pen', readOnly: true, testId: 'drawing-menu-pen' },
   // Layout
   pageSetup: { icon: 'page-setup', readOnly: true },
+  previousPage: { icon: 'select-previous', keys: 'PageUp', readOnly: true },
+  nextPage: { icon: 'select-next', keys: 'PageDown', readOnly: true },
   document: { icon: 'document', readOnly: true },
   guidesSetup: { icon: 'guides', readOnly: true, testId: 'drawing-menu-guides' },
   measure: { icon: 'measure', readOnly: true },
@@ -121,7 +126,9 @@ export const drawingCommands = {
   polygonShape: { icon: 'polygon' },
   ellipseSegments: { icon: 'ellipse-segments' },
   paint: { icon: 'paint', keys: 'Shift+F11', readOnly: true },
+  gradientFill: { icon: 'paint', keys: 'F11', readOnly: true },
   outline: { icon: 'outline', keys: 'F12' },
+  outlineColor: { icon: 'outline', keys: 'Shift+F12' },
   // Effects
   contour: { icon: 'fx-contour', keys: 'Ctrl+F9' },
   midline: { icon: 'fx-midline' },
@@ -137,7 +144,7 @@ export const drawingCommands = {
   options: { icon: 'options', keys: 'Ctrl+J', readOnly: true },
   // Window
   'dock-properties': { icon: 'properties', keys: 'Alt+Enter', check: true, readOnly: true },
-  'dock-objects': { icon: 'objects', keys: 'Ctrl+F2', check: true, readOnly: true },
+  'dock-objects': { icon: 'objects', check: true, readOnly: true },
   'dock-text': { icon: 'text', check: true, readOnly: true },
   'dock-arrange': { icon: 'arrange', check: true, readOnly: true },
   'dock-measure': { icon: 'measure', check: true, readOnly: true },
@@ -153,7 +160,7 @@ export const drawingCommands = {
 } as const satisfies Record<string, DrawingCommandSpec>;
 
 export type DrawingCommandId = keyof typeof drawingCommands;
-export const drawingSubmenuIds = ['exportFormats', 'order', 'transformations', 'alignDistribute', 'shapingTools', 'nodeTools', 'shapeProperties', 'options', 'dockers'] as const;
+export const drawingSubmenuIds = ['exportFormats', 'order', 'transformations', 'alignDistribute', 'shapingTools', 'nodeTools', 'shapeProperties', 'snapTo', 'options', 'dockers'] as const;
 export type DrawingSubmenuId = typeof drawingSubmenuIds[number];
 /** Embedded blocks keep live forms inside a menu (export settings, tool directory). */
 export type DrawingMenuEmbed = 'exportSettings' | 'saveToOrder' | 'toolDirectory';
@@ -162,8 +169,8 @@ export type DrawingMenuEntry = DrawingCommandId | '-' | { sub: DrawingSubmenuId;
 export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly DrawingMenuEntry[] }> = [
   { id: 'file', items: ['import', 'importDxf', 'importVector', '-', 'export', { embed: 'exportSettings' }, 'exportDxf', 'publishPdf', { embed: 'saveToOrder' }, '-', 'files', 'preflight'] },
   { id: 'edit', items: ['undo', 'redo', 'repeatLast', '-', 'cut', 'copy', 'paste', 'duplicate', 'duplicateInPlace', 'repeat', 'delete', '-', 'select-all', 'selectNext', 'selectPrevious', 'selectSame', 'findReplace', '-', 'copyProperties'] },
-  { id: 'view', items: ['zoom-in', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', 'snap', 'snapOptions', 'penSettings'] },
-  { id: 'layout', items: ['pageSetup', 'document', '-', 'guidesSetup', 'measure', '-', 'nest', 'clipart'] },
+  { id: 'view', items: ['zoom-in', 'zoomArea', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', { sub: 'snapTo', items: ['snapGrid', 'snapGuides'] }, 'snap', 'snapOptions', 'penSettings'] },
+  { id: 'layout', items: ['pageSetup', 'document', 'previousPage', 'nextPage', '-', 'guidesSetup', 'measure', '-', 'nest', 'clipart'] },
   { id: 'object', items: [
     'group', 'ungroup', 'combine', 'breakApart', 'lock', 'productionLayers', '-',
     { sub: 'order', items: ['front', 'back', 'forward', 'backward', '-', 'reverseOrder', 'relativeOrder'] },
@@ -173,7 +180,7 @@ export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly 
     'artworkClip', '-', 'convert', 'outlineObject', '-',
     { sub: 'nodeTools', items: ['nodes', 'nodeArrange', 'nodeReduce'] },
     { sub: 'shapeProperties', items: ['rectangleCorners', 'polygonShape', 'ellipseSegments'] },
-    '-', 'paint', 'outline',
+    '-', 'paint', 'gradientFill', 'outline', 'outlineColor',
   ] },
   { id: 'effects', items: ['contour', 'midline', '-', 'repeat', 'repeatPath', 'radial', '-', 'lettering'] },
   { id: 'bitmaps', items: ['trace'] },
@@ -280,9 +287,9 @@ export const drawingToolbox: ReadonlyArray<{ id: DrawingToolSection; groups: Rea
 
 /** Tool keys after contextual drawing commands have had priority. */
 export const drawingToolKeys: Partial<Record<DrawingToolId, string>> = {
-  select: 'V', nodes: 'F10', eraser: 'E', hand: 'H', zoom: 'Z',
-  'cad-freehand': 'F5', line: 'L', draw: 'D', rectangle: 'F6', ellipse: 'F7', pentagon: 'Y',
-  text: 'F8', arrow: 'A', eyedropper: 'I', paint: 'Shift+F11', outline: 'F12', 'fx-contour': 'Ctrl+F9',
+  select: 'V', nodes: 'F10', eraser: 'X', hand: 'H', zoom: 'Z',
+  'cad-freehand': 'F5', rectangle: 'F6', ellipse: 'F7', pentagon: 'Y',
+  text: 'F8', paint: 'Shift+F11', outline: 'F12', 'fx-contour': 'Ctrl+F9',
 };
 /** Tools that only open a docker or a task instead of drawing on the canvas. */
 export const drawingTaskTools: ReadonlySet<DrawingToolId> = new Set(drawingToolIds.filter(id => drawingToolTargets[id].kind === 'command'));

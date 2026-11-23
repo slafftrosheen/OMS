@@ -83,6 +83,26 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('Guidelines docker with a real React and tldraw editor', () => {
+  it('converts a selected ruler guide by typing its pivot and angle', async () => {
+    await harness(async ({ editor, guides, settings, get, input, click, change, act, tick }) => {
+      await change({ kind: 'add', id: 'guide:convert', axis: 'x', position: 150 });
+      await click('drawing-guide-rotate-angle');
+      await input('drawing-guide-move-x', '20');
+      await input('drawing-guide-move-y', '30');
+      await input('drawing-guide-move-angle', '60');
+      assert.equal(guides.readDrawingGuides(editor).guides[0].axis, 'x');
+      await click('drawing-guide-move');
+      const guide = guides.readDrawingGuides(editor).guides[0];
+      const pivot = settings.canvasPointToCad(guide.pivot, settings.readCadSettings(editor));
+      assert.equal(guide.axis, 'angle');
+      assert.ok(Math.abs(pivot.x - 20) < 1e-8 && Math.abs(pivot.y - 30) < 1e-8);
+      assert.equal(guide.angle, 60);
+      await act(async () => editor.undo()); await tick();
+      assert.ok(get('drawing-guide-rotate-angle'));
+      assert.equal(guides.readDrawingGuides(editor).guides[0].position, 150);
+    });
+  });
+
   it('protects real CAD draft rollback before the first preview record exists', async () => {
     await harness(async ({ editor, guides, get, change, act, tick, pointer, hasCanvasDraft, container }) => {
       await act(async () => editor.setCurrentTool('cad-circle')); await tick();

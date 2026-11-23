@@ -1,4 +1,5 @@
-import type { Editor } from '@tldraw/tldraw';
+import { react, type Editor } from '@tldraw/tldraw';
+import { drawingGridVisible } from './drawing-grid-state';
 import { drawingTransaction } from './drawing-commands';
 
 export interface CadSnapSettings {
@@ -24,6 +25,15 @@ export function readCadSnapSettings(editor: Editor): CadSnapSettings {
   const grid = editor.getDocumentSettings?.().gridSize;
   if (Number.isFinite(grid) && grid >= 0.01 && grid <= 1_000_000) result.gridSpacing = grid;
   return result;
+}
+
+/** Pick movement and native handles use the same document grid target as CAD. */
+export function installDrawingGridSnapping(editor: Editor): () => void {
+  drawingGridVisible(editor);
+  return react('Drawing grid snapping', () => {
+    const enabled = editor.user.getIsSnapMode() && readCadSnapSettings(editor).grid;
+    if (editor.getInstanceState().isGridMode !== enabled) editor.updateInstanceState({ isGridMode: enabled });
+  }, { scheduleEffect: queueMicrotask });
 }
 
 /** Target choices belong to the page; grid size belongs to the document, as in

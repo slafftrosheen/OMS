@@ -3,7 +3,7 @@ import { useEditor, useValue } from '@tldraw/tldraw';
 import { cadPointToCanvas, canvasPointToCad, type CadPoint, type CadSettings } from './cad-settings';
 import { readCadSnapSettings, writeCadSnapSettings } from './cad-snap-settings';
 import {
-  MAX_DRAWING_GUIDES, DrawingGuideError, applyDrawingGuideChange, drawingGuidesAreValid, drawingGuidesBusy, drawingGuidesRevision,
+  MAX_DRAWING_GUIDES, DrawingGuideError, applyDrawingGuideChange, drawingGuideRotationPose, drawingGuidesAreValid, drawingGuidesBusy, drawingGuidesRevision,
   guidePositionFromUnit, guidePositionToUnit, prepareDrawingGuideChange, readDrawingGuides, selectDrawingGuide, selectedDrawingGuide,
   type DrawingGuide, type DrawingGuideGeometry, type DrawingGuideChange, type DrawingGuideErrorCode,
 } from './drawing-guides';
@@ -65,6 +65,7 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
   const [addPose, setAddPose] = useState(defaultPose), [movePose, setMovePose] = useState(defaultPose);
   const addPosition = useRef(guidePositionFromUnit('y', 0, settings)), addInput = useRef<HTMLInputElement>(null), guideList = useRef<HTMLSelectElement>(null);
   const [moveDraft, setMoveDraft] = useState(''), [moveRevision, setMoveRevision] = useState<string | null>(null);
+  const [rotateAxisGuide, setRotateAxisGuide] = useState(false);
   const movePosition = useRef<number>(NaN), moveInput = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<DrawingGuideErrorCode | 'done' | null>(null);
   const stale = moveRevision !== null && moveRevision !== state.revision;
@@ -73,7 +74,7 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
     movePosition.current = guide?.position ?? NaN;
     if (guide?.axis === 'angle') setMovePose(poseDraft(guide.pivot, guide.angle, settings));
     setMoveDraft(guide && guide.axis !== 'angle' ? display(guidePositionToUnit(guide.axis, guide.position, settings)) : '');
-    setMoveRevision(null); setMessage(null);
+    setRotateAxisGuide(false); setMoveRevision(null); setMessage(null);
   };
   useEffect(() => {
     setMessage(null); setAddDraft('0'); setAddPose(defaultPose());
@@ -160,24 +161,33 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
       </select>
     </label> : <p className="drawing-help">{t('empty')}</p>}
     {guide && <section className="drawing-guide-selected" aria-label={t('selected')}>
-      <form onSubmit={event => {
+      <form onKeyDown={event => {
+        if (event.key === 'Escape' && moveRevision !== null) { event.preventDefault(); resetMove(); }
+      }} onSubmit={event => {
         event.preventDefault();
         if (geometryDisabled || guide.locked || stale || moveRevision === null) return;
-        const change: DrawingGuideChange = guide.axis === 'angle' ? { kind: 'pose', id: guide.id, ...guidePose(movePose, settings) }
+        const change: DrawingGuideChange = guide.axis === 'angle' || rotateAxisGuide ? { kind: 'pose', id: guide.id, ...guidePose(movePose, settings) }
           : { kind: 'move', id: guide.id, position: movePosition.current };
-        if (apply(change, moveRevision)) { setMoveRevision(null); }
+        if (apply(change, moveRevision)) { setRotateAxisGuide(false); setMoveRevision(null); }
       }}>
         <fieldset className="drawing-workbench-fields" disabled={geometryDisabled || guide.locked}>
           <legend>{t('selected')}</legend>
-          {guide.axis === 'angle' ? <>
-            <GuidePoseFields draft={movePose} change={value => { setMovePose(value); setMoveRevision(state.revision); setMessage(null); }} unit={unit} prefix="move" />
+          {guide.axis === 'angle' || rotateAxisGuide ? <>
+            <GuidePoseFields draft={movePose} change={value => { setMovePose(value); setMoveRevision(previous => previous ?? state.revision); setMessage(null); }} unit={unit} prefix="move" />
             <p className="drawing-help">{t('angleHelp')}</p>
-          </> : <label><span>{t('position')} ({guide.axis.toUpperCase()}, {unit})</span>
+          </> : <><label><span>{t('position')} ({guide.axis.toUpperCase()}, {unit})</span>
             <input ref={moveInput} type="number" step="any" required value={moveDraft} data-testid="drawing-guide-move-position"
               aria-invalid={stale || message === 'invalid'} aria-describedby={stale || message ? errorId : undefined}
-              onChange={event => { setMoveDraft(event.target.value); movePosition.current = guidePositionFromUnit(guide.axis, numeric(event.target.value), settings); setMoveRevision(state.revision); setMessage(null); }}
-              onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); resetMove(); } }} />
-          </label>}
+              onChange={event => { setMoveDraft(event.target.value); movePosition.current = guidePositionFromUnit(guide.axis, numeric(event.target.value), settings); setMoveRevision(state.revision); setMessage(null); }} />
+          </label><button type="button" data-testid="drawing-guide-rotate-angle" disabled={moveRevision !== null} onClick={() => {
+            const point = editor.getSelectionPageBounds()?.center ?? editor.getViewportPageBounds().center;
+            const pose = drawingGuideRotationPose(guide, point);
+            if (!pose) return;
+            setMovePose(poseDraft(pose.pivot, pose.angle, settings));
+            setRotateAxisGuide(true);
+            setMoveRevision(state.revision);
+            setMessage(null);
+          }}>{t('convertAngle')}</button></>}
           <div className="drawing-guide-actions"><button type="submit" disabled={stale || moveRevision === null} data-testid="drawing-guide-move">{t('move')}</button>
             <button type="button" onClick={resetMove} disabled={moveRevision === null} data-testid="drawing-guide-reset">{t('reset')}</button></div>
         </fieldset>

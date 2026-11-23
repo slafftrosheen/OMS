@@ -3,7 +3,7 @@ import { isCadNodeEditing } from './cad-node-selection';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import {
   applyDrawingGuideChange, drawingGuidesAreValid, drawingGuidesRevision, DrawingGuideError,
-  drawingGuideLine, prepareDrawingGuideChange, projectToDrawingGuide, readDrawingGuides, selectDrawingGuide,
+  drawingGuideLine, drawingGuideRotationPose, prepareDrawingGuideChange, projectToDrawingGuide, readDrawingGuides, selectDrawingGuide,
   type DrawingGuideChange, type DrawingGuideGeometry,
   type DrawingGuideErrorCode,
 } from './drawing-guides';
@@ -50,7 +50,7 @@ function consume(event: Event): void {
  * page-space UI; release applies one guarded change, Escape applies nothing. */
 export function beginDrawingGuideDrag(
   editor: Editor,
-  source: { axis: DrawingGuideGeometry['axis']; guideId?: string; mode?: 'pivot' | 'rotate' },
+  source: { axis: DrawingGuideGeometry['axis']; guideId?: string; mode?: 'pivot' | 'rotate'; pivot?: CadPoint },
   event: PointerEvent,
   captureTarget: Element,
 ): boolean {
@@ -58,7 +58,7 @@ export function beginDrawingGuideDrag(
   const state = readDrawingGuides(editor);
   const guide = source.guideId ? state.guides.find(item => item.id === source.guideId) : undefined;
   if (source.guideId && (!guide || guide.axis !== source.axis || guide.locked || !guide.visible || !state.visible)) return false;
-  const angled = guide?.axis === 'angle' ? guide : undefined;
+  const angled = guide && (guide.axis === 'angle' || source.mode) ? drawingGuideRotationPose(guide, source.pivot) : null;
   if ((source.axis === 'angle' || source.mode) && !angled) return false;
   const start = editor.screenToPage({ x: event.clientX, y: event.clientY });
   if (!validCadPoint(start)) return false;

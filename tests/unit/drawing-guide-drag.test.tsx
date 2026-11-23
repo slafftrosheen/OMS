@@ -141,6 +141,34 @@ async function harness(run: (value: any) => Promise<void>) {
 }
 
 describe('Guideline drag with a real editor and DOM events', () => {
+  it('exposes rotation on the second click of an axis guide and promotes it only when committed', async () => {
+    await harness(async ({ editor, container, env, guides, addGuide, pointer, line, snapshot, act, tick }) => {
+      await addGuide('x', 150);
+      const screen = (x: number, y: number) => {
+        const point = editor.pageToScreen({ x, y });
+        return { clientX: point.x, clientY: point.y };
+      };
+      const handle = () => container.querySelector('[data-testid="drawing-guide-rotate-handle"]');
+      const initial = snapshot(), click = screen(150, 140);
+      assert.equal(handle(), null);
+      await pointer(line(), 'pointerdown', click);
+      await pointer(env.win, 'pointerup', click);
+      await pointer(line(), 'dblclick', { ...click, detail: 2 });
+      assert.ok(handle());
+      assert.deepEqual(snapshot(), initial);
+      await pointer(handle(), 'pointerdown', screen(150, 204));
+      await pointer(env.win, 'pointerup', { ...screen(200, 90), shiftKey: true });
+      const result = guides.readDrawingGuides(editor).guides[0];
+      assert.equal(result.axis, 'angle');
+      assert.equal(result.angle, 45);
+      assert.deepEqual(result.pivot, { x: 150, y: 140 });
+      await act(async () => editor.undo());
+      await tick();
+      assert.deepEqual(snapshot(), initial);
+      assert.equal(handle(), null);
+    });
+  });
+
   it('moves an angled pivot along its line and rotates about it in one undoable operation', async () => {
     await harness(async ({ editor, env, container, drag, guides, pointer, snapshot, act, tick }) => {
       await act(async () => {

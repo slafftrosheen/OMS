@@ -64,7 +64,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false, import
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
     const fileFocus = ['files', 'publishPdf', 'importDxf', 'exportDxf', 'importVector'].includes(focusRequest.section);
-    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
+    setTask(['paint', 'gradientFill', 'outline', 'outlineColor', 'outlineObject'].includes(focusRequest.section) ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const selected = useValue('cad selected measurement', () => settings ? getCadSelection(editor, settings, 'bottom-left') : null, [editor, settings]);

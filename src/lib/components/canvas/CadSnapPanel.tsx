@@ -2,6 +2,7 @@ import React,{useEffect,useId,useRef,useState} from 'react';
 import {useEditor,useValue,type TLPageId} from '@tldraw/tldraw';
 import {canvasLengthToUnit,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {readCadSnapSettings,writeCadSnapSettings} from './cad-snap-settings';
+import {drawingGridVisible} from './drawing-grid-state';
 import {useSnapText} from './snap-copy';
 
 const targets=['endpoints','midpoints','centers','quadrants','intersections','perpendicular','tangent','guidelines','nearest','grid'] as const;
@@ -55,14 +56,14 @@ export function CadSnapPanel({settings}:{settings:CadSettings|null}){
   const editor=useEditor(),t=useSnapText();
   const state=useValue('CAD snap options',()=>({
     pageId:editor.getCurrentPageId(),options:readCadSnapSettings(editor),master:editor.user.getIsSnapMode(),
-    gridShow:editor.getInstanceState().isGridMode,readonly:editor.getInstanceState().isReadonly
+    gridShow:drawingGridVisible(editor).get(),readonly:editor.getInstanceState().isReadonly
   }),[editor]);
   const [failed,setFailed]=useState(false);
   useEffect(()=>setFailed(false),[state.pageId]);
   return <div data-testid="drawing-snap-options">
     <div className="drawing-workbench-fields">
       <label className="drawing-cad-check"><input type="checkbox" checked={state.master} data-testid="drawing-snap-master" onChange={event=>editor.user.updateUserPreferences({isSnapMode:event.target.checked})}/><span>{t('enabled')}</span></label>
-      <label className="drawing-cad-check"><input type="checkbox" checked={state.gridShow} data-testid="drawing-snap-grid-show" onChange={event=>editor.updateInstanceState({isGridMode:event.target.checked})}/><span>{t('gridShow')}</span></label>
+      <label className="drawing-cad-check"><input type="checkbox" checked={state.gridShow} data-testid="drawing-snap-grid-show" onChange={event=>drawingGridVisible(editor).set(event.target.checked)}/><span>{t('gridShow')}</span></label>
     </div>
     <p className="drawing-help">{t('scope')}</p>
     <p className="drawing-help">{t('keys')}</p>

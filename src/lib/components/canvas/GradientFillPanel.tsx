@@ -47,7 +47,7 @@ function addStop(stops: Stop[]): Stop[] {
 }
 
 /** Shared fill controls for the order drawing and the standalone workbench. */
-export function GradientFillPanel({ settings, revision, disabled }: { settings: CadSettings | null; revision: string; disabled: boolean }) {
+export function GradientFillPanel({ settings, revision, disabled, focusSequence }: { settings: CadSettings | null; revision: string; disabled: boolean; focusSequence?: number }) {
   const editor = useEditor(), t = useGradientFillText(), id = useId();
   const selection = useValue('gradient fill selection', () => gradientFillSelection(editor), [editor]);
   const selectedId = useValue('gradient selected shape', () => editor.getOnlySelectedShape()?.id, [editor]);
@@ -56,6 +56,16 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
     const shape = editor.getOnlySelectedShape();
     return JSON.stringify([shape?.meta.omsVectorPaint, (shape?.props as { color?: string } | undefined)?.color]);
   }, [editor]);
+  const section = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (focusSequence === undefined || !section.current) return;
+    const panel = section.current;
+    const parent = panel.parentElement?.closest('details');
+    if (parent) parent.open = true;
+    panel.open = true;
+    panel.scrollIntoView({ block: 'nearest' });
+    panel.querySelector('summary')?.focus();
+  }, [focusSequence]);
   const previousSelection = useRef(selectedId);
   const hydratedPaint = useRef<string>();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(getGradientFillSettings(editor)));
@@ -105,7 +115,7 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
     setMessage(undefined);
   }
 
-  return <details className="drawing-cad-section" data-testid="gradient-fill-section">
+  return <details className="drawing-cad-section" ref={section} data-testid="gradient-fill-section">
     <summary>{t('title')}</summary>
     <fieldset className="drawing-cad-fields" disabled={!available} aria-describedby={`${id}-help`} data-testid="gradient-fill">
       <legend className="drawing-cad-preview-title">{t('title')}</legend>
