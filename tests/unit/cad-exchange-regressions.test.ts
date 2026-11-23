@@ -180,7 +180,7 @@ describe('CAD interchange regressions', () => {
     ]);
   });
 
-  it('routes one DXF, EPS or CDR into the matching review without accepting other files or readonly drops', () => {
+  it('routes drawing drops into review, consumes mixed drawings with a notice and respects read-only mode', () => {
     const container = new EventTarget();
     const state = { isReadonly: false };
     const editor = { getContainer: () => container, getInstanceState: () => state } as any;
@@ -193,7 +193,7 @@ describe('CAD interchange regressions', () => {
     const point = { x: -125, y: 90 };
     assert.equal(routeCanvasCadImport(editor, [cdr], point), true);
     point.x = 0;
-    assert.equal(routeCanvasCadImport(editor, [dxf, eps]), false);
+    assert.equal(routeCanvasCadImport(editor, [dxf, eps]), true);
     assert.equal(routeCanvasCadImport(editor, [new File(['PDF'], 'page.pdf')]), false);
     state.isReadonly = true;
     assert.equal(routeCanvasCadImport(editor, [dxf]), false);
@@ -202,6 +202,7 @@ describe('CAD interchange regressions', () => {
       { kind: 'cad', action: 'importDxf', file: dxf },
       { kind: 'cad', action: 'importVector', file: eps },
       { kind: 'cad', action: 'importVector', file: cdr, dropPoint: { x: -125, y: 90 } },
+      { kind: 'import', action: 'oneDrawingAtATime' },
     ]);
     assert.equal(isDrawingUiRequest({ kind: 'cad', action: 'importVector', file: cdr, dropPoint: { x: Infinity, y: 0 } }), false);
   });

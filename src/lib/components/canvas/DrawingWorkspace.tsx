@@ -41,7 +41,8 @@ import {drawingPenDiagnostics} from './drawing-pen-input';
 import {enPen, usePenText} from './pen-copy';
 import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
-import { DRAWING_REVIEW_FILE_TYPES, DRAWING_UI_REQUEST, isDrawingUiRequest } from './drawing-ui-requests';
+import { DRAWING_UI_REQUEST, isDrawingUiRequest, routeCanvasCadImport } from './drawing-ui-requests';
+import { DRAWING_FILE_ACCEPT } from './drawing-file-types';
 import {useObjectTreeText} from './object-tree-copy';
 import {captureDrawingObjectStack, prepareDrawingObjectOrder, applyDrawingObjectOrder} from './drawing-object-tree';
 import {RadialArrange} from './RadialArrange';
@@ -867,6 +868,7 @@ export function DrawingChrome() {
       setToolGroup(null); closeMenus();
       if (request.kind === 'command') commandRef.current(request.action);
       else if (request.kind === 'cad') focusCad(request.action, request.file, request.dropPoint);
+      else if (request.kind === 'import') setNotice(label(request.action));
       else if (request.kind === 'objects') {
         if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
       }
@@ -1102,7 +1104,9 @@ export function DrawingChrome() {
   }
   async function importFiles(files: File[]) {
     if (!files.length || !onImport || editor.getInstanceState().isReadonly) return;
-    setBusy(true); setNotice('');
+    setNotice('');
+    if (routeCanvasCadImport(editor, files, undefined, true)) return;
+    setBusy(true);
     try { await onImport(files, editor.getViewportPageBounds().center); }
     catch { if (alive.current) setNotice(label('uploadFailed')); }
     finally { if (alive.current) setBusy(false); }
@@ -1484,9 +1488,9 @@ export function DrawingChrome() {
         <Icon name="command-search" /><span>{words.ui.quickAccessPlaceholder}</span><kbd>{formatDrawingKeys('Ctrl+/')}</kbd>
       </button>
       <input ref={input} type="file" hidden multiple accept={[
-        DRAWING_REVIEW_FILE_TYPES,
-        order ? '.pdf,.png,.jpg,.jpeg,.webp,.gif' :
-          'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a',
+        DRAWING_FILE_ACCEPT,
+        order ? '.png,.jpg,.jpeg,.webp,.gif' :
+          'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.mp3,.wav,.ogg,.m4a',
       ].join(',')}
         onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
     </>)}

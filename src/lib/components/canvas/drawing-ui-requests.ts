@@ -1,5 +1,6 @@
 import type { Editor } from '@tldraw/tldraw';
 import type { CadPoint } from './cad-settings';
+import { drawingFileKind } from './drawing-file-types';
 
 // Editor-local navigation keeps a menu in one drawing from opening another
 // drawing's docker. Commands still run through DrawingChrome's fresh guards.
@@ -9,15 +10,12 @@ const commands = ['undo', 'redo', 'duplicate', 'delete', 'group', 'ungroup', 'fr
   'lock', 'fit', 'fit-selection', 'select-all'] as const;
 const panels = ['properties', 'objects', 'text', 'transform', 'align', 'repeat', 'radial', 'guides'] as const;
 const cad = ['nodes', 'convert', 'outline', 'paint', 'outlineObject', 'document', 'importDxf', 'importVector'] as const;
-const reviewStateByExtension = {
-  dxf: 'importDxf', eps: 'importVector', cdr: 'importVector', svg: 'importVector',
-} as const;
-export const DRAWING_REVIEW_FILE_TYPES = Object.keys(reviewStateByExtension).map(extension => `.${extension}`).join(',');
 const objects = ['relative', 'reverse'] as const;
 export type DrawingUiRequest =
   | { kind: 'command'; action: typeof commands[number] }
   | { kind: 'panel'; action: typeof panels[number] }
   | { kind: 'cad'; action: typeof cad[number]; file?: File; dropPoint?: CadPoint }
+  | { kind: 'import'; action: 'oneDrawingAtATime' }
   | { kind: 'objects'; action: typeof objects[number] };
 
 export function isDrawingUiRequest(value: unknown): value is DrawingUiRequest {
@@ -31,6 +29,7 @@ export function isDrawingUiRequest(value: unknown): value is DrawingUiRequest {
     const point = request.dropPoint as Partial<CadPoint> | null;
     if (!request.file || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
   }
+  if (request.kind === 'import') return request.action === 'oneDrawingAtATime';
   const actions: readonly string[] | undefined = request.kind === 'command' ? commands
     : request.kind === 'panel' ? panels : request.kind === 'cad' ? cad : request.kind === 'objects' ? objects : undefined;
   return !!actions?.includes(request.action);
@@ -40,13 +39,19 @@ export function requestDrawingUi(editor: Editor, request: DrawingUiRequest): voi
   editor.getContainer().dispatchEvent(new CustomEvent(DRAWING_UI_REQUEST, { detail: request }));
 }
 
-/** A single production drawing on the work area opens a review before insertion. */
-export function routeCanvasCadImport(editor: Editor, files: readonly File[], point?: CadPoint): boolean {
-  if (files.length !== 1 || editor.getInstanceState().isReadonly) return false;
-  const [file] = files;
-  const extension = file.name.toLowerCase().match(/\.([a-z]+)$/)?.[1];
-  if (!extension || !Object.hasOwn(reviewStateByExtension, extension)) return false;
-  const action = reviewStateByExtension[extension as keyof typeof reviewStateByExtension];
+/** PDF drops keep the attachment workflow. The drawing picker opens editable PDF review. */
+export function routeCanvasCadImport(editor: Editor, files: readonly File[], point?: CadPoint, picker = false): boolean {
+  if (editor.getInstanceState().isReadonly) return false;
+  const file = files.find(item => {
+    const kind = drawingFileKind(item);
+    return kind && (kind !== 'pdf' || picker);
+  });
+  if (!file) return false;
+  if (files.length > 1) {
+    requestDrawingUi(editor, { kind: 'import', action: 'oneDrawingAtATime' });
+    return true;
+  }
+  const action = drawingFileKind(file) === 'dxf' ? 'importDxf' : 'importVector';
   const dropPoint = point && Number.isFinite(point.x) && Number.isFinite(point.y)
     ? { x: point.x, y: point.y } : undefined;
   requestDrawingUi(editor, { kind: 'cad', action, file, ...(dropPoint ? { dropPoint } : {}) });

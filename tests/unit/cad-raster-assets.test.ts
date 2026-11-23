@@ -9,6 +9,7 @@ import { VECTOR_DEFAULT_PAINT } from "../../src/lib/components/canvas/cad-paint"
 import { prepareVectorImport } from "../../src/lib/components/canvas/cad-vector";
 import { applyCadPlan } from "../../src/lib/components/canvas/cad-plans";
 import { prepareVectorExportWithAssets } from "../../src/lib/components/canvas/cad-vector-export-client";
+import { DRAWING_EXPORT_ASSET_BYTES } from "../../src/lib/components/canvas/drawing-raster-original";
 import { prepareCreationCanvas } from "../../src/lib/order/creation-canvas";
 import { DEFAULT_CAD_SETTINGS } from "../../src/lib/components/canvas/cad-settings";
 import { fixture } from "../helpers/cad-editor";
@@ -94,8 +95,10 @@ describe("full-resolution private raster assets", () => {
       applyCadPlan(f.editor, plan);
       const originalFetch = globalThis.fetch,
         originalBitmap = globalThis.createImageBitmap;
-      globalThis.fetch = (async (input) => {
+      globalThis.fetch = (async (input, init) => {
         assert.equal(String(input), url);
+        assert.equal(init?.credentials, 'same-origin');
+        assert.equal(init?.redirect, 'error');
         return new Response(stored!, {
           headers: { "Content-Type": "image/png" },
         });
@@ -154,6 +157,13 @@ describe("full-resolution private raster assets", () => {
             ),
           /asset-fetch/,
         );
+        let stopped = false;
+        globalThis.fetch = async () => new Response(new ReadableStream({
+          start(controller) { controller.enqueue(new Uint8Array(DRAWING_EXPORT_ASSET_BYTES + 1)); },
+          cancel() { stopped = true; },
+        }), { headers: { 'Content-Type': 'image/png' } });
+        await assert.rejects(prepareVectorExportWithAssets(f.editor, DEFAULT_CAD_SETTINGS, 'all', 'pdf', new AbortController().signal), /limit/);
+        assert.equal(stopped, true);
       } finally {
         globalThis.fetch = originalFetch;
         globalThis.createImageBitmap = originalBitmap;

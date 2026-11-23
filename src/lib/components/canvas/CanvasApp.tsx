@@ -261,6 +261,7 @@ export function CanvasApp({
             // Route paste as well as drag/drop through private persistent
             // uploads, instead of tldraw's ephemeral data-URL asset store.
             editor.registerExternalContentHandler('files', async ({ files, point }) => {
+                if (editor.getInstanceState().isReadonly) return;
                 if (routeCanvasCadImport(editor, files, point)) return;
                 callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
             });
@@ -284,12 +285,16 @@ export function CanvasApp({
             if (toolkitBoardId && onToolkitFilesDrop) {
                 const container = containerRef.current;
                 const onDragOver = (event: DragEvent) => {
-                    if (event.dataTransfer?.types?.includes('Files')) event.preventDefault();
+                    if (event.dataTransfer?.types?.includes('Files')) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = editor.getInstanceState().isReadonly ? 'none' : 'copy';
+                    }
                 };
                 const onDrop = (event: DragEvent) => {
                     if (!event.dataTransfer?.files?.length) return;
                     event.preventDefault();
                     event.stopPropagation();
+                    if (editor.getInstanceState().isReadonly) return;
                     const files = Array.from(event.dataTransfer.files);
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.

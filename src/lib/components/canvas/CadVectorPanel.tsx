@@ -1,5 +1,5 @@
-import { vectorUploadPayload } from "./cad-vector-file";
-import { base } from '$app/paths';
+import { readVectorDrawingFile } from "./cad-vector-import-client";
+import { drawingFileKind, VECTOR_FILE_ACCEPT } from "./drawing-file-types";
 import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fill';
 import {useSolidFillText} from './solid-fill-copy';
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
@@ -56,7 +56,9 @@ function useWork() {
   const controller = useRef<AbortController>();
   useEffect(
     () => () => {
-      controller.current?.abort();
+      const previous = controller.current;
+      controller.current = undefined;
+      previous?.abort();
     },
     [],
   );
@@ -64,7 +66,14 @@ function useWork() {
     busy,
     message,
     setMessage,
-    cancel: () => controller.current?.abort(),
+    cancel: () => {
+      const previous = controller.current;
+      if (!previous) return;
+      controller.current = undefined;
+      previous.abort();
+      setBusy(false);
+      setMessage('cancelled');
+    },
     run: async (action: (signal: AbortSignal) => Promise<void>) => {
       controller.current?.abort();
       const next = new AbortController();
@@ -77,7 +86,10 @@ function useWork() {
         if (controller.current === next)
           setMessage(next.signal.aborted ? "cancelled" : vectorError(error));
       } finally {
-        if (controller.current === next) setBusy(false);
+        if (controller.current === next) {
+          controller.current = undefined;
+          setBusy(false);
+        }
       }
     },
   };
@@ -217,37 +229,13 @@ function Preview({
 }
 export { RasterTrace } from "./RasterTrace";
 
-const isSvgDrawing = (file?: File) => !!file && (/\.svg$/i.test(file.name) || file.type === 'image/svg+xml');
-
-async function loadVectorDrawing(
-  file: File, pageNumber: number, outline: boolean, signal: AbortSignal,
-  options: import('./cad-pdf-page').PdfImportOptions,
-) {
-  if (isSvgDrawing(file)) {
-    const { readVectorSvg, SVG_IMPORT_LIMIT } = await import('./cad-svg-import');
-    if (file.size > SVG_IMPORT_LIMIT) throw new Error('svg-input-limit');
-    const source = await file.text();
-    if (signal.aborted) throw new Error('cancelled');
-    return { ...readVectorSvg(source), sourcePage: 1, kind: 'svg', preview: undefined };
-  }
-  const { body, kind } = await vectorUploadPayload(file);
-  const sourcePage = kind === 'eps' ? 1 : pageNumber;
-  let selectedPage = sourcePage, bytes: ArrayBuffer;
-  if (kind === 'eps' || kind === 'cdr' || outline) {
-    const response = await fetch(`${base}/api/canvas/convert-vector?page=${selectedPage}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body, signal,
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.code ?? (response.status === 413 ? 'vector-transport-limit' : 'conversion'));
-    }
-    bytes = await response.arrayBuffer();
-    selectedPage = 1;
-  } else {
-    bytes = await body.arrayBuffer();
-  }
+async function loadVectorDrawing(file: File, page: number, outline: boolean, signal: AbortSignal,
+  options: import('./cad-pdf-page').PdfImportOptions) {
+  const source = await readVectorDrawingFile(file, page, outline, signal);
+  if (source.kind === 'svg') return { ...source, preview: undefined };
   const { readVectorPdf } = await import('./cad-pdf-client');
-  return { ...await readVectorPdf(new Uint8Array(bytes), selectedPage, signal, options), sourcePage, kind };
+  return { ...await readVectorPdf(source.bytes, source.selectedPage, signal, options),
+    sourcePage: source.sourcePage, kind: source.kind };
 }
 
 export function VectorImport({ settings, revision, disabled, focusRequest }: Props & {
@@ -267,16 +255,19 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const consumedFocus = useRef<number>();
-  const automaticOutlines = /\.(?:eps|cdr)$/i.test(file?.name ?? '');
-  const svg = isSvgDrawing(file);
-  const singlePage = svg || /\.eps$/i.test(file?.name ?? '');
+  const kind = drawingFileKind(file);
+  const automaticOutlines = kind === 'eps' || kind === 'cdr';
+  const svg = kind === 'svg';
+  const singlePage = svg || kind === 'eps';
   const pageNumber = Number(page);
   const validPage = singlePage || Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= 5000;
   function chooseFile(next?: File, point?: { x: number; y: number }) {
     setFile(next);
     setDropPoint(point);
     setPage('1');
-    setMode(/\.(?:eps|cdr)$/i.test(next?.name ?? '') ? 'editable' : 'auto');
+    setOutline(false);
+    const nextKind = drawingFileKind(next);
+    setMode(nextKind === 'eps' || nextKind === 'cdr' ? 'editable' : 'auto');
     setReview(undefined);
     work.setMessage('');
   }
@@ -311,7 +302,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           <input
             ref={input}
             type="file"
-            accept=".pdf,.svg,.eps,.cdr,application/pdf,image/svg+xml,application/postscript,application/vnd.corel-draw"
+            accept={VECTOR_FILE_ACCEPT}
             onChange={(e) => chooseFile(e.target.files?.[0])}
           />
         </Field>
@@ -435,6 +426,12 @@ export function VectorExport({ settings, revision, focusSequence }: Props) {
   const key = JSON.stringify([settings, format, scope, scope === "page" ? bleed : null]),
     stale =
       !!review && (review.key !== key || review.result.revision !== revision);
+  const canExport = !!review && !work.busy && !stale && !!review.result.text &&
+    (!review.result.omitted.length || ack);
+  function createFile() {
+    if (!review || !canExport || review.result.revision !== cadRevision(editor)) throw new Error('changed');
+    return new Blob([review.result.text], { type: format === 'pdf' ? 'application/pdf' : 'application/postscript' });
+  }
   return (
     <details className="drawing-cad-section" open ref={section} data-testid="vector-export">
       <summary>{t("export")}</summary>
@@ -511,35 +508,21 @@ export function VectorExport({ settings, revision, focusSequence }: Props) {
           {stale && <p role="status">{t("stale")}</p>}
           <button
             type="button"
-            disabled={
-              stale ||
-              !review.result.text ||
-              (!!review.result.omitted.length && !ack)
-            }
+            disabled={!canExport}
             onClick={() => {
-              if (
-                review.key !== key ||
-                review.result.revision !== cadRevision(editor)
-              )
-                return;
-              const url = URL.createObjectURL(
-                  new Blob([review.result.text], {
-                    type:
-                      format === "pdf"
-                        ? "application/pdf"
-                        : "application/postscript",
-                  }),
-                ),
-                link = document.createElement("a");
-              link.href = url;
-              link.download = `OMS-drawing.${format}`;
-              link.click();
-              setTimeout(() => URL.revokeObjectURL(url), 1000);
+              try {
+                const url = URL.createObjectURL(createFile());
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `OMS-drawing.${format}`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+              } catch { work.setMessage('stale'); }
             }}
           >
             {t("download")}
           </button>
-          <ProductionSaveButton extension={format} disabled={stale||!review.result.text||!!review.result.omitted.length&&!ack} createFile={()=>{if(review.result.revision!==cadRevision(editor))throw new Error("changed");return new Blob([review.result.text],{type:format==="pdf"?"application/pdf":"application/postscript"});}}/>
+          <ProductionSaveButton extension={format} disabled={!canExport} createFile={createFile}/>
         </div>
       )}
       <WorkStatus work={work}/>

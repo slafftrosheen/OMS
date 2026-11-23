@@ -27,6 +27,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { planDxfImport, readCadDxf, type CadImportPlan, type DxfDrawing } from './cad-import';
 import { readProductionLayers } from './cad-production-layers';
+import { drawingFileKind, DXF_FILE_ACCEPT } from './drawing-file-types';
 
 export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'exportDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
@@ -582,7 +583,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
   }, [focusRequest, disabled]);
   async function prepare() {
     if (!settings || !file || disabled || !canChange(editor, false)) return;
-    if (file.size > FILE_LIMIT || !/\.dxf$/i.test(file.name)) { setFailed(true); setMessage(file.size > FILE_LIMIT ? 'fileTooLarge' : 'invalidDxf'); return; }
+    if (file.size > FILE_LIMIT || drawingFileKind(file) !== 'dxf') { setFailed(true); setMessage(file.size > FILE_LIMIT ? 'fileTooLarge' : 'invalidDxf'); return; }
     const id = ++request.current; const key = inputKey; const before = cadRevision(editor); setBusy(true); setReview(null); setAcknowledged(false); setMessage('');
     try {
       const [bytes,fontData]=await Promise.all([file.arrayBuffer(),font==='custom'?fontFile?.arrayBuffer():Promise.resolve(undefined)]);
@@ -622,7 +623,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
     <p className="drawing-help">{label('importHelp')}</p>
     <form onSubmit={event => { event.preventDefault(); void prepare(); }} aria-busy={busy}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings || busy}>
-        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept=".dxf,application/dxf,image/vnd.dxf" onChange={event => {
+        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept={DXF_FILE_ACCEPT} onChange={event => {
           request.current++; setFile(event.target.files?.[0]); setDropPoint(undefined); setKeepCoordinates(true);
           setLayerDestinations(new Map());
           setReview(null); setMessage(''); setAcknowledged(false);

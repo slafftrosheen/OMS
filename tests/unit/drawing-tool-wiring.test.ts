@@ -7,7 +7,8 @@ import {
   drawingOwnCommandForKeys, drawingReadOnlyTools, drawingToolForKeys, drawingToolIds, drawingToolKeys, drawingToolTargets,
   formatDrawingKeys,
 } from '../../src/lib/components/canvas/drawing-command-map';
-import { DRAWING_REVIEW_FILE_TYPES, routeCanvasCadImport } from '../../src/lib/components/canvas/drawing-ui-requests';
+import { isDrawingUiRequest, routeCanvasCadImport } from '../../src/lib/components/canvas/drawing-ui-requests';
+import { drawingFileKind, DRAWING_FILE_ACCEPT, DXF_FILE_ACCEPT, VECTOR_FILE_ACCEPT } from '../../src/lib/components/canvas/drawing-file-types';
 
 const readCanvas = (file: string) => readFileSync(`src/lib/components/canvas/${file}`, 'utf8');
 
@@ -70,13 +71,41 @@ describe('drawing workspace tool wiring', () => {
     container.addEventListener('oms:drawing-ui-request', event => received.push((event as CustomEvent).detail));
     const editor = { getContainer: () => container, getInstanceState: () => ({ isReadonly: false }) } as unknown as Editor;
     const point = { x: 50, y: 75 };
-    const actions = { '.dxf': 'importDxf', '.cdr': 'importVector', '.eps': 'importVector', '.svg': 'importVector' };
-    assert.deepEqual(DRAWING_REVIEW_FILE_TYPES.split(',').sort(), Object.keys(actions).sort());
+    const actions = { '.dxf': 'importDxf', '.cdr': 'importVector', '.eps': 'importVector', '.svg': 'importVector', '.pdf': 'importVector' };
+    const extensions = (accept: string) => accept.split(',').filter(value => value.startsWith('.')).sort();
+    assert.deepEqual(extensions(DRAWING_FILE_ACCEPT), Object.keys(actions).sort());
+    assert.deepEqual(extensions(VECTOR_FILE_ACCEPT), ['.cdr', '.eps', '.pdf', '.svg']);
+    assert.deepEqual(extensions(DXF_FILE_ACCEPT), ['.dxf']);
     for (const [extension, action] of Object.entries(actions)) {
       const file = new File(['sample'], `artwork${extension.toUpperCase()}`);
+      assert.ok(routeCanvasCadImport(editor, [file], undefined, true));
+      assert.deepEqual(received.pop(), { kind: 'cad', action, file });
+      if (extension === '.pdf') {
+        assert.equal(routeCanvasCadImport(editor, [file], point), false, 'a dropped PDF remains an attachment');
+        continue;
+      }
       assert.ok(routeCanvasCadImport(editor, [file], point));
       assert.deepEqual(received.pop(), { kind: 'cad', action, file, dropPoint: point });
     }
     assert.equal(routeCanvasCadImport(editor, [new File(['photo'], 'photo.png')], point), false);
+  });
+
+  it('accepts drawing MIME aliases and catches mixed drawing selections before attachment upload', () => {
+    const container = new EventTarget();
+    let notice: unknown, isReadonly = false;
+    container.addEventListener('oms:drawing-ui-request', event => { notice = (event as CustomEvent).detail; });
+    const editor = { getContainer: () => container, getInstanceState: () => ({ isReadonly }) } as unknown as Editor;
+    const dxf = new File(['sample'], 'artwork', { type: 'application/x-dxf' });
+    const png = new File(['photo'], 'photo.png', { type: 'image/png' });
+    assert.equal(drawingFileKind(dxf), 'dxf');
+    assert.equal(drawingFileKind(new File(['sample'], 'artwork.pdf', { type: 'image/svg+xml' })), 'pdf');
+    assert.ok(routeCanvasCadImport(editor, [dxf, png], { x: 0, y: 0 }, true));
+    assert.deepEqual(notice, { kind: 'import', action: 'oneDrawingAtATime' });
+    assert.ok(isDrawingUiRequest(notice));
+    assert.equal(routeCanvasCadImport(editor, [png, png]), false);
+    isReadonly = true;
+    notice = undefined;
+    assert.equal(routeCanvasCadImport(editor, [dxf], undefined, true), false);
+    assert.equal(notice, undefined);
   });
 });
