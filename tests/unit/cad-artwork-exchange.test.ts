@@ -253,6 +253,30 @@ describe("clipped artwork, gradients and embedded raster exchange", () => {
     ], ["linear", "radial"]);
   });
 
+  it("matches reused symbols, nested viewports and referenced clipping in PDF and EPS", async () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80">
+      <defs><rect id="insert" width="8" height="8" fill="currentColor"/>
+        <symbol id="badge" viewBox="0 0 20 20">
+          <rect x="-5" width="30" height="20" fill="url(#ramp)"/>
+          <use href="#insert" x="4" y="4"/>
+        </symbol>
+        <linearGradient id="ramp" gradientUnits="userSpaceOnUse"><stop stop-color="#9e304c"/><stop offset="1" stop-color="#dc9f5a"/></linearGradient>
+        <path id="window" clip-rule="evenodd" d="M0 0H28V20H0Z M8 5H20V15H8Z"/>
+        <clipPath id="cut"><use href="#window" x="2" y="2"/></clipPath>
+        <rect id="panel" width="32" height="24" fill="#234878"/>
+      </defs>
+      <rect width="120" height="80" fill="white"/>
+      <use href="#badge" x="18" y="12" width="40" height="30" color="#176034"/>
+      <use href="#panel" x="70" y="14" clip-path="url(#cut)"/>
+      <svg x="36" y="49" width="40" height="20" viewBox="0 0 20 20" preserveAspectRatio="none">
+        <rect x="25%" width="50%" height="100%" fill="#7b529a"/>
+      </svg></svg>`;
+    await compareSvgShadings(source, [
+      [12, 18], [14, 12], [18, 12], [24, 15], [42, 14], [45, 17],
+      [53, 14], [56, 15], [62, 19], [70, 21], [74, 14], [40, 44], [50, 44],
+    ], [undefined, "linear", undefined, undefined, undefined]);
+  });
+
   it("preserves independently authored EPS artwork through real Ghostscript conversion and editable PDF import", async () => {
     const previous = globalThis.document;
     (globalThis as any).document = { createElement: () => createCanvas(1, 1) };

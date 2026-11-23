@@ -309,6 +309,38 @@ describe('physical drawing pages', () => {
 });
 
 describe('portable artwork export through native SVG and PNG APIs', () => {
+  it('places local symbol instances as independent, full-size cutting curves', async () => harness(async h => {
+    const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
+    const { readVectorSvg } = await import('../../src/lib/components/canvas/cad-svg-import');
+    const { prepareVectorImport } = await import('../../src/lib/components/canvas/cad-vector');
+    const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
+    const { buildCadDxf } = await import('../../src/lib/components/canvas/cad-dxf');
+    const imported = readVectorSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50">
+      <defs><symbol id="letter" viewBox="0 0 20 10"><path fill-rule="evenodd"
+        d="M0 0C5 0 15 0 20 0V10H0Z M5 3H15V7H5Z"/></symbol></defs>
+      <use href="#letter" x="10" y="10" width="20" height="10" fill="#a31426"/>
+      <use href="#letter" x="60" y="10" width="40" height="20" transform="rotate(30 60 10)" fill="#235897"/></svg>`);
+    const plan = prepareVectorImport(h.editor, h.cad.DEFAULT_CAD_SETTINGS, imported.document, imported.widthMm, { x:0, y:0 }, 'Instances');
+    assert.deepEqual(plan.warnings, []);
+    assert.equal(applyCadPlan(h.editor, plan), true);
+    const shapes = h.editor.getSelectedShapes();
+    assert.equal(shapes.length, 2);
+    assert.notEqual(shapes[0].id, shapes[1].id);
+    assert.deepEqual(shapes.map((shape: any) => shape.meta.omsVectorPaint.fill), ['#a31426', '#235897']);
+    assert.deepEqual(shapes.map((shape: any) => shape.props.contours.length), [2,2]);
+    near(h.curves.curveBounds(shapes[0].props.contours).w * 25.4 / 96, 20);
+    const [start, end] = shapes[1].props.contours[0].nodes;
+    near(Math.hypot(end.x - start.x, end.y - start.y) * 25.4 / 96, 40);
+    assert.ok(shapes.every((shape: any) => !shape.meta.omsVectorPaint.clips));
+    const dxf = buildCadDxf(h.editor, 'selected', h.cad.DEFAULT_CAD_SETTINGS);
+    assert.equal(dxf.closedContours, 4);
+    assert.deepEqual(dxf.omitted, []);
+    const exported = await exportDrawingArtwork(h.editor, 'svg', { ...exportOptions, scope: 'selected' }, new AbortController().signal);
+    const content = await exported.blob.text();
+    assert.doesNotMatch(content, /<use\b|#letter/);
+    near(readVectorSvg(content).widthMm, 50 + 40 * Math.cos(Math.PI / 6));
+  }));
+
   it('reimports a full-size OMS SVG with a sharp gradient transition, cubic and hole geometry and exports its cutting curves', async () => harness(async h => {
     const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
     const { readVectorSvg } = await import('../../src/lib/components/canvas/cad-svg-import');

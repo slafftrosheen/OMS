@@ -80,6 +80,95 @@ describe('editable SVG exchange', () => {
     assert.deepEqual(document.warnings, ['svg-effects']);
   });
 
+  it('imports independent curve copies with the use transform and inherited paint', () => {
+    const { document, widthMm } = load(`<defs fill="#123456"><g id="aprīlis" transform="translate(1 2)">
+      <path fill="currentColor" d="M0 0C2 0 6 0 8 0V8H0Z"/>
+      <rect x="10" width="4" height="5" fill="#664422"/></g><use id="copy" href="#apr%C4%ABlis" x="2"/></defs>
+      <use xlink:href="#copy" x="10%" y="5" transform="translate(2 3)" color="#008899"/>
+      <use href="#aprīlis" xlink:href="#missing" x="50" y="10" width="0" color="#aa2244"/>`,
+      'xmlns:xlink="http://www.w3.org/1999/xlink" width="100mm" height="50mm" viewBox="0 0 100 50"');
+    const px = 96 / 25.4;
+    assert.deepEqual(document.warnings, []);
+    assert.equal(document.paths.length, 4);
+    near(widthMm, 100);
+    const [first, second, third, fourth] = document.paths;
+    assert.deepEqual([first.paint.fill, second.paint.fill, third.paint.fill, fourth.paint.fill], ['#008899', '#664422', '#aa2244', '#664422']);
+    near(first.contours[0].nodes[0].x, 15 * px);
+    near(first.contours[0].nodes[0].y, 10 * px);
+    near(first.contours[0].nodes[0].outX, 2 * px);
+    near(third.contours[0].nodes[0].x, 51 * px);
+    near(third.contours[0].nodes[0].y, 12 * px);
+  });
+
+  it('uses nested viewport sizing and percentage lengths and crops oversized symbol artwork', () => {
+    const { document } = load(`<defs><symbol id="badge" viewBox="10 20 20 10">
+      <rect x="5" y="20" width="25" height="10" fill="#112233"/></symbol>
+      <svg id="tile" x="2" y="1" width="18" height="15" viewBox="0 0 12 6" preserveAspectRatio="none">
+        <rect fill="url(#paint)" x="50%" width="50%" height="100%"/>
+      </svg><linearGradient id="paint" gradientUnits="userSpaceOnUse"><stop stop-color="black"/>
+        <stop offset="1" stop-color="white"/></linearGradient></defs>
+      <use href="#badge" x="20" y="10" width="40" height="40"/>
+      <use href="#tile" x="72" y="40" width="20%" height="15%"/>
+      <svg overflow="visible" x="8" y="60" width="20" height="10"><rect x="-3" width="23" height="10"/></svg>
+      <use href="#tile" width="0" height="12"/>`, 'width="120" height="80"');
+    assert.deepEqual(document.warnings, []);
+    assert.equal(document.paths.length, 3);
+    const [symbol, tile, overflow] = document.paths;
+    assert.deepEqual(curveBounds(symbol.contours), { x:10, y:20, w:50, h:20 });
+    assert.deepEqual(curveBounds(symbol.paint.clips![0].contours), { x:20, y:10, w:40, h:40 });
+    assert.deepEqual(curveBounds(tile.contours), { x:86, y:41, w:12, h:12 });
+    assert.deepEqual(tile.paint.gradient?.end, [12, 0]);
+    assert.deepEqual(tile.paint.gradient?.matrix, [2,0,0,2,74,41]);
+    assert.equal(tile.paint.clips, undefined);
+    assert.deepEqual(curveBounds(overflow.contours), { x:5, y:60, w:23, h:10 });
+    assert.equal(overflow.paint.clips, undefined);
+  });
+
+  it('keeps a compound clip referenced by use and applies host positioning to its local clip', () => {
+    const { document } = load(`<defs><path id="hole" d="M0 0H12V12H0Z M3 3H9V9H3Z"/>
+      <rect id="ink" width="30" height="30"/>
+      <clipPath id="cut" transform="translate(1 0)"><use href="#hole" x="2%" transform="scale(2)" clip-rule="evenodd"/></clipPath></defs>
+      <use href="#ink" x="40" y="12" clip-path="url(#cut)"/>`, 'width="100" height="60"');
+    const [path] = document.paths;
+    assert.deepEqual(document.warnings, []);
+    const [clip] = path.paint.clips!;
+    assert.equal(clip.fillRule, 'evenodd');
+    assert.equal(clip.contours.length, 2);
+    assert.deepEqual(curveBounds(clip.contours), { x:45, y:12, w:24, h:24 });
+  });
+
+  it('scales percentage stroke widths and dashes with the nested viewport diagonal', () => {
+    const { document } = load(`<svg x="10" y="10" width="30" height="40" viewBox="0 0 60 80">
+      <line x1="25%" x2="75%" y1="50%" y2="50%" stroke="#123456" stroke-width="4%"
+        stroke-dasharray="8% 2" stroke-dashoffset="2%"/></svg>`, 'width="80" height="60"');
+    const [path] = document.paths;
+    assert.deepEqual(document.warnings, []);
+    assert.deepEqual(curveBounds(path.contours), { x:17.5, y:30, w:15, h:0 });
+    near(path.paint.strokeWidth, Math.SQRT2);
+    near(path.paint.dash[0], 2 * Math.SQRT2);
+    near(path.paint.dash[1], 1);
+    near(path.paint.dashOffset, Math.SQRT1_2);
+  });
+
+  it('skips unresolved and circular branches without losing other artwork or expanding unreferenced symbols', () => {
+    const { document } = load(`<defs><use id="loop" href="#loop"/>
+      <g id="nested"><rect width="4" height="8"/><use href="#nested"/></g>
+      <g id="duplicate"/><g id="duplicate"/><symbol id="anchor" refX="center"><rect width="4" height="4"/></symbol></defs>
+      <symbol id="unused"><rect width="6" height="8"/><script>skip()</script></symbol>
+      <use href="#nested" x="10"/><use href="#loop"/><use href="#missing"/><use href="#duplicate"/>
+      <use href="#anchor"/><use href="https://example.test/other.svg#nested"/><rect x="40" width="4" height="8"/>
+      <g id="self"><use href="#self"/><rect x="54" width="4" height="8"/></g>`, 'width="100" height="60"');
+    assert.deepEqual(document.paths.map(path => curveBounds(path.contours).x), [10,40,54]);
+    assert.deepEqual(document.warnings, ['svg-reference']);
+    assert.doesNotMatch(JSON.stringify(document), /https:|skip\(\)/);
+  });
+
+  it('bounds expanded work even when repeated branches produce no visible geometry', () => {
+    const groups = ['<g id="g0"><rect display="none" width="1" height="1"/></g>'];
+    for (let i = 1; i <= 13; i++) groups.push(`<g id="g${i}"><use href="#g${i-1}"/><use href="#g${i-1}"/></g>`);
+    assert.throws(() => load(`<defs>${groups.join('')}</defs><use href="#g13"/>`), /limit/);
+  });
+
   it('uses the local Bézier bounds before the element and gradient transforms', () => {
     const { document } = load(`<defs><linearGradient id="paint" x2="75%" y2="50%" gradientTransform="translate(.1 .2)">
       <stop offset="25%" stop-color="#123456"/><stop offset="80%" stop-color="#abcdef"/>

@@ -3,13 +3,15 @@ import { multiplyMatrix, type VectorMatrix } from './cad-appearance';
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 export const SVG_MM_PER_PIXEL = 25.4 / 96;
 export const SVG_IDENTITY: VectorMatrix = [1, 0, 0, 1, 0, 0];
+export type SvgViewportSize = { width: number; height: number };
 const number = String.raw`[+-]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][+-]?\d+)?`;
 const units: Record<string, number> = { '': 1, px: 1, mm: 96 / 25.4, cm: 96 / 2.54,
   in: 96, pt: 96 / 72, pc: 16, q: 96 / 101.6 };
 const lengthPattern = new RegExp(`^(${number})([a-z]*)$`, 'i');
 const unitlessPattern = new RegExp(`^${number}$`);
 
-export function svgGradientLength(value: string, extent: number, objectBox: boolean): number {
+export function svgRelativeLength(value: string, extent: number, objectBox = false): number {
+  value = value.trim();
   const percent = value.endsWith('%');
   if (!percent && !objectBox) return svgLength(value);
   const literal = percent ? value.slice(0, -1) : value;
@@ -18,6 +20,8 @@ export function svgGradientLength(value: string, extent: number, objectBox: bool
   if (!Number.isFinite(length)) throw new Error('svg-format');
   return length;
 }
+
+export const svgDiagonal = ({ width, height }: SvgViewportSize) => Math.hypot(width, height) / Math.SQRT2;
 
 export function svgLength(value: string): number {
   const match = lengthPattern.exec(value.trim());
@@ -65,27 +69,20 @@ export function svgTransform(value: string | null): VectorMatrix {
   return matrix;
 }
 
-/** Map viewBox user coordinates to the intrinsic CSS-pixel viewport. */
-export function svgViewport(root: Element) {
-  const boxText = root.getAttribute('viewBox');
+function svgViewBox(element: Element) {
+  const boxText = element.getAttribute('viewBox');
   const box = boxText === null ? null : svgNumbers(boxText, 4);
   if (box && (box.length !== 4 || box[2] <= 0 || box[3] <= 0)) throw new Error('svg-format');
-  const widthText = root.getAttribute('width')?.trim(), heightText = root.getAttribute('height')?.trim();
-  let width = widthText && !widthText.endsWith('%') ? svgLength(widthText) : undefined;
-  let height = heightText && !heightText.endsWith('%') ? svgLength(heightText) : undefined;
-  const estimated = width === undefined && height === undefined;
-  if (box) {
-    width = width ?? (height === undefined ? box[2] : height * box[2] / box[3]);
-    height = height ?? width * box[3] / box[2];
-  }
-  if (width === undefined || height === undefined || width <= 0 || height <= 0)
-    throw new Error('svg-size');
+  return box;
+}
+
+function mapViewport(element: Element, width: number, height: number, box: number[] | null) {
   if (width > 1e6 || height > 1e6) throw new Error('limit');
-  const viewport = { width, height, estimated, userViewport: { width: box?.[2] ?? width, height: box?.[3] ?? height } };
+  const viewport = { width, height, userViewport: { width: box?.[2] ?? width, height: box?.[3] ?? height } };
   if (!box) return { ...viewport, matrix: SVG_IDENTITY };
   const [x, y, w, h] = box;
   const sx = width / w, sy = height / h;
-  const aspect = (root.getAttribute('preserveAspectRatio') ?? 'xMidYMid meet').trim();
+  const aspect = (element.getAttribute('preserveAspectRatio') ?? 'xMidYMid meet').trim();
   if (aspect === 'none') return { ...viewport, matrix: [sx, 0, 0, sy, -x * sx, -y * sy] as VectorMatrix };
   const alignment = /^x(Min|Mid|Max)Y(Min|Mid|Max)(?:\s+(meet|slice))?$/.exec(aspect);
   if (!alignment) throw new Error('svg-format');
@@ -94,4 +91,33 @@ export function svgViewport(root: Element) {
   const dx = (width - scale * w) * fraction[alignment[1] as keyof typeof fraction] - x * scale;
   const dy = (height - scale * h) * fraction[alignment[2] as keyof typeof fraction] - y * scale;
   return { ...viewport, matrix: [scale, 0, 0, scale, dx, dy] as VectorMatrix };
+}
+
+/** Map viewBox user coordinates to the intrinsic CSS-pixel viewport. */
+export function svgViewport(root: Element) {
+  const box = svgViewBox(root);
+  const widthText = root.getAttribute('width')?.trim(), heightText = root.getAttribute('height')?.trim();
+  let width = widthText && !widthText.endsWith('%') ? svgLength(widthText) : undefined;
+  let height = heightText && !heightText.endsWith('%') ? svgLength(heightText) : undefined;
+  const estimated = width === undefined && height === undefined;
+  if (box) {
+    width = width ?? (height === undefined ? box[2] : height * box[2] / box[3]);
+    height = height ?? width * box[3] / box[2];
+  }
+  if (width === undefined || height === undefined || width <= 0 || height <= 0) throw new Error('svg-size');
+  return { ...mapViewport(root, width, height, box), estimated };
+}
+
+export function svgNestedViewport(element: Element, parent: SvgViewportSize, attr: (name: string) => string | undefined,
+  override?: { width?: string; height?: string }) {
+  const size = (axis: 'width' | 'height') => {
+    const specified = override?.[axis], own = attr(axis);
+    const value = specified && specified !== 'auto' ? specified : own;
+    return value && value !== 'auto' ? svgRelativeLength(value, parent[axis]) : parent[axis];
+  };
+  const width = size('width'), height = size('height');
+  if (width < 0 || height < 0) throw new Error('svg-format');
+  if (!width || !height) return null;
+  const mapping = mapViewport(element, width, height, svgViewBox(element));
+  return { ...mapping, x: svgRelativeLength(attr('x') ?? '0', parent.width), y: svgRelativeLength(attr('y') ?? '0', parent.height) };
 }

@@ -1,40 +1,41 @@
 import { SVGPathData } from 'svg-pathdata';
 import type { VectorMatrix } from './cad-appearance';
 import { arcContour, CAD_CURVE_NODE_LIMIT, mapContours, nodeAt, type CadContour } from './cad-curves';
-import { svgLength, svgNumbers, SVG_MM_PER_PIXEL } from './cad-svg-coordinates';
+import { svgDiagonal, svgRelativeLength, svgNumbers, SVG_MM_PER_PIXEL, type SvgViewportSize } from './cad-svg-coordinates';
 
 export const SVG_SHAPES = new Set(['path', 'rect', 'line', 'circle', 'ellipse', 'polyline', 'polygon']);
 
-function pathText(element: Element): string {
-  const length = (key: string, fallback = 0) => {
+function pathText(element: Element, viewport: SvgViewportSize): string {
+  const length = (key: string, extent: number, fallback = 0) => {
     const value = element.getAttribute(key);
-    return value === null ? fallback : svgLength(value);
+    return value === null ? fallback : svgRelativeLength(value, extent);
   };
+  const { width, height } = viewport;
   if (element.localName === 'path') return element.getAttribute('d') ?? '';
-  if (element.localName === 'line') return `M${length('x1')} ${length('y1')}L${length('x2')} ${length('y2')}`;
+  if (element.localName === 'line') return `M${length('x1', width)} ${length('y1', height)}L${length('x2', width)} ${length('y2', height)}`;
   if (element.localName === 'polygon' || element.localName === 'polyline') {
     const points = svgNumbers(element.getAttribute('points') ?? '', 2 * CAD_CURVE_NODE_LIMIT);
     if (points.length % 2) throw new Error('svg-format');
     return points.length < 4 ? '' : `M${points.join(' ')}${element.localName === 'polygon' ? 'Z' : ''}`;
   }
   if (element.localName === 'circle' || element.localName === 'ellipse') {
-    const cx = length('cx'), cy = length('cy'), circle = element.localName === 'circle';
-    const rx = length(circle ? 'r' : 'rx'), ry = circle ? rx : length('ry');
+    const cx = length('cx', width), cy = length('cy', height), circle = element.localName === 'circle';
+    const rx = circle ? length('r', svgDiagonal(viewport)) : length('rx', width), ry = circle ? rx : length('ry', height);
     if (rx <= 0 || ry <= 0) return '';
     return `M${cx - rx} ${cy}A${rx} ${ry} 0 1 0 ${cx + rx} ${cy}A${rx} ${ry} 0 1 0 ${cx - rx} ${cy}Z`;
   }
-  const x = length('x'), y = length('y'), w = length('width'), h = length('height');
+  const x = length('x', width), y = length('y', height), w = length('width', width), h = length('height', height);
   if (w <= 0 || h <= 0) return '';
-  const radiusX = length('rx', length('ry'));
-  const rx = Math.min(w / 2, Math.max(0, radiusX)), ry = Math.min(h / 2, Math.max(0, length('ry', radiusX)));
+  const radiusX = length('rx', width, length('ry', height));
+  const rx = Math.min(w / 2, Math.max(0, radiusX)), ry = Math.min(h / 2, Math.max(0, length('ry', height, radiusX)));
   if (!rx || !ry) return `M${x} ${y}H${x + w}V${y + h}H${x}Z`;
   return `M${x + rx} ${y}H${x + w - rx}A${rx} ${ry} 0 0 1 ${x + w} ${y + ry}` +
     `V${y + h - ry}A${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h}H${x + rx}` +
     `A${rx} ${ry} 0 0 1 ${x} ${y + h - ry}V${y + ry}A${rx} ${ry} 0 0 1 ${x + rx} ${y}Z`;
 }
 
-export function svgContours(element: Element, matrix: VectorMatrix, warnings: Set<string>): CadContour[] {
-  const path = new SVGPathData(pathText(element));
+export function svgContours(element: Element, matrix: VectorMatrix, viewport: SvgViewportSize, warnings: Set<string>): CadContour[] {
+  const path = new SVGPathData(pathText(element, viewport));
   if (path.commands.length > 2 * CAD_CURVE_NODE_LIMIT) throw new Error('limit');
   const commands = path.toAbs().normalizeHVZ(false, true, true).normalizeST().qtToC().annotateArcs().commands;
   const contours: CadContour[] = [];

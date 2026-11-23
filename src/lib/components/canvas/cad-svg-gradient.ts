@@ -1,5 +1,6 @@
 import { multiplyMatrix, validAppearance, type VectorGradient, type VectorMatrix } from './cad-appearance';
-import { svgGradientLength, svgTransform, SVG_IDENTITY } from './cad-svg-coordinates';
+import { svgDiagonal, svgRelativeLength, svgTransform, SVG_IDENTITY } from './cad-svg-coordinates';
+import { svgHref, svgLocalFragment } from './cad-svg-references';
 
 type SvgColor = { ink: string; a: number };
 export type SvgGradientFill = SvgColor & { gradient?: VectorGradient };
@@ -16,15 +17,13 @@ type GradientInput = {
   transform: VectorMatrix;
 };
 
-const xlink = 'http://www.w3.org/1999/xlink';
 const gradientTags = new Set(['linearGradient', 'radialGradient']);
-const localId = (url: string | null | undefined) => /^#([^\s#]+)$/.exec(url ?? '')?.[1];
 const inheritedValue = /^(?:inherit|unset|currentcolor)$/i;
 
 /** Only local URLs may resolve definitions. Split off the authored solid fallback. */
 export function svgPaintReference(value: string) {
   const match = /^url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)(?:\s+(.+))?$/i.exec(value.trim());
-  return match ? { id: localId(match[1] ?? match[2] ?? match[3]), fallback: match[4] } : null;
+  return match ? { id: svgLocalFragment(match[1] ?? match[2] ?? match[3]), fallback: match[4] } : null;
 }
 
 function gradientChain(input: GradientInput): Element[] {
@@ -36,9 +35,9 @@ function gradientChain(input: GradientInput): Element[] {
         chain.length >= 32 || visited.has(element)) throw new Error('svg-gradient');
     visited.add(element);
     chain.push(element);
-    const href = element.getAttribute('href') ?? element.getAttributeNS(xlink, 'href');
+    const href = svgHref(element);
     if (!href) break;
-    id = localId(href.trim());
+    id = svgLocalFragment(href);
     if (!id) throw new Error('svg-gradient');
   }
   if (!chain.length) throw new Error('svg-gradient');
@@ -107,10 +106,10 @@ export function readSvgGradient(input: GradientInput): SvgGradientFill | null {
     const base: VectorMatrix = objectBox ? [w, 0, 0, h, x, y] : SVG_IDENTITY;
     const m = multiplyMatrix(multiplyMatrix(input.transform, base), svgTransform(attr('gradientTransform') ?? null));
     const viewport = objectBox ? { width: 1, height: 1 } : input.viewport;
-    const radius = Math.hypot(viewport.width, viewport.height) / Math.SQRT2;
+    const radius = svgDiagonal(viewport);
     const matching = chain.filter(element => element.localName === chain[0].localName);
     const coordinate = (name: string) => attr(name, matching);
-    const read = (key: string, fallback: string, extent: number) => svgGradientLength(coordinate(key) ?? fallback, extent, objectBox);
+    const read = (key: string, fallback: string, extent: number) => svgRelativeLength(coordinate(key) ?? fallback, extent, objectBox);
     const pair = (x: string, y: string, dx: string, dy: string): [number, number] =>
       [read(x, dx, viewport.width), read(y, dy, viewport.height)];
     const cx = coordinate('cx') ?? '50%', cy = coordinate('cy') ?? '50%';
