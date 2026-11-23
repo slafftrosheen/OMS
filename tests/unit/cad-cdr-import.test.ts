@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import { describe, it } from 'vitest';
-import { vectorUploadPayload, VECTOR_FILE_LIMIT } from '../../src/lib/components/canvas/cad-vector-file';
+import { vectorUploadPayload, VECTOR_CONVERSION_LIMIT } from '../../src/lib/components/canvas/cad-vector-file';
 import { vectorFileKind, VectorConversionError } from '../../src/lib/server/cad/convert-vector';
 
 const riff = Buffer.from('524946460400000043445243', 'hex');
@@ -50,11 +50,28 @@ describe('CDR upload classification', () => {
   });
 
   it('enforces request size and rejects false declared inflated sizes on the server', async () => {
-    const large = new Blob([new Uint8Array(riff), new Uint8Array(VECTOR_FILE_LIMIT)]);
+    const large = new Blob([new Uint8Array(riff), new Uint8Array(VECTOR_CONVERSION_LIMIT)]);
     await assert.rejects(vectorUploadPayload(large), /limit/);
     const understated = packedCdr('content/root.dat', riff.length - 1);
     const malformed = packedCdr('content/root.dat', riff.length + 1);
     for (const bytes of [understated, malformed])
       assert.throws(() => vectorFileKind(bytes), (error: unknown) => error instanceof VectorConversionError && error.status === 415);
+  });
+
+  it('probes a large CDR by reading its directory instead of materializing the upload', async () => {
+    const bytes = packedCdr(), end = bytes.length - 22, start = bytes.readUInt32LE(end + 16);
+    const padding = new Uint8Array(13 * 1024 * 1024);
+    bytes.writeUInt32LE(start + padding.length, end + 16);
+    const source = new Blob([new Uint8Array(bytes.subarray(0, start)), padding, new Uint8Array(bytes.subarray(start))]);
+    const slices: number[] = [];
+    const slice = source.slice.bind(source);
+    source.slice = (start, end) => {
+      const part = slice(start, end);
+      slices.push(part.size);
+      return part;
+    };
+    source.arrayBuffer = async () => { throw new Error('unexpected full file read'); };
+    assert.deepEqual(await vectorUploadPayload(source), { kind: 'cdr', body: source });
+    assert.ok(slices.reduce((sum, size) => sum + size, 0) < 70_000);
   });
 });

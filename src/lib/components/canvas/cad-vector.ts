@@ -6,7 +6,7 @@ import {
   makeCadPlan,
   assertCadEditable,
   CadOperationError,
-  type CadPlan,
+  type CadPlan, type CadPlannedShape,
 } from "./cad-plans";
 import { cadMmPerPixel, type CadSettings } from "./cad-settings";
 
@@ -41,7 +41,7 @@ export function prepareVectorImport(
   name: string,
   sourceIds: string[] = [],
   removeIds: string[] = [],
-  options: { center?: boolean; group?: boolean } = {},
+  options: { center?: boolean; group?: boolean; compactForSave?: boolean } = {},
 ): CadPlan {
   assertCadEditable(editor, sourceIds);
   if (
@@ -52,7 +52,8 @@ export function prepareVectorImport(
     !document.paths.length || ![point.x, point.y].every(Number.isFinite)
   )
     throw new CadOperationError("geometry");
-  const scale = widthMm / document.width / cadMmPerPixel(settings);
+  const mmPerPixel = cadMmPerPixel(settings);
+  const scale = widthMm / document.width / mmPerPixel;
   let { x, y } = point;
   if (options.center) {
     const bounds = curveBounds(document.paths.flatMap(path => path.contours));
@@ -74,11 +75,40 @@ export function prepareVectorImport(
       y,
     ]),
   }));
+  const shapes: CadPlannedShape[] = paths.map((p, i) => ({
+    type: "cad-bezier",
+    x: 0,
+    y: 0,
+    opacity: 1,
+    props: { contours: p.contours, fillRule: p.fillRule },
+    meta: { omsObjectName: `${name} · ${i + 1}`, omsVectorPaint: p.paint },
+  }));
+  const warnings = [...document.warnings];
+  if (editor.store) {
+    const space = 1_900_000 - JSON.stringify(editor.store.getStoreSnapshot()).length;
+    if (JSON.stringify(shapes).length > space) {
+      if (!options.compactForSave || space <= 0) throw new CadOperationError("save-limit");
+      // Keep the nodes and Bézier topology. Round anchors and handle deltas to
+      // a physical grid no larger than 1 nm, only to fit the save budget.
+      const digits = Math.max(0, Math.ceil(Math.log10(mmPerPixel / 0.000001)));
+      for (const path of paths) {
+        const contours = [...path.contours, ...(path.paint.clips ?? []).flatMap(clip => clip.contours)];
+        for (const contour of contours) for (const node of contour.nodes)
+          for (const field of ['x', 'y', 'inX', 'inY', 'outX', 'outY'] as const)
+            node[field] = Number(node[field].toFixed(digits));
+      }
+      if (JSON.stringify(shapes).length > space) throw new CadOperationError("save-limit");
+      warnings.push("vector-compact");
+    }
+  }
   if (
     paths.some((p) => !validContours(p.contours) || !validVectorPaint(p.paint))
   )
     throw new CadOperationError("limit");
-  const plan = makeCadPlan(
+  // Optional PDF paint fields may be undefined. tldraw rejects them in a
+  // record even though JSON.stringify would silently drop them on save.
+  for (const [i, path] of paths.entries()) shapes[i].meta!.omsVectorPaint = paintMetadata(path.paint);
+  return makeCadPlan(
     editor,
     settings,
     paths.flatMap((p) => p.contours),
@@ -86,26 +116,11 @@ export function prepareVectorImport(
       name,
       sourceIds,
       removeIds,
-      warnings: document.warnings,
+      warnings,
       groupResult: options.group,
-      shapes: paths.map((p, i) => ({
-        type: "cad-bezier",
-        x: 0,
-        y: 0,
-        opacity: 1,
-        props: { contours: p.contours, fillRule: p.fillRule },
-        meta: { omsObjectName: `${name} · ${i + 1}`, omsVectorPaint: p.paint },
-      })),
+      shapes,
     },
   );
-  if (
-    editor.store &&
-    JSON.stringify(editor.store.getStoreSnapshot()).length +
-      JSON.stringify(plan.shapes).length >
-      1_900_000
-  )
-    throw new CadOperationError("save-limit");
-  return plan;
 }
 
 /** JSON-normalized metadata removes absent optional fields before persistence. */

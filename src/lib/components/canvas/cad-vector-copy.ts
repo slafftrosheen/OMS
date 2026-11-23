@@ -128,7 +128,12 @@ const en = {
   groupImport: "Keep imported objects together",
   dropPlacement: "Artwork is centered at the drop point.",
   outline: "Outline text on the OMS server",
-  importHelp: "Choose a page from a PDF, EPS or CorelDRAW file. CDR and EPS open in editable-curve mode. Automatic mode can render unsupported effects as a bitmap. Preparing a preview stores images as private attachments at original resolution (up to 32 MP / 25 MiB each).",
+  importHelp: "Choose a page from a PDF, EPS or CorelDRAW file. CDR and EPS accept up to 30 MiB and open in editable-curve mode. PDF accepts up to 12 MiB. Automatic mode can render unsupported effects as a bitmap. Preparing a preview stores images as private attachments at original resolution (up to 32 MP / 25 MiB each).",
+  "vector-input-limit": "CDR and EPS accept up to 30 MiB of source data. PDF files are limited to 12 MiB.",
+  "vector-output-limit": "The converted page exceeds 40 MiB. Export a smaller page from the source application.",
+  "vector-transport-limit": "The server or proxy rejected the upload size. The OMS service and proxy need a 32 MiB request limit.",
+  "vector-import-geometry": "This page exceeds the editable geometry or image limits. Try a smaller page or switch to Rendered page.",
+  "vector-compact": "The import keeps all nodes and Bézier segments and rounds coordinates on a grid of at most 0.000001 mm so the drawing can be saved.",
   "cdr-review": "Compare the converted CDR page with the source. CorelDRAW-specific effects, fonts and spot-color definitions may change during conversion.",
   "cdr-conversion": "OMS could not convert this CDR page. Check the page number and CorelDRAW version.",
   "cdr-converter-unavailable": "CDR import needs LibreOffice Draw on the OMS server.",
@@ -348,7 +353,12 @@ const ru: Record<Key, string> = {
   groupImport: "Сгруппировать импортированные объекты",
   dropPlacement: "Макет будет центрирован в точке перетаскивания.",
   outline: "Преобразовать текст в кривые на сервере OMS",
-  importHelp: "Выберите страницу PDF, EPS или CorelDRAW. Для CDR и EPS по умолчанию включён режим редактируемых контуров. Автоматический режим может растрировать неподдерживаемые эффекты. При предпросмотре изображения сохраняются как приватные вложения в исходном разрешении (до 32 Мп / 25 МиБ каждое).",
+  importHelp: "Выберите страницу PDF, EPS или CorelDRAW. CDR и EPS до 30 МиБ открываются в режиме редактируемых контуров. PDF — до 12 МиБ. Автоматический режим может растрировать неподдерживаемые эффекты. При предпросмотре изображения сохраняются как приватные вложения в исходном разрешении (до 32 Мп / 25 МиБ каждое).",
+  "vector-input-limit": "Допустимый размер исходных данных CDR и EPS — 30 МиБ, PDF — 12 МиБ.",
+  "vector-output-limit": "Размер преобразованной страницы превышает 40 МиБ. Экспортируйте меньшую страницу из исходной программы.",
+  "vector-transport-limit": "Сервер или прокси отклонил файл из-за размера. Для OMS и прокси требуется лимит запроса 32 МиБ.",
+  "vector-import-geometry": "Страница превышает лимит редактируемой геометрии или изображений. Выберите меньшую страницу или режим растровой страницы.",
+  "vector-compact": "Все узлы и сегменты Безье сохранены. Для сохранения чертежа координаты округлены с шагом не более 0,000001 мм.",
   "cdr-review": "Сравните преобразованную страницу CDR с оригиналом. Эффекты CorelDRAW, шрифты и определения плашечных цветов могут измениться при преобразовании.",
   "cdr-conversion": "OMS не смог преобразовать эту страницу CDR. Проверьте номер страницы и версию CorelDRAW.",
   "cdr-converter-unavailable": "Для импорта CDR на сервере OMS требуется LibreOffice Draw.",
@@ -567,7 +577,12 @@ const lv: Record<Key, string> = {
   groupImport: "Grupēt importētos objektus",
   dropPlacement: "Makets tiks centrēts nomešanas vietā.",
   outline: "Pārvērst tekstu līknēs OMS serverī",
-  importHelp: "Izvēlieties PDF, EPS vai CorelDRAW lapu. CDR un EPS tiek atvērti rediģējamu līkņu režīmā. Automātiskais režīms var rasterizēt neatbalstītus efektus. Priekšskatījumā attēli tiek saglabāti kā privāti pielikumi sākotnējā izšķirtspējā (līdz 32 MP / 25 MiB katram).",
+  importHelp: "Izvēlieties PDF, EPS vai CorelDRAW lapu. CDR un EPS līdz 30 MiB tiek atvērti rediģējamu līkņu režīmā. PDF faili var būt līdz 12 MiB. Automātiskais režīms var rasterizēt neatbalstītus efektus. Priekšskatījumā attēli tiek saglabāti kā privāti pielikumi sākotnējā izšķirtspējā (līdz 32 MP / 25 MiB katram).",
+  "vector-input-limit": "CDR un EPS avota dati var būt līdz 30 MiB, PDF faili līdz 12 MiB.",
+  "vector-output-limit": "Pārveidotā lapa pārsniedz 40 MiB. Eksportējiet mazāku lapu no avota programmas.",
+  "vector-transport-limit": "Serveris vai starpniekserveris noraidīja faila izmēru. OMS un starpniekserverim ir vajadzīgs 32 MiB pieprasījuma limits.",
+  "vector-import-geometry": "Lapa pārsniedz rediģējamās ģeometrijas vai attēlu limitus. Izvēlieties mazāku lapu vai renderētas lapas režīmu.",
+  "vector-compact": "Visi mezgli un Bezjē segmenti ir saglabāti. Lai saglabātu zīmējumu, koordinātas ir noapaļotas ar soli līdz 0,000001 mm.",
   "cdr-review": "Salīdziniet pārveidoto CDR lapu ar oriģinālu. Pārveidē var mainīties CorelDRAW efekti, fonti un speciālo krāsu definīcijas.",
   "cdr-conversion": "OMS nevarēja pārveidot CDR lapu. Pārbaudiet lapas numuru un CorelDRAW versiju.",
   "cdr-converter-unavailable": "CDR importēšanai OMS serverī ir nepieciešams LibreOffice Draw.",
@@ -695,7 +710,7 @@ export function vectorError(error: unknown): string {
         "eps-opacity": "exportHelp",
       } as Record<string, string>
     )[code] ??
-    (["empty", "limit", "material-tiles", "save-limit", "asset-context", "asset-upload", "asset-fetch", "render-limit", "cancelled", "busy", "timeout", "stale"].includes(code)
+    (["empty", "limit", "vector-input-limit", "vector-output-limit", "vector-transport-limit", "vector-import-geometry", "material-tiles", "save-limit", "asset-context", "asset-upload", "asset-fetch", "render-limit", "cancelled", "busy", "timeout", "stale"].includes(code)
       ? code
       : "failed")
   );

@@ -39,7 +39,7 @@ import { encodePdfRaster } from "../../src/lib/components/canvas/cad-raster";
 import { pdfOperatorsToVectors } from "../../src/lib/components/canvas/cad-pdf";
 import { prepareVectorImport } from "../../src/lib/components/canvas/cad-vector";
 import { applyCadPlan } from "../../src/lib/components/canvas/cad-plans";
-import { DEFAULT_CAD_SETTINGS } from "../../src/lib/components/canvas/cad-settings";
+import { DEFAULT_CAD_SETTINGS, cadMmPerPixel } from "../../src/lib/components/canvas/cad-settings";
 import { fixture } from "../helpers/cad-editor";
 const rect = (x = 0, y = 0, w = 100, h = w) => ({
   closed: true,
@@ -523,5 +523,49 @@ describe("clipped artwork, gradients and embedded raster exchange", () => {
       /save-limit/,
     );
     assert.equal(f.editor.getCurrentPageShapeIds().size, 0);
+  });
+
+  it("fits precise vector imports without dropping geometry or changing the source", () => {
+    const f = fixture();
+    const source = structuredClone(gradient);
+    source.paint.gradient!.bounds = undefined;
+    const nodes = source.contours[0].nodes;
+    nodes[0].x = 1.12345678901234;
+    nodes[0].outX = 41.78912345698765;
+    nodes[1].inY = -32.45698712365498;
+    const document = { paths: [source], width: 100, height: 100, warnings: [] };
+    const original = structuredClone(document);
+    function plan(compactForSave: boolean) {
+      return prepareVectorImport(f.editor, DEFAULT_CAD_SETTINGS, document, 100,
+        { x: 3.123456789, y: 7.654321098 }, "CDR", [], [], { compactForSave });
+    }
+    const exact = plan(false);
+    assert.deepEqual(plan(true), exact);
+    f.editor.store = { getStoreSnapshot: () => 'x'.repeat(1_900_000 - JSON.stringify(exact.shapes).length + 15) };
+    assert.throws(() => plan(false), /save-limit/);
+    const compact = plan(true);
+    assert.deepEqual(compact.warnings, ['vector-compact']);
+    assert.deepEqual(document, original);
+    assert.equal(Object.hasOwn(compact.shapes![0].meta!.omsVectorPaint.gradient, 'bounds'), false);
+    assert.equal(compact.contours[0].nodes.length, nodes.length);
+    for (const [i, node] of compact.contours[0].nodes.entries()) {
+      const before = exact.contours[0].nodes[i];
+      for (const axis of ['x', 'y', 'inX', 'inY', 'outX', 'outY'] as const)
+        assert.ok(Math.abs(node[axis] - before[axis]) * cadMmPerPixel(DEFAULT_CAD_SETTINGS) <= 0.0000005);
+    }
+  });
+
+  it("exports straight segments with line operators and leaves genuine cubics editable", async () => {
+    const path: VectorPath = { contours: [rect()], fillRule: 'nonzero', paint: VECTOR_DEFAULT_PAINT };
+    path.contours[0].nodes[0].outY = -10;
+    const pdf = serializeVectorDocument([path], 'pdf');
+    assert.match(pdf, /\sl\n/);
+    assert.match(pdf, /\sc\n/);
+    const eps = serializeVectorDocument([path], 'eps');
+    assert.match(eps, /\slineto\n/);
+    assert.match(eps, /\scurveto\n/);
+    const document = await read(pdf);
+    assert.equal(document.paths[0].contours[0].nodes.length, 4);
+    assert.equal(document.paths[0].contours[0].nodes[0].outY, -10);
   });
 });

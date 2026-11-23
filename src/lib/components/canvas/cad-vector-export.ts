@@ -136,13 +136,17 @@ export function serializeVectorDocument(
       lines.push(
         `${num(c.nodes[0].x)} ${num(c.nodes[0].y)} ${pdf ? "m" : "moveto"}`,
       );
-      for (const seg of contourSegments(c))
+      for (const [start, first, second, end] of contourSegments(c)) {
+        if (start.x === first.x && start.y === first.y && second.x === end.x && second.y === end.y) {
+          lines.push(`${num(end.x)} ${num(end.y)} ${pdf ? "l" : "lineto"}`);
+          continue;
+        }
         lines.push(
-          `${seg
-            .slice(1)
+          `${[first, second, end]
             .map((q) => `${num(q.x)} ${num(q.y)}`)
             .join(" ")} ${pdf ? "c" : "curveto"}`,
         );
+      }
       if (c.closed) lines.push(pdf ? "h" : "closepath");
     }
     return lines.join("\n");

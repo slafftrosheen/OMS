@@ -1,9 +1,8 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { vectorUploadPayload } from "../../src/lib/components/canvas/cad-vector-file";
+import { vectorUploadPayload, VECTOR_CONVERSION_LIMIT, VECTOR_PDF_INPUT_LIMIT } from "../../src/lib/components/canvas/cad-vector-file";
 import { POST } from "../../src/routes/api/canvas/convert-vector/+server";
 import {
-  VECTOR_FILE_LIMIT,
   unwrapEps,
   vectorFileKind,
 } from "../../src/lib/server/cad/convert-vector";
@@ -40,7 +39,7 @@ describe("local vector conversion boundary", () => {
       body: new ReadableStream({
         pull(controller) {
           calls++;
-          controller.enqueue(new Uint8Array(VECTOR_FILE_LIMIT + 1));
+          controller.enqueue(new Uint8Array(VECTOR_CONVERSION_LIMIT + 1));
         },
         cancel() {
           cancelled = true;
@@ -56,7 +55,7 @@ describe("local vector conversion boundary", () => {
     assert.equal(response.status, 413);
     assert.equal(cancelled, true);
     assert.ok(calls <= 2);
-    assert.deepEqual(await response.json(), { code: "limit" });
+    assert.deepEqual(await response.json(), { code: "vector-input-limit" });
   });
   it("unwraps bounded DOS EPS and refuses offsets into or beyond its header", () => {
     const ps = Buffer.from(
@@ -86,32 +85,34 @@ describe("canvas vector upload payload", () => {
     header.writeUInt32LE(start, 4);
     header.writeUInt32LE(ps.length, 8);
     header.writeUInt32LE(start + ps.length, 20);
-    header.writeUInt32LE(16 * 1024 * 1024, 24);
+    header.writeUInt32LE(32 * 1024 * 1024, 24);
     const source = new Blob([new Uint8Array(header), new Uint8Array(start - header.length),
-      new Uint8Array(ps), new Uint8Array(16 * 1024 * 1024)]);
-    assert.ok(source.size > VECTOR_FILE_LIMIT);
+      new Uint8Array(ps), new Uint8Array(32 * 1024 * 1024)]);
+    assert.ok(source.size > VECTOR_CONVERSION_LIMIT);
     const { kind, body } = await vectorUploadPayload(source);
     assert.equal(kind, "eps");
     assert.deepEqual(Buffer.from(await body.arrayBuffer()), ps);
     assert.equal(vectorFileKind(new Uint8Array(await body.arrayBuffer())), "eps");
   });
 
-  it("keeps raw EPS and PDF payloads under the existing cap", async () => {
+  it("accepts EPS above the former cap and still limits PDF to 12 MiB", async () => {
     const eps = new Blob([new Uint8Array(ps)]);
     const pdf = new Blob(["%PDF-1.7\n"]);
     assert.deepEqual(await vectorUploadPayload(eps), { kind: "eps", body: eps });
     assert.deepEqual(await vectorUploadPayload(pdf), { kind: "pdf", body: pdf });
-    const tooLarge = new Blob(["%PDF-1.7\n", new Uint8Array(VECTOR_FILE_LIMIT)]);
-    await assert.rejects(vectorUploadPayload(tooLarge), /limit/);
+    const tooLarge = new Blob(["%PDF-1.7\n", new Uint8Array(VECTOR_PDF_INPUT_LIMIT)]);
+    await assert.rejects(vectorUploadPayload(tooLarge), /vector-input-limit/);
+    const largeEps = new Blob([new Uint8Array(ps), new Uint8Array(VECTOR_PDF_INPUT_LIMIT + 1)]);
+    assert.deepEqual(await vectorUploadPayload(largeEps), { kind: "eps", body: largeEps });
   });
 
   it("rejects truncated wrappers and oversized PostScript payloads", async () => {
     const header = Buffer.alloc(30);
     header.set([0xc5, 0xd0, 0xd3, 0xc6]);
     header.writeUInt32LE(30, 4);
-    header.writeUInt32LE(VECTOR_FILE_LIMIT + 1, 8);
+    header.writeUInt32LE(VECTOR_CONVERSION_LIMIT + 1, 8);
     await assert.rejects(vectorUploadPayload(new Blob([new Uint8Array(header)])), /format/);
-    const source = new Blob([new Uint8Array(header), new Uint8Array(VECTOR_FILE_LIMIT + 1)]);
+    const source = new Blob([new Uint8Array(header), new Uint8Array(VECTOR_CONVERSION_LIMIT + 1)]);
     await assert.rejects(vectorUploadPayload(source), /limit/);
   });
 });

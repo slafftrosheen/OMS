@@ -1,4 +1,8 @@
-export const VECTOR_FILE_LIMIT = 12 * 1024 * 1024;
+import { isCdrArchive, isRiffCdr, probeCdrArchive } from './cad-cdr-file';
+
+export const VECTOR_PDF_INPUT_LIMIT = 12 * 1024 * 1024;
+// Stay below the existing adapter-node and reverse proxy limits of 32 MiB.
+export const VECTOR_CONVERSION_LIMIT = 30 * 1024 * 1024;
 const EPS_HEADER_SIZE = 30;
 const FORMAT_PROBE_SIZE = 32;
 
@@ -26,13 +30,14 @@ export async function vectorUploadPayload(file: Blob) {
   const header = await probe(file);
   const section = dosEpsSection(header, file.size);
   const body = section ? file.slice(section.start, section.end) : file;
-  if (body.size < 8 || body.size > VECTOR_FILE_LIMIT) throw new Error('limit');
+  if (body.size < 8) throw new Error('format');
+  if (body.size > VECTOR_CONVERSION_LIMIT) throw new Error('vector-input-limit');
   const signature = section ? await probe(body) : header;
   const kind = vectorPayloadKind(signature, body.size) ??
-    (!section && signature[0] === 0x50 && signature[1] === 0x4b
-      ? vectorPayloadKind(new Uint8Array(await body.arrayBuffer())) : null);
+    (!section && signature[0] === 0x50 && signature[1] === 0x4b &&
+      signature[2] === 3 && signature[3] === 4 && await probeCdrArchive(body) ? 'cdr' : null);
   if (!kind || (section && kind !== 'eps')) throw new Error('format');
+  if (kind === 'pdf' && body.size > VECTOR_PDF_INPUT_LIMIT) throw new Error('vector-input-limit');
   return { body, kind };
 }
-import { isCdrArchive, isRiffCdr } from './cad-cdr-file';
 

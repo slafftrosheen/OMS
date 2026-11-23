@@ -6,11 +6,10 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { inflateRawSync } from "node:zlib";
 
-import { dosEpsSection, VECTOR_FILE_LIMIT, vectorPayloadKind } from "../../components/canvas/cad-vector-file";
+import { dosEpsSection, VECTOR_CONVERSION_LIMIT, VECTOR_PDF_INPUT_LIMIT, vectorPayloadKind } from "../../components/canvas/cad-vector-file";
 import { isCdrArchive } from "../../components/canvas/cad-cdr-file";
 
-export { VECTOR_FILE_LIMIT };
-const PDF_OUTPUT_LIMIT = 20 * 1024 * 1024;
+const PDF_OUTPUT_LIMIT = 40 * 1024 * 1024;
 const runProcess = promisify(execFile);
 let active = 0;
 export class VectorConversionError extends Error {
@@ -51,7 +50,7 @@ export function vectorFileKind(bytes: Uint8Array): "pdf" | "eps" | "cdr" {
 }
 
 /** Import through the explicit Draw CDR filter in a private, disposable profile. */
-async function convertCdrPage(directory: string, input: string, page: number): Promise<string> {
+async function convertCdrPage(directory: string, input: string, page: number, signal?: AbortSignal): Promise<string> {
   const profile = join(directory, "profile");
   const userProfile = join(profile, "user");
   await mkdir(userProfile, { recursive: true, mode: 0o700 });
@@ -73,12 +72,14 @@ async function convertCdrPage(directory: string, input: string, page: number): P
       cwd: directory,
       env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, HOME: directory,
         TMPDIR: directory, TEMP: directory, TMP: directory },
-      timeout: 25_000,
+      timeout: 35_000,
+      signal,
       killSignal: "SIGKILL",
       maxBuffer: 64 * 1024,
       windowsHide: true,
     });
   } catch (cause) {
+    if (signal?.aborted) throw new VectorConversionError("cancelled", 499);
     const error = cause as NodeJS.ErrnoException & { killed?: boolean };
     if (error.code === "ENOENT") throw new VectorConversionError("cdr-converter-unavailable", 503);
     if (error.killed) throw new VectorConversionError("timeout");
@@ -88,7 +89,7 @@ async function convertCdrPage(directory: string, input: string, page: number): P
   const file = await open(output, "r").catch(() => { throw new VectorConversionError("cdr-conversion"); });
   try {
     const metadata = await file.stat();
-    if (metadata.size > PDF_OUTPUT_LIMIT) throw new VectorConversionError("limit", 413);
+    if (metadata.size > PDF_OUTPUT_LIMIT) throw new VectorConversionError("vector-output-limit", 413);
     const header = Buffer.alloc(8);
     const { bytesRead } = await file.read(header, 0, header.length, 0);
     if (!metadata.isFile() || bytesRead < 8 || vectorPayloadKind(header) !== "pdf")
@@ -102,27 +103,27 @@ async function convertCdrPage(directory: string, input: string, page: number): P
 export async function convertVectorFile(
   bytes: Uint8Array,
   page: number,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
-  if (bytes.length < 8 || bytes.length > VECTOR_FILE_LIMIT)
-    throw new VectorConversionError("limit", 413);
-  const kind = vectorFileKind(bytes);
-  bytes = unwrapEps(bytes);
-  if (
-    !Number.isInteger(page) ||
-    page < 1 ||
-    page > 5000 ||
-    (kind === "eps" && page !== 1)
-  )
+  if (!Number.isInteger(page) || page < 1 || page > 5000)
     throw new VectorConversionError("page", 400);
+  if (signal?.aborted) throw new VectorConversionError("cancelled", 499);
+  if (bytes.length < 8) throw new VectorConversionError("format", 415);
+  if (bytes.length > VECTOR_CONVERSION_LIMIT) throw new VectorConversionError("vector-input-limit", 413);
   if (active >= 2) throw new VectorConversionError("busy", 429);
   active++;
   let directory: string | undefined;
   try {
+    const kind = vectorFileKind(bytes);
+    if (kind === "pdf" && bytes.length > VECTOR_PDF_INPUT_LIMIT)
+      throw new VectorConversionError("vector-input-limit", 413);
+    if (kind === "eps" && page !== 1) throw new VectorConversionError("page", 400);
+    bytes = unwrapEps(bytes);
     directory = await mkdtemp(join(tmpdir(), "oms-vector-"));
     let input = join(directory, `input.${kind}`);
-    await writeFile(input, bytes, { mode: 0o600 });
+    await writeFile(input, bytes, { mode: 0o600, signal });
     if (kind === "cdr") {
-      input = await convertCdrPage(directory, input, page);
+      input = await convertCdrPage(directory, input, page, signal);
       page = 1;
     }
     return await new Promise<Buffer>((resolve, reject) => {
@@ -158,19 +159,26 @@ export async function convertVectorFile(
       };
       const timer = setTimeout(
         () => stop(new VectorConversionError("timeout")),
-        20000,
+        30000,
       );
+      const abort = () => stop(new VectorConversionError("cancelled", 499));
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
       child.stdout.on("data", (chunk: Buffer) => {
         size += chunk.length;
         if (size > PDF_OUTPUT_LIMIT)
-          stop(new VectorConversionError("limit", 413));
+          stop(new VectorConversionError("vector-output-limit", 413));
         else chunks.push(chunk);
       });
       child.stderr.on("data", (chunk: Buffer) => {
         stderr = (stderr + chunk.toString()).slice(-8192);
       });
       child.on("error", (error: NodeJS.ErrnoException) => {
-        clearTimeout(timer);
+        cleanup();
         reject(
           new VectorConversionError(
             error.code === "ENOENT" ? "converter-unavailable" : "conversion",
@@ -179,7 +187,7 @@ export async function convertVectorFile(
         );
       });
       child.on("close", (code) => {
-        clearTimeout(timer);
+        cleanup();
         if (failure) return reject(failure);
         if (code !== 0 || size < 8)
           return reject(new VectorConversionError("conversion"));
@@ -191,6 +199,9 @@ export async function convertVectorFile(
         resolve(output);
       });
     });
+  } catch (cause) {
+    if (signal?.aborted) throw new VectorConversionError("cancelled", 499);
+    throw cause;
   } finally {
     try {
       if (directory) await rm(directory, { recursive: true, force: true });

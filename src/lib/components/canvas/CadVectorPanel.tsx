@@ -337,8 +337,8 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
                 if (!response.ok) {
                   const error = await response
                     .json()
-                    .catch(() => ({ code: "conversion" }));
-                  throw new Error(error.code);
+                    .catch(() => ({}));
+                  throw new Error(error.code ?? (response.status === 413 ? "vector-transport-limit" : "conversion"));
                 }
                 bytes = new Uint8Array(await response.arrayBuffer());
                 selectedPage = 1;
@@ -346,7 +346,11 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
                 bytes = new Uint8Array(await body.arrayBuffer());
               }
               const { readVectorPdf } = await import("./cad-pdf-client");
-              const result = await readVectorPdf(bytes, selectedPage, signal, {mode,dpi,name:file.name,store:resource=>storeCanvasImage(editor,resource,signal)});
+              const result = await readVectorPdf(bytes, selectedPage, signal, {mode,dpi,name:file.name,store:resource=>storeCanvasImage(editor,resource,signal)})
+                .catch(error => {
+                  if (vectorError(error) === "limit") throw new Error("vector-import-geometry");
+                  throw error;
+                });
               if (signal.aborted) throw new Error("cancelled");
               if (before !== cadRevision(editor)) throw new Error("stale");
               if (!result.document.paths.length) {
@@ -367,7 +371,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
                 `${file.name} · ${sourcePage}`,
                 [],
                 [],
-                { center: true, group },
+                { center: true, group, compactForSave: true },
               );
               setReview({ plan, key, original: result.preview });
             })
