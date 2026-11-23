@@ -1,5 +1,6 @@
 import {cadSnapIndicator} from './cad-snap';
 import { CadProductionClipart, CadStraightEdgeTools } from './CadProductionTools';
+import { NestPanel } from './NestPanel';
 import { useProductionToolsText } from './production-tools-copy';
 import { setCanvasSurface, useCanvasSurface } from './canvas-surface';
 import {cadConstruction} from './cad-construction';
@@ -84,6 +85,14 @@ import { useCadText, type CadLabel } from './cad-copy';
 import { canvasLengthToUnit, canvasPointToCad, readCadSettings, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import { useVectorText } from './cad-vector-copy';
+import { DrawingIcon } from './drawing-icons';
+import { drawingToolbox, drawingReadOnlyTools, drawingToolKeys, drawingOwnToolKeys, drawingOwnCommandForKeys, drawingEventKeys, drawingCommands, formatDrawingKeys, ariaDrawingKeys, type DrawingCommandId, type DrawingCommandSpec, type DrawingMenuId, type DrawingToolId } from './drawing-command-map';
+import { useDrawingCommandText } from './drawing-command-copy';
+import { DrawingMenuBar, DrawingQuickAccess, buildQuickAccessItems, type DrawingCommandState } from './DrawingCommandUi';
+import { summarizeDrawingSelection, type DrawingStatusPaint } from './drawing-status';
+import { useActions } from '@tldraw/tldraw';
+import { drawingMotion, drawingMoves } from './drawing-motion';
+import { drawingRepeatable } from './drawing-command-map';
 import './drawing-workspace.css';
 
 type Alignment = Pick<Extract<ArrangeOptions, { kind: 'align' }>, 'axis' | 'alignment'>;
@@ -111,6 +120,8 @@ interface WorkspaceContext {
   order: boolean;
   fullscreen: boolean;
   toggleFullscreen: () => Promise<void>;
+  rulers: boolean;
+  setRulers: (visible: boolean) => void;
   onImport?: (files: File[], point: { x: number; y: number }) => void | Promise<void>;
 }
 const Context = createContext<WorkspaceContext | null>(null);
@@ -126,6 +137,13 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
   const [compact, setCompact] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [rulers, setRulersState] = useState(() => {
+    try { return globalThis.localStorage?.getItem('oms-draw-rulers') !== 'off'; } catch { return true; }
+  });
+  const setRulers = (visible: boolean) => {
+    setRulersState(visible);
+    try { globalThis.localStorage?.setItem('oms-draw-rulers', visible ? 'on' : 'off'); } catch { /* private mode */ }
+  };
   const fullscreenPending = useRef(false);
   useEffect(() => {
     const node = root.current;
@@ -204,8 +222,8 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
     return () => observer.disconnect();
   }, []);
   const { label } = useDrawingText();
-  return <Context.Provider value={{ hosts, panel, setPanel, root, order, onImport, fullscreen: nativeFullscreen || expanded, toggleFullscreen }}>
-    <div ref={root} className={`drawing-workspace ${hidden ? 'drawing-workspace--hidden' : ''} ${panel ? 'has-docker' : ''} ${compact ? 'is-compact' : ''}`}
+  return <Context.Provider value={{ hosts, panel, setPanel, root, order, onImport, fullscreen: nativeFullscreen || expanded, toggleFullscreen, rulers, setRulers }}>
+    <div ref={root} className={`drawing-workspace ${hidden ? 'drawing-workspace--hidden' : ''} ${panel ? 'has-docker' : ''} ${compact ? 'is-compact' : ''} ${rulers ? '' : 'no-rulers'}`}
       data-testid="drawing-workspace" data-fullscreen={nativeFullscreen || expanded} data-expanded={expanded || undefined} data-mode={order ? 'order' : 'idea'} aria-label={label('workspace')}>
       {!hidden && <><div className="drawing-commands" ref={refs.commands} />
         <div className="drawing-standard" role="toolbar" aria-label={label('standardToolbar')} ref={refs.standard} />
@@ -228,91 +246,34 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
   </Context.Provider>;
 }
 
-const iconPaths: Record<string, ReactNode> = {
-  select: <path d="m5 3 14 10-7 1-3 7Z" />,
-  hand: <><path d="M7 11V6a2 2 0 0 1 4 0v5-7a2 2 0 0 1 4 0v7-5a2 2 0 0 1 4 0v9c0 5-3 7-6 7s-5-2-7-5l-3-5c-1-2 1-3 3-1l3 3" /></>,
-  draw: <><path d="m4 17 12-13 4 4L8 21H4Zm10-11 4 4M3 5c4-4 8 2 3 5s-5 4-2 5" /></>,
-  'cad-freehand': <><path d="m4 20 3-10 9-7 5 5-7 9-10 3Zm3-10 7 7M4 20l7-7" /><circle cx="12" cy="12" r="1.5" /></>,
-  pen: <><path d="m4 20 3-10 9-7 5 5-7 9-10 3ZM4 20l8-8M18 17v5m-3-2h6" /><circle cx="12" cy="12" r="1.5" /></>,
-  line: <><path d="m4 20 16-16" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></>,
-  'cad-polyline': <><path d="M4 19 9 5l10 7-6 7Z" /><rect x="2" y="17" width="4" height="4" /><rect x="7" y="3" width="4" height="4" /><rect x="17" y="10" width="4" height="4" /></>,
-  'cad-bezier': <><path d="M4 18C5 3 19 21 20 6M4 18 6 7M18 17 20 6" /><rect x="2" y="16" width="4" height="4" /><rect x="18" y="4" width="4" height="4" /><circle cx="6" cy="7" r="1.5" /><circle cx="18" cy="17" r="1.5" /></>,
-  arrow: <path d="M4 20 20 4M10 4h10v10" />,
-  rectangle: <rect x="4" y="5" width="16" height="14" rx="1" />,
-  ellipse: <ellipse cx="12" cy="12" rx="9" ry="7" />,
-  triangle: <path d="m12 3 10 17H2Z" />,
-  diamond: <path d="m12 2 10 10-10 10L2 12Z" />,
-  pentagon: <path d="m12 2 10 8-4 12H6L2 10Z" />,
-  star: <path d="m12 2 3 7 7 1-5 5 1 7-6-4-6 4 1-7-5-5 7-1Z" />,
-  text: <path d="M4 5V3h16v2M12 3v18m-4 0h8" />,
-  highlight: <><path d="m6 14 9-11 6 5-9 11ZM3 21h15m-12-7-3 5 4 2 5-2" /></>,
-  eraser: <path d="m4 15 10-12 8 7-10 12H9Zm4-5 9 8M3 22h19" />,
-  frame: <path d="M3 6h18M3 18h18M6 3v18M18 3v18" />,
-  undo: <path d="M8 4 3 9l5 5M3 9h11c9 0 8 12 0 12" />,
-  redo: <path d="m16 4 5 5-5 5m5-5H10c-9 0-8 12 0 12" />,
-  import: <path d="M12 16V2M7 7l5-5 5 5M3 15v6h18v-6" />,
-  duplicate: <><rect x="8" y="8" width="12" height="12" /><path d="M16 5V3H3v13h2" /></>,
-  fit: <><path d="M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5" /><rect x="7" y="8" width="10" height="8" /></>,
-  'fit-selection': <><path d="M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5M9 12h6m-3-3v6" /></>,
-  files: <><path d="M3 7V4h7l3 3h8v13H3Z" /><path d="M3 10h18" /></>,
-  paint: <><path d="m4 11 7-7 8 8-7 7-8-8Zm0 0h15M7 3l5 5m-9 13h18" /><path d="M20 14s-2 3-2 4a2 2 0 0 0 4 0c0-1-2-4-2-4Z" /></>,
-  properties: <><path d="M3 5h18M3 12h18M3 19h18" /><circle cx="8" cy="5" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="19" r="2" /></>,
-  objects: <><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 17l10 5 10-5" /></>,
-  guides: <><path d="M3 4h18M4 3v18"/><path d="M3 12h18M12 3v18" strokeDasharray="3 2"/><path d="M7 4v3m5-3v3m5-3v3M4 7h3m-3 5h3m-3 5h3"/></>,
-  skew: <><path d="m8 6 12 0-4 12H4ZM3 3h15m-3-2 3 2-3 2M6 21h15m-12-2-3 2 3 2"/></>,
-  lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /></>,
-  unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8-1" /></>,
-  'cad-arc-three': <><path d="M4 18A9 9 0 1 1 20 7"/><circle cx="4" cy="18" r="1.5"/><circle cx="6" cy="5" r="1.5"/><circle cx="20" cy="7" r="1.5"/></>,
-  'cad-circle-three': <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="4" r="2"/><circle cx="5" cy="16" r="2"/><circle cx="19" cy="16" r="2"/></>,
-  'cad-circle': <><circle cx="12" cy="12" r="8"/><path d="M12 12h8M10 12h4m-2-2v4"/></>,
-  'cad-dimension': <><path d="M3 4v16M21 4v16M3 12h18m-14-3-4 3 4 3m10-6 4 3-4 3"/></>,
-  snap: <><path d="M5 4v9a7 7 0 0 0 14 0V4h-5v9a2 2 0 0 1-4 0V4ZM5 8h5m4 0h5"/></>,
-  nodes: <><path d="M4 18C4 4 20 20 20 6"/><rect x="2" y="16" width="4" height="4"/><rect x="18" y="4" width="4" height="4"/></>,
-  arrange: <><path d="M3 3v18M3 7h18M3 17h13"/><rect x="6" y="4" width="12" height="6"/><rect x="6" y="14" width="7" height="6"/></>,
-  'text-curves': <><path d="M4 20 12 4l8 16M8 13h8"/><rect x="2" y="18" width="4" height="4"/><rect x="10" y="2" width="4" height="4"/><rect x="18" y="18" width="4" height="4"/></>,
-  'cad-measure-tools': <path d="M4 4v16h16M4 20 19 5M4 13a7 7 0 0 1 5 2" />,
-  fullscreen: <path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" />,
-  'exit-fullscreen': <path d="M3 9h6V3m12 6h-6V3M3 15h6v6m12-6h-6v6" />,
-  clipart: <><rect x="3" y="4" width="18" height="16" rx="1" /><path d="m4 17 5-5 4 4 2-2 5 5" /><circle cx="16" cy="9" r="1.5" /></>,
-  close: <path d="m5 5 14 14M19 5 5 19" />,
-};
-function Icon({ name }: { name: string }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{iconPaths[name] ?? iconPaths.rectangle}</svg>; }
-function ToolButton({ label, icon, active, disabled, onClick, children, testId }: {
-  label: string; icon?: string; active?: boolean; disabled?: boolean; onClick: () => void; children?: ReactNode; testId?: string;
+/** Keys belong to a text field only while someone types in it. The canvas keeps a
+ * hidden label field focused after selection; that is not typing unless a shape is
+ * actually being edited. */
+function isTypingTarget(editor: { getEditingShapeId: () => unknown }, target: Element): boolean {
+  const field = target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])');
+  if (!field) return false;
+  if (field.matches('textarea.tl-text-input') && !editor.getEditingShapeId()) return false;
+  return true;
+}
+function Icon({ name }: { name: string }) { return <DrawingIcon name={name} />; }
+function ToolButton({ label, icon, active, disabled, onClick, onDoubleClick, children, testId }: {
+  label: string; icon?: string; active?: boolean; disabled?: boolean; onClick: () => void; onDoubleClick?: () => void; children?: ReactNode; testId?: string;
 }) {
   return <button type="button" title={label} aria-label={label} aria-pressed={active} disabled={disabled}
-    onClick={onClick} className={`drawing-button ${active ? 'is-active' : ''}`} data-testid={testId}>
+    onClick={onClick} onDoubleClick={onDoubleClick} className={`drawing-button ${active ? 'is-active' : ''}`} data-testid={testId}>
     {icon && <Icon name={icon} />}{children}
   </button>;
 }
 
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
-const toolCategories = [
-  { id: 'selectTools', groups: [
-    { id: 'select', tools: ['select'] },
-    { id: 'nodes', tools: ['nodes', 'eraser'] },
-    { id: 'hand', tools: ['hand'] },
-  ] },
-  { id: 'drawTools', groups: [
-    { id: 'curves', tools: ['cad-freehand', 'cad-bezier', 'cad-polyline', 'line', 'draw'] },
-    { id: 'rectangle', tools: ['rectangle'] },
-    { id: 'ellipse', tools: ['ellipse', 'cad-circle', 'cad-circle-three', 'cad-arc-three'] },
-    { id: 'shapes', tools: ['pentagon', 'triangle', 'diamond', 'star'] },
-  ] },
-  { id: 'annotateTools', groups: [
-    { id: 'text', tools: ['text'] },
-    { id: 'dimension', tools: ['cad-dimension', 'cad-measure-tools'] },
-    { id: 'annotations', tools: ['arrow', 'highlight', 'frame'] },
-  ] },
-  { id: 'productionTools', groups: [
-    { id: 'paint', tools: ['paint'] },
-    { id: 'clipart', tools: ['clipart'] },
-  ] },
-] satisfies Array<{ id: 'selectTools' | 'drawTools' | 'annotateTools' | 'productionTools'; groups: Array<{ id: string; tools: string[] }> }>;
+const toolCategories = drawingToolbox;
 const toolGroups = toolCategories.flatMap(category => category.groups);
-const readOnlyTools = ['select', 'nodes', 'hand', 'cad-measure-tools', 'paint', 'clipart'];
+const readOnlyTools: readonly string[] = [...drawingReadOnlyTools];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
-const shortcut: Record<string, string> = { 'cad-freehand': 'F5', rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
+const shortcut: Record<string, string> = Object.fromEntries(Object.entries(drawingToolKeys).map(([tool, keys]) => [tool, formatDrawingKeys(keys)]));
+/** Tool name with its key, without repeating a key the name already carries. */
+const withKey = (name: string, tool: string) => shortcut[tool] && !name.includes(shortcut[tool]) ? `${name} (${shortcut[tool]})` : name;
+const newTools = new Set(['pentagon', 'free-transform', 'knife', 'zoom', 'fx-contour', 'fx-repeat', 'fx-radial', 'fx-shaping', 'eyedropper', 'outline']);
 
 function NumberField({ field, value, disabled, label }: { field: DrawingTransformField; value: number | undefined; disabled: boolean; label: string }) {
   const editor = useEditor();
@@ -555,6 +516,89 @@ export function DrawingChrome() {
   const [transformFocusRequest, setTransformFocusRequest] = useState(0);
   const workbenchLabel = useWorkbenchText();
   const snapLabel = useSnapText();
+  const words = useDrawingCommandText();
+  const nativeActions = useActions();
+  const [quick, setQuick] = useState<null | 'search' | 'shortcuts'>(null);
+  const commandRef = useRef<(id: DrawingCommandId, fromKeyboard?: boolean) => void>(() => undefined);
+  const lastCommand = useRef<DrawingCommandId | null>(null);
+  const wordsRef = useRef(words); wordsRef.current = words;
+  const previousTool = useRef<string | null>(null);
+  const spaceRef = useRef<{ at: number; moved: boolean } | null>(null);
+  const toolRef = useRef<(tool: string, fromKeyboard?: boolean) => void>(() => undefined);
+  const flashRef = useRef<(text: string, keys?: string) => void>(() => undefined);
+  const [hud, setHud] = useState<{ text: string; keys?: string; serial: number } | null>(null);
+  useEffect(() => {
+    if (!hud) return;
+    const timer = setTimeout(() => setHud(current => current?.serial === hud.serial ? null : current), 1300);
+    return () => clearTimeout(timer);
+  }, [hud]);
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  // Desktop click rhythm: a second single click on the selected object shows the
+  // rotate/skew handles; a double-click edits its text. The canvas engine would
+  // start label editing on that second click, so hand it back to Pick here.
+  useEffect(() => {
+    let press: { selected: string[]; at: number } | null = null;
+    let lastUp = 0;
+    const listener = (info: { type: string; name: string }) => {
+      if (info.type !== 'pointer') return;
+      if (info.name === 'pointer_down') { press = { selected: [...editor.getSelectedShapeIds()], at: performance.now() }; return; }
+      if (info.name !== 'pointer_up' || !press) return;
+      const now = performance.now(), doubleClick = now - lastUp < editor.options.doubleClickDurationMs;
+      const before = press; lastUp = now; press = null;
+      if (doubleClick || before.selected.length !== 1) return;
+      const upAt = now;
+      // Wait out the double-click window: a second click edits text as usual,
+      // and typing straight away keeps the editor open.
+      const textAt = (id: string) => JSON.stringify((editor.getShape(id as TLShapeId)?.props as { text?: unknown; richText?: unknown } | undefined)?.text ?? null);
+      const startText = textAt(before.selected[0]);
+      setTimeout(() => {
+        if (lastUp !== upAt) return;
+        const editing = editor.getEditingShapeId();
+        if (!editing || editing !== before.selected[0] || textAt(editing) !== startText) return;
+        const shape = editor.getShape(editing);
+        if (!shape || (shape.type !== 'geo' && shape.type !== 'text')) return;
+        editor.setEditingShape(null);
+        editor.setCurrentTool('select');
+        editor.select(editing);
+        editor.getContainer().focus();
+        if (!readSkewSelection(editor).error) setDrawingSkewMode(editor, !isDrawingSkewMode(editor));
+      }, editor.options.doubleClickDurationMs + 20);
+    };
+    editor.on('event', listener as any);
+    return () => { editor.off('event', listener as any); };
+  }, [editor]);
+  // Motion: docker content slides in when you switch dockers; the property bar
+  // cross-fades when its context changes; pressed tools give a small spring.
+  const motionPanel = context?.panel ?? null;
+  useEffect(() => {
+    if (motionPanel) drawingMotion(context?.hosts.docker?.querySelector('.drawing-docker-content'), drawingMoves.dockerSwap, { duration: 200 });
+  }, [motionPanel]);
+  const motionTool = useValue('motion tool', () => editor.getCurrentToolId(), [editor]);
+  const motionSelection = useValue('motion selection kind', () => {
+    const shapes = editor.getSelectedShapes();
+    return shapes.length ? `${shapes.length > 1 ? 'n' : '1'}:${shapes.every(shape => shape.type === 'text') ? 'text' : 'shape'}` : 'none';
+  }, [editor]);
+  useEffect(() => {
+    const host = context?.hosts.properties;
+    if (host) for (const child of Array.from(host.children).slice(1)) drawingMotion(child, drawingMoves.contextSwap, { duration: 160 });
+  }, [motionTool, motionSelection]);
+  useEffect(() => {
+    const pressed = context?.hosts.tools?.querySelector('.drawing-tool-group .drawing-button[aria-pressed="true"]');
+    drawingMotion(pressed, drawingMoves.press, { duration: 220 });
+  }, [motionTool]);
+  useEffect(() => {
+    // The status bar shows the pointer in page (or CAD) coordinates, throttled to one frame.
+    const container = editor.getContainer();
+    let frame = 0;
+    const move = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; const point = editor.inputs.currentPagePoint; setCursor({ x: point.x, y: point.y }); });
+    };
+    const leave = () => { if (frame) cancelAnimationFrame(frame); frame = 0; setCursor(null); };
+    container.addEventListener('pointermove', move);
+    container.addEventListener('pointerleave', leave);
+    return () => { container.removeEventListener('pointermove', move); container.removeEventListener('pointerleave', leave); if (frame) cancelAnimationFrame(frame); };
+  }, [editor]);
   const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
   const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
   const nodeEditing = useValue('CAD node editing mode', () => isCadNodeEditing(editor), [editor]);
@@ -643,9 +687,22 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => tool === 'paint' ? vectorLabel('paint') : tool === 'clipart' ? productionLabel('clipart') : tool === 'cad-measure-tools' ? productionLabel('construction') : tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => newTools.has(tool) ? words.tools[tool as DrawingToolId] ?? tool : tool === 'paint' ? vectorLabel('paint') : tool === 'clipart' ? productionLabel('clipart') : tool === 'cad-measure-tools' ? productionLabel('construction') : tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !readOnlyTools.includes(tool)) return;
+    // Task tools open their docker task; the canvas tool stays as it was.
+    const task: Record<string, () => void> = {
+      'free-transform': () => togglePickSkew(), knife: () => focusCad('knife'), 'fx-contour': () => focusCad('offset'),
+      'fx-shaping': () => focusCad('shaping'), 'fx-repeat': () => openRepeat(), 'fx-radial': () => openArrange('radial'),
+      eyedropper: () => openAppearance(), outline: () => focusCad('outline'),
+    };
+    if (task[tool]) {
+      setToolGroup(null);
+      const group = toolGroups.find(group => group.tools.includes(tool as DrawingToolId));
+      if (group) setGroupTools(previous => ({ ...previous, [group.id]: tool }));
+      task[tool]();
+      return;
+    }
     if (tool === 'cad-measure-tools' || tool === 'clipart') {
       closeMenus(true);
       setToolGroup(null);
@@ -658,7 +715,7 @@ export function DrawingChrome() {
     setDrawingSkewMode(editor, false);
     setCadNodeEditing(editor, false);
     setToolGroup(null);
-    const group = toolGroups.find(group => group.tools.includes(tool));
+    const group = toolGroups.find(group => group.tools.includes(tool as DrawingToolId));
     if (group) setGroupTools(previous => ({ ...previous, [group.id]: tool }));
     if(tool==='text')context?.setPanel('text');
     if(['cad-dimension','cad-arc-three','cad-circle-three','cad-circle'].includes(tool))context?.setPanel('measure');
@@ -865,9 +922,9 @@ export function DrawingChrome() {
       }
       if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
-      if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')) return;
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('outline'); return; }
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit-selection'); return; }
+      if (!(event.target instanceof Element) || isTypingTarget(editor, event.target)) return;
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); commandRef.current('outline', true); return; }
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); commandRef.current('fit-selection', true); return; }
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const inDrawing = !!event.target.closest('.drawing-viewport');
@@ -913,7 +970,10 @@ export function DrawingChrome() {
           if (event.repeat || !captureToolkitControls(editor).canEditSelection) return;
           try {
             const plan = prepareArrangePlan(editor, { kind: 'align', ...alignment, reference: roots[roots.length - 1] });
-            setNotice(applyArrangePlan(editor, plan) ? '' : label('changedFailed'));
+            const applied = applyArrangePlan(editor, plan);
+            setNotice(applied ? '' : label('changedFailed'));
+            const alignCommand = ({ l: 'align-left', r: 'align-right', t: 'align-top', b: 'align-bottom', c: 'align-center', e: 'align-middle' } as Record<string, DrawingCommandId>)[key];
+            if (applied && alignCommand) { lastCommand.current = alignCommand; flashRef.current(wordsRef.current.commands[alignCommand], key.toUpperCase()); }
           } catch {
             setNotice(label('changedFailed'));
           }
@@ -927,13 +987,13 @@ export function DrawingChrome() {
       if (objectAction && editor.getSelectedShapeIds().length) {
         event.preventDefault();
         event.stopPropagation();
-        if (!event.repeat) command(objectAction);
+        if (!event.repeat) commandRef.current(objectAction as DrawingCommandId, true);
         return;
       }
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
       if ((!modifier && !event.altKey && !event.shiftKey && event.key === 'F10') || (modifier && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === 'q')) {
         event.preventDefault(); event.stopPropagation();
-        focusCad(event.key === 'F10' ? 'nodes' : 'convert');
+        commandRef.current(event.key === 'F10' ? 'nodes' : 'convert', true);
         return;
       }
       if (lockedSelection && event.target.closest('.drawing-viewport') && (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
@@ -944,7 +1004,7 @@ export function DrawingChrome() {
       }
       if (modifier && !event.altKey && !event.shiftKey && ['k', 'l'].includes(event.key.toLowerCase()) && event.target.closest('.drawing-viewport') && editor.isIn('select.idle')) {
         event.preventDefault(); event.stopPropagation();
-        compound(event.key.toLowerCase() === 'l' ? 'combine' : 'breakApart');
+        commandRef.current(event.key.toLowerCase() === 'l' ? 'combine' : 'breakApart', true);
         return;
       }
       const cad = readCadSettings(editor);
@@ -957,19 +1017,53 @@ export function DrawingChrome() {
         if (!nudgeCadSelection(editor, dx, dy, cad)) setNotice(cadLabel('failed'));
         return;
       }
+      // Remaining command-map keys (import, export, F9, Alt+F7, Ctrl+F9, Ctrl+/, F1, dockers…).
+      const ownCommand = drawingOwnCommandForKeys(drawingEventKeys(event));
+      // Tab, P and + belong to the drawing only while you are on the canvas and idle;
+      // elsewhere Tab keeps moving keyboard focus as usual.
+      const canvasOnly = ownCommand === 'selectNext' || ownCommand === 'selectPrevious' || ownCommand === 'centerToPage' || ownCommand === 'duplicateInPlace';
+      if (ownCommand && !['duplicate', 'zoom-out', 'fit'].includes(ownCommand) && (!canvasOnly || inDrawing && editor.isIn('select.idle') && !isCadNodeEditing(editor))) {
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat || ownCommand === 'selectNext' || ownCommand === 'selectPrevious') commandRef.current(ownCommand, true);
+        return;
+      }
+      const ownTool = !modifier && !event.altKey && !event.shiftKey && inDrawing && !event.isComposing ? drawingOwnToolKeys[event.key.length === 1 ? event.key.toLowerCase() : ''] : undefined;
+      if (ownTool && toolGroup === null && !openMenu) { event.preventDefault(); event.stopPropagation(); if (!event.repeat) toolRef.current(ownTool, true); return; }
       const tool = ({ F5: 'cad-freehand', F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
-      if (tool && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); event.stopPropagation(); chooseTool(tool); }
-      else if (event.key === 'F3') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'zoom-out'); }
-      else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit'); }
+      if (tool && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); event.stopPropagation(); toolRef.current(tool, true); }
+      else if (event.key === 'F3') { event.preventDefault(); event.stopPropagation(); commandRef.current('zoom-out', true); }
+      else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); commandRef.current('fit', true); }
       else if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'duplicate');
+        event.preventDefault(); event.stopPropagation(); commandRef.current('duplicate', true);
       }
     };
     const outside = (event: PointerEvent) => { if (event.target instanceof Element && !event.target.closest('.drawing-menu')) closeMenus(); };
+    // Kept in a ref: this effect re-subscribes on renders between key-down and key-up.
+    const spaceState = spaceRef;
+    const spaceDown = (event: KeyboardEvent) => {
+      if (event.key !== ' ' || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (!(event.target instanceof Element) || !event.target.closest('.drawing-viewport') || isTypingTarget(editor, event.target)) return;
+      if (editor.getEditingShapeId()) return;
+      spaceState.current = { at: performance.now(), moved: false };
+    };
+    const spaceMove = (event: PointerEvent) => { if (spaceState.current && (event.movementX || event.movementY)) spaceState.current.moved = true; };
+    const spaceUp = (event: KeyboardEvent) => {
+      const space = spaceState.current;
+      if (event.key !== ' ' || !space) return;
+      const tap = !space.moved && performance.now() - space.at < 280;
+      spaceState.current = null;
+      // Let the canvas finish its own space-pan release first, then switch.
+      if (tap) requestAnimationFrame(() => commandRef.current('togglePick'));
+    };
+    root.addEventListener('keydown', spaceDown, true);
+    // Key-up can land outside the workspace once the canvas arms panning; the
+    // document sees it either way, and `space` is only set by a canvas key-down.
+    root.ownerDocument.addEventListener('keyup', spaceUp, true);
+    root.addEventListener('pointermove', spaceMove, true);
     root.addEventListener('keydown', keys, true);
     root.addEventListener('keyup', guardControlKeys, true);
     document.addEventListener('pointerdown', outside);
-    return () => { root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', guardControlKeys, true); document.removeEventListener('pointerdown', outside); };
+    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', guardControlKeys, true); document.removeEventListener('pointerdown', outside); };
   }, [context?.root, context?.setPanel, editor, openMenu, toolGroup, cadLabel, advancedLabel, label]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
@@ -1106,6 +1200,7 @@ export function DrawingChrome() {
   const panelModes = ['properties', 'text', 'pen', 'arrange', 'measure', 'guides', 'snap', 'objects', 'cad', 'clipart'] as const;
   const panelLabel = (mode: Exclude<Panel, null>) => mode === 'clipart' ? productionLabel('clipart') : mode === 'pen' ? penLabel('title') : mode === 'guides' ? guideLabel('title') : mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
   const groupLabel = (group: typeof toolGroups[number]) => {
+    if (words.groups[group.id]) return words.groups[group.id];
     if (group.id === 'nodes') return productionLabel('editShapeTools');
     if (group.id === 'ellipse') return productionLabel('circles');
     if (group.id === 'dimension') return workbenchLabel('measure');
@@ -1113,6 +1208,8 @@ export function DrawingChrome() {
   };
   const toolActive = (tool: string) => {
     if (tool === 'nodes') return nodeEditing;
+    if (tool === 'free-transform') return skewMode;
+    if (['knife', 'fx-contour', 'fx-repeat', 'fx-radial', 'fx-shaping', 'eyedropper', 'outline'].includes(tool)) return false;
     if (tool === 'select') return controls.tool === 'select' && !nodeEditing;
     if (tool === 'clipart') return panel === 'clipart';
     if (tool === 'cad-measure-tools') return panel === 'measure';
@@ -1125,15 +1222,205 @@ export function DrawingChrome() {
     void context?.toggleFullscreen().catch(() => setNotice(productionLabel('fullscreenFailed')));
   }
   const activeToolGroup = toolGroups.find(group => group.id === toolGroup);
+  /** Every menu, Quick access and shortcut resolves through here, so they never disagree. */
+  function commandState(id: DrawingCommandId): DrawingCommandState {
+    const spec: DrawingCommandSpec = drawingCommands[id];
+    const blocked = controls.readOnly && !spec.readOnly;
+    const make = (enabled: boolean, run: () => void, checked?: boolean, keepMenu = false): DrawingCommandState =>
+      ({ enabled: enabled && !blocked, checked, run: () => { if (!keepMenu) closeMenus(); if (drawingRepeatable.has(id)) lastCommand.current = id; run(); } });
+    const cad = (section: CadFocusRequest['section'], enabled = true) => make(enabled, () => focusCad(section));
+    const builtIn = ['undo', 'redo', 'duplicate', 'delete', 'select-all', 'group', 'ungroup', 'front', 'back', 'forward', 'backward', 'lock',
+      'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'fit', 'fit-selection', 'zoom-reset',
+      'align-left', 'align-right', 'align-top', 'align-bottom', 'align-center', 'align-middle', 'distribute-horizontal', 'distribute-vertical'];
+    if (builtIn.includes(id)) return make(actionEnabled(id), () => command(id));
+    if (id.startsWith('dock-')) {
+      const mode = id.slice(5) as Exclude<Panel, null>;
+      return make(true, () => { setToolGroup(null); setPanel(panel === mode ? null : mode); }, panel === mode);
+    }
+    switch (id) {
+      case 'import': return make(!busy && !!onImport, () => input.current?.click());
+      case 'importDxf': return cad('importDxf');
+      case 'importVector': return cad('importVector');
+      case 'export': return make(true, () => {
+        setOpenMenu('file');
+        requestAnimationFrame(() => context?.root.current?.querySelector<HTMLElement>('[data-drawing-menu="file"] .drawing-export-options select')?.focus());
+      }, undefined, true);
+      case 'publishPdf': return cad('publishPdf');
+      case 'exportDxf': return cad('exportDxf');
+      case 'files': return cad('files');
+      case 'preflight': return cad('preflight');
+      case 'cut': return make(controls.canEditSelection, () => nativeActions.cut?.onSelect('menu'));
+      case 'copy': return make(controls.selected > 0, () => nativeActions.copy?.onSelect('menu'));
+      case 'paste': return make(!controls.readOnly, () => nativeActions.paste?.onSelect('menu'));
+      case 'repeat': return make(true, openRepeat);
+      case 'selectSame': return make(true, openSelectSame);
+      case 'findReplace': return make(true, openFindReplace);
+      case 'copyProperties': return make(true, openAppearance);
+      case 'zoom-in': return make(true, () => command('zoom-in'));
+      case 'zoom-out': return make(true, () => command('zoom-out'));
+      case 'fitPage': return make(!!pageBounds, () => { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); });
+      case 'fullscreen': return make(true, toggleFullscreen, context!.fullscreen);
+      case 'rulers': return make(true, () => context!.setRulers(!context!.rulers), context!.rulers);
+      case 'grid': return make(true, () => command('grid'), state.grid);
+      case 'snap': return make(true, () => command('snap'), state.snap);
+      case 'guidesVisible': return make(guides.valid && !drawingGuidesBusy(editor), toggleGuides, guides.visible);
+      case 'snapOptions': return make(true, () => setPanel('snap'));
+      case 'surface': return make(true, () => setCanvasSurface(canvasSurface === 'blueprint' ? 'paper' : 'blueprint'), canvasSurface === 'blueprint');
+      case 'penSettings': return make(true, () => setPanel('pen'));
+      case 'pageSetup': return cad('pageSetup');
+      case 'document': return cad('document');
+      case 'guidesSetup': return make(true, openGuides);
+      case 'measure': return make(true, () => setPanel('measure'));
+      case 'nest': return make(true, () => openArrange('nest'));
+      case 'clipart': return make(true, () => setPanel('clipart'));
+      case 'combine': return make(controls.canEditSelection && !!settings, () => compound('combine'));
+      case 'breakApart': return make(controls.canEditSelection && !!settings, () => compound('breakApart'));
+      case 'reverseOrder': return make((captureDrawingObjectStack(editor)?.selected.length ?? 0) >= 2, reverseObjectOrder);
+      case 'relativeOrder': return make(true, openObjectOrder);
+      case 'transform': return make(true, openTransform);
+      case 'skew': return { ...make(skewMode || !skewSelection.error, togglePickSkew, skewMode), title: skewSelection.error ? skewErrorText(skewSelection.error) : pickSkewLabel('help') };
+      case 'arrange': return make(true, () => openArrange('align'));
+      case 'shaping': return cad('shaping');
+      case 'join': return cad('join');
+      case 'knife': return cad('knife');
+      case 'convert': return cad('convert');
+      case 'outlineObject': return cad('outlineObject');
+      case 'nodes': return cad('nodes');
+      case 'nodeArrange': return cad('nodeArrange');
+      case 'nodeReduce': return cad('nodeReduce');
+      case 'rectangleCorners': return cad('rectangle');
+      case 'polygonShape': return cad('polygon');
+      case 'ellipseSegments': return cad('ellipse');
+      case 'paint': return cad('paint');
+      case 'outline': return cad('outline');
+      case 'contour': return cad('offset');
+      case 'midline': return cad('midline');
+      case 'radial': return make(true, () => openArrange('radial'));
+      case 'lettering': return cad('lettering');
+      case 'trace': return cad('trace');
+      case 'textDocker': return make(true, () => setPanel('text'));
+      case 'fonts': return make(true, focusFonts);
+      case 'closeDocker': return make(!!panel, () => setPanel(null));
+      case 'repeatLast': {
+        const last = lastCommand.current;
+        const target = last && last !== 'repeatLast' ? commandState(last) : null;
+        return { ...make(!!target?.enabled, () => { target?.run(); flash(`${words.ui.repeated}: ${words.commands[last!]}`, 'Ctrl+R'); }),
+          title: last ? `${words.commands.repeatLast}: ${words.commands[last]}` : words.ui.nothingToRepeat };
+      }
+      case 'duplicateInPlace': return make(controls.canEditSelection, duplicateInPlace);
+      case 'selectNext': return make(controls.hasShapes, () => cycleSelection(1));
+      case 'selectPrevious': return make(controls.hasShapes, () => cycleSelection(-1));
+      case 'centerToPage': return make(controls.canEditSelection && !!pageBounds, centerToPage);
+      case 'togglePick': return make(true, togglePick);
+      case 'options': return cad('document');
+      case 'quickAccess': return make(true, () => setQuick('search'));
+      case 'shortcuts': return make(true, () => setQuick('shortcuts'));
+      default: return make(false, () => undefined);
+    }
+  }
+  commandRef.current = (id, fromKeyboard = false) => {
+    const item = commandState(id);
+    if (!item.enabled) return;
+    item.run();
+    const spec: DrawingCommandSpec = drawingCommands[id];
+    if (fromKeyboard && id !== 'repeatLast' && id !== 'quickAccess' && id !== 'shortcuts') flash(words.commands[id].replace(/…$/, ''), spec.keys);
+  };
+  toolRef.current = (tool, fromKeyboard = false) => {
+    chooseTool(tool);
+    if (fromKeyboard) flash(toolLabel(tool), drawingToolKeys[tool as DrawingToolId]);
+  };
+  flashRef.current = flash;
+  function flash(text: string, keys?: string) { setHud(previous => ({ text, keys, serial: (previous?.serial ?? 0) + 1 })); }
+  /** Desktop "+": a copy exactly on top, selected, ready to move. */
+  function duplicateInPlace() {
+    const ids = [...editor.getSelectedShapeIds()];
+    if (!ids.length || !captureToolkitControls(editor).canEditSelection) return;
+    editor.complete(); editor.setCurrentTool('select');
+    if (!drawingTransaction(editor, () => { editor.duplicateShapes(ids, { x: 0, y: 0 }); })) setNotice(label('changedFailed'));
+  }
+  /** Tab / Shift+Tab walk through top-level objects in stacking order. */
+  function cycleSelection(direction: 1 | -1) {
+    const page = editor.getCurrentPageId();
+    const candidates = editor.getCurrentPageShapesSorted().filter(shape => shape.parentId === page && !editor.isShapeOrAncestorLocked(shape));
+    if (!candidates.length) return;
+    const selected = editor.getSelectedShapeIds();
+    const index = selected.length ? candidates.findIndex(shape => shape.id === selected[selected.length - 1]) : -1;
+    const next = candidates[(index + direction + candidates.length) % candidates.length] ?? candidates[0];
+    editor.complete(); editor.setCurrentTool('select'); editor.select(next.id);
+  }
+  /** P: move the selection so its centre sits on the page centre. */
+  function centerToPage() {
+    const page = drawingPageBounds(editor), bounds = editor.getSelectionPageBounds();
+    if (!page || !bounds || !captureToolkitControls(editor).canEditSelection) return;
+    const dx = page.center.x - bounds.center.x, dy = page.center.y - bounds.center.y;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return;
+    editor.complete(); editor.setCurrentTool('select');
+    if (!drawingTransaction(editor, () => { editor.nudgeShapes([...editor.getSelectedShapeIds()], { x: dx, y: dy }); })) setNotice(label('changedFailed'));
+  }
+  /** Space tap: jump to Pick, tap again to return to the tool you were using. */
+  function togglePick() {
+    const current = nodeEditing ? 'nodes' : editor.getCurrentToolId() === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : editor.getCurrentToolId();
+    if (current !== 'select') { previousTool.current = current; chooseTool('select'); flash(toolLabel('select'), 'Space'); }
+    else if (previousTool.current) { const back = previousTool.current; previousTool.current = null; chooseTool(back); flash(toolLabel(back), 'Space'); }
+  }
+  /** Double-click on a toolbox tool, as on the desktop: the tool's "big" action or its options. */
+  function toolDoubleClick(tool: string) {
+    const actions: Record<string, () => void> = {
+      select: () => { command('select-all'); flash(words.commands['select-all'], 'Ctrl+A'); },
+      nodes: () => focusCad('nodes'), zoom: () => command('fit'), hand: () => { if (!pageBounds || !fitDrawingPage(editor)) command('fit'); },
+      rectangle: () => pageFrame(), ellipse: () => focusCad('ellipse'), pentagon: () => focusCad('polygon'), star: () => focusCad('polygon'),
+      text: () => setPanel('text'), 'cad-freehand': () => setPanel('pen'), draw: () => setPanel('pen'), 'cad-dimension': () => setPanel('measure'),
+      paint: () => focusCad('paint'), outline: () => focusCad('outline'), eyedropper: () => openAppearance(), clipart: () => setPanel('clipart'),
+    };
+    (actions[tool] ?? (() => setPanel('properties')))();
+  }
+  /** Double-click Rectangle: an outline exactly the size of the page. */
+  function pageFrame() {
+    if (controls.readOnly) return;
+    const page = drawingPageBounds(editor);
+    if (!page) { focusCad('pageSetup'); return; }
+    const id = createShapeId();
+    editor.complete(); editor.setCurrentTool('select');
+    const created = drawingTransaction(editor, () => {
+      editor.createShape({ id, type: 'geo', x: page.x, y: page.y, props: { geo: 'rectangle', w: page.w, h: page.h, fill: 'none', dash: 'solid' } } as any);
+      editor.select(id);
+    });
+    if (created) flash(words.ui.pageFrame); else setNotice(label('changedFailed'));
+  }
+  const quickItems = quick ? buildQuickAccessItems(commandState, toolGroups.flatMap(group => group.tools).map(tool => ({
+    id: tool, label: toolLabel(tool), icon: tool, active: toolActive(tool),
+    enabled: !(controls.readOnly && !readOnlyTools.includes(tool)), run: () => chooseTool(tool),
+  })), words) : [];
+  const selectionSummary = summarizeDrawingSelection(state.selectedShapes, getDefaultColorTheme({ isDarkMode: false }) as any);
+  const cursorText = cursor ? (() => {
+    const point = settings ? canvasPointToCad(cursor, settings) : cursor;
+    const digits = settings ? Math.min(3, settings.precision) : 0;
+    return `${point.x.toFixed(digits)}, ${point.y.toFixed(digits)}${settings ? ` ${settings.unit}` : ''}`;
+  })() : '';
+  const shapeName = (type: string | null) => type ? words.shapes[type] ?? words.shapes.curve : words.shapes.curve;
+  const selectionText = !selectionSummary.count ? words.ui.noSelection
+    : selectionSummary.count === 1 ? `${shapeName(selectionSummary.type)}${cadSelection && settings ? ` · ${Number(cadSelection.w?.toFixed(settings.precision) ?? 0)} × ${Number(cadSelection.h?.toFixed(settings.precision) ?? 0)} ${settings.unit}` : ''}`
+    : `${selectionSummary.count} ${words.ui.objectsSelected}${selectionSummary.type ? ` · ${shapeName(selectionSummary.type)}` : ''}`;
+  const paintSwatch = (paint: DrawingStatusPaint | null, kind: 'fill' | 'outline') => {
+    const name = kind === 'fill' ? words.ui.fill : words.ui.outline;
+    const value = !paint ? '—' : paint.kind === 'none' ? (kind === 'fill' ? words.ui.noFill : words.ui.noOutline) : paint.kind === 'mixed' ? words.ui.mixed : paint.hex.toUpperCase();
+    const width = kind === 'outline' && paint?.kind === 'colour' && selectionSummary.outlineWidth !== null ? ` · ${Number(selectionSummary.outlineWidth.toFixed(2))}` : '';
+    return <button type="button" className={`drawing-status-paint drawing-status-paint--${kind}`} title={`${name}: ${value}${width}`} aria-label={`${name}: ${value}${width}`}
+      disabled={!paint} onClick={() => focusCad(kind === 'fill' ? 'paint' : 'outline')} data-testid={`drawing-status-${kind}`}>
+      <span className={`drawing-status-chip${paint?.kind === 'none' ? ' is-none' : paint?.kind === 'mixed' ? ' is-mixed' : ''}`}
+        style={paint?.kind === 'colour' ? { [kind === 'fill' ? 'background' : 'borderColor']: paint.hex } as React.CSSProperties : undefined} />
+      <span className="drawing-status-paint-text">{value}{width}</span>
+    </button>;
+  };
   const statusText = freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`);
 
   return <>
     {portal('commands', <>
       <strong className="drawing-title">OMS<span> DRAW</span></strong>
-      <nav className="drawing-menus" aria-label={label('workspace')} onKeyDown={navigateMenus}>
-        <details className="drawing-menu" data-drawing-menu="file" open={openMenu === 'file'}>{menuSummary('file', label('file'))}<div className="drawing-menu-popover">
-          <button type="button" disabled={controls.readOnly || busy || !onImport} onClick={() => { closeMenus(); input.current?.click(); }}>{label('import')}</button>
-          <fieldset className="drawing-export-options" disabled={busy}>
+      <DrawingMenuBar label={words.ui.menuBar} resolve={commandState} openMenu={openMenu} onKeyDown={navigateMenus}
+        summary={(id: DrawingMenuId, text: string) => menuSummary(id, text)}
+        embeds={{
+          exportSettings: <div className="drawing-export-block"><fieldset className="drawing-export-options" disabled={busy}>
             <label><span>{label('exportScope')}</span><select value={exportOptions.scope} onChange={event => { setExportOptions(previous => ({ ...previous, scope: event.target.value as DrawingExportOptions['scope'] })); setExportError(''); }}>
               <option value="selected">{label('selectedOnly')}</option><option value="all">{label('allArtwork')}</option>
               <option value="page" disabled={!pageBounds}>{label('pageExport')}</option>
@@ -1147,88 +1434,26 @@ export function DrawingChrome() {
             {exportOptions.scope !== 'page' && <label><span>{label('padding')}</span><input type="number" min="0" max="1000" step="1" value={Number.isNaN(exportOptions.padding) ? '' : exportOptions.padding}
               onChange={event => { setExportOptions(previous => ({ ...previous, padding: event.target.value.trim() ? Number(event.target.value) : NaN })); setExportError(''); }} /></label>}
           </fieldset>
-          <button type="button" disabled={busy || !exportPlans?.svg.ok} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
-          <button type="button" disabled={busy || !exportPlans?.png.ok} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
-          <button type="button" onClick={() => focusCad('publishPdf')}>{vectorLabel('publishPdf')}</button>
-          <button type="button" disabled={controls.readOnly} onClick={() => focusCad('importDxf')}>{advancedLabel('import')}</button>
-          <button type="button" disabled={controls.readOnly} onClick={() => focusCad('importVector')}>{vectorLabel('import')}</button>
-          <button type="button" onClick={() => focusCad('files')}>{vectorLabel('files')}</button>
-          <button type="button" onClick={() => focusCad('preflight')}>{preflightLabel('title')}</button>
-          {order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
-            const output=await exportDrawingArtwork(editor,saveFormat,exportOptions,signal);
-            if(output.reduced)throw new Error('exportReduced');
-            return output.blob;
-          }}/></>}
+          <div className="drawing-export-actions"><button type="button" disabled={busy || !exportPlans?.svg.ok} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
+          <button type="button" disabled={busy || !exportPlans?.png.ok} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button></div>
           {exportError && <p role="alert">{exportError}</p>}
           {exportPlans && <p className="drawing-help" role="status">{exportPlans.svg.ok === false ? label(exportPlans.svg.error) : exportPlans.png.ok === false ? label(exportPlans.png.error) : `${label('exportOmitted')}: ${exportPlans.svg.value.omitted}`}</p>}
           <p>{label('exportHint')}</p>
-          <p>{label('exportScaleHint')}</p>
-        </div></details>
-        <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}
-          <button type="button" onClick={openFindReplace} aria-keyshortcuts="Control+F Meta+F">{findReplaceLabel('title')} · Ctrl/⌘+F</button>
-          <button type="button" onClick={openSelectSame}>{selectSameLabel('title')}</button>
-          <button type="button" onClick={openAppearance}>{appearanceLabel('title')}</button>
-          <button type="button" onClick={openRepeat} aria-keyshortcuts="Control+Shift+D Meta+Shift+D">{label('repeatGrid')} · Ctrl/⌘+Shift+D</button>
-        </div></details>
-        <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'lock'], true)}
-          <details>
-            <summary>{label('objectOrder')} ▸</summary>
-            <div className="drawing-arrange">{menuActions(['front', 'back', 'forward', 'backward'], true)}</div>
-            <button type="button" onClick={openObjectOrder}>{objectTreeLabel('relativeOrder')}</button>
-            <button type="button" disabled={(captureDrawingObjectStack(editor)?.selected.length ?? 0) < 2} onClick={reverseObjectOrder} data-testid="drawing-menu-reverse-order">{objectTreeLabel('reverse')}</button>
-          </details>
-          <hr />
-          <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('combine')}>{advancedLabel('combine')}</button>
-          <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
-          <button type="button" onClick={() => focusCad('paint')}>{vectorLabel('paint')}</button>
-          <button type="button" onClick={() => focusCad('outline')} aria-keyshortcuts="F12">{outlineLabel('title')} · F12</button>
-          <button type="button" onClick={() => focusCad('outlineObject')} aria-keyshortcuts="Control+Shift+Q Meta+Shift+Q">{outlineObjectLabel('title')} · Ctrl/⌘+Shift+Q</button>
-          <button type="button" onClick={() => focusCad('nodes')}>{advancedLabel('nodes')}</button>
-          <button type="button" onClick={() => focusCad('nodeArrange')}>{nodeArrangeLabel('title')}</button>
-          <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
-          <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
-          <button type="button" onClick={() => focusCad('knife')}>{advancedLabel('knife')}</button>
-          <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
-          <button type="button" onClick={() => focusCad('offset')}>{advancedLabel('offset')}</button>
-          <button type="button" onClick={() => focusCad('midline')}>{advancedLabel('midline')}</button>
-          <button type="button" onClick={() => focusCad('ellipse')}>{vectorLabel('ellipseSegments')}</button>
-          <button type="button" onClick={() => focusCad('polygon')}>{parametricShapeLabel('title')}</button>
-          <button type="button" onClick={() => focusCad('rectangle')}>{rectangleShapeLabel('title')}</button>
-          <button type="button" onClick={openTransform}>{arrangeTaskLabel('transform')}</button>
-          <button type="button" aria-pressed={skewMode} disabled={!skewMode && !!skewSelection.error} onClick={togglePickSkew}
-            title={skewSelection.error ? skewErrorText(skewSelection.error) : pickSkewLabel('help')} data-testid="drawing-menu-skew-mode">{pickSkewLabel('mode')}</button>
-          <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>openArrange('align')}>{advancedLabel('arrange')}</button>
-        </div></details>
-        <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
-        <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
-          <button type="button" onClick={() => focusCad('pageSetup')}>{label('pageSetup')}</button>
-          <button type="button" onClick={() => focusCad('document')}>{cadLabel('document')}</button><button type="button" onClick={()=>{setPanel('measure');closeMenus();}}>{workbenchLabel('measure')}</button>
-          <button type="button" onClick={openGuides}>{guideLabel('open')}</button>
-          <button type="button" onClick={() => { setPanel('clipart'); closeMenus(); }}>{productionLabel('clipart')}</button>
-        </div></details>
-        <details className="drawing-menu" data-drawing-menu="tools" open={openMenu === 'tools'}>{menuSummary('tools', productionLabel('tools'))}<div className="drawing-menu-popover drawing-tool-directory">
-          {toolCategories.map(category => <section key={category.id} aria-label={productionLabel(category.id)}>
-            <h3>{productionLabel(category.id)}</h3>
+          <p>{label('exportScaleHint')}</p></div>,
+          saveToOrder: order ? <div className="drawing-export-save">{order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
+            const output=await exportDrawingArtwork(editor,saveFormat,exportOptions,signal);
+            if(output.reduced)throw new Error('exportReduced');
+            return output.blob;
+          }}/></>}</div> : null,
+          toolDirectory: <div className="drawing-tool-directory">{toolCategories.map(category => <section key={category.id} aria-label={words.sections[category.id]}>
+            <h3>{words.sections[category.id]}</h3>
             {category.groups.flatMap(group => group.tools).map(tool =>
               <button type="button" key={tool} aria-pressed={toolActive(tool)} disabled={controls.readOnly && !readOnlyTools.includes(tool)} onClick={() => chooseTool(tool)}>
                 <Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}
               </button>
             )}
-          </section>)}
-        </div></details>
-        <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
-          <button type="button" aria-pressed={context.fullscreen} onClick={toggleFullscreen}>{fullscreenLabel}</button>
-          <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
-          <button type="button" aria-pressed={state.snap} onClick={() => command('snap')}>{state.snap ? '✓ ' : ''}{label('snap')}</button>
-          <hr />
-          <button type="button" aria-pressed={canvasSurface === 'blueprint'} title={label('surfaceHint')} onClick={() => { setCanvasSurface(canvasSurface === 'blueprint' ? 'paper' : 'blueprint'); closeMenus(); }} data-testid="drawing-menu-surface">{canvasSurface === 'blueprint' ? '✓ ' : ''}{label('surfaceBlueprint')}</button>
-          <hr />
-          <button type="button" onClick={() => { setPanel('snap'); closeMenus(); }} data-testid="drawing-menu-snap-options">{snapLabel('open')}</button>
-          <button type="button" aria-pressed={guides.visible} disabled={controls.readOnly || !guides.valid || drawingGuidesBusy(editor)} onClick={toggleGuides} data-testid="drawing-menu-guides-visible">{guides.visible ? '✓ ' : ''}{guideLabel('showGuides')}</button>
-          <button type="button" onClick={openGuides} data-testid="drawing-menu-guides">{guideLabel('open')}</button>
-          <button type="button" onClick={() => { setPanel('pen'); closeMenus(); }} data-testid="drawing-menu-pen">{penLabel('title')}</button>
-        </div></details>
-      </nav>
+          </section>)}</div>,
+        }} />
       <div className="drawing-fullscreen-action">
         <ToolButton icon={context.fullscreen ? 'exit-fullscreen' : 'fullscreen'} testId="drawing-fullscreen"
           label={fullscreenLabel} active={context.fullscreen} onClick={toggleFullscreen}>
@@ -1237,16 +1462,28 @@ export function DrawingChrome() {
       </div>
     </>)}
     {portal('standard', <>
-      <ToolButton icon="import" testId="drawing-import" label={label('import')} disabled={controls.readOnly || busy || !onImport} onClick={() => input.current?.click()} />
+      <ToolButton icon="import" testId="drawing-import" label={`${label('import')} (${formatDrawingKeys('Ctrl+I')})`} disabled={controls.readOnly || busy || !onImport} onClick={() => input.current?.click()} />
+      <ToolButton icon="export" testId="drawing-export" label={`${words.ui.standardExport} (${formatDrawingKeys('Ctrl+E')})`} onClick={() => commandState('export').run()} />
       <span className="drawing-divider" />
       <ToolButton icon="undo" testId="drawing-undo" label={`${actionLabel('undo')} (Ctrl+Z)`} disabled={!controls.canUndo} onClick={() => command('undo')} />
       <ToolButton icon="redo" testId="drawing-redo" label={`${actionLabel('redo')} (Ctrl+Shift+Z)`} disabled={!controls.canRedo} onClick={() => command('redo')} />
-      <ToolButton icon="duplicate" testId="drawing-duplicate" label={`${actionLabel('duplicate')} (Ctrl+D)`} disabled={!actionEnabled('duplicate')} onClick={() => command('duplicate')} />
+      <span className="drawing-divider" />
+      {(['cut', 'copy', 'paste'] as const).map(id => { const item = commandState(id); return <ToolButton key={id} icon={id} testId={`drawing-${id}`}
+        label={`${words.commands[id]} (${formatDrawingKeys(drawingCommands[id].keys)})`} disabled={!item.enabled} onClick={item.run} />; })}
+      <ToolButton icon="duplicate" testId="drawing-duplicate" label={`${actionLabel('duplicate')} (${formatDrawingKeys('Ctrl+D')})`} disabled={!commandState('duplicate').enabled} onClick={() => commandRef.current('duplicate')} />
       <span className="drawing-divider" />
       <ToolButton icon="fit" testId="drawing-fit" label={`${actionLabel('fit')} (F4)`} disabled={!actionEnabled('fit')} onClick={() => command('fit')} />
       <ToolButton icon="fit-selection" testId="drawing-fit-selection" label={`${actionLabel('fit-selection')} (Shift+F2)`} disabled={!actionEnabled('fit-selection')} onClick={() => command('fit-selection')} />
       <span className="drawing-divider" />
+      <ToolButton icon="snap" testId="drawing-standard-snap" label={`${words.commands.snap} (${formatDrawingKeys('Alt+Y')})`} active={state.snap} onClick={() => command('snap')} />
+      <ToolButton icon="rulers" testId="drawing-standard-rulers" label={words.commands.rulers} active={context.rulers} onClick={() => context.setRulers(!context.rulers)} />
+      <span className="drawing-divider" />
       <ToolButton icon="files" testId="drawing-files" label={vectorLabel('files')} onClick={() => focusCad('files')} />
+      <ToolButton icon="preflight" testId="drawing-standard-preflight" label={words.commands.preflight} onClick={() => focusCad('preflight')} />
+      <button type="button" className="drawing-quick-trigger" onClick={() => setQuick('search')} aria-keyshortcuts={ariaDrawingKeys('Ctrl+/')} data-testid="drawing-quick-trigger"
+        title={`${words.ui.quickAccessTitle} (${formatDrawingKeys('Ctrl+/')})`}>
+        <Icon name="command-search" /><span>{words.ui.quickAccessPlaceholder}</span><kbd>{formatDrawingKeys('Ctrl+/')}</kbd>
+      </button>
       <input ref={input} type="file" hidden multiple accept={order
           ? '.pdf,.png,.jpg,.jpeg,.webp,.gif,.cdr,.dxf'
           : 'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a'}
@@ -1291,12 +1528,12 @@ export function DrawingChrome() {
       </>}
     </>)}
     {portal('tools', <div role="toolbar" aria-label={label('toolbox')} aria-orientation="vertical" className="drawing-tools">
-      {toolCategories.map(category => <div className="drawing-tool-section" key={category.id} role="group" aria-label={productionLabel(category.id)}>
+      {toolCategories.map(category => <div className="drawing-tool-section" key={category.id} role="group" aria-label={words.sections[category.id]}>
       {category.groups.map(group => {
         const active = group.tools.find(tool => tool === controls.tool && toolActive(tool)) ?? group.tools.find(toolActive);
         const current = active ?? groupTools[group.id] ?? group.tools[0];
         return <div className="drawing-tool-group" key={group.id}>
-          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current] ? ` (${shortcut[current]})` : ''}`} active={toolActive(current)} disabled={controls.readOnly && !readOnlyTools.includes(current)} onClick={() => chooseTool(current)} testId={current === 'paint' ? 'drawing-paint' : `drawing-tool-${current}`} />
+          <ToolButton icon={current} label={withKey(toolLabel(current), current)} active={toolActive(current)} disabled={controls.readOnly && !readOnlyTools.includes(current)} onClick={() => chooseTool(current)} onDoubleClick={() => toolDoubleClick(current)} testId={current === 'paint' ? 'drawing-paint' : `drawing-tool-${current}`} />
           {group.tools.length > 1 && <button type="button" className="drawing-tool-expand" title={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-label={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-expanded={toolGroup === group.id} onClick={event => toggleToolGroup(group, event.currentTarget, event.detail === 0)}
             onKeyDown={event => { if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { event.preventDefault(); event.stopPropagation(); toggleToolGroup(group, event.currentTarget, true); } }} data-testid={`drawing-tools-${group.id}`}>▸</button>}
         </div>;
@@ -1305,7 +1542,7 @@ export function DrawingChrome() {
     </div>)}
     {activeToolGroup && hosts.tools && context.root.current && createPortal(<div className="drawing-tool-flyout" role="group" aria-label={groupLabel(activeToolGroup)} style={flyoutPosition}>
       <h3>{groupLabel(activeToolGroup)}</h3>
-      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly && !readOnlyTools.includes(tool)} aria-pressed={toolActive(tool)} title={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
+      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly && !readOnlyTools.includes(tool)} aria-pressed={toolActive(tool)} title={withKey(toolLabel(tool), tool)} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
     </div>, context.root.current, 'tool-flyout')}
     {portal('rulerOrigin', settings?.unit ?? 'px')}
     {portal('rulerX', <Ruler settings={settings} onGuides={openGuides} />)}{portal('rulerY', <Ruler vertical settings={settings} onGuides={openGuides} />)}
@@ -1329,7 +1566,7 @@ export function DrawingChrome() {
           <CadStraightEdgeTools settings={settings} />
         </> : mode === 'clipart' ? <CadProductionClipart settings={settings} onSetup={() => focusCad('document')} /> : mode === 'arrange' ? <>
           <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
-            {(['transform','align','repeat','radial'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
+            {(['transform','align','repeat','radial','nest'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
           </select></label>
           <div hidden={arrangeTask !== 'transform'}><DrawingTransformPanel settings={settings} focusRequest={arrangeTask === 'transform' ? transformFocusRequest : 0}/></div>
           <div hidden={arrangeTask !== 'align'}><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel></div>
@@ -1337,6 +1574,7 @@ export function DrawingChrome() {
             active={panel === 'arrange' && arrangeTask === 'repeat'} focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0}
             onSetup={() => focusCad('pageSetup')} expanded/></div>
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
+          <div hidden={arrangeTask !== 'nest'}>{arrangeTask === 'nest' && <NestPanel settings={settings} disabled={!controls.canEditSelection}/>}</div>
         </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
           <DrawingObjectsPanel focusRequest={objectOrderFocusRequest}/>
@@ -1373,7 +1611,20 @@ export function DrawingChrome() {
         <Icon name={mode === 'measure' ? 'cad-dimension' : mode === 'cad' ? 'cad-polyline' : mode} /><span>{panelLabel(mode)}</span>
       </button>)}
     </div>)}
-    {portal('palette', <div className="drawing-swatches" role="toolbar" aria-label={label('palette')}>
+    {portal('palette', <div className="drawing-swatches" role="toolbar" aria-label={label('palette')} title={words.ui.paletteHint}>
+      <button type="button" className="drawing-swatch-none" title={`${words.ui.noColour} — ${words.ui.noColourHint}`} aria-label={`${words.ui.noColour}. ${words.ui.noColourHint}`}
+        disabled={!controls.canStyle || controls.tool !== 'select' || !state.selected.length} data-testid="drawing-colour-none"
+        onClick={() => styleChange(DefaultFillStyle, 'none')}
+        onContextMenu={event => {
+          event.preventDefault(); if (!captureToolkitControls(editor).canStyle || !editor.isIn('select')) return;
+          drawingTransaction(editor, () => {
+            for (const id of editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])) {
+              const shape = editor.getShape(id);
+              const patch = shape && cadPalettePatch(shape, 'none', 'stroke');
+              if (patch) editor.updateShape(patch);
+            }
+          });
+        }}><Icon name="no-color" /></button>
       {DefaultColorStyle.values.map(value => <button key={value} type="button" title={`${label('palette')}: ${label(value)}`}
         aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={controls.tool === 'cad-freehand' ? freehandOptions.color.toLowerCase() === getDefaultColorTheme({ isDarkMode: false })[value].solid.toLowerCase() : color?.type === 'shared' && color.value === value}
         disabled={controls.tool === 'cad-freehand' ? controls.readOnly || !!freehandStatus : !controls.canStyle || !color}
@@ -1391,7 +1642,10 @@ export function DrawingChrome() {
     {portal('status', <>
       {multiplePages && pages.length > 1 && <DrawingPageNavigator pages={pages} active={editor.getCurrentPageId()}
         onSelect={id => { if (!switchDrawingPage(editor, id)) setNotice(label('changedFailed')); else setNotice(''); }} />}
+      <span className="drawing-status-cursor" title={words.ui.cursor} aria-label={words.ui.cursor} data-testid="drawing-status-cursor">{cursorText || '—'}</span>
       <span className="drawing-status-text" role="status" title={statusText}>{statusText}</span>
+      <span key={selectionText} className="drawing-status-object" data-testid="drawing-status-object" title={selectionText}>{selectionText}</span>
+      {paintSwatch(selectionSummary.fill, 'fill')}{paintSwatch(selectionSummary.outline, 'outline')}
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>
@@ -1407,5 +1661,9 @@ export function DrawingChrome() {
         <ToolButton label={label('zoomIn')} onClick={() => command('zoom-in')}>+</ToolButton>
       </div>
     </>)}
+    {hud && context.root.current && createPortal(<div key={hud.serial} className="drawing-key-hud" role="status" aria-live="polite" data-testid="drawing-key-hud">
+      <span>{hud.text}</span>{hud.keys && <kbd>{formatDrawingKeys(hud.keys)}</kbd>}
+    </div>, context.root.current, 'key-hud')}
+    {quick && context.root.current && createPortal(<DrawingQuickAccess mode={quick} items={quickItems} onMode={setQuick} onClose={() => setQuick(null)} />, context.root.current, 'quick-access')}
   </>;
 }

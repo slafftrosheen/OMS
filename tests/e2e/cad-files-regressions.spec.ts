@@ -37,7 +37,9 @@ test('locates a shared DXF section and previews the exported shared layer',async
  await common.check();
  await page.getByTestId('drawing-cad-review').click();
  const report=page.getByTestId('drawing-cad-report');
- await expect(report.getByText('400 mm',{exact:true})).toBeVisible();
+ // The machine-time estimate inside the report repeats cut lengths; read the report's own figures.
+ const figure=(text:string)=>report.locator('dd:not([data-testid="drawing-cut-estimate"] *)').filter({hasText:new RegExp(`^${text}$`)});
+ await expect(figure('400 mm')).toBeVisible();
  const preview=page.getByTestId('drawing-dxf-preview');
  await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toBeAttached();
  await preview.getByRole('combobox',{name:'Preview layer',exact:true}).selectOption('OMS_SHARED');
@@ -45,9 +47,9 @@ test('locates a shared DXF section and previews the exported shared layer',async
  await expect(preview.getByText('20 mm',{exact:true})).toBeVisible();
  await common.uncheck();
  await expect(preview).toHaveCount(0);
- await expect(report.getByText('400 mm',{exact:true})).toHaveCount(0);
+ await expect(figure('400 mm')).toHaveCount(0);
  await page.getByTestId('drawing-cad-review').click();
- await expect(report.getByText('420 mm',{exact:true})).toBeVisible();
+ await expect(figure('420 mm')).toBeVisible();
  await expect(preview.locator('[data-dxf-layer="OMS_CLOSED"]')).toBeAttached();
  await expect(preview.locator('[data-dxf-layer="OMS_SHARED"]')).toHaveCount(0);
 });

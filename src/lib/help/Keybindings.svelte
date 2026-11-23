@@ -16,7 +16,10 @@
   <div class="panel">
     <h3>{$t('help.title') || 'Shortcuts'}</h3>
     <ul>
-      <li><b>Ctrl/Cmd + K</b> — Command palette</li>
+      <li><b>Ctrl/Cmd + K</b> — Search and go: orders, pages, actions. Type a PO number to jump straight to it</li>
+      <li><b>J / K</b> — Move through the orders list</li>
+      <li><b>Enter / O</b> — Open the highlighted order · <b>E</b> — Expand it</li>
+      <li><b>/</b> — Filter the orders list</li>
       <li><b>?</b> — This help</li>
       <li><b>← / →</b> — Calendar month</li>
       <li><b>F</b> — Focus search/filter in lists</li>

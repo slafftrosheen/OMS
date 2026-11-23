@@ -1,4 +1,4 @@
-import { readProductionLayers } from './cad-production-layers';
+import { productionDxfNames, readProductionLayers } from './cad-production-layers';
 import sha256 from 'crypto-js/sha256.js';
 import { createUuid } from '$lib/utils/id';
 import type { CanvasDxfRelease } from '$lib/order/canvas-dxf-release';
@@ -6,7 +6,7 @@ import { DrawingPageSetup } from './DrawingPageSetup';
 import { CadDimensionControls } from './CadDimensionControls';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { useVectorText } from './cad-vector-copy';
-import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { useCadAdvancedText } from './cad-advanced-copy';
@@ -21,6 +21,7 @@ import {
 } from './cad-geometry';
 import { buildCadDxf, CadDxfError, type DxfExportScope } from './cad-dxf';
 import { DxfReviewPreview } from './DxfReviewPreview';
+import { CutEstimatePanel } from './CutEstimatePanel';
 import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
 import { preflightRevision, type PreflightDxfScope } from './drawing-preflight';
 import { usePreflightText } from './preflight-copy';
@@ -61,7 +62,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
     const drawingFocus = focusRequest.section === 'rectangle' || focusRequest.section === 'ellipse' || focusRequest.section === 'polygon' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
-    const fileFocus = ['files', 'publishPdf', 'importDxf', 'importVector'].includes(focusRequest.section);
+    const fileFocus = ['files', 'publishPdf', 'importDxf', 'exportDxf', 'importVector'].includes(focusRequest.section);
     setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
@@ -155,7 +156,8 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
       setPreflightScope(scope);
       setTask('files');
     }} />
-    <div hidden={task !== 'files'}><DxfExport settings={settings} preflightScope={preflightScope} /></div>
+    <div hidden={task !== 'files'}><DxfExport settings={settings} preflightScope={preflightScope}
+      focusSequence={task === 'files' && focusRequest?.section === 'exportDxf' ? focusRequest.sequence : undefined} /></div>
   </div>;
 }
 
@@ -288,7 +290,9 @@ const dxfExportErrorLabels: Partial<Record<CadDxfError['code'], CadLabel>> = {
   'common-lines-limit': 'dxfCommonLineLimit',
 };
 
-function DxfExport({ settings, preflightScope }: { settings: CadSettings | null; preflightScope?: PreflightDxfScope }) {
+function DxfExport({ settings, preflightScope, focusSequence }: {
+  settings: CadSettings | null; preflightScope?: PreflightDxfScope; focusSequence?: number;
+}) {
   const editor = useEditor(); const { label } = useCadText();
   const preflightLabel = usePreflightText();
   const details = useRef<HTMLDetailsElement>(null);
@@ -302,12 +306,13 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
   const enabledLayers = productionLayers.filter(layer => layer.includeInDxf);
   const productionLayer = enabledLayers.find(layer => layer.id === productionTarget);
   const [commonLines, setCommonLines] = useState(false);
+  const [cutOrder, setCutOrder] = useState(false);
   const [tolerance, setTolerance] = useState('0.01');
   const toleranceErrorId = useId();
   const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
   const validTarget = layerMode !== 'production' || !productionTarget || !!productionLayer;
   const validOptions = (curves === 'spline' || validTolerance) && validTarget;
-  const optionsKey = JSON.stringify([curves, tolerance, layerMode, productionTarget, preserveProductionColors, commonLines]);
+  const optionsKey = JSON.stringify([curves, tolerance, layerMode, productionTarget, preserveProductionColors, commonLines, cutOrder]);
   const [report, setReport] = useState<{
     data: ReturnType<typeof buildCadDxf>; revision: string; selectionKey: string; source: DxfExportScope;
     optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number; commonLines: boolean;
@@ -323,6 +328,11 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       details.current.querySelector('summary')?.focus();
     }
   }, [preflightScope]);
+  useEffect(() => {
+    if (focusSequence === undefined || !details.current) return;
+    details.current.open = true;
+    details.current.querySelector('summary')?.focus();
+  }, [focusSequence]);
   const source = scope === 'preflight' ? preflightScope : scope;
   const revision = useValue('cad dxf drawing revision', () => preflightRevision(editor), [editor]);
   const selectionKey = useValue('cad dxf selection key', () => dxfSelectionKey(editor, scope), [editor, scope]);
@@ -334,6 +344,16 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
   const cutLengths = !stale && !captureStale ? report?.data.cutLengths : undefined;
   const cutLengthLabel = (length: number | null) =>
     length === null ? label('dxfCutLengthUnavailable') : format(length, 2) + ' mm';
+  // Round 6 · machine time per reviewed layer (pierces = entities on the layer).
+  const estimateLayers = useMemo(() => {
+    if (!cutLengths || !report) return [];
+    const names = productionDxfNames(productionLayers);
+    const productionNames = new Map(productionLayers.map(layer => [names.get(layer.id)!, layer.name]));
+    return report.data.layers.map(layer => ({
+      name: layer.name, entities: layer.entities, lengthMm: cutLengths.byLayer[layer.name],
+      productionName: productionNames.get(layer.name),
+    }));
+  }, [cutLengths, report, productionLayers]);
 
   function prepare() {
     if (!settings || !validOptions || !source || (scope === 'preflight' && preflightScope?.revision !== preflightRevision(editor))) return;
@@ -343,7 +363,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       const production = layerMode === 'production'
         ? { only: productionTarget || undefined, preserveColors: preserveProductionColors }
         : undefined;
-      const data = buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, includePreview: true, productionLayers: production });
+      const data = buildCadDxf(editor, source, settings, { curves, toleranceMm, colorLayers, commonLines, cutOrder, includePreview: true, productionLayers: production });
       const page = editor.getCurrentPage();
       const release: CanvasDxfRelease = {
         reviewId: createUuid(), revision: sha256(revision).toString(), pageId: page.id,
@@ -425,6 +445,11 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
       {commonLines && <p className="drawing-help">{label(layerMode === 'production'
         ? preserveProductionColors ? 'productionColorCommonLinesHelp' : 'productionCommonLinesHelp'
         : 'dxfCommonLinesHelp')}</p>}
+      <label className="drawing-cad-check"><input type="checkbox" checked={cutOrder} data-testid="drawing-cad-cut-order"
+        onChange={event => { setCutOrder(event.target.checked); setAcknowledged(false); setMessage(''); }} />
+        <span>{label('dxfCutOrder')}</span>
+      </label>
+      {cutOrder && <p className="drawing-help">{label('dxfCutOrderHelp')}</p>}
       <button type="button" disabled={!settings || !hasObjects || !validOptions || captureStale} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
@@ -447,6 +472,11 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         </>}
         <dt>{label('dimensions')}</dt><dd>{format(report.data.widthMm, 4)} × {format(report.data.heightMm, 4)}</dd>
         {cutLengths && <><dt>{label('dxfCutLength')}</dt><dd>{cutLengthLabel(cutLengths.totalMm)}</dd></>}
+        {report.data.cutOrder && !stale && <><dt>{label('dxfRapid')}</dt><dd data-testid="drawing-cad-rapid">
+          {label('dxfRapidSaved').replace('{before}', format(report.data.cutOrder.beforeMm / 1000, 2) + ' m').replace('{after}', format(report.data.cutOrder.afterMm / 1000, 2) + ' m')}
+          {report.data.cutOrder.beforeMm > 0 && report.data.cutOrder.afterMm < report.data.cutOrder.beforeMm &&
+            <span className="drawing-cad-saving"> −{Math.round((1 - report.data.cutOrder.afterMm / report.data.cutOrder.beforeMm) * 100)}%</span>}
+        </dd></>}
         <dt>{label('omitted')}</dt><dd>{report.data.omitted.length}</dd>
       </dl>
       {!!report.data.filteredByLayer && report.data.productionFilter && <details>
@@ -468,6 +498,7 @@ function DxfExport({ settings, preflightScope }: { settings: CadSettings | null;
         })}</ul>
         {report.data.layers.length > 20 && <p className="drawing-help">{label('dxfLayerContentsMore')}</p>}
       </details>}
+      {cutLengths && estimateLayers.length > 0 && <CutEstimatePanel layers={estimateLayers} formatLength={cutLengthLabel} />}
       {report.data.omitted.length ? <>
         <ul className="drawing-cad-omissions">{report.data.omitted.map(item => <li key={item.id}>
           <strong>{item.name}</strong><span>{label(reasonLabels[item.reason] ?? 'unsupported')}</span>

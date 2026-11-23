@@ -4,6 +4,7 @@ import { rectangularClipContainsBounds } from './cad-appearance';
 import { dxfColor } from './cad-dxf-geometry';
 import { buildDxfCommonLines, DxfCommonLineLimitError } from './cad-dxf-common-lines';
 import { measureDxfCutLengths, type DxfCutLengths } from './cad-dxf-cut-lengths';
+import { optimiseCutOrder } from './cad-cut-order';
 import { buildDxfPreview, type DxfPreview, type DxfPreviewSource } from './cad-dxf-preview';
 import { vectorPaint } from './cad-vector';
 import type { CubicSpline2d, Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
@@ -27,6 +28,8 @@ export interface CadDxfResult {
   passesRemoved: number;
   preview?: DxfPreview;
   cutLengths?: DxfCutLengths;
+  /** Round 7 · rapid travel in model mm before and after reordering (set only when cutOrder was requested). */
+  cutOrder?: { beforeMm: number; afterMm: number; reordered: boolean };
 }
 interface CadDxfLayer { name: string; rgb?: string; entities: number }
 export type DxfEntity = (
@@ -203,7 +206,7 @@ function cuttingColor(shape: TLShape): string | undefined {
   if (paint.fill.startsWith('#') && paint.fillOpacity > 0 && !paint.gradient && !paint.raster) return paint.fill.toUpperCase();
 }
 
-interface CadDxfOptions { curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean; includePreview?: boolean; productionLayers?: { only?: string; preserveColors?: boolean } }
+interface CadDxfOptions { cutOrder?: boolean; curves?: 'spline' | 'polyline'; toleranceMm?: number; colorLayers?: boolean; commonLines?: boolean; includePreview?: boolean; productionLayers?: { only?: string; preserveColors?: boolean } }
 
 export interface DxfCapturedScope { pageId: string; shapeIds: readonly TLShapeId[] }
 export type DxfExportScope = 'selected' | 'all' | DxfCapturedScope;
@@ -284,10 +287,17 @@ export function buildCadDxf(editor: Editor, scope: DxfExportScope, settings: Cad
       throw error;
     }
   }
+  let cutOrder: CadDxfResult['cutOrder'];
+  if (options.cutOrder) {
+    const productionNames = new Map(pageLayers.map(layer => [names.get(layer.id)!, layer.name]));
+    const ordered = optimiseCutOrder(output.entities, undefined, productionNames);
+    output = { ...output, entities: ordered.entities };
+    cutOrder = { beforeMm: ordered.before, afterMm: ordered.after, reordered: ordered.reordered };
+  }
   const dxf = serializeCadDxf(output.entities, options);
   const closedContours = output.entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
   return { ...dxf, ...layerReport, entities: output.entities.length, closedContours, openContours: output.entities.length - closedContours, omitted,
-    sharedEdges: output.sharedEdges, passesRemoved: output.passesRemoved };
+    sharedEdges: output.sharedEdges, passesRemoved: output.passesRemoved, ...(cutOrder ? { cutOrder } : {}) };
 }
 
 const rgbNumber = (hex: string) => parseInt(hex.slice(1), 16);

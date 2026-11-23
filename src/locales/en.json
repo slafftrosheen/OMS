@@ -4032,5 +4032,81 @@
     "moreHistory": "Load earlier uses",
     "editsChanged": "Delivery details changed after your approval. Review the saved address and approve replacement again.",
     "applied": "Address copied to the delivery form. Save the order to store the change."
+  },
+  "orderFlow": {
+    "title": "Order flow",
+    "nextLabel": "Next",
+    "steps": {
+      "draft": "Draft",
+      "review": "Review",
+      "confirmed": "Confirmed",
+      "production": "Production",
+      "loading": "Loading",
+      "dispatched": "Dispatched",
+      "archived": "Archived"
+    },
+    "next": {
+      "draft": "Complete the draft and send it for review.",
+      "review": "Head of Production checks the draft and assigns the PO.",
+      "start": "{station} is next to start.",
+      "running": "{station} is working on it.",
+      "blocked": "{station} is blocked. Clear the reason to continue.",
+      "rework": "{station} has rework to do before the route continues.",
+      "finish": "All stations are done. Prepare it for loading.",
+      "no_stages": "No stations are planned for this order yet.",
+      "loading": "Load the order and mark it dispatched.",
+      "dispatched": "Archive it once delivery is confirmed.",
+      "archived": "This order is finished.",
+      "on_hold": "Production is paused. Nothing moves until it is resumed.",
+      "cancelled": "This order was cancelled.",
+      "voided": "This order was voided and reissued.",
+      "unknown": "The status of this order is not recognised."
+    },
+    "owner": {
+      "author": "Author",
+      "review": "Head of Production",
+      "floor": "Production floor",
+      "logistics": "Logistics"
+    },
+    "action": {
+      "edit": "Continue draft",
+      "review": "Open review",
+      "stages": "Open stations",
+      "dispatch": "Mark dispatched",
+      "archive": "Archive"
+    }
+  },
+  "quick": {
+    "title": "Search and go",
+    "placeholder": "Search orders, or type a page or action…",
+    "recent": "Recently opened",
+    "groupGo": "Go to",
+    "groupDo": "Actions",
+    "jump": "Find order {number}",
+    "results": "Orders and files",
+    "hint": "↑ ↓ to move · Enter to open · Esc to close",
+    "empty": "No matches. Try an order number like PO-2611.",
+    "go": {
+      "home": "Home",
+      "orders": "Orders",
+      "calendar": "Calendar",
+      "inventory": "Inventory",
+      "toolkit": "Toolkit",
+      "cabinet": "My cabinet",
+      "settings": "Settings",
+      "users": "Users",
+      "materials": "Materials"
+    },
+    "do": {
+      "newOrder": "New order",
+      "urgent": "Urgent orders",
+      "canvas": "Open canvas"
+    }
+  },
+  "orderStep": {
+    "label": "Orders in this list",
+    "prev": "Previous",
+    "next": "Next",
+    "position": "{n} of {total}"
   }
 }

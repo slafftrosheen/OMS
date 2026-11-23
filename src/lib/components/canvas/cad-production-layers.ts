@@ -42,14 +42,14 @@ function validLayerName(name: string) {
 }
 
 export function productionLayerId(shape: TLShape): string | undefined {
-  const id = shape.meta[SHAPE_KEY];
+  const id = shape.meta?.[SHAPE_KEY];
   return typeof id === 'string' ? id : undefined;
 }
 
 interface LayerRestoration { opacity: number; isLocked: boolean; hidden: boolean }
 
 function readLayerRestoration(shape: TLShape): LayerRestoration | null {
-  const data = shape.meta[RESTORE_KEY];
+  const data = shape.meta?.[RESTORE_KEY];
   if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.opacity !== 'number' ||
       !Number.isFinite(data.opacity) || data.opacity < 0 || data.opacity > 1 ||
       typeof data.isLocked !== 'boolean' || typeof data.hidden !== 'boolean') return null;
@@ -104,7 +104,7 @@ function projectLayerState(editor: Editor, page: TLPage, layers: ProductionLayer
 export function applyProductionLayerDefinitions(editor: Editor, layers: ProductionLayer[], assignments?: Map<TLShapeId, string | null>) {
   const page = editor.getCurrentPage();
   if (JSON.stringify(pageProductionLayers(page)) !== JSON.stringify(layers)) {
-    editor.updatePage({ id: page.id, meta: { ...page.meta, [PAGE_KEY]: layers } });
+    editor.updatePage({ id: page.id, meta: { ...page.meta, [PAGE_KEY]: layers.map(layer => ({ ...layer })) } });
     if (JSON.stringify(readProductionLayers(editor)) !== JSON.stringify(layers)) throw new Error('Production layers were not saved');
   }
   projectLayerState(editor, page, layers, assignments);
@@ -125,27 +125,28 @@ export function installProductionLayers(editor: Editor): () => void {
     const pageId = isPageId(parentId) ? parentId : editor.getAncestorPageId(parentId);
     if (pageId) pending.add(pageId);
   };
-  const dispose = editor.sideEffects.register({
-    shape: {
-      beforeChange: (previous, next, source) => {
-        if (source !== 'user' || !isProductionLayerProtected(previous)) return next;
-        const restore = readLayerRestoration(next);
-        if (!restore) return next;
-        return { ...next, isLocked: true, opacity: restore.hidden ? 0 : restore.opacity };
-      },
-      afterCreate: (shape, source) => {
-        if (source === 'user' && (productionLayerId(shape) || isProductionLayerProtected(shape))) schedule(shape.parentId);
-      },
-      afterChange: (previous, next, source) => {
-        if (source !== 'user' || previous.parentId === next.parentId) return;
-        // A moved group can bring previously visible layer members to a page with a different policy.
-        schedule(previous.parentId); schedule(next.parentId);
-      },
-      afterDelete: (shape, source) => {
-        if (source === 'user' && isProductionLayerProtected(shape)) schedule(shape.parentId);
-      },
-    },
-  });
+  // tldraw 2.4 exposes one registration per hook (there is no combined `register`).
+  const effects = editor.sideEffects;
+  const disposers = [
+    effects.registerBeforeChangeHandler('shape', (previous, next, source) => {
+      if (source !== 'user' || !isProductionLayerProtected(previous)) return next;
+      const restore = readLayerRestoration(next);
+      if (!restore) return next;
+      return { ...next, isLocked: true, opacity: restore.hidden ? 0 : restore.opacity };
+    }),
+    effects.registerAfterCreateHandler('shape', (shape, source) => {
+      if (source === 'user' && (productionLayerId(shape) || isProductionLayerProtected(shape))) schedule(shape.parentId);
+    }),
+    effects.registerAfterChangeHandler('shape', (previous, next, source) => {
+      if (source !== 'user' || previous.parentId === next.parentId) return;
+      // A moved group can bring previously visible layer members to a page with a different policy.
+      schedule(previous.parentId); schedule(next.parentId);
+    }),
+    effects.registerAfterDeleteHandler('shape', (shape, source) => {
+      if (source === 'user' && isProductionLayerProtected(shape)) schedule(shape.parentId);
+    }),
+  ];
+  const dispose = () => { for (const stop of disposers) stop(); };
   const stop = editor.sideEffects.registerOperationCompleteHandler(() => {
     const pages = [...pending]; pending.clear();
     if (editor.getInstanceState().isReadonly) return;

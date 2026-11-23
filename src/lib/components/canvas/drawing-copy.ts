@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { subscribeTranslator, translatorVersion } from './translator-version';
 import { get } from 'svelte/store';
 import { locale, t } from 'svelte-i18n';
 
@@ -251,14 +252,11 @@ const copy = {
   }
 };
 export type DrawingLabel = keyof typeof copy.en;
-const subscribe = (notify: () => void) => {
-  const stopLocale = locale.subscribe(notify); const stopText = t.subscribe(notify);
-  return () => { stopLocale(); stopText(); };
-};
+const subscribe = (notify: () => void) => locale.subscribe(notify);
 
 export function useDrawingText() {
   // The translator store also changes after a lazy-loaded dictionary arrives.
-  useSyncExternalStore(subscribe, () => get(t), () => get(t));
+  useSyncExternalStore(subscribeTranslator, translatorVersion, translatorVersion);
   const language = useSyncExternalStore(subscribe, () => get(locale), () => 'en');
   const dictionary = copy[language?.startsWith('ru') ? 'ru' : language?.startsWith('lv') ? 'lv' : 'en'];
   return {

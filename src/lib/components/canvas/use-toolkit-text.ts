@@ -6,11 +6,11 @@ import { useSyncExternalStore } from 'react';
 import { t } from 'svelte-i18n';
 import { get } from 'svelte/store';
 
-const subscribe = (notify: () => void) => t.subscribe(() => notify());
-const snapshot = () => get(t);
+import { subscribeTranslator, translatorVersion } from './translator-version';
 
 export function useToolkitText() {
-  const translate = useSyncExternalStore(subscribe, snapshot, snapshot);
+  useSyncExternalStore(subscribeTranslator, translatorVersion, translatorVersion);
+  const translate = get(t);
   return (key: string, vars: Record<string, string | number> = {}) =>
     translate(key.startsWith('kind.') ? `toolkit.${key}` : `toolkit.nodes.${key}`, vars);
 }

@@ -62,10 +62,10 @@ export function DrawingPageSetup({ multiple, focus }: { multiple: boolean; focus
     }}>
       <fieldset disabled={readonly} className="drawing-cad-fields">
         <label className="drawing-cad-field"><span>{label('pageName')}</span>
-          <input type="text" maxLength={DRAWING_PAGE_NAME_LIMIT} required value={name} onChange={e => setName(e.target.value)} />
+          <input type="text" aria-label={label('pageName')} maxLength={DRAWING_PAGE_NAME_LIMIT} required value={name} onChange={e => setName(e.target.value)} />
         </label>
         <label className="drawing-cad-field"><span>{label('pagePreset')}</span>
-          <select value={preset} onChange={event => {
+          <select aria-label={label('pagePreset')} value={preset} onChange={event => {
             const next = pagePresets[event.target.value as keyof typeof pagePresets];
             if (!next) return;
             setWidth(String(widthMm > heightMm ? next.heightMm : next.widthMm));
@@ -81,10 +81,10 @@ export function DrawingPageSetup({ multiple, focus }: { multiple: boolean; focus
           </select>
         </label>
         <label className="drawing-cad-field"><span>{label('pageWidth')} (mm)</span>
-          <input type="number" min={1} max={100000} step="any" required value={width} onChange={e => setWidth(e.target.value)} />
+          <input type="number" aria-label={`${label('pageWidth')} (mm)`} min={1} max={100000} step="any" required value={width} onChange={e => setWidth(e.target.value)} />
         </label>
         <label className="drawing-cad-field"><span>{label('pageHeight')} (mm)</span>
-          <input type="number" min={1} max={100000} step="any" required value={height} onChange={e => setHeight(e.target.value)} />
+          <input type="number" aria-label={`${label('pageHeight')} (mm)`} min={1} max={100000} step="any" required value={height} onChange={e => setHeight(e.target.value)} />
         </label>
         <div className="drawing-cad-actions">
           <button type="button" onClick={() => { setWidth(height); setHeight(width); }}>{label('pageSwap')}</button>

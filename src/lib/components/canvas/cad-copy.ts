@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
+import { subscribeTranslator, translatorVersion } from './translator-version';
 import { get } from 'svelte/store';
-import { locale, t } from 'svelte-i18n';
+import { locale } from 'svelte-i18n';
 
 const en = {
+  dxfCutOrder: 'Optimise cut order', dxfCutOrderHelp: 'Engraving and scoring first, then holes before the outline around them, then the shortest move to the next part. Containment is judged by outer boxes.', dxfRapid: 'Tool travel between cuts', dxfRapidSaved: '{before} → {after}', dxfTravelShow: 'Show tool travel', dxfTravelLegend: 'Dashed lines are moves with the tool up; the dot is the first cut.',
   dxfPreviewTitle: 'DXF cut preview', dxfPreviewLayer: 'Preview layer', dxfPreviewAll: 'All cutting layers',
   dxfPreflightScope: 'Production check scope',
   dxfRefreshPreflight: 'The drawing changed. Run Production check again or choose another export scope.',
@@ -94,6 +96,7 @@ const en = {
 } as const;
 type CadDictionary = { [K in keyof typeof en]: string };
 const ru: CadDictionary = {
+  dxfCutOrder: 'Оптимизировать порядок резки', dxfCutOrderHelp: 'Сначала гравировка и биговка, затем отверстия до охватывающего контура, затем кратчайший переход к следующей детали. Вложенность определяется по габаритам.', dxfRapid: 'Холостой ход между резами', dxfRapidSaved: '{before} → {after}', dxfTravelShow: 'Показать холостые ходы', dxfTravelLegend: 'Пунктир — перемещения с поднятым инструментом; точка — первый рез.',
   dxfPreviewTitle: 'Предпросмотр резов DXF', dxfPreviewLayer: 'Просмотр слоя', dxfPreviewAll: 'Все слои резки',
   dxfPreflightScope: 'Область проверки для производства',
   dxfRefreshPreflight: 'Чертёж изменился. Повторите проверку для производства или выберите другую область экспорта.',
@@ -184,6 +187,7 @@ const ru: CadDictionary = {
   nudgeHelp: 'Стрелки: шаг в единицах чертежа · Shift: ×10 · Ctrl/⌘: ×0.1', repeatHint: 'Интервалы заданы в единицах чертежа. Строки и столбцы включают оригинал.',
 };
 const lv: CadDictionary = {
+  dxfCutOrder: 'Optimizēt griešanas secību', dxfCutOrderHelp: 'Vispirms gravēšana un rievošana, tad atveres pirms tās aptverošās kontūras, tad īsākais pārvietojums līdz nākamajai detaļai. Ietvere tiek noteikta pēc ārējiem taisnstūriem.', dxfRapid: 'Instrumenta pārvietojums starp griezumiem', dxfRapidSaved: '{before} → {after}', dxfTravelShow: 'Rādīt instrumenta pārvietojumus', dxfTravelLegend: 'Svītrlīnijas — pārvietojumi ar paceltu instrumentu; punkts — pirmais griezums.',
   dxfPreviewTitle: 'DXF griezumu priekšskatījums', dxfPreviewLayer: 'Priekšskatījuma slānis', dxfPreviewAll: 'Visi griešanas slāņi',
   dxfPreflightScope: 'Ražošanas pārbaudes apgabals',
   dxfRefreshPreflight: 'Zīmējums ir mainījies. Atkārtojiet ražošanas pārbaudi vai izvēlieties citu eksporta apgabalu.',
@@ -274,12 +278,9 @@ const lv: CadDictionary = {
   nudgeHelp: 'Bulttaustiņi: solis rasējuma vienībās · Shift: ×10 · Ctrl/⌘: ×0.1', repeatHint: 'Atstarpes ir rasējuma vienībās. Rindas un kolonnas ietver oriģinālu.',
 };
 export type CadLabel = keyof typeof en;
-const subscribe = (notify: () => void) => {
-  const stopLocale = locale.subscribe(notify); const stopText = t.subscribe(notify);
-  return () => { stopLocale(); stopText(); };
-};
+const subscribe = (notify: () => void) => locale.subscribe(notify);
 export function useCadText() {
-  useSyncExternalStore(subscribe, () => get(t), () => get(t));
+  useSyncExternalStore(subscribeTranslator, translatorVersion, translatorVersion);
   const language = useSyncExternalStore(subscribe, () => get(locale), () => 'en');
   const dictionary = language?.startsWith('ru') ? ru : language?.startsWith('lv') ? lv : en;
   return { label: (key: CadLabel) => dictionary[key] };

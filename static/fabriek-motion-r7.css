@@ -1,0 +1,60 @@
+/* Réclame Fabriek OMS · motion R7 — app-wide feedback. Loaded after fabriek-motion-r6.css.
+   Decisive, no bounce, short. Every rule has a reduced-motion fallback; html[data-motion="off"]
+   (R5) already stops all animation and transition. */
+
+/* 1. NAVIGATION RAIL — a thin carriage runs along the top while a page loads.
+      It only appears after 180 ms, so fast navigations never flash. */
+.rf-nav-rail{position:fixed;inset:0 0 auto 0;height:3px;z-index:calc(var(--z-tooltip,1000) + 1);pointer-events:none;overflow:hidden;
+  opacity:0;animation:rf-rail-show 1ms linear 180ms forwards}
+.rf-nav-rail::before{content:"";position:absolute;inset:0;transform-origin:left;background:var(--live,var(--accent,var(--ink-primary)));
+  animation:rf-rail-run 2.4s cubic-bezier(.3,0,0,1) 180ms both}
+.rf-nav-rail::after{content:"";position:absolute;top:0;bottom:0;width:80px;right:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--bg-0) 70%,transparent));
+  animation:rf-rail-glint 1.1s linear 180ms infinite}
+@keyframes rf-rail-show{to{opacity:1}}
+@keyframes rf-rail-run{from{transform:scaleX(0)}60%{transform:scaleX(.72)}to{transform:scaleX(.92)}}
+@keyframes rf-rail-glint{from{transform:translateX(-100vw)}to{transform:translateX(0)}}
+
+/* 2. DIALOGS — the backdrop fades and the panel rises a few pixels on the gantry */
+dialog[open]{animation:rf-dialog-fade var(--motion-md,200ms) ease-out both}
+dialog[open]>:where(div,section,form,article):first-child{animation:rf-dialog-rise var(--motion-md,200ms) var(--ease-carriage,cubic-bezier(.3,0,0,1)) both}
+@keyframes rf-dialog-fade{from{opacity:0}}
+@keyframes rf-dialog-rise{from{opacity:0;transform:translateY(10px) scale(.99)}}
+
+/* 3. INVALID INPUT — one short sideways nudge the moment a field becomes invalid */
+:where(input,select,textarea)[aria-invalid="true"]{animation:rf-nudge 280ms var(--ease-machine,ease-out) 1}
+@keyframes rf-nudge{20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
+
+/* 4. BUSY BUTTONS — a moving hazard stripe while an action runs (aria-busy="true") */
+:where(button,.btn,.rf-btn)[aria-busy="true"]{position:relative;overflow:hidden;cursor:progress}
+:where(button,.btn,.rf-btn)[aria-busy="true"]::after{content:"";position:absolute;inset:auto 0 0 0;height:3px;
+  background:repeating-linear-gradient(-45deg,currentColor 0 6px,transparent 6px 12px);opacity:.55;animation:rf-busy-stripe .6s linear infinite}
+@keyframes rf-busy-stripe{to{background-position:17px 0}}
+
+/* 5. FOCUS — the keyboard ring settles in instead of popping */
+:focus-visible{animation:rf-focus-in 160ms var(--ease-machine,ease-out)}
+@keyframes rf-focus-in{from{outline-offset:5px}}
+
+/* 6. TABS and SEGMENTS — the selected underline draws in from the left */
+:where([role="tab"][aria-selected="true"],.rf-tabs button.active,.filter-btn.active){background-image:linear-gradient(currentColor,currentColor);
+  background-repeat:no-repeat;background-position:left bottom;background-size:100% 2px;animation:rf-tab-draw 220ms var(--ease-carriage,ease-out) both}
+@keyframes rf-tab-draw{from{background-size:0 2px}}
+
+/* 7. CHECKS and SWITCHES — a small set when ticked */
+input[type="checkbox"]:checked,input[type="radio"]:checked{animation:rf-tick 180ms var(--ease-machine,ease-out)}
+@keyframes rf-tick{40%{transform:scale(.86)}}
+
+/* 8. CARDS — border warms on hover, link cards lift by one pixel */
+:where(.card,.rf-card){transition:border-color var(--motion-sm,140ms) ease-out,box-shadow var(--motion-sm,140ms) ease-out}
+a:where(.card,.rf-card):hover{transform:translateY(-1px);box-shadow:0 2px 0 var(--border)}
+
+/* 9. EMPTY and ERROR states fade up instead of snapping in */
+:where(.empty-state,.empty-results,.rf-empty,[role="alert"]){animation:rf-gantry-up var(--motion-md,200ms) var(--ease-carriage,ease-out) both}
+
+@media (prefers-reduced-motion: reduce){
+  .rf-nav-rail::before{animation:none;transform:scaleX(1)}
+  .rf-nav-rail::after,dialog[open],dialog[open]>:where(div,section,form,article):first-child,
+  :where(input,select,textarea)[aria-invalid="true"],:where(button,.btn,.rf-btn)[aria-busy="true"]::after,:focus-visible,
+  :where([role="tab"][aria-selected="true"],.rf-tabs button.active,.filter-btn.active),input[type="checkbox"]:checked,input[type="radio"]:checked,
+  :where(.empty-state,.empty-results,.rf-empty,[role="alert"]){animation:none}
+  a:where(.card,.rf-card):hover{transform:none}
+}

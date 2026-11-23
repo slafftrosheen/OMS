@@ -9,6 +9,9 @@
     import Badge from '$lib/components/ui/Badge.svelte';
     import Icon from '$lib/ui/Icon.svelte';
     import type { IconName } from '$lib/ui/icons';
+    import { t } from 'svelte-i18n';
+    import { can } from '$lib/auth/permission-utils';
+    import { orderJump, quickCommands, rankCommands, readRecentOrders, recentCommands, type QuickCommand } from '$lib/search/quick-commands';
 
     let { 
         open = $bindable(false),
@@ -40,6 +43,31 @@
         if (observedOwner !== undefined && owner !== observedOwner) untrack(close);
         observedOwner = owner;
     });
+
+    // Round 6 · instant "go to" / "do" rows and recent orders, ahead of the server results.
+    let recent = $state<ReturnType<typeof readRecentOrders>>([]);
+    $effect(() => {
+        if (!open) return;
+        try { recent = readRecentOrders(localStorage, $currentUser?.id); } catch { recent = []; }
+    });
+    const quickLabel = (command: QuickCommand) => command.title ??
+        $t(command.group === 'do' ? `quick.do.${command.id}` : `quick.go.${command.id}`, { default: command.fallback });
+    let quickItems = $derived.by(() => {
+        const commands = quickCommands($currentUser, can($currentUser, 'createDraftOrder'));
+        const query = searchQuery.trim();
+        if (!query) return [...recentCommands(recent).slice(0, 4), ...commands.filter(c => c.group === 'do'), ...commands.filter(c => c.group === 'go').slice(0, 4)];
+        const jump = orderJump(query);
+        const ranked = rankCommands(query, [...recentCommands(recent), ...commands], quickLabel, jump ? 4 : 5);
+        return jump ? [{ id: 'jump', group: 'do', labelKey: 'quick.jump', fallback: jump.number, title: $t('quick.jump', { values: { number: jump.number }, default: `Find order ${jump.number}` }),
+            href: jump.href, icon: 'search', keywords: [] } satisfies QuickCommand, ...ranked] : ranked;
+    });
+    let totalItems = $derived(quickItems.length + results.length);
+    const groupLabel = (group: QuickCommand['group']) =>
+        group === 'recent' ? $t('quick.recent', { default: 'Recently opened' }) : group === 'do' ? $t('quick.groupDo', { default: 'Actions' }) : $t('quick.groupGo', { default: 'Go to' });
+    function openQuick(command: QuickCommand) {
+        void goto(`${base}${command.href}`);
+        close();
+    }
 
     function cancelSearch() {
         generation++;
@@ -92,13 +120,15 @@
     function handleKeydown(event: KeyboardEvent) {
         if (event.key === 'ArrowDown') {
             event.preventDefault();
-            selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
+            selectedIndex = Math.min(selectedIndex + 1, totalItems - 1);
         } else if (event.key === 'ArrowUp') {
             event.preventDefault();
             selectedIndex = Math.max(selectedIndex - 1, -1);
-        } else if (event.key === 'Enter' && selectedIndex >= 0) {
-            event.preventDefault();
-            if (results[selectedIndex]) navigateToResult(results[selectedIndex]);
+        } else if (event.key === 'Enter') {
+            // Enter with nothing highlighted takes the first row (an order-number jump when one was typed).
+            const index = selectedIndex >= 0 ? selectedIndex : 0;
+            if (index < quickItems.length) { event.preventDefault(); openQuick(quickItems[index]); }
+            else if (results[index - quickItems.length]) { event.preventDefault(); navigateToResult(results[index - quickItems.length]); }
         }
     }
 
@@ -166,7 +196,7 @@
                     bind:value={searchQuery}
                     oninput={handleInput}
                     onkeydown={handleKeydown}
-                    placeholder="Search orders..."
+                    placeholder={$t('quick.placeholder', { default: 'Search orders, or type a page or action…' })}
                     class="search-input"
                 />
                 {#if loading}
@@ -175,16 +205,33 @@
                 <button type="button" class="search-kbd" onclick={close} aria-label="Close search">ESC</button>
             </div>
 
+            {#if quickItems.length > 0}
+                <div class="quick-section" role="group" aria-label={$t('quick.title', { default: 'Search and go' })}>
+                    {#each quickItems as command, index (command.id)}
+                        {#if index === 0 || quickItems[index - 1].group !== command.group}
+                            <p class="section-label">{groupLabel(command.group)}</p>
+                        {/if}
+                        <button type="button" class="quick-item" class:selected={index === selectedIndex} style={`--i:${index}`}
+                            data-group={command.group}
+                            onclick={() => openQuick(command)} onmouseenter={() => selectedIndex = index}>
+                            <span class="result-icon" aria-hidden="true"><Icon name={command.icon} size="sm" /></span>
+                            <span class="quick-label">{quickLabel(command)}</span>
+                            {#if index === (selectedIndex < 0 ? 0 : selectedIndex)}<kbd class="quick-enter" aria-hidden="true">↵</kbd>{/if}
+                        </button>
+                    {/each}
+                </div>
+            {/if}
+
             {#if results.length > 0}
                 <div class="results-section">
-                    <p class="section-label">{results.length} result{results.length !== 1 ? 's' : ''}</p>
+                    <p class="section-label">{$t('quick.results', { default: 'Orders and files' })} · {results.length}</p>
                     <div class="results-list">
                         {#each results as result, index (result.id)}
                             <button
                                 class="result-item"
-                                class:selected={index === selectedIndex}
+                                class:selected={index + quickItems.length === selectedIndex}
                                 onclick={() => navigateToResult(result)}
-                                onmouseenter={() => selectedIndex = index}
+                                onmouseenter={() => selectedIndex = index + quickItems.length}
                             >
                                 <span class="result-icon" aria-hidden="true">
                                     <Icon name={getTypeIcon(result.type)} size="md" />
@@ -206,25 +253,31 @@
                 </div>
             {:else if searchError}
                 <p class="empty-message" role="alert">{searchError}</p>
-            {:else if searchQuery.trim().length >= 2 && !loading}
+            {:else if searchQuery.trim().length >= 2 && !loading && quickItems.length === 0}
                 <div class="empty-results">
-                    <p class="empty-message">No results found for "{searchQuery}"</p>
-                    <p class="empty-hint">Try different keywords or check your spelling</p>
+                    <p class="empty-message">{$t('quick.empty', { default: 'No matches. Try an order number like PO-2611.' })}</p>
                 </div>
             {/if}
 
             <div class="search-footer">
-                <div class="search-shortcuts">
-                    <kbd>↑↓</kbd> Navigate
-                    <kbd>↵</kbd> Select
-                    <kbd>ESC</kbd> Close
-                </div>
+                <div class="search-shortcuts">{$t('quick.hint', { default: '↑ ↓ to move · Enter to open · Esc to close' })}</div>
             </div>
         </div>
     </dialog>
 {/if}
 
 <style>
+    .quick-section { padding: 0.25rem 0.5rem 0.5rem; border-bottom: 1px solid var(--border); }
+    .quick-item { display: flex; align-items: center; gap: 0.6rem; width: 100%; min-height: 40px; padding: 0.4rem 0.6rem; border: 0;
+        border-radius: 0.4rem; background: transparent; color: var(--ink-primary); text-align: left; cursor: pointer;
+        animation: quickIn .22s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 24ms); }
+    .quick-item.selected { background: var(--bg-2); box-shadow: inset 3px 0 0 var(--accent, var(--ink-primary)); }
+    .quick-item[data-group="recent"] .quick-label { font-variant-numeric: tabular-nums; }
+    .quick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .quick-enter { font-size: 0.7rem; padding: 0 0.35rem; border: 1px solid var(--border); border-radius: 0.25rem; color: var(--ink-secondary); }
+    @keyframes quickIn { from { opacity: 0; transform: translateY(4px); } }
+    @media (prefers-reduced-motion: reduce) { .quick-item { animation: none; } }
+    :global(html[data-motion="off"]) .quick-item { animation: none; }
     .search-overlay:not([open]) { display:none; }
     .search-overlay::backdrop { background:transparent; }
     .search-overlay {
@@ -311,8 +364,7 @@
         to { transform: rotate(360deg); }
     }
 
-    .search-kbd,
-    .search-shortcuts kbd {
+    .search-kbd {
         padding: 0.125rem 0.375rem;
         background: var(--color-gray-100, var(--bg-2));
         border: 1px solid var(--color-border, var(--border));
@@ -411,11 +463,6 @@
         margin: 0 0 0.5rem 0;
     }
 
-    .empty-hint {
-        font-size: 0.875rem;
-        color: var(--color-gray-500, var(--muted));
-        margin: 0;
-    }
 
     .search-footer {
         padding: 0.75rem 1.25rem;

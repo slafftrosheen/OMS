@@ -11,7 +11,24 @@
  import {telegramLaunchDestination,telegramNotificationPath} from '$lib/telegram/launch';
  import {type IconName} from '$lib/ui/icons';
  import Icon from '$lib/ui/Icon.svelte';
+ import {telegramHaptic} from '$lib/telegram/webapp';
+ import {sortTodayOrders,todayGlance} from '$lib/telegram/today-glance';
+ import {countUp} from '$lib/ui/motion';
  let c=$derived(telegramAppCopy($locale));
+ let lang=$derived(($locale??'en').slice(0,2));
+ // Short Mini App words not in app-copy yet; keyed per language like the bot.
+ let extra=$derived(({
+  en:{find:'Find an order',findHint:'PO, client or title',go:'Search',urgent:'Urgent orders',glance:'Today at a glance',gLoading:'Loading today',gDue:'Due today',gUnread:'Unread'},
+  lv:{find:'Atrast pasūtījumu',findHint:'PO, klients vai nosaukums',go:'Meklēt',urgent:'Steidzamie pasūtījumi',glance:'Šodiena īsumā',gLoading:'Iekraušana šodien',gDue:'Termiņš šodien',gUnread:'Nelasīti'},
+  ru:{find:'Найти заказ',findHint:'PO, клиент или название',go:'Найти',urgent:'Срочные заказы',glance:'Сегодня коротко',gLoading:'Погрузка сегодня',gDue:'Срок сегодня',gUnread:'Непрочитано'}
+ } as const)[lang==='lv'||lang==='ru'?lang:'en']);
+ let findText=$state('');
+ function find(event:SubmitEvent){
+  event.preventDefault();
+  const value=findText.trim();
+  telegramHaptic('light');
+  void goto(base+'/orders'+(value?'?q='+encodeURIComponent(value.slice(0,120)):''));
+ }
  let controls=$derived(page.url.searchParams.get('tab')==='control');
  let actions=$derived([
   {label:c.orders,href:'/orders',icon:'clipboard-list'},
@@ -33,6 +50,8 @@
  let readingAll=$state(false);
  let todayRequest:AbortController|undefined;
  let unread=$derived($notificationStore.items.filter(item=>!item.read));
+ let glance=$derived(today?todayGlance(today.orders,unread.length):null);
+ let todayOrders=$derived(today?sortTodayOrders(today.orders):[]);
  let humanDate=$derived(today ? new Intl.DateTimeFormat($locale ?? 'en',{
   weekday:'short',day:'numeric',month:'long',timeZone:'UTC'
  }).format(new Date(today.date+'T12:00:00Z')) : '');
@@ -83,7 +102,14 @@
 <svelte:head><title>OMS · Telegram</title></svelte:head>
 <div class="workspace">
  <header><p class="eyebrow">{c.account}</p><h1>{controls?c.control:c.title}</h1><p>{controls?c.controlsHint:c.intro}</p></header>
- <section class="actions" aria-label={c.control}>{#each (controls?actions:actions.slice(0,4)) as action}<a href={base+action.href}><Icon name={action.icon as IconName} size="md"/><span>{action.label}</span><span aria-hidden="true">→</span></a>{/each}</section>
+ {#if !controls}
+  <form class="find" role="search" onsubmit={find}>
+   <label for="tg-find">{extra.find}</label>
+   <div class="find-row"><Icon name="search" size="sm"/><input id="tg-find" type="search" enterkeyhint="search" autocomplete="off" placeholder={extra.findHint} bind:value={findText} maxlength="120"/><button type="submit">{extra.go}</button></div>
+   <a class="urgent" href={base+'/orders?status=urgent'} onclick={()=>telegramHaptic('light')}><Icon name="alert-triangle" size="sm"/>{extra.urgent} →</a>
+  </form>
+ {/if}
+ <section class="actions" aria-label={c.control}>{#each (controls?actions:actions.slice(0,4)) as action}<a href={base+action.href} onclick={()=>telegramHaptic('light')}><Icon name={action.icon as IconName} size="md"/><span>{action.label}</span><span aria-hidden="true">→</span></a>{/each}</section>
  {#if controls}<section class="preferences"><h2>{c.settings}</h2><TelegramSettings/></section>
  {:else}
   <section class="today" aria-labelledby="telegram-today">
@@ -93,13 +119,20 @@
    </div>
    {#if todayBusy&&!today}<p role="status">{c.todayLoading}</p>{/if}
    {#if todayError}<p role="alert">{c.todayFailed}</p>{/if}
+   {#if today&&glance}
+    <ul class="glance" aria-label={extra.glance}>
+     <li data-hot={glance.loading>0||undefined}><span class="k">{extra.gLoading}</span><span class="v" use:countUp={glance.loading}>{glance.loading}</span></li>
+     <li data-hot={glance.due>0||undefined}><span class="k">{extra.gDue}</span><span class="v" use:countUp={glance.due}>{glance.due}</span></li>
+     <li><a href={`${base}/notifications`} onclick={()=>telegramHaptic('light')}><span class="k">{extra.gUnread}</span><span class="v" use:countUp={glance.unread}>{glance.unread}</span></a></li>
+    </ul>
+   {/if}
    {#if today}
     <div class="today-grid">
      <section aria-label={c.myOrders}>
       <div class="heading"><h3>{c.myOrders}</h3><a href={base+'/orders'}>{c.orders} →</a></div>
       {#if !today.orders.length}<p>{c.noOrders}</p>
-      {:else}<ul class="today-list">{#each today.orders as order (order.id)}
-       <li><a href={base+'/orders/'+encodeURIComponent(order.id)}>
+      {:else}<ul class="today-list">{#each todayOrders as order (order.id)}
+       <li><a href={base+'/orders/'+encodeURIComponent(order.id)} onclick={()=>telegramHaptic('light')}>
         <strong>{order.po_number||order.title||c.orders}</strong>
         {#if order.title&&order.po_number}<span>{order.title}</span>{/if}
         <span class="order-tags">{#if order.loading_today}<span>{c.loadingToday}</span>{/if}{#if order.due_today}<span>{c.dueToday}</span>{/if}</span>
@@ -145,5 +178,24 @@
  .today-list .event{padding:10px 0;overflow-wrap:anywhere}
  .order-tags{display:flex;flex-wrap:wrap;gap:4px}.order-tags span{font-size:var(--text-xs);background:var(--bg-2);border-radius:var(--radius-sm);padding:2px 6px}
  .bulk-notifications{justify-self:start}
+ .glance{list-style:none;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-sm);margin:0}
+ .glance a{display:grid;gap:2px;text-decoration:none;color:inherit}
+ .glance>*{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-0);text-decoration:none;color:var(--ink-primary);min-width:0;animation:rf-power-on var(--motion-lg,280ms) var(--ease-machine,ease-out) both}
+ .glance>*:nth-child(2){animation-delay:50ms}.glance>*:nth-child(3){animation-delay:100ms}
+ .glance .k{font-size:var(--text-xs);color:var(--ink-secondary);overflow-wrap:anywhere}
+ .glance .v{margin:0;font:650 var(--text-2xl)/1 var(--font-display,inherit);font-variant-numeric:tabular-nums}
+ .glance>[data-hot]{border-color:var(--warning,var(--ink-primary));box-shadow:inset 0 3px 0 var(--warning,var(--ink-primary))}
+ @media (prefers-reduced-motion:reduce){.glance>*{animation:none}}
+ .find{display:grid;gap:6px}.find label{font-size:var(--text-xs);color:var(--ink-secondary);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display,inherit)}
+ .find-row{display:flex;align-items:center;gap:8px;padding:0 0 0 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-1);min-height:48px;transition:border-color var(--motion-sm,140ms) var(--ease-machine,ease-out),box-shadow var(--motion-sm,140ms) var(--ease-machine,ease-out)}
+ .find-row:focus-within{border-color:var(--focus);box-shadow:var(--focus-ring-soft,none)}
+ .find-row input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink-primary);font:inherit;font-size:16px;min-height:46px;outline:none}
+ .find-row button{border:0;border-left:1px solid var(--border);border-radius:0 var(--radius-md) var(--radius-md) 0;min-height:46px;padding:0 14px;background:var(--bg-2)}
+ .urgent{justify-self:start;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+ .actions a{transition:background-color var(--motion-sm,140ms) var(--ease-machine,ease-out),transform var(--motion-xs,90ms) var(--ease-machine,ease-out)}.actions a:active{transform:scale(.98)}
+ .actions a>span:last-child{transition:transform var(--motion-sm,140ms) var(--ease-machine,ease-out)}.actions a:hover>span:last-child{transform:translateX(3px)}
+ .actions>a,.today-list li,article{animation:rf-power-on var(--motion-lg,280ms) var(--ease-machine,ease-out) both}
+ .actions>a:nth-child(2){animation-delay:40ms}.actions>a:nth-child(3){animation-delay:80ms}.actions>a:nth-child(4){animation-delay:120ms}.actions>a:nth-child(n+5){animation-delay:160ms}
+ @media (prefers-reduced-motion:reduce){.actions>a,.today-list li,article{animation:none}}
  @media(max-width:480px){.workspace{padding:var(--space-md)}}
 </style>

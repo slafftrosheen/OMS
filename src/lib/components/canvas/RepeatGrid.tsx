@@ -94,7 +94,7 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
       if(result.ok===true)setReview({plan:result.value,key});else setMessage(errorText(result.error));
     }}>
       <fieldset className="drawing-style-fields" disabled={disabled} aria-describedby={!valid?errorId:undefined}>
-        <label><span>{t('mode')}</span><select ref={layoutInput} value={fit?'sheet':'manual'} onChange={event=>{
+        <label><span>{t('mode')}</span><select ref={layoutInput} aria-label={t('mode')} value={fit?'sheet':'manual'} onChange={event=>{
           setFit(event.target.value==='sheet');setReview(undefined);setMessage('');
         }}>
           <option value="manual">{t('manual')}</option><option value="sheet">{t('sheet')}</option>
@@ -106,7 +106,7 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
             <input type="number" min={1} max={MAX_REPEAT_AXIS} step={1} required value={values[field]}
               onChange={event=>update(field,event.target.value)}/>
           </label>)}
-          <label><span>{t('spacing')}</span><select value={spacing} onChange={event=>{setSpacing(event.target.value as typeof spacing);setMessage('');}}>
+          <label><span>{t('spacing')}</span><select aria-label={t('spacing')} value={spacing} onChange={event=>{setSpacing(event.target.value as typeof spacing);setMessage('');}}>
             <option value="gap">{t('edgeGap')}</option><option value="offset">{t('offset')}</option>
           </select></label>
         </>}
@@ -115,10 +115,10 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
           <input type="number" step="any" min={fit||effectiveSpacing==='offset'?0:-limit} max={limit} required value={values[field]}
             onChange={event=>update(field,event.target.value)}/>
         </label>)}
-        <label><span>{t('horizontal')}</span><select value={directionX} onChange={event=>setDirectionX(Number(event.target.value) as 1|-1)}>
+        <label><span>{t('horizontal')}</span><select aria-label={t('horizontal')} value={directionX} onChange={event=>setDirectionX(Number(event.target.value) as 1|-1)}>
           <option value={1}>{t('right')}</option><option value={-1}>{t('left')}</option>
         </select></label>
-        <label><span>{t('vertical')}</span><select value={directionY} onChange={event=>setDirectionY(Number(event.target.value) as 1|-1)}>
+        <label><span>{t('vertical')}</span><select aria-label={t('vertical')} value={directionY} onChange={event=>setDirectionY(Number(event.target.value) as 1|-1)}>
           <option value={1}>{t('down')}</option><option value={-1}>{t('up')}</option>
         </select></label>
         <button type="submit" disabled={!valid||(fit&&!hasSheet)}>{t('preview')}</button>

@@ -5,10 +5,11 @@
   import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
   import { building } from '$app/environment';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
   import { appearanceThemeColor, applyPlace, resolvePlace } from '$lib/state/place';
   import { onMount } from 'svelte';
-  import { goto, replaceState } from '$app/navigation';
+  import { goto, replaceState, onNavigate } from '$app/navigation';
+  import { transitionDirection, wantsPageTransition, prefersReducedMotion } from '$lib/ui/motion';
 
   import Logo from '$lib/brand/Logo.svelte';
   import MobileNav from '$lib/topbar/MobileNav.svelte';
@@ -40,6 +41,17 @@
   $effect(() => { applyPlace(page.url.pathname.slice(base.length), page.url.search); });
 
   let { children } = $props();
+
+  // Round 5 · page changes slide on the gantry rail (View Transitions where supported).
+  onNavigate((navigation) => {
+    const from = navigation.from?.url.pathname.slice(base.length), to = navigation.to?.url.pathname.slice(base.length);
+    const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => unknown };
+    if (!doc.startViewTransition || prefersReducedMotion() || !wantsPageTransition(from, to)) return;
+    document.documentElement.dataset.vt = transitionDirection(from!, to!);
+    return new Promise<void>((resolve) => {
+      doc.startViewTransition!(async () => { resolve(); await navigation.complete; });
+    });
+  });
 
   const authStateInstance = authState;
   const assistant = provideAssistantContext();
@@ -413,6 +425,8 @@
     {#if $isChatOpen}<ChatSidebar />{/if}
   {/if}
 
+  <!-- Round 7 · a thin rail runs along the top while a page loads (shown after 180 ms). -->
+  {#if navigating.to}<div class="rf-nav-rail" role="progressbar" aria-label={$t('app.loading', { default: 'Loading' })} aria-busy="true"></div>{/if}
   <Toast />
   <LiveRegion />
   <GlobalSearch bind:open={searchOpen} />

@@ -1,0 +1,56 @@
+/* ============================================================
+   RÉCLAME FABRIEK OMS — MOTION v0.5 (Round 5 "Flow & Motion")
+   Adds: page transitions on the gantry rail, list cascades,
+   skeleton scan, row arrival, press feedback, toast travel,
+   focus travel. Loaded after fabriek-motion.css.
+   ============================================================ */
+
+/* 1. PAGE TRANSITIONS — top bar stays put; the page travels */
+.rf-topbar{view-transition-name:rf-topbar}
+::view-transition-group(rf-topbar){animation:none}
+::view-transition-old(root),::view-transition-new(root){animation-duration:var(--motion-md,200ms);animation-timing-function:var(--ease-carriage,cubic-bezier(.3,0,0,1))}
+::view-transition-old(root){animation-name:rf-vt-out}
+::view-transition-new(root){animation-name:rf-vt-in}
+html[data-vt="back"]::view-transition-old(root){animation-name:rf-vt-out-back}
+html[data-vt="back"]::view-transition-new(root){animation-name:rf-vt-in-back}
+html[data-vt="swap"]::view-transition-old(root){animation-name:rf-vt-fade-out}
+html[data-vt="swap"]::view-transition-new(root){animation-name:rf-vt-fade-in}
+@keyframes rf-vt-out{to{opacity:0;transform:translateX(-16px)}}
+@keyframes rf-vt-in{from{opacity:0;transform:translateX(24px)}}
+@keyframes rf-vt-out-back{to{opacity:0;transform:translateX(16px)}}
+@keyframes rf-vt-in-back{from{opacity:0;transform:translateX(-24px)}}
+@keyframes rf-vt-fade-out{to{opacity:0}}
+@keyframes rf-vt-fade-in{from{opacity:0;transform:translateY(4px)}}
+
+/* 2. LIST CASCADE — rows and cards switch on in order (use:stagger sets --i) */
+.rf-table tbody tr,.orders-table tbody tr,.data-table tbody tr{animation:rf-row-in var(--motion-md,200ms) var(--ease-machine,ease-out) both;animation-delay:calc(min(var(--i,0),12) * 22ms)}
+@keyframes rf-row-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* 3. SKELETON SCAN — loading blocks get a slow Lumen scan instead of a pulse */
+.skeleton,[data-skeleton]{position:relative;overflow:hidden;background:var(--bg-2)}
+.skeleton::after,[data-skeleton]::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--live,#7fd) 14%,transparent),transparent);animation:rf-skel 1.4s var(--ease-carriage,ease-in-out) infinite}
+@keyframes rf-skel{to{transform:translateX(100%)}}
+
+/* 4. PRESS — every button gives a 2% press, no bounce */
+:where(.rf-btn,.filter-btn,.rf-tabs button,.actions a):not(:disabled):active{transform:scale(.98);transition:transform var(--motion-xs,90ms) var(--ease-machine,ease-out)}
+
+/* 5. FOCUS TRAVEL — the ring slides in rather than popping */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{transition:outline-offset var(--motion-sm,140ms) var(--ease-machine,ease-out)}
+
+/* 6. TOASTS travel in on the rail and leave the same way */
+.toast,.rf-toast,[data-toast]{animation:rf-gantry-in var(--motion-lg,280ms) var(--ease-carriage,ease-out) both}
+
+/* 7. STATUS CHANGE — a badge whose text changes stamps once (key the badge on status) */
+.rf-pill,.status-badge{animation:rf-stamp var(--motion-lg,280ms) var(--ease-machine,ease-out) both}
+
+/* 8. DETAILS / DISCLOSURE open on the rail */
+details[open]>:not(summary){animation:rf-gantry-up var(--motion-md,200ms) var(--ease-carriage,ease-out) both}
+
+@media (prefers-reduced-motion: reduce){
+  ::view-transition-old(root),::view-transition-new(root){animation:none}
+  .rf-table tbody tr,.orders-table tbody tr,.data-table tbody tr,.toast,.rf-toast,[data-toast],.rf-pill,.status-badge,details[open]>:not(summary){animation:none}
+  .skeleton::after,[data-skeleton]::after{animation:none;display:none}
+  :where(.rf-btn,.filter-btn,.rf-tabs button,.actions a):active{transform:none}
+}
+html[data-motion="off"] *{animation:none!important;transition:none!important}

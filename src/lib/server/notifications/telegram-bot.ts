@@ -6,6 +6,7 @@ import { openRouterChat, openRouterComplete } from '$lib/server/ai/openrouter';
 import { checkTelegramRuntimeFence } from './telegram-runtime-fence';
 import { runTelegramAssistant, TelegramToolsUnsupportedError, type TelegramAssistantDependencies } from './telegram-assistant';
 import { telegramAccountCopy } from '$lib/notifications/telegram-account-copy';
+import { sortTelegramOrdersByUrgency, telegramDigestLine, telegramDueBucket, telegramDueFlag, telegramStatusWord } from './telegram-order-lines';
 
 type Database = SupabaseClient<any, any, any>;
 type Language = 'en' | 'ru' | 'lv';
@@ -54,8 +55,15 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
   let text = '';
   const keyboard: TelegramInlineButton[][] = [];
   if (typeof payload.rendered === 'string') return { text: payload.rendered, keyboard: Array.isArray(payload.keyboard) ? payload.keyboard : [] };
-  const orders: any[] = Array.isArray(payload.orders) ? payload.orders.slice(0, 10) : [];
-  const rows = orders.map(order => `${value(order.po_number) || value(order.id)} · ${value(order.title)}\n${value(order.status)} · ${value(order.client)}\n${l.due}: ${value(order.due_date) || '—'} · ${l.loading}: ${value(order.loading_date) || '—'}`);
+  const received: any[] = Array.isArray(payload.orders) ? payload.orders.slice(0, 10) : [];
+  // Round 6 · /today puts the most pressing orders first; /orders keeps the search order.
+  const orders: any[] = payload.kind === 'today' ? sortTelegramOrdersByUrgency(received, payload.date) : received;
+  const digest = ['today', 'orders'].includes(payload.kind) ? telegramDigestLine(orders, payload.date, lang) : '';
+  const rows = orders.map(order => {
+    // Readable status and a late/today/tomorrow flag; the raw dates stay visible.
+    const flag = telegramDueFlag(order.due_date, payload.date, order.status, lang);
+    return `${value(order.po_number) || value(order.id)} · ${value(order.title)}\n${telegramStatusWord(order.status, lang) || value(order.status)} · ${value(order.client)}${flag ? `\n${flag}` : ''}\n${l.due}: ${value(order.due_date) || '—'} · ${l.loading}: ${value(order.loading_date) || '—'}`;
+  });
   switch (payload.kind) {
     case 'help':
       text = `${l.help}\n\n${lang==='ru'?'Откройте приложение для уведомлений, чатов и управления заказами. Или выберите действие ниже.':lang==='lv'?'Atveriet lietotni paziņojumiem, sarunām un pasūtījumu vadībai. Vai izvēlieties darbību zemāk.':'Open the app for notifications, chats and order controls, or choose an action below.'}`;
@@ -64,12 +72,19 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
       break;
     case 'today': {
       const events: any[] = Array.isArray(payload.events) ? payload.events.slice(0, 10) : [];
-      text = `${l.today} · ${value(payload.date)} (${value(payload.timezone)})\n\n${rows.length ? rows.join('\n\n') : l.empty}`;
+      text = `${l.today} · ${value(payload.date)} (${value(payload.timezone)})${digest ? `\n${digest}` : ''}\n\n${rows.length ? rows.join('\n\n') : l.empty}`;
       if (events.length) text += `\n\n${l.events}\n${events.map(event => `${value(event.title) || value(event.kind)}${event.note ? ` — ${value(event.note, 180)}` : ''}`).join('\n')}`;
+      // One tap per pressing order (up to 3), when the order command is on.
+      if (options.commandsEnabled && options.commands.includes('order')) orders.slice(0, 3).forEach(order => {
+        const { bucket } = telegramDueBucket(order.due_date, payload.date, order.status);
+        const mark = bucket === 'overdue' ? '⚠' : bucket === 'today' ? '●' : bucket === 'tomorrow' ? '→' : '';
+        if (isTelegramOrderId(order.id) && mark)
+          keyboard.push([{ text: `${mark} ${(value(order.po_number) || value(order.title) || l.orders).slice(0, 56)}`, callback_data: `oms:order:${order.id}` }]);
+      });
       break;
     }
     case 'orders': case 'order':
-      text = `${l.orders}\n\n${rows.length ? rows.join('\n\n') : l.empty}${payload.kind === 'orders' ? `\n\n${l.limited}` : ''}`;
+      text = `${l.orders}${digest && payload.kind === 'orders' ? `\n${digest}` : ''}\n\n${rows.length ? rows.join('\n\n') : l.empty}${payload.kind === 'orders' ? `\n\n${l.limited}` : ''}`;
       if (options.commandsEnabled&&options.commands.includes('order'))orders.forEach(order=>{if(isTelegramOrderId(order.id))keyboard.push([{text:(value(order.po_number)||value(order.title)||l.orders).slice(0,60),callback_data:`oms:order:${order.id}`}]);});
 
       break;

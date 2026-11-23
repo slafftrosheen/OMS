@@ -1,5 +1,6 @@
 import { curvePathData, mapContours } from './cad-curves';
 import type { DxfEntity } from './cad-dxf';
+import { entityEndpoints } from './cad-cut-order';
 import type { CadPoint } from './cad-settings';
 
 type Layer = { name: string; rgb?: string };
@@ -8,6 +9,8 @@ export type DxfPreviewSource = { entity: DxfEntity; layer: Layer; rgb?: string }
 export interface DxfPreview {
   viewBox: string;
   layers: Array<Layer & PreviewPath & { colorPaths?: PreviewPath[] }>;
+  /** Round 7 · rapid moves between entities in file order, and the first start point. */
+  travel?: { path: string; start: CadPoint; moves: number };
 }
 
 type ProjectPoint = (p: CadPoint) => CadPoint;
@@ -57,7 +60,18 @@ export function buildDxfPreview(
     colors.set(color, paths);
     grouped.set(layer.name, colors);
   }
+  // Rapid moves in emitted order: lift at an entity's end, go down at the next one's start.
+  const hops: string[] = [];
+  let last: CadPoint | null = null, first: CadPoint | null = null;
+  for (const { entity } of entries) {
+    const { start, end } = entityEndpoints(entity);
+    const s = project(start);
+    if (!first) first = s;
+    if (last && Math.hypot(s.x - last.x, s.y - last.y) > 1e-9) hops.push(`M${coord(last)} L${coord(s)}`);
+    last = project(end);
+  }
   return {
+    ...(first ? { travel: { path: hops.join(' '), start: first, moves: hops.length } } : {}),
     viewBox: `${-margin} ${-margin} ${w + 2 * margin} ${h + 2 * margin}`,
     layers: Array.from(grouped, ([name, colors]) => {
       const paths = Array.from(colors, ([rgb, parts]) => ({ rgb, path: parts.join(' ') }));

@@ -81,7 +81,7 @@ describe('OMS-R06 visual file import security', () => {
     expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain("tn('archivedChat')");
     const canvas = source('src/routes/toolkit/canvas/+page.svelte');
     const toolbar = source('src/lib/components/canvas/CanvasToolbar.svelte');
-    const sharedDrawing = source('src/lib/components/canvas/DrawingWorkspace.tsx');
+    const sharedDrawing = source('src/lib/components/canvas/DrawingWorkspace.tsx') + source('src/lib/components/canvas/drawing-command-map.ts');
     for (const action of ["'draw'","'highlight'","'rectangle'","'text'","'eraser'"]) {
       expect(sharedDrawing).toContain(action);
     }

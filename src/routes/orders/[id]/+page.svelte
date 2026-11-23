@@ -27,13 +27,37 @@
     import Modal from "$lib/components/ui/Modal.svelte";
     import OrderTimeline from "$lib/order/OrderTimeline.svelte";
     import RouteLine from "$lib/ui/RouteLine.svelte";
+    import OrderFlowStrip from "$lib/order/OrderFlowStrip.svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
     import { can, normaliseStatus } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
+    import { rememberRecentOrder } from '$lib/search/quick-commands';
+    import { ORDER_MORPH_NAME } from '$lib/ui/motion';
+    import { orderNeighbours, readOrderSequence, stepKey } from '$lib/order/list-view-state';
     import { buildStagePatch } from '$lib/order/stage-contract';
 
     let orderId = $derived(page.params.id);
     let ownerKey = $derived(orderSheetAccountKey($currentUser));
+    // Round 7 · step through the list this order was opened from ([ and ] or the buttons).
+    // Read after mount (the list lives in this tab's storage), so server and first client render match.
+    let neighbours = $state<ReturnType<typeof orderNeighbours>>(null);
+    $effect(() => {
+        const id = orderId;
+        try { neighbours = orderNeighbours(readOrderSequence(sessionStorage), id); } catch { neighbours = null; }
+    });
+    let listHref = $derived(neighbours?.listHref ?? '/orders');
+    function stepTo(id: string | null) {
+        if (!id) return;
+        void goto(`${base}/orders/${encodeURIComponent(id)}`);
+    }
+    function handleStepKeys(event: KeyboardEvent) {
+        const step = stepKey(event);
+        if (!step || !neighbours || event.defaultPrevented) return;
+        const target = step < 0 ? neighbours.prev : neighbours.next;
+        if (!target) return;
+        event.preventDefault();
+        stepTo(target);
+    }
     const formatTimestamp = (value: unknown) => typeof value === 'string' && !Number.isNaN(Date.parse(value))
       ? new Date(value).toLocaleString() : '—';
     const assistant = getAssistantContext();
@@ -65,6 +89,23 @@
       !!ownerKey && loadedAccountId === ownerKey);
     let stageSummary=$derived(stageProgressSummary(order?.stages));
     let mayEditSpecification = $derived(currentOrderVisible && !!draftSheet && mayEditOrderSheet($currentUser, draftSheet));
+    let flowPermissions=$derived({
+      mayEdit: mayEditSpecification,
+      mayReview: can($currentUser,'reviewQueue'),
+      mayDispatch: can($currentUser,'markDispatched'),
+      mayControlAnyStage: ['CONFIRMED','IN_PRODUCTION'].includes(normaliseStatus(order?.status)) &&
+        (Array.isArray(order?.stages) ? order.stages : []).some((row:any)=>mayControlStage($currentUser,row.station))
+    });
+    function runFlowAction(action:'edit'|'review'|'stages'|'dispatch'|'archive'){
+      if(action==='edit')void goto(base + workspaceUrl(orderId,'details'));
+      else if(action==='review')void goto(`${base}/orders/review`);
+      else if(action==='dispatch')dispatchOrder();
+      else if(action==='archive')archiveOrder();
+      else {
+        activeTab='stages';
+        requestAnimationFrame(()=>document.querySelector('.stages-grid')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}));
+      }
+    }
     let mayAskOrderAssistant=$derived(!!$currentUser&&currentOrderVisible&&(
       (['RD','Boss','HeadOfProduction'].includes($currentUser.role??'')&&
         ['DRAFT','PENDING_REVIEW','CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD']
@@ -265,6 +306,12 @@
                 fileCount = count;
                 loadedOrderId = requestedId;
                 loadedAccountId = requestedAccount;
+                // Round 6 · Ctrl/⌘ + K lists this order under "Recently opened" for this user on this device.
+                try {
+                    rememberRecentOrder(localStorage, $currentUser?.id, {
+                        id: requestedId, title: [order?.po_number, order?.title].filter(Boolean).join(' · ') || requestedId
+                    });
+                } catch { /* storage unavailable */ }
             } else {
                 order = null;
                 fileCount = null;
@@ -346,6 +393,8 @@
     onDestroy(() => { requestVersion++; consumptionVersion++; routeController.abort(); });
 </script>
 
+<svelte:window onkeydown={handleStepKeys} />
+
 {#snippet orderDetailAssistant(toolId: string)}
   {#if toolId === 'review' && mayAskOrderAssistant}
     <div class="detail-assistant-tools">
@@ -395,11 +444,11 @@
         {/if}
         <header class="order-header">
             <div class="header-left">
-                <Button variant="ghost" onclick={() => goto(`${base}/orders`)}>
+                <Button variant="ghost" onclick={() => goto(`${base}${listHref}`)}>
                     ← {$t("common.back")}
                 </Button>
                 <div class="header-info">
-                    <h1 class="order-title">{order.title}</h1>
+                    <h1 class="order-title" style:view-transition-name={ORDER_MORPH_NAME}>{order.title}</h1>
                     <OrderBadges {order} size="md" />
                 </div>
             </div>
@@ -437,6 +486,23 @@
                 {/if}
             </div>
         </header>
+
+        {#if neighbours}
+            <!-- Round 7 · previous / next order of the list this one was opened from. -->
+            <nav class="rf-order-step" aria-label={$t('orderStep.label', { default: 'Orders in this list' })}>
+                <button type="button" disabled={!neighbours.prev} onclick={() => stepTo(neighbours?.prev ?? null)} data-testid="order-step-prev">
+                    <span aria-hidden="true">‹</span> {$t('orderStep.prev', { default: 'Previous' })}
+                </button>
+                <span class="rf-order-step__pos">{$t('orderStep.position', { values: { n: neighbours.index + 1, total: neighbours.total }, default: `${neighbours.index + 1} of ${neighbours.total}` })}</span>
+                <button type="button" disabled={!neighbours.next} onclick={() => stepTo(neighbours?.next ?? null)} data-testid="order-step-next">
+                    {$t('orderStep.next', { default: 'Next' })} <span aria-hidden="true">›</span>
+                </button>
+                <kbd class="rf-order-step__hint" aria-hidden="true">[ ]</kbd>
+            </nav>
+        {/if}
+
+        <!-- Round 5 · where the order is in its life and the one next step. -->
+        <OrderFlowStrip status={order.status} stages={order.stages} busy={lifecycleBusy} can={flowPermissions} onAction={runFlowAction} />
 
         <!-- Round 2 · the order's route, CAD → Delivery, always visible under the header. -->
         {#if Array.isArray(order.stages) && order.stages.length > 0}
@@ -947,4 +1013,13 @@
     .stage-status-select {background:var(--bg-2);color:var(--ink-primary);border-color:var(--border);min-height:44px;border-radius:var(--radius-sm)}
     @media(max-width:670px){.order-detail-container {padding:var(--space-sm) 0 var(--space-xl)}.order-header {padding:var(--space-md)}.entry-link {min-width:0}.header-actions :global(button) {flex:1 1 auto}}
     @media(prefers-reduced-transparency:reduce){.order-header {background:var(--bg-1)}}
+    /* Round 7 · order stepper */
+    .rf-order-step { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; font-size: var(--text-sm); color: var(--ink-secondary); }
+    .rf-order-step button { min-height: 32px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 4px); background: var(--bg-1); color: var(--ink-primary); cursor: pointer; transition: transform var(--motion-xs, 90ms) var(--ease-machine, ease-out), background-color var(--motion-sm, 140ms) ease-out; }
+    .rf-order-step button:hover:not(:disabled) { background: var(--bg-2); }
+    .rf-order-step button:active:not(:disabled) { transform: translateY(1px); }
+    .rf-order-step button:disabled { opacity: .45; cursor: default; }
+    .rf-order-step__pos { font-variant-numeric: tabular-nums; min-width: 5ch; text-align: center; }
+    .rf-order-step__hint { margin-left: auto; font-size: var(--text-xs); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; }
+    @media (max-width: 640px) { .rf-order-step__hint { display: none; } }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { IconName } from './icons';
   import Icon from './Icon.svelte';
+  import { countUp } from './motion';
 
   let {
     title = '',
@@ -29,14 +30,14 @@
   const colors = $derived(toneMap[tone]);
 </script>
 
-<div class="rf-kpi">
+<div class="rf-kpi rf-power-on">
   {#if icon}
     <div class="rf-kpi__icon" style="background:{colors.bg};color:{colors.fg}">
       <Icon name={icon} size="md" />
     </div>
   {/if}
   <div class="rf-kpi__body">
-    <div class="rf-kpi__value" style="font-variant-numeric:tabular-nums">{value}</div>
+    <div class="rf-kpi__value" style="font-variant-numeric:tabular-nums" use:countUp={value}>{value}</div>
     <div class="rf-kpi__title">{title}</div>
     {#if trend && trendValue}
       <div class="rf-kpi__trend" data-trend={trend}>

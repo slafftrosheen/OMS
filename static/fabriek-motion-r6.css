@@ -1,0 +1,23 @@
+/* Réclame Fabriek OMS · motion R6 — loaded after fabriek-motion-r5.css.
+   Decisive, no bounce. Every rule has a reduced-motion and data-motion="off" fallback. */
+
+/* 1. ORDER MORPH — the clicked order title flies from its list row into the order page header */
+::view-transition-group(rf-order-title){animation-duration:var(--motion-lg,280ms);animation-timing-function:var(--ease-carriage,cubic-bezier(.3,0,0,1))}
+::view-transition-old(rf-order-title),::view-transition-new(rf-order-title){height:100%;object-fit:none;object-position:left center}
+::view-transition-old(rf-order-title){animation:rf-morph-out var(--motion-md,200ms) ease-out both}
+::view-transition-new(rf-order-title){animation:rf-morph-in var(--motion-lg,280ms) ease-out both}
+@keyframes rf-morph-out{to{opacity:0}}
+@keyframes rf-morph-in{from{opacity:0}}
+
+/* 2. KEYBOARD FOCUS on order rows rides the rail (j / k moves it) */
+.orders-table tbody tr[data-kb-focus]{box-shadow:inset 3px 0 0 var(--live,var(--ink-primary));background:var(--bg-2)}
+.orders-table tbody tr[data-kb-focus] td:first-child{transition:box-shadow var(--motion-sm,120ms) ease-out}
+
+/* 3. QUICK SEARCH dialog drops on the gantry */
+.search-modal{animation:rf-gantry-drop var(--motion-md,200ms) var(--ease-carriage,ease-out) both}
+@keyframes rf-gantry-drop{from{transform:translateY(-8px);opacity:0}}
+
+@media (prefers-reduced-motion: reduce){
+  ::view-transition-group(rf-order-title),::view-transition-old(rf-order-title),::view-transition-new(rf-order-title){animation:none}
+  .search-modal{animation:none}
+}

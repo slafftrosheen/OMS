@@ -3,7 +3,7 @@
   import { onMount, getContext } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { base } from '$app/paths';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto, replaceState } from '$app/navigation';
 
   import Input from '$lib/ui/Input.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
@@ -28,6 +28,10 @@
   import Icon from '$lib/ui/Icon.svelte';
   import { getAssistantContext } from '$lib/assistant/context';
   import { orderListScreenContext } from '$lib/assistant/visible-context';
+  import { markOrderMorph, stagger } from '$lib/ui/motion';
+  import { listKeyAction, nextListIndex } from '$lib/order/list-keys';
+  import { mergeListSearch, parseListView, rememberOrderSequence } from '$lib/order/list-view-state';
+  import { page as appPage } from '$app/state';
 
   const assistant = getAssistantContext();
 
@@ -151,8 +155,27 @@
 
   let totalPages = $derived(Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage)));
   let paginatedRows = $derived((visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
-  $effect(() => { void qLower; void statusFilter; void itemsPerPage; currentPage = 1; });
-  $effect(() => { if (currentPage > totalPages) currentPage = totalPages; });
+  // Round 7 · a filter change goes back to page 1, but restoring a saved view from the URL does not.
+  let filterKey = $derived(`${qLower}|${statusFilter}|${itemsPerPage}`);
+  let lastFilterKey = '';
+  $effect(() => { const key = filterKey; if (lastFilterKey && key !== lastFilterKey) currentPage = 1; lastFilterKey = key; });
+
+  // Round 7 · the view lives in the URL (Back and refresh land here again) and the
+  // filtered order ids are kept for this tab so an order page can step to its neighbours.
+  let viewReady = $state(false);
+  $effect(() => {
+    if (!viewReady) return;
+    const search = mergeListSearch(location.search, { q, status: statusFilter, sort: sortKey, asc: sortAsc, page: currentPage });
+    if (search !== location.search) {
+      try { replaceState(`${location.pathname}${search}${location.hash}`, appPage.state); } catch { /* router not ready */ }
+    }
+    if (hasLoadedOnce) {
+      const ids = (visible || []).map(row => row.id);
+      try { rememberOrderSequence(sessionStorage, ids, `/orders${search}`); } catch { /* storage blocked */ }
+    }
+  });
+  // Clamp only once data is in, so a restored ?page=3 survives the first empty render.
+  $effect(() => { if (hasLoadedOnce && currentPage > totalPages) currentPage = totalPages; });
 
   let isAdmin = $derived(
     $currentUser?.role === 'RD' ||
@@ -180,6 +203,31 @@
     }
   }
 
+  // Round 6 · J / K move through the visible rows, Enter or O opens, E expands, / jumps to the filter.
+  let kbIndex = $state(-1);
+  let tableBody: HTMLTableSectionElement | undefined = $state();
+  $effect(() => { void paginatedRows.length; if (kbIndex >= paginatedRows.length) kbIndex = paginatedRows.length - 1; });
+  function handleListKeys(event: KeyboardEvent) {
+    const action = listKeyAction(event, kbIndex >= 0 && kbIndex < paginatedRows.length);
+    if (!action) return;
+    event.preventDefault();
+    if (action.type === 'search') {
+      (document.querySelector('.orders-card .search-box input') as HTMLInputElement | null)?.focus();
+      return;
+    }
+    if (action.type === 'move') {
+      kbIndex = nextListIndex(kbIndex, action.delta, paginatedRows.length);
+      const row = tableBody?.querySelectorAll<HTMLElement>('tr.order-row')[kbIndex];
+      row?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    const row = paginatedRows[kbIndex];
+    if (!row) return;
+    if (action.type === 'expand') { toggleExpand(row.id); return; }
+    markOrderMorph(tableBody?.querySelectorAll('tr.order-row')[kbIndex]?.querySelector('a') ?? null);
+    void goto(row.href);
+  }
+
   function createNewOrder() {
     goto(`${base}/orders/new`);
   }
@@ -205,7 +253,15 @@
     downloadCSV(`orders-export-${new Date().toISOString().split('T')[0]}.csv`, toCSV(rows, ['PO', 'Client', 'Title', 'Due Date', 'Loading Date']));
   }
 
-  // Load orders on mount (Svelte 5 correct pattern for initialization)
+  afterNavigate(({ to }) => {
+    if (!to || to.url.pathname.replace(/\/$/, '') !== `${base}/orders`) return;
+    const linked = parseListView(to.url.searchParams);
+    q = linked.q; statusFilter = linked.status; sortKey = linked.sort; sortAsc = linked.asc;
+    lastFilterKey = `${linked.q.toLowerCase()}|${linked.status}|${itemsPerPage}`;
+    currentPage = linked.page;
+    viewReady = true;
+  });
+
   onMount(() => {
     void refresh();
     return assistant.register({
@@ -225,6 +281,8 @@
     });
   });
 </script>
+
+<svelte:window onkeydown={handleListKeys} />
 
 <ErrorBoundary componentName="Orders Page">
 {#if errorMessage}
@@ -337,9 +395,10 @@
             <th style="width:80px">{$t('common.actions')}</th>
           </tr>
         </thead>
-        <tbody>
-          {#each paginatedRows as row (row.id)}
-            <tr class="order-row rowi" class:expanded={row.expanded} class:is-draft={row.isDraft}>
+        <tbody use:stagger bind:this={tableBody}>
+          {#each paginatedRows as row, rowIndex (row.id)}
+            <tr class="order-row rowi" class:expanded={row.expanded} class:is-draft={row.isDraft}
+              data-kb-focus={rowIndex === kbIndex ? '' : undefined} aria-current={rowIndex === kbIndex ? 'true' : undefined}>
               <td>
                 <button
                   class="expand-btn"
@@ -354,6 +413,7 @@
                   <a
                     href={row.href}
                     class="order-link"
+                    onclick={(e) => markOrderMorph(e.currentTarget)}
                     draggable="true"
                     ondragstart={(e) => {
                       e.dataTransfer?.setData('text/plain', row.id);

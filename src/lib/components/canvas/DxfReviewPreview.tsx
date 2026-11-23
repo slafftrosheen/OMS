@@ -14,6 +14,7 @@ interface DxfReviewPreviewProps {
 export function DxfReviewPreview({ preview, layerLengths, formatLength }: DxfReviewPreviewProps) {
   const { label } = useCadText();
   const [filter, setFilter] = useState('');
+  const [showTravel, setShowTravel] = useState(false);
   const layer = preview.layers.find(item => item.name === filter);
   const length = layer ? layerLengths[layer.name] : undefined;
   const visible = layer ? [layer] : [...preview.layers].sort((a, b) => Number(sharedLayer(a.name)) - Number(sharedLayer(b.name)));
@@ -28,6 +29,11 @@ export function DxfReviewPreview({ preview, layerLengths, formatLength }: DxfRev
     {length !== undefined && <dl className="drawing-cad-values" aria-live="polite">
       <dt>{label('dxfCutLength')}</dt><dd>{formatLength(length)}</dd>
     </dl>}
+    {preview.travel && preview.travel.moves > 0 && <label className="drawing-cad-check">
+      <input type="checkbox" checked={showTravel} onChange={event => setShowTravel(event.target.checked)} data-testid="drawing-dxf-travel-toggle" />
+      <span>{label('dxfTravelShow')} ({preview.travel.moves})</span>
+    </label>}
+    {showTravel && preview.travel && <p className="drawing-help">{label('dxfTravelLegend')}</p>}
     <svg role="img" aria-label={label('dxfPreviewTitle')} viewBox={preview.viewBox} fill="none" strokeLinecap="round" strokeLinejoin="round">
       {visible.map(item => {
         const shared = sharedLayer(item.name), width = shared ? 2.5 : 1.5;
@@ -39,6 +45,11 @@ export function DxfReviewPreview({ preview, layerLengths, formatLength }: DxfRev
           </React.Fragment>)}
         </g>;
       })}
+      {showTravel && preview.travel && <g className="drawing-dxf-travel" data-testid="drawing-dxf-travel">
+        <path d={preview.travel.path} vectorEffect="non-scaling-stroke" />
+        <circle cx={preview.travel.start.x} cy={preview.travel.start.y} className="drawing-dxf-travel__start"
+          r={Math.max(...preview.viewBox.split(' ').slice(2).map(Number)) * 0.012} />
+      </g>}
     </svg>
   </section>;
 }

@@ -16,9 +16,18 @@ export function resolvePlace(pathname: string, search: string): Place {
   return pinned === 'floor' || pinned === 'office' ? pinned : placeForPath(pathname);
 }
 
+/** Inside the Telegram Mini App the chat's light/dark scheme decides the place,
+ * unless the URL pins one. Only affects the "By place" theme, like every place. */
+export function telegramPlace(pathname: string, search: string, scheme: string | undefined): Place {
+  const pinned = new URLSearchParams(search).get('place');
+  if (pinned === 'floor' || pinned === 'office') return pinned;
+  return scheme === 'dark' ? 'floor' : scheme === 'light' ? 'office' : placeForPath(pathname);
+}
+
 export function applyPlace(pathname: string, search: string) {
   if (typeof document !== 'undefined') {
-    document.documentElement.dataset.place = resolvePlace(pathname, search);
+    const scheme = document.documentElement.dataset.tgScheme;
+    document.documentElement.dataset.place = scheme ? telegramPlace(pathname, search, scheme) : resolvePlace(pathname, search);
   }
 }
 

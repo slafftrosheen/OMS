@@ -298,12 +298,12 @@ for (const mode of ['idea', 'order']) {
     await rows.nth(0).locator('.drawing-object-select').click();
     await rows.nth(1).locator('.drawing-object-select').click({ modifiers: ['Shift'] });
     await page.locator('[data-drawing-menu="object"] > summary').click();
-    await page.getByRole('button', { name: 'Combine · Ctrl/⌘ L', exact: true }).click();
+    await page.getByRole('button', { name: 'Combine', exact: true }).click();
     await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-bezier').length).toBe(1);
     const combined = (await scene(page)).shapes.find((s: any) => s.type === 'cad-bezier');
     expect(combined.props.contours.length).toBe(2);
     await page.locator('[data-drawing-menu="object"] > summary').click();
-    await page.getByRole('button', { name: 'Break apart · Ctrl/⌘ K', exact: true }).click();
+    await page.getByRole('button', { name: 'Break apart', exact: true }).click();
     await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-bezier').length).toBe(2);
     await page.getByTestId('drawing-undo').click();
     await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-bezier').length).toBe(1);

@@ -181,7 +181,8 @@
       pagePoint: (point:{x:number;y:number}) => editor.pageToScreen(point),
       bounds: (id:string) => { const bounds=editor.getShapePageBounds(id); return bounds ? {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h} : null; },
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
-      emptyArea: () => { editor.setCamera({ x: -2400, y: 0, z: 1 }); },
+      // Order drawings carry production pockets to the right of the form; stay clear of every shape.
+      emptyArea: () => { const bounds = editor.getCurrentPageBounds(); editor.setCamera({ x: -Math.max(2400, (bounds?.maxX ?? 0) + 240), y: 0, z: 1 }); },
       dimensionSample: (width: number | null, ellipseHeight?: number) => {
         const id = 'shape:dimension-sample';
         if (width === null) { editor.deleteShapes([id]); return; }

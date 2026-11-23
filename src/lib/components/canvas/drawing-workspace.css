@@ -453,3 +453,259 @@
 .drawing-clipart-dimensions label { display: grid; gap: 4px; }
 .drawing-clipart-dimensions input { width: 100%; min-height: 30px; min-width: 0; }
 .drawing-clipart-form .drawing-clipart-insert { background: var(--brand-soft); color: var(--brand); }
+
+/* R5 · Nest on sheet */
+.drawing-nest { display: grid; gap: 8px; }
+.drawing-nest-form { display: grid; gap: 8px; }
+.drawing-nest-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.drawing-nest-actions button { border: 1px solid var(--border); background: var(--bg-2); color: var(--ink-primary); padding: 4px 10px; min-height: 32px; border-radius: 3px; }
+.drawing-nest-actions button.is-primary:not(:disabled) { background: var(--ink-primary); color: var(--bg-0); border-color: var(--ink-primary); }
+.drawing-nest-actions button:disabled { opacity: .5; }
+.drawing-nest-result { display: grid; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.drawing-nest-preview { width: 100%; height: auto; max-height: 220px; border: 1px solid var(--border); background: var(--bg-0); }
+.drawing-nest-sheet { fill: var(--bg-1); stroke: var(--ink-secondary); }
+.drawing-nest-margin { fill: none; stroke: var(--ink-secondary); stroke-dasharray: 2 3; }
+.drawing-nest-part { fill: color-mix(in srgb, var(--rf-cv-select, #2F64B0) 22%, transparent); stroke: var(--rf-cv-select, #2F64B0);
+  animation: rf-nest-drop 280ms var(--ease-machine, cubic-bezier(.2,0,0,1)) both; animation-delay: calc(min(var(--i, 0), 40) * 18ms); transform-box: fill-box; transform-origin: center; }
+.drawing-nest-part.is-turned { stroke-dasharray: 6 2; }
+@keyframes rf-nest-drop { from { opacity: 0; transform: translateY(-12%); } to { opacity: 1; transform: none; } }
+.drawing-nest-meter { display: inline-block; vertical-align: middle; width: 56px; height: 6px; margin-right: 6px; border-radius: 1px;
+  background: linear-gradient(90deg, var(--ink-primary) calc(var(--u, 0) * 100%), var(--bg-3, var(--border)) 0); }
+@media (prefers-reduced-motion: reduce) { .drawing-nest-part { animation: none; } }
+
+/* Round 6 · machine time estimate inside the DXF review */
+.drawing-cut-estimate { margin: 8px 0; border-top: 1px solid var(--border); padding-top: 8px; }
+.drawing-cut-estimate > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; font-weight: 600; }
+.drawing-cut-estimate__chip { font: 600 11px/1 var(--font-mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; padding: 3px 6px;
+  border-radius: 2px; background: var(--ink-primary); color: var(--bg-0); animation: rf-cut-chip .32s cubic-bezier(.2,.8,.2,1) both; }
+.drawing-cut-estimate__reset { border: 1px solid var(--border); background: var(--bg-2); color: var(--ink-primary); min-height: 32px; border-radius: 3px; }
+.drawing-cut-estimate__table { width: 100%; border-collapse: collapse; font-size: 11px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+.drawing-cut-estimate__table th, .drawing-cut-estimate__table td { padding: 4px; border-bottom: 1px solid var(--border); text-align: right; }
+.drawing-cut-estimate__table th[scope="row"], .drawing-cut-estimate__table th:first-child { text-align: left; overflow-wrap: anywhere; font-weight: 500; }
+.drawing-cut-estimate__table select { max-width: 100%; font-size: 11px; }
+.drawing-cut-estimate__table tbody tr { animation: rf-cut-row .24s ease-out both; animation-delay: calc(var(--i, 0) * 40ms); }
+.drawing-cut-estimate__table tr.is-skipped { color: var(--ink-secondary); }
+.drawing-cut-estimate__table tr.is-skipped th { text-decoration: line-through; }
+.drawing-cut-estimate__totals dd strong { font-size: 13px; }
+.drawing-nest-material { border-top: 1px dashed var(--border); padding-top: 6px; }
+@keyframes rf-cut-chip { from { transform: translateX(6px); opacity: 0; } }
+@keyframes rf-cut-row { from { transform: translateY(3px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .drawing-cut-estimate__chip, .drawing-cut-estimate__table tbody tr { animation: none; } }
+html[data-motion="off"] .drawing-cut-estimate__chip, html[data-motion="off"] .drawing-cut-estimate__table tbody tr { animation: none; }
+
+/* Round 7 · tool travel overlay and cut-order saving */
+.drawing-dxf-travel path { fill: none; stroke: var(--rf-cv-select, #2F64B0); stroke-width: 1; stroke-dasharray: 4 3; opacity: .85;
+  animation: rf-travel-march 1.2s linear infinite; }
+.drawing-dxf-travel__start { fill: var(--rf-cv-snap, #dc2626); animation: rf-travel-start .4s cubic-bezier(.2,.8,.2,1) both; transform-box: fill-box; transform-origin: center; }
+.drawing-cad-saving { color: var(--success, #2f7d4f); font-weight: 650; }
+@keyframes rf-travel-march { to { stroke-dashoffset: -14; } }
+@keyframes rf-travel-start { from { transform: scale(0); } }
+@media (prefers-reduced-motion: reduce) { .drawing-dxf-travel path, .drawing-dxf-travel__start { animation: none; } }
+html[data-motion="off"] .drawing-dxf-travel path, html[data-motion="off"] .drawing-dxf-travel__start { animation: none; }
+
+/* ── R8 command chrome: one command map drives menus, toolbox, Quick access and keys ── */
+.drawing-menu-popover--list { width: 300px; gap: 0; overflow: visible; max-height: none; padding: 4px 0; }
+.drawing-menu-popover--list.drawing-menu-popover--wide { width: 320px; }
+.drawing-menu-popover--list > hr, .drawing-submenu-popover > hr { margin: 4px 0; }
+.drawing-workspace .drawing-menu-item {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  width: 100%; min-height: 28px; padding: 4px 12px; border: 0; border-radius: 0; background: transparent; text-align: left; white-space: nowrap; cursor: pointer;
+}
+.drawing-workspace .drawing-menu-item:hover:not(:disabled), .drawing-workspace .drawing-menu-item:focus-visible { background: var(--brand-soft); color: var(--brand); }
+.drawing-workspace .drawing-menu-item[aria-pressed] { background: transparent; color: var(--ink-primary); }
+.drawing-workspace .drawing-menu-item[aria-pressed="true"] .drawing-menu-item-icon { color: var(--brand); }
+.drawing-menu-item-icon { display: grid; place-items: center; width: 20px; height: 20px; color: var(--ink-secondary); }
+.drawing-menu-item-label { overflow: hidden; text-overflow: ellipsis; }
+.drawing-menu-item kbd { font: 500 11px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-tertiary); padding-left: 12px; }
+.drawing-menu-item:disabled kbd { opacity: .6; }
+.drawing-menu-chevron { display: grid; place-items: center; color: var(--ink-tertiary); }
+.drawing-submenu { position: relative; }
+.drawing-submenu > summary { list-style: none; }
+.drawing-submenu > summary::-webkit-details-marker { display: none; }
+.drawing-submenu[open] > summary { background: var(--brand-soft); color: var(--brand); }
+.drawing-submenu > summary[aria-disabled="true"] { color: var(--ink-tertiary); }
+.drawing-submenu-popover {
+  position: absolute; top: -5px; left: calc(100% - 2px); width: 290px; padding: 4px 0; z-index: 2;
+  background: var(--bg-1); border: 1px solid var(--border); border-radius: 2px; box-shadow: var(--glass-shadow-lg);
+  display: flex; flex-direction: column; animation: drawing-menu-in .12s ease-out;
+}
+.drawing-menu:nth-last-child(-n+3) .drawing-submenu-popover { left: auto; right: calc(100% - 2px); }
+.drawing-menu[open] > .drawing-menu-popover { animation: drawing-menu-in .12s ease-out; transform-origin: top left; }
+@keyframes drawing-menu-in { from { opacity: 0; transform: translateY(-3px) scale(.985); } to { opacity: 1; transform: none; } }
+.drawing-menu-embed { padding: 4px 8px 6px 42px; border-block: 1px dashed var(--border); margin-block: 2px; background: var(--bg-0); }
+.drawing-menu-embed .drawing-export-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border: 0; padding: 0; margin: 0; }
+.drawing-menu-embed .drawing-export-options label { display: grid; gap: 2px; font-size: 11px; color: var(--ink-secondary); }
+.drawing-menu-embed .drawing-export-actions { display: flex; gap: 6px; margin-top: 6px; }
+.drawing-menu-embed .drawing-export-actions button { flex: 1; border: 1px solid var(--border); background: var(--bg-1); text-align: center; padding: 6px; min-height: 30px; border-radius: 2px; }
+.drawing-menu-embed p { margin: 4px 0; }
+.drawing-menu-embed--toolDirectory { padding: 0; max-height: min(48vh, 420px); overflow: auto; background: transparent; border-bottom: 0; }
+.drawing-menu-embed--toolDirectory button { width: 100%; text-align: left; background: transparent; border: 0; padding: 4px 12px; min-height: 28px; }
+.drawing-menu-embed--toolDirectory kbd { font: 500 11px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-tertiary); }
+@container (max-width: 520px) {
+  .drawing-submenu-popover, .drawing-menu:nth-last-child(-n+3) .drawing-submenu-popover { position: static; width: auto; box-shadow: none; border: 0; border-left: 2px solid var(--brand-soft); margin-left: 20px; animation: none; }
+  .drawing-menu-popover--list { max-height: 70dvh; overflow: auto; }
+  .drawing-menu-embed { padding-left: 8px; }
+}
+@media (pointer: coarse) { .drawing-workspace .drawing-menu-item { min-height: 44px; } }
+
+/* Standard bar: Quick access field on the right, like a command search box */
+.drawing-quick-trigger {
+  margin-inline-start: auto; display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 260px; flex: 0 1 260px;
+  height: 26px; padding: 0 8px; border: 1px solid var(--border); border-radius: 13px; background: var(--bg-0); color: var(--ink-secondary); font-size: 12px;
+}
+.drawing-quick-trigger span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.drawing-quick-trigger kbd { font: 500 10px/1 var(--font-mono, ui-monospace, monospace); padding: 2px 4px; border: 1px solid var(--border); border-radius: 3px; }
+@container (max-width: 880px) { .drawing-quick-trigger span, .drawing-quick-trigger kbd { display: none; } .drawing-quick-trigger { flex: none; width: 32px; padding: 0; justify-content: center; } }
+
+/* Quick access and keyboard sheet */
+.drawing-quick-backdrop { position: absolute; inset: 0; z-index: 2147483000; display: grid; justify-items: center; align-items: start; padding-top: 10vh; background: color-mix(in srgb, var(--bg-0) 45%, transparent); backdrop-filter: blur(2px); animation: drawing-fade .14s ease-out; }
+.drawing-quick { width: min(620px, calc(100% - 24px)); max-height: min(72vh, 640px); display: flex; flex-direction: column; background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--glass-shadow-lg); overflow: hidden; animation: drawing-quick-in .16s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes drawing-quick-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes drawing-fade { from { opacity: 0; } to { opacity: 1; } }
+.drawing-quick-head { display: flex; align-items: center; gap: 4px; padding: 6px; border-bottom: 1px solid var(--border); }
+.drawing-quick-tabs { display: flex; gap: 2px; flex: 1; }
+.drawing-quick-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; font-size: 12px; }
+.drawing-quick-tabs button[aria-selected="true"] { background: var(--brand-soft); color: var(--brand); }
+.drawing-quick-tabs kbd, .drawing-quick kbd { font: 500 11px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-tertiary); padding: 2px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-0); }
+.drawing-quick-close { border: 0; background: transparent; padding: 6px; border-radius: 4px; display: grid; place-items: center; }
+.drawing-quick-input { margin: 8px; padding: 10px 12px; font-size: 15px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-0); color: var(--ink-primary); }
+.drawing-quick-input:focus-visible { outline: 2px solid var(--brand); outline-offset: -1px; }
+.drawing-quick-list { list-style: none; margin: 0; padding: 0 6px 6px; overflow: auto; flex: 1; }
+.drawing-quick-list li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.drawing-quick-list li.is-active { background: var(--brand-soft); color: var(--brand); }
+.drawing-quick-list li[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.drawing-quick-icon { display: grid; place-items: center; color: var(--ink-secondary); }
+.drawing-quick-label { display: flex; flex-direction: column; min-width: 0; }
+.drawing-quick-label small { color: var(--ink-tertiary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawing-quick-empty { color: var(--ink-secondary); justify-content: center; cursor: default !important; }
+.drawing-quick-foot { padding: 6px 12px; font-size: 11px; color: var(--ink-tertiary); border-top: 1px solid var(--border); }
+.drawing-quick-sheet { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; padding: 12px 16px; overflow: auto; }
+.drawing-quick-sheet h3 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-secondary); }
+.drawing-quick-sheet dl { margin: 0; display: grid; gap: 2px; }
+.drawing-quick-sheet dl > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dotted var(--border); font-size: 12px; }
+.drawing-quick-sheet dt { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.drawing-quick-sheet dt small { color: var(--ink-tertiary); margin-left: 4px; font-size: 10px; }
+.drawing-quick-sheet dd { margin: 0; flex: none; }
+@container (max-width: 640px) { .drawing-quick-sheet { grid-template-columns: 1fr; } }
+
+/* Status bar: cursor · hint · object · fill · outline */
+.drawing-status-cursor { flex: none; min-width: 112px; font: 500 11px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-secondary); white-space: nowrap; }
+.drawing-status-object { flex: 0 1 220px; min-width: 0; font-size: 11px; color: var(--ink-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.drawing-workspace .drawing-status-paint { display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 24px; padding: 2px 6px; border: 1px solid transparent; background: transparent; border-radius: 2px; font-size: 11px; }
+.drawing-workspace .drawing-status-paint:hover:not(:disabled) { border-color: var(--border); }
+.drawing-status-chip { width: 16px; height: 16px; flex: none; border: 1px solid var(--border); background: var(--bg-0); }
+.drawing-status-paint--outline .drawing-status-chip { border-width: 3px; background: transparent; }
+.drawing-status-chip.is-none { background: linear-gradient(to top right, transparent calc(50% - .75px), var(--error, #c33) calc(50% - .75px) calc(50% + .75px), transparent calc(50% + .75px)), var(--bg-0); }
+.drawing-status-chip.is-mixed { background: conic-gradient(#d33 0 25%, #3a6 0 50%, #36c 0 75%, #fc3 0); }
+.drawing-status-paint-text { font-family: var(--font-mono, ui-monospace, monospace); color: var(--ink-secondary); }
+@container (max-width: 1100px) { .drawing-status-paint-text { display: none; } .drawing-status-object { flex-basis: 140px; } }
+@container (max-width: 880px) { .drawing-status-cursor, .drawing-status-object { display: none; } }
+
+/* Palette: "no colour" well at the top, as in desktop vector suites */
+.drawing-swatches .drawing-swatch-none { display: grid; place-items: center; background: var(--bg-0); color: var(--error, #c33); }
+.drawing-swatches .drawing-swatch-none svg { width: 16px; height: 16px; }
+
+/* Rulers can be hidden (View › Rulers, Alt+Shift+R) */
+.drawing-workspace.no-rulers .drawing-page { grid-template-columns: 0 minmax(0, 1fr); grid-template-rows: 0 minmax(0, 1fr); }
+.drawing-workspace.no-rulers .drawing-ruler, .drawing-workspace.no-rulers .drawing-ruler-origin { visibility: hidden; }
+
+/* Toolbox: flyout corner marker + section rhythm */
+.drawing-tool-section[aria-label] { position: relative; }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawing-menu[open] > .drawing-menu-popover, .drawing-submenu-popover, .drawing-quick, .drawing-quick-backdrop { animation: none; }
+}
+.drawing-menu-popover--list:not(:has(.drawing-submenu)) { max-height: min(80dvh, 760px); overflow: auto; }
+
+/* ── R8.1 motion language ─────────────────────────────────────────────
+   Short (120–240 ms), transform/opacity only, ease-out for things arriving,
+   a tiny spring for things you pressed. All of it switches off under
+   prefers-reduced-motion (bottom of this block). */
+.drawing-workspace { --m-fast: 120ms; --m-base: 180ms; --m-slow: 240ms; --m-out: cubic-bezier(.2,.8,.2,1); --m-spring: cubic-bezier(.3,1.4,.5,1); }
+
+/* Workspace reflow: docker open/close and rulers ease instead of jumping */
+.drawing-workspace { transition: grid-template-columns var(--m-slow) var(--m-out); }
+.drawing-page { transition: grid-template-columns var(--m-base) var(--m-out), grid-template-rows var(--m-base) var(--m-out); }
+.drawing-ruler, .drawing-ruler-origin { transition: opacity var(--m-base) var(--m-out); }
+.drawing-workspace.no-rulers .drawing-ruler, .drawing-workspace.no-rulers .drawing-ruler-origin { opacity: 0; }
+
+/* Buttons everywhere: colour eases, press dips */
+.drawing-workspace button, .drawing-workspace summary { transition: background-color var(--m-fast) var(--m-out), color var(--m-fast) var(--m-out), border-color var(--m-fast) var(--m-out), box-shadow var(--m-fast) var(--m-out), transform var(--m-fast) var(--m-out); }
+.drawing-workspace .drawing-button:active:not(:disabled) { transform: scale(.92); }
+
+/* Toolbox: active tool gets an accent edge that grows in; flyout corner nudges on hover */
+.drawing-tools .drawing-tool-group { position: relative; }
+.drawing-tools .drawing-tool-group > .drawing-button::before {
+  content: ""; position: absolute; left: -4px; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--brand);
+  transform: scaleY(0); transition: transform var(--m-base) var(--m-spring);
+}
+.drawing-tools .drawing-tool-group > .drawing-button[aria-pressed="true"]::before { transform: scaleY(1); }
+.drawing-tools .drawing-tool-group > .drawing-button { position: relative; }
+.drawing-tool-expand { transition: transform var(--m-fast) var(--m-out), color var(--m-fast) var(--m-out); }
+.drawing-tool-group:hover .drawing-tool-expand, .drawing-tool-expand[aria-expanded="true"] { transform: translateX(2px); color: var(--brand); }
+.drawing-tool-flyout { transform-origin: left top; animation: drawing-flyout-in var(--m-base) var(--m-out); }
+.drawing-tool-flyout button { animation: drawing-item-in var(--m-base) var(--m-out) both; }
+.drawing-tool-flyout button:nth-of-type(2) { animation-delay: 20ms; } .drawing-tool-flyout button:nth-of-type(3) { animation-delay: 40ms; }
+.drawing-tool-flyout button:nth-of-type(4) { animation-delay: 60ms; } .drawing-tool-flyout button:nth-of-type(n+5) { animation-delay: 80ms; }
+@keyframes drawing-flyout-in { from { opacity: 0; transform: translateX(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes drawing-item-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+
+/* Menus: rows slide their accent in; submenus open from the row they belong to */
+.drawing-workspace .drawing-menu-item { box-shadow: inset 0 0 0 var(--brand); }
+.drawing-workspace .drawing-menu-item:hover:not(:disabled), .drawing-workspace .drawing-menu-item:focus-visible { box-shadow: inset 3px 0 0 var(--brand); }
+.drawing-menu > summary { position: relative; }
+.drawing-menu > summary::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 3px; height: 2px; border-radius: 1px; background: var(--brand); transform: scaleX(0); transition: transform var(--m-base) var(--m-out); }
+.drawing-menu > summary:hover::after, .drawing-menu[open] > summary::after { transform: scaleX(1); }
+.drawing-submenu-popover { transform-origin: left top; }
+.drawing-menu-popover--list > .drawing-menu-item, .drawing-menu-popover--list > details { animation: drawing-item-in var(--m-base) var(--m-out) both; }
+
+/* Dockers: tab marker slides; content is animated from script on switch */
+.drawing-docker-tab { position: relative; }
+.drawing-docker-tab::before { content: ""; position: absolute; right: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--brand); transform: scaleY(0); transition: transform var(--m-base) var(--m-spring); }
+.drawing-docker-tab[aria-pressed="true"]::before { transform: scaleY(1); }
+.drawing-docker:not([hidden]) { animation: drawing-docker-in var(--m-slow) var(--m-out); }
+@keyframes drawing-docker-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+
+/* Palette: wells lift toward the canvas on hover and dip on click */
+.drawing-swatches button { transition: transform var(--m-fast) var(--m-out), box-shadow var(--m-fast) var(--m-out), filter var(--m-fast) var(--m-out); }
+.drawing-swatches button:hover:not(:disabled) { transform: translateX(-3px) scale(1.08); box-shadow: 0 2px 6px rgb(0 0 0 / .2); z-index: 1; }
+.drawing-swatches button:active:not(:disabled) { transform: translateX(-1px) scale(.94); }
+
+/* Status bar: changed values tick in; fill/outline wells ease their colour */
+.drawing-status-object { animation: drawing-tick var(--m-base) var(--m-out); }
+@keyframes drawing-tick { from { opacity: .3; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.drawing-status-chip { transition: background-color var(--m-base) var(--m-out), border-color var(--m-base) var(--m-out); }
+
+/* Key feedback: what you just did, and its keys — learn shortcuts by using them */
+.drawing-key-hud {
+  position: absolute; left: 50%; bottom: 52px; z-index: 2147482000; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 10px; padding: 7px 10px 7px 14px; border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-primary) 88%, transparent); color: var(--bg-1); font-size: 13px; font-weight: 500;
+  box-shadow: 0 6px 24px rgb(0 0 0 / .22); transform: translateX(-50%);
+  animation: drawing-hud 1.3s var(--m-out) both;
+}
+.drawing-key-hud kbd { font: 600 11px/1 var(--font-mono, ui-monospace, monospace); padding: 3px 6px; border-radius: 4px; background: color-mix(in srgb, var(--bg-1) 18%, transparent); color: inherit; }
+@keyframes drawing-hud {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(.96); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+/* Quick access: results arrive in a short cascade; the active row's accent slides */
+.drawing-quick-list li { transition: background-color var(--m-fast) var(--m-out), box-shadow var(--m-fast) var(--m-out); animation: drawing-item-in var(--m-base) var(--m-out) both; }
+.drawing-quick-list li:nth-child(2) { animation-delay: 15ms; } .drawing-quick-list li:nth-child(3) { animation-delay: 30ms; }
+.drawing-quick-list li:nth-child(4) { animation-delay: 45ms; } .drawing-quick-list li:nth-child(n+5) { animation-delay: 60ms; }
+.drawing-quick-list li.is-active { box-shadow: inset 3px 0 0 var(--brand); }
+.drawing-quick-sheet dl > div { animation: drawing-item-in var(--m-base) var(--m-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawing-workspace, .drawing-page, .drawing-workspace button, .drawing-workspace summary, .drawing-swatches button, .drawing-status-chip,
+  .drawing-tool-expand, .drawing-ruler, .drawing-ruler-origin, .drawing-quick-list li { transition: none !important; }
+  .drawing-tool-flyout, .drawing-tool-flyout button, .drawing-menu-popover--list > .drawing-menu-item, .drawing-menu-popover--list > details,
+  .drawing-docker:not([hidden]), .drawing-status-object, .drawing-quick-list li, .drawing-quick-sheet dl > div { animation: none !important; }
+  .drawing-key-hud { animation: drawing-hud-still 1.3s linear both; }
+  .drawing-swatches button:hover:not(:disabled), .drawing-workspace .drawing-button:active:not(:disabled) { transform: none; }
+  .drawing-tools .drawing-tool-group > .drawing-button::before, .drawing-docker-tab::before, .drawing-menu > summary::after { transition: none; }
+}
+@keyframes drawing-hud-still { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }

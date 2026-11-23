@@ -4032,5 +4032,81 @@
     "moreHistory": "Ielādēt agrākus lietojumus",
     "editsChanged": "Piegādes dati pēc apstiprinājuma mainījās. Pārskatiet saglabāto adresi un apstipriniet aizstāšanu vēlreiz.",
     "applied": "Adrese nokopēta piegādes formā. Saglabājiet pasūtījumu, lai saglabātu izmaiņas."
+  },
+  "orderFlow": {
+    "title": "Pasūtījuma gaita",
+    "nextLabel": "Tālāk",
+    "steps": {
+      "draft": "Melnraksts",
+      "review": "Pārbaude",
+      "confirmed": "Apstiprināts",
+      "production": "Ražošana",
+      "loading": "Iekraušana",
+      "dispatched": "Nosūtīts",
+      "archived": "Arhivēts"
+    },
+    "next": {
+      "draft": "Pabeidziet melnrakstu un nosūtiet to pārbaudei.",
+      "review": "Ražošanas vadītājs pārbauda melnrakstu un piešķir PO.",
+      "start": "{station} sāks nākamā.",
+      "running": "{station} pašlaik strādā pie tā.",
+      "blocked": "{station} ir bloķēta. Novērsiet iemeslu, lai turpinātu.",
+      "rework": "{station} jāveic pārstrāde, pirms maršruts turpinās.",
+      "finish": "Visas stacijas ir pabeigtas. Sagatavojiet iekraušanai.",
+      "no_stages": "Šim pasūtījumam vēl nav plānotu staciju.",
+      "loading": "Iekraujiet pasūtījumu un atzīmējiet kā nosūtītu.",
+      "dispatched": "Arhivējiet, kad piegāde ir apstiprināta.",
+      "archived": "Šis pasūtījums ir pabeigts.",
+      "on_hold": "Ražošana ir apturēta. Nekas nenotiek, līdz tā tiek atsākta.",
+      "cancelled": "Šis pasūtījums ir atcelts.",
+      "voided": "Šis pasūtījums ir anulēts un izdots no jauna.",
+      "unknown": "Šī pasūtījuma statuss nav atpazīts."
+    },
+    "owner": {
+      "author": "Autors",
+      "review": "Ražošanas vadītājs",
+      "floor": "Ražošanas cehs",
+      "logistics": "Loģistika"
+    },
+    "action": {
+      "edit": "Turpināt melnrakstu",
+      "review": "Atvērt pārbaudi",
+      "stages": "Atvērt stacijas",
+      "dispatch": "Atzīmēt kā nosūtītu",
+      "archive": "Arhivēt"
+    }
+  },
+  "quick": {
+    "title": "Meklēt un pāriet",
+    "placeholder": "Meklējiet pasūtījumus vai ierakstiet lapu vai darbību…",
+    "recent": "Nesen atvērtie",
+    "groupGo": "Pāriet uz",
+    "groupDo": "Darbības",
+    "jump": "Atrast pasūtījumu {number}",
+    "results": "Pasūtījumi un faili",
+    "hint": "↑ ↓ pārvietoties · Enter atvērt · Esc aizvērt",
+    "empty": "Nav atbilstību. Izmēģiniet pasūtījuma numuru, piemēram, PO-2611.",
+    "go": {
+      "home": "Sākums",
+      "orders": "Pasūtījumi",
+      "calendar": "Kalendārs",
+      "inventory": "Noliktava",
+      "toolkit": "Rīki",
+      "cabinet": "Mans kabinets",
+      "settings": "Iestatījumi",
+      "users": "Lietotāji",
+      "materials": "Materiāli"
+    },
+    "do": {
+      "newOrder": "Jauns pasūtījums",
+      "urgent": "Steidzamie pasūtījumi",
+      "canvas": "Atvērt audeklu"
+    }
+  },
+  "orderStep": {
+    "label": "Pasūtījumi šajā sarakstā",
+    "prev": "Iepriekšējais",
+    "next": "Nākamais",
+    "position": "{n} no {total}"
   }
 }

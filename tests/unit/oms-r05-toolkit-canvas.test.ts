@@ -146,7 +146,8 @@ describe('Toolkit route contracts', () => {
     const toolbar = read('src/lib/components/canvas/CanvasToolbar.svelte');
     expect(toolbar).toContain("$t('toolkit.canvas.technical')");
     expect(canvasApp).toContain('DrawingWorkspace');
-    expect(read('src/lib/components/canvas/DrawingWorkspace.tsx')).toContain("'arrow'");
+    // Tool ids are declared in the command map that the workspace renders.
+    expect(read('src/lib/components/canvas/DrawingWorkspace.tsx') + read('src/lib/components/canvas/drawing-command-map.ts')).toContain("'arrow'");
     expect(canvas).not.toContain('function drawTool');
   });
 });
