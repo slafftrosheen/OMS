@@ -5,12 +5,12 @@ import { assertCadEditable } from './cad-plans';
 import { isCadNodeEditing } from './cad-node-selection';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { readCadSnapSettings } from './cad-snap-settings';
-import { drawingGuidesAreValid, drawingGuidesRevision, readDrawingGuides, type DrawingGuide } from './drawing-guides';
+import { drawingGuideLine, drawingGuidesAreValid, drawingGuidesRevision, readDrawingGuides, type DrawingGuide, type DrawingGuideGeometry } from './drawing-guides';
 import { isDrawingPointerGestureActive } from './drawing-pointer-gesture';
 
 export type PickGuideAnchor = 'start' | 'center' | 'end';
 export interface DrawingPickGuideSnap {
-  guides: Array<{ id: string; axis: 'x' | 'y'; position: number; anchor: PickGuideAnchor }>;
+  guides: Array<DrawingGuideGeometry & { id: string; anchor: PickGuideAnchor }>;
   /** One page-space correction shared by every moving selection root. */
   delta: CadPoint;
 }
@@ -121,6 +121,36 @@ function guideCorrection(editor: Editor, source: Snapshot, guides: DrawingGuide[
       }
     }
     if (match) correction.guides.push(match);
+  }
+  const canX = !blocked.has('x') && !correction.guides.some(guide => guide.axis === 'x');
+  const canY = !blocked.has('y') && !correction.guides.some(guide => guide.axis === 'y');
+  if (canX || canY) {
+    const base = { x: source.bounds.x + delta.x + correction.delta.x, y: source.bounds.y + delta.y + correction.delta.y };
+    const anchors = [
+      [.5, .5, 'center'], [0, 0, 'start'], [1, 0, 'end'], [0, 1, 'start'], [1, 1, 'end'],
+      [.5, 0, 'center'], [.5, 1, 'center'], [0, .5, 'start'], [1, .5, 'end'],
+    ] as const;
+    let winner: { guide: DrawingPickGuideSnap['guides'][number]; delta: CadPoint } | undefined;
+    let nearest = tolerance;
+    for (const guide of guides) {
+      if (guide.axis !== 'angle') continue;
+      const { point, normal } = drawingGuideLine(guide);
+      const nx = canX ? normal.x : 0, ny = canY ? normal.y : 0, weight = nx * nx + ny * ny;
+      if (weight < 1e-10) continue;
+      for (const [rx, ry, anchor] of anchors) {
+        const x = base.x + rx * source.bounds.w, y = base.y + ry * source.bounds.h;
+        const normalOffset = ((point.x - x) * normal.x + (point.y - y) * normal.y) / weight;
+        const move = { x: nx * normalOffset, y: ny * normalOffset }, distance = Math.hypot(move.x, move.y);
+        if (distance <= nearest && (!winner || distance < nearest - 1e-10)) {
+          nearest = distance;
+          winner = { guide: { id: guide.id, axis: guide.axis, angle: guide.angle, pivot: guide.pivot, anchor }, delta: move };
+        }
+      }
+    }
+    if (winner) {
+      correction.guides.push(winner.guide);
+      correction.delta.x += winner.delta.x; correction.delta.y += winner.delta.y;
+    }
   }
   if (!correction.guides.length) return null;
   const dx = delta.x + correction.delta.x, dy = delta.y + correction.delta.y;

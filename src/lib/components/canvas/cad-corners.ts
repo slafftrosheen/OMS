@@ -1,8 +1,9 @@
 import type { Editor } from "@tldraw/tldraw";
 import { cadSelectedShapes, shapeCadContours } from "./cad-editing";
-import { nodeAt, type CadContour } from "./cad-curves";
+import { nodeAt, validContours, type CadContour } from "./cad-curves";
 import { makeCadPlan, CadOperationError } from "./cad-plans";
 import { cadMmPerPixel, type CadSettings } from "./cad-settings";
+import { circularFilletNodes, NODE_FILLET_TOLERANCE_MM } from './cad-node-corners';
 
 export function regularPolygon(
   sides: number,
@@ -45,18 +46,22 @@ export function cornerContour(
   contour: CadContour,
   amount: number,
   kind: "fillet" | "chamfer",
+  outgoing = amount,
+  tolerance = NODE_FILLET_TOLERANCE_MM,
 ): CadContour {
   const nodes = contour.nodes;
   if (
     !Number.isFinite(amount) ||
     amount <= 0 ||
+    !Number.isFinite(tolerance) || tolerance <= 0 ||
+    (kind === 'chamfer' && (!Number.isFinite(outgoing) || outgoing <= 0)) ||
     !contour.closed ||
     nodes.length < 3 ||
     nodes.length > 256 ||
     nodes.some((n) => n.inX || n.inY || n.outX || n.outY)
   )
     throw new CadOperationError("corners");
-  let direction = 0;
+  let direction = 0, totalTurn = 0;
   const corners = nodes.map((p, i) => {
     const prev = nodes[(i + nodes.length - 1) % nodes.length],
       next = nodes[(i + 1) % nodes.length];
@@ -72,40 +77,40 @@ export function cornerContour(
       throw new CadOperationError("corners");
     direction = sign;
     const angle = Math.acos(Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y)));
+    totalTurn += Math.PI - angle;
     const cut = kind === "chamfer" ? amount : amount / Math.tan(angle / 2);
-    const a = nodeAt({ x: p.x + u.x * cut, y: p.y + u.y * cut }),
-      b = nodeAt({ x: p.x + v.x * cut, y: p.y + v.y * cut });
-    if (kind === "fillet") {
-      const handle = (4 / 3) * Math.tan((Math.PI - angle) / 4) * amount;
-      a.outX = -u.x * handle;
-      a.outY = -u.y * handle;
-      b.inX = -v.x * handle;
-      b.inY = -v.y * handle;
-    }
-    return { a, b, cut, after };
+    const nextCut = kind === 'chamfer' ? outgoing : cut;
+    if (!Number.isFinite(cut) || cut < 1e-8 || cut >= before - 1e-8 || nextCut >= after - 1e-8) throw new CadOperationError('corner-size');
+    const replacement = kind === 'fillet' ? circularFilletNodes(p, u, v, amount, cut, tolerance)
+      : [nodeAt({ x: p.x + u.x * cut, y: p.y + u.y * cut }), nodeAt({ x: p.x + v.x * nextCut, y: p.y + v.y * nextCut })];
+    return { replacement, cut, nextCut, after };
   });
+  // A consistently turning star can still cross itself. A convex boundary makes one full turn.
+  if (Math.abs(totalTurn - 2 * Math.PI) > 1e-6) throw new CadOperationError('corners');
   if (
     corners.some(
-      (c, i) => c.cut + corners[(i + 1) % corners.length].cut >= c.after - 1e-8,
+      (c, i) => c.nextCut + corners[(i + 1) % corners.length].cut >= c.after - 1e-8,
     )
   )
     throw new CadOperationError("corner-size");
-  return { closed: true, nodes: corners.flatMap((c) => [c.a, c.b]) };
+  const result = { closed: true, nodes: corners.flatMap(c => c.replacement) };
+  if (!validContours([result])) throw new CadOperationError('limit');
+  return result;
 }
 export function prepareCorners(
   editor: Editor,
   settings: CadSettings,
   amountMm: number,
   kind: "fillet" | "chamfer",
+  outgoingMm = amountMm,
 ) {
   const shapes = cadSelectedShapes(editor);
   if (shapes.length !== 1) throw new CadOperationError("selection");
   const shape = shapes[0],
     source = shapeCadContours(editor, shape);
   if (source.length !== 1) throw new CadOperationError("corners");
-  const contours = [
-    cornerContour(source[0], amountMm / cadMmPerPixel(settings), kind),
-  ];
+  const factor = cadMmPerPixel(settings);
+  const contours = [cornerContour(source[0], amountMm / factor, kind, outgoingMm / factor, NODE_FILLET_TOLERANCE_MM / factor)];
   return makeCadPlan(editor, settings, contours, {
     name: kind,
     sourceIds: [shape.id],

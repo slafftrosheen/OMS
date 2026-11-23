@@ -141,6 +141,34 @@ async function harness(run: (value: any) => Promise<void>) {
 }
 
 describe('Guideline drag with a real editor and DOM events', () => {
+  it('moves an angled pivot along its line and rotates about it in one undoable operation', async () => {
+    await harness(async ({ editor, env, container, drag, guides, pointer, snapshot, act, tick }) => {
+      await act(async () => {
+        const plan = guides.prepareDrawingGuideChange(editor, { kind: 'add', id: 'guide:angled', axis: 'angle', pivot: { x: 160, y: 140 }, angle: 0 });
+        assert.equal(guides.applyDrawingGuideChange(editor, plan), true);
+      });
+      await tick();
+      const handle = (kind: string) => container.querySelector(`[data-testid="drawing-guide-${kind}-handle"]`)!;
+      const screen = (x: number, y: number) => {
+        const point = editor.pageToScreen({ x, y });
+        return { clientX: point.x, clientY: point.y };
+      };
+      await pointer(handle('pivot'), 'pointerdown', screen(160, 140));
+      await pointer(env.win, 'pointerup', screen(200, 160));
+      assert.deepEqual(guides.readDrawingGuides(editor).guides[0].pivot, { x: 200, y: 140 });
+      const before = snapshot();
+      await pointer(handle('rotate'), 'pointerdown', screen(264, 140));
+      await pointer(env.win, 'pointermove', { ...screen(248, 100), shiftKey: true });
+      near(drag.drawingGuideDrag(editor).get().angle, 45);
+      assert.deepEqual(snapshot(), before);
+      await pointer(env.win, 'pointerup', { ...screen(248, 100), shiftKey: true });
+      near(guides.readDrawingGuides(editor).guides[0].angle, 45);
+      assert.deepEqual(guides.readDrawingGuides(editor).guides[0].pivot, { x: 200, y: 140 });
+      await act(async () => editor.undo());
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
   for (const axis of ['x', 'y'] as const) it(`adds a ${axis} guide with viewport offsets and zoom in one Undo, without preview writes`, async () => {
     await harness(async ({ editor, env, drag, guides, cad, gesture, start, pointer, addArtwork, snapshot, exportPlan, act }) => {
       await addArtwork();

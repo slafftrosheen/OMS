@@ -29,7 +29,8 @@ describe('drawing workspace tool wiring', () => {
     const declared = new Map([...sources.matchAll(/class (\w+) extends \w+\s*\{\s*static override id\s*=\s*'([^']+)'/g)]
       .map(([, name, id]) => [name, id]));
     const custom = Object.values(drawingToolTargets)
-      .flatMap(target => target.kind === 'editor' && target.tool.startsWith('cad-') ? [target.tool] : []);
+      .flatMap(target => target.kind === 'editor'
+        ? [target.tool, ...('calibratedTool' in target ? [target.calibratedTool] : [])].filter(tool => tool.startsWith('cad-')) : []);
     assert.deepEqual(registered.map(name => declared.get(name)).sort(), custom.sort());
   });
 

@@ -9,8 +9,29 @@ import {uploadOrderCanvasFiles} from '../../src/lib/components/canvas/asset-uplo
 import {productionExportTarget,saveProductionExport} from '../../src/lib/components/canvas/production-export';
 import {setOrderBridge} from '../../src/lib/components/canvas/state-bridge';
 import {MAX_ORDER_FILE_BYTES} from '../../src/lib/order/file-limits';
+import {CadLineTool} from '../../src/lib/components/canvas/CadPolylineTool';
+import {polylineSession,resolveCadDraftPoint} from '../../src/lib/components/canvas/cad-polyline-draft';
+import {applyDrawingGuideChange,prepareDrawingGuideChange} from '../../src/lib/components/canvas/drawing-guides';
+import {DEFAULT_CAD_SETTINGS} from '../../src/lib/components/canvas/cad-settings';
 
 describe('CAD drawing and text workbench',()=>{
+ it('finishes a two-point line on an angled guide or at an exact typed bearing',()=>{
+  const f=fixture();
+  assert.equal(applyDrawingGuideChange(f.editor,prepareDrawingGuideChange(f.editor,
+   {kind:'add',axis:'angle',pivot:{x:125,y:75},angle:45})),true);
+  f.state.snap=true;
+  const line=new CadLineTool(f.editor,undefined as any);
+  const click=(x:number,y:number)=>{f.editor.inputs.currentPagePoint={x,y};line.onPointerDown({button:0} as any);};
+  line.onEnter();click(10,10);click(126,78);
+  const drawn=f.editor.getOnlySelectedShape();assert.equal(drawn.type,'cad-path');
+  assert.deepEqual(drawn.props.points,[{x:0,y:0},{x:114,y:66}]);
+  assert.equal(polylineSession(f.editor).controller,null);
+  line.onEnter();const session=polylineSession(f.editor);
+  assert.equal(session.controller!.add({x:0,y:0}),true);
+  const target=resolveCadDraftPoint('polar',25.4,90,{x:0,y:0},DEFAULT_CAD_SETTINGS)!;
+  assert.equal(session.controller!.add(target),true);
+  assert.ok(Math.abs(f.editor.getOnlySelectedShape().props.points[1].y+96)<1e-8);
+ });
  it('constructs exact centre-radius circles and rejects zero/oversized geometry',()=>{
   assert.deepEqual(twoPointGeometry('circle',{x:10,y:20},{x:13,y:24}),{type:'cad-ellipse',x:5,y:15,props:{w:10,h:10}});
   assert.equal(twoPointGeometry('circle',{x:0,y:0},{x:0,y:0}),null);

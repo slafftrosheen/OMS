@@ -86,6 +86,23 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('ordinary Pick guideline snapping through native public hooks', () => {
+  it('snaps the selection center perpendicularly to an angled guide and preserves Undo', async () => {
+    await harness(async ({ editor, guides, snapping, add, ready, down, move, up, snapshot }) => {
+      const id = add();
+      assert.equal(guides.applyDrawingGuideChange(editor, guides.prepareDrawingGuideChange(editor,
+        { kind: 'add', id: 'guide:diagonal', axis: 'angle', pivot: { x: 340, y: 320 }, angle: 45 })), true);
+      ready(id); const before = snapshot();
+      await down({ x: 110, y: 110 }); await move({ x: 313, y: 314 });
+      const hit = snapping.drawingPickGuideSnap(editor).get();
+      assert.equal(hit?.guides[0].id, 'guide:diagonal');
+      assert.equal(hit?.guides[0].anchor, 'center');
+      near(editor.getShape(id).x, 299.5); near(editor.getShape(id).y, 300.5);
+      await up({ x: 313, y: 314 });
+      near(editor.getShape(id).x, 299.5); near(editor.getShape(id).y, 300.5);
+      editor.undo(); assert.deepEqual(snapshot(), before);
+    });
+  });
+
   for (const duplicate of [false, true]) it(`acquires the exact fast release${duplicate ? ' on native Alt copies' : ''} before the same Undo completes`, async () => {
     await harness(async ({ editor, add, addGuide, ready, down, snapshot, tick }) => {
       const id = add(); addGuide('x', 300); addGuide('y', 500); ready(id); const before = snapshot();

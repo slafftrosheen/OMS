@@ -726,14 +726,14 @@ export function DrawingChrome() {
     setCadNodeEditing(editor, false);
     if ('panel' in route && route.panel) context?.setPanel(route.panel);
     editor.complete();
-    if (readCadSettings(editor) && (route.kind === 'geometry' || tool === 'line')) {
+    const calibrated = !!readCadSettings(editor);
+    if (calibrated && route.kind === 'geometry') {
       editor.setStyleForNextShapes(DefaultDashStyle, 'solid'); editor.setStyleForNextShapes(DefaultFillStyle, 'none');
-      if (tool === 'line') editor.setStyleForNextShapes(LineShapeSplineStyle, 'line');
     }
     if (route.kind === 'geometry') {
       editor.setStyleForNextShapes(GeoShapeGeoStyle, route.shape);
       editor.setCurrentTool('geo');
-    } else editor.setCurrentTool(route.tool);
+    } else editor.setCurrentTool(calibrated && 'calibratedTool' in route ? route.calibratedTool : route.tool);
     editor.focus();
     return true;
   }
@@ -1211,6 +1211,7 @@ export function DrawingChrome() {
     if (tool === 'select') return controls.tool === 'select' && !nodeEditing && !skewMode;
     if (tool === 'clipart') return panel === 'clipart';
     if (tool === 'cad-measure-tools') return panel === 'measure';
+    if (tool === 'line' && controls.tool === 'cad-line') return true;
     return controls.tool === tool;
   };
   const fullscreenLabel = productionLabel(context.fullscreen ? 'exitFullscreen' : 'fullscreen');
@@ -1289,6 +1290,7 @@ export function DrawingChrome() {
       case 'shaping': return cad('shaping');
       case 'join': return cad('join');
       case 'knife': return cad('knife');
+      case 'corners': return cad('corners');
       case 'convert': return cad('convert');
       case 'outlineObject': return cad('outlineObject');
       case 'artworkClip': return make(true, () => openArrange('artworkClip'));
@@ -1377,8 +1379,9 @@ export function DrawingChrome() {
   }
   /** Space tap: jump to Pick, tap again to return to the tool you were using. */
   function togglePick() {
+    const nativeTool = editor.getCurrentToolId();
     const current = isCadNodeEditing(editor) ? 'nodes' : isDrawingSkewMode(editor) ? 'free-transform' :
-      editor.getCurrentToolId() === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : editor.getCurrentToolId();
+      nativeTool === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : nativeTool === 'cad-line' ? 'line' : nativeTool;
     if (current !== 'select') {
       previousTool.current = isDrawingToolId(current) ? current : null;
       if (chooseTool('select')) { flash(toolLabel('select'), 'Space'); return true; }
@@ -1429,7 +1432,8 @@ export function DrawingChrome() {
   const paintSwatch = (paint: DrawingStatusPaint | null, kind: 'fill' | 'outline') => {
     const name = kind === 'fill' ? words.ui.fill : words.ui.outline;
     const value = !paint ? '—' : paint.kind === 'none' ? (kind === 'fill' ? words.ui.noFill : words.ui.noOutline) : paint.kind === 'mixed' ? words.ui.mixed : paint.hex.toUpperCase();
-    const width = kind === 'outline' && paint?.kind === 'colour' && selectionSummary.outlineWidth !== null ? ` · ${Number(selectionSummary.outlineWidth.toFixed(2))}` : '';
+    const width = kind === 'outline' && paint?.kind === 'colour' && selectionSummary.outlineWidth !== null
+      ? ` · ${Number((settings ? canvasLengthToUnit(selectionSummary.outlineWidth, settings) : selectionSummary.outlineWidth).toFixed(settings?.precision ?? 2))} ${settings?.unit ?? 'px'}` : '';
     return <button type="button" className={`drawing-status-paint drawing-status-paint--${kind}`} title={`${name}: ${value}${width}`} aria-label={`${name}: ${value}${width}`}
       disabled={!paint} onClick={() => focusCad(kind === 'fill' ? 'paint' : 'outline')} data-testid={`drawing-status-${kind}`}>
       <span className={`drawing-status-chip${paint?.kind === 'none' ? ' is-none' : paint?.kind === 'mixed' ? ' is-mixed' : ''}`}
@@ -1519,7 +1523,7 @@ export function DrawingChrome() {
     </>)}
     {portal('properties', <>
       {textProperties ? <span className="drawing-property-caption">{label(nextText ? 'nextText' : 'selectedText')}{selectedText && selectedText.length > 1 ? ` · ${selectedText.length}` : ''}</span>
-        : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span>}<span className="drawing-divider" />
+        : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool === 'cad-line' ? 'line' : controls.tool)}</span>}<span className="drawing-divider" />
       {selectedText ? <SelectedTextProperties key={state.selected.join('|')} shapes={selectedText} disabled={!controls.canEditSelection}
         onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} onFonts={focusFonts} />
       : nextText ? <fieldset className="drawing-context-properties" disabled={!controls.canStyle} aria-label={label('nextText')} data-testid="drawing-next-text-properties">
@@ -1527,7 +1531,7 @@ export function DrawingChrome() {
         {['size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
       </fieldset>
       : controls.tool === 'cad-freehand' ? <><DrawingFreehandControls compact /><ToolButton icon="pen" label={penLabel('title')} onClick={() => setPanel('pen')} testId="drawing-property-pen" /></>
-      : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/>
+      : controls.tool === 'cad-polyline' || controls.tool === 'cad-line' ? <CadPointEntry key={controls.tool} settings={settings} singleSegment={controls.tool === 'cad-line'}/>
       : nodeEditing ? <div className="drawing-property-actions" data-testid="drawing-node-properties">
         {nodeCount === null ? <span className="drawing-unit">{nodeArrangeLabel('none')}</span> : <>
           <span className="drawing-unit" data-testid="drawing-node-selection-count">{nodeArrangeLabel('selection')} · {nodeCount}</span>

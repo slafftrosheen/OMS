@@ -33,7 +33,9 @@ function apply(f: Fixture, options: GuideAlignment) {
 function addGuide(f: Fixture, axis: 'x' | 'y' = 'x', position = 300) {
   const plan = prepareDrawingGuideChange(f.editor, { kind: 'add', axis, position, id: 'guide:alignment' });
   assert.equal(applyDrawingGuideChange(f.editor, plan), true);
-  return readDrawingGuides(f.editor).guides[0];
+  const guide = readDrawingGuides(f.editor).guides[0];
+  assert.ok(guide && guide.axis !== 'angle');
+  return guide;
 }
 
 /** The existing geometry fixture supplies the non-DOM editor surface. These

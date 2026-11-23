@@ -8,7 +8,7 @@ import {CadBezierShapeUtil} from '../../src/lib/components/canvas/shapes/CadBezi
 import {CadPathShapeUtil,CadEllipseShapeUtil,CadArcShapeUtil,CadDimensionShapeUtil} from '../../src/lib/components/canvas/shapes/CadShapes';
 import {DEFAULT_CAD_SETTINGS,writeCadSettings} from '../../src/lib/components/canvas/cad-settings';
 import {prepareCadImport,readCadDxf} from '../../src/lib/components/canvas/cad-import';
-import {productionPresetGeometry} from '../../src/lib/components/canvas/cad-production-geometry';
+import {measureCadEdgeAngle,measureCadJointAngle,productionPresetGeometry} from '../../src/lib/components/canvas/cad-production-geometry';
 import {applyCadPlan} from '../../src/lib/components/canvas/cad-plans';
 import {buildCadDxf,serializeCadDxf} from '../../src/lib/components/canvas/cad-dxf';
 import {prepareCreationCanvas} from '../../src/lib/order/creation-canvas';
@@ -17,6 +17,15 @@ const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 const source=readFileSync('tests/fixtures/cad/production-reference.dxf','utf8');
 const reference=new DxfParser().parseSync(source)!;
 const shapeUtils=[...defaultShapeUtils,CadPathShapeUtil,CadEllipseShapeUtil,CadArcShapeUtil,CadDimensionShapeUtil,CadBezierShapeUtil];
+
+it('measures the actual obtuse angle at a joint with either segment direction', () => {
+ const tip = {x:0,y:0}, a = {x:20,y:0}, b = {x:-10,y:10*Math.sqrt(3)};
+ near(measureCadJointAngle({start:a,end:tip},{start:tip,end:b})!,120);
+ near(measureCadJointAngle({start:tip,end:a},{start:b,end:tip})!,120);
+ const other = {start:{x:1,y:0},end:{x:b.x+1,y:b.y}};
+ assert.equal(measureCadJointAngle({start:tip,end:a},other),undefined);
+ near(measureCadEdgeAngle({start:tip,end:a},other),60);
+});
 
 describe('production DXF through order persistence',()=>{
  for(const [unit,scale] of [['mm',1],['mm',10],['in',10]] as const){

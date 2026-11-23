@@ -104,6 +104,27 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('drawing docker continuity', () => {
+  it('applies an exact millimetre outline preset in an inch-calibrated drawing', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, get, select }: any) => {
+      const React = await import('react');
+      const { OutlinePenPanel } = await import('../../src/lib/components/canvas/OutlinePenPanel');
+      const { cadRevision } = await import('../../src/lib/components/canvas/cad-plans');
+      const settings = { ...cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: 5 };
+      await act(async () => root.render(<EditorContext.Provider value={editor}>
+        <OutlinePenPanel settings={settings} revision={cadRevision(editor)} disabled={false} />
+      </EditorContext.Provider>));
+      const panel = get('drawing-outline-pen');
+      const width = panel.querySelector('[aria-label="Width"]') as HTMLInputElement;
+      await select(panel.querySelector('[aria-label="Standard widths"]'), '0.5');
+      assert.ok(Math.abs(Number(width.value) * 25.4 - 0.5) < 1e-10);
+      const action = [...panel.querySelectorAll('button')].find(item => (item as HTMLElement).textContent === 'Apply width') as HTMLButtonElement;
+      assert.ok(action && !action.disabled);
+      await act(async () => action.click());
+      const paint = editor.getOnlySelectedShape().meta.omsVectorPaint;
+      assert.ok(Math.abs(paint.strokeWidth * cad.cadMmPerPixel(settings) - 0.5) < 1e-10);
+    });
+  });
+
   it('keeps invalid queued artwork active and advances after a skip or successful SVG and DXF import', async () => {
     await harness(async ({ editor, cad, host, root, EditorContext, act, get, tick }: any) => {
       const React = await import('react');

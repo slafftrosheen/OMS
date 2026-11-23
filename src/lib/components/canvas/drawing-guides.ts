@@ -7,18 +7,16 @@ import { isDrawingPointerGestureActive } from './drawing-pointer-gesture';
 export const DRAWING_GUIDES_META_KEY = 'omsGuides';
 export const MAX_DRAWING_GUIDES = 256;
 export type DrawingGuideAxis = 'x' | 'y';
-export type DrawingGuide = {
-  id: string;
-  /** x is a vertical line, y is a horizontal line; positions use page coordinates. */
-  axis: DrawingGuideAxis;
-  position: number;
-  visible: boolean;
-  locked: boolean;
-};
+/** Axis positions and the angled pivot are stored in page coordinates. Angles increase counterclockwise from +X. */
+export type DrawingGuideGeometry =
+  | { axis: DrawingGuideAxis; position: number; pivot?: never; angle?: never }
+  | { axis: 'angle'; pivot: { x: number; y: number }; angle: number; position?: never };
+export type DrawingGuide = DrawingGuideGeometry & { id: string; visible: boolean; locked: boolean };
 export type DrawingGuidesState = { version: 1; visible: boolean; locked: boolean; guides: DrawingGuide[]; };
 export type DrawingGuideChange =
-  | { kind: 'add'; axis: DrawingGuideAxis; position: number; id?: string }
+  | ({ kind: 'add'; id?: string } & DrawingGuideGeometry)
   | { kind: 'move'; id: string; position: number }
+  | { kind: 'pose'; id: string; pivot: CadPoint; angle: number }
   | { kind: 'remove'; ids: string[] }
   | { kind: 'guide-visible'; id: string; visible: boolean }
   | { kind: 'guide-locked'; id: string; locked: boolean }
@@ -29,6 +27,30 @@ export class DrawingGuideError extends Error { constructor(public code: DrawingG
 const empty = (): DrawingGuidesState => ({ version: 1, visible: true, locked: false, guides: [] });
 const validId = (value: unknown): value is string => typeof value === 'string' && /^guide:[a-zA-Z0-9_-]{1,80}$/.test(value);
 const validPosition = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= CAD_MAX_COORDINATE;
+const validPivot = (point: CadPoint | undefined) => !!point && validPosition(point.x) && validPosition(point.y);
+const validAngle = (value: number) => Number.isFinite(value) && Math.abs(value) <= 36000;
+const normalizedAngle = (angle: number) => ((angle % 360) + 360) % 360;
+function guideGeometry(guide: DrawingGuideGeometry): DrawingGuideGeometry | null {
+  if (guide.axis === 'angle') {
+    return validPivot(guide.pivot) && validAngle(guide.angle)
+      ? { axis: 'angle', pivot: { x: guide.pivot.x, y: guide.pivot.y }, angle: normalizedAngle(guide.angle) } : null;
+  }
+  return (guide.axis === 'x' || guide.axis === 'y') && validPosition(guide.position)
+    ? { axis: guide.axis, position: guide.position } : null;
+}
+
+export function drawingGuideLine(guide: DrawingGuideGeometry) {
+  if (guide.axis === 'x') return { point: { x: guide.position, y: 0 }, along: { x: 0, y: 1 }, normal: { x: 1, y: 0 } };
+  if (guide.axis === 'y') return { point: { x: 0, y: guide.position }, along: { x: 1, y: 0 }, normal: { x: 0, y: 1 } };
+  const rad = guide.angle * Math.PI / 180, x = Math.cos(rad), y = Math.sin(rad);
+  return { point: guide.pivot, along: { x, y: -y }, normal: { x: y, y: x } };
+}
+
+export function projectToDrawingGuide(guide: DrawingGuideGeometry, point: CadPoint): CadPoint {
+  const line = drawingGuideLine(guide), { x, y } = line.normal;
+  const distance = (point.x - line.point.x) * x + (point.y - line.point.y) * y;
+  return { x: point.x - distance * x, y: point.y - distance * y };
+}
 
 /** Invalid/future metadata is never rewritten as an empty guide collection. */
 export function validateDrawingGuides(value: unknown): DrawingGuidesState | null {
@@ -37,11 +59,11 @@ export function validateDrawingGuides(value: unknown): DrawingGuidesState | null
   const state = value as DrawingGuidesState;
   if (state.version !== 1 || typeof state.visible !== 'boolean' || typeof state.locked !== 'boolean' ||
       !Array.isArray(state.guides) || state.guides.length > MAX_DRAWING_GUIDES ||
-      state.guides.some(guide => !guide || !validId(guide.id) || !['x', 'y'].includes(guide.axis) || !validPosition(guide.position) ||
+      state.guides.some(guide => !guide || !validId(guide.id) || !guideGeometry(guide) ||
         typeof guide.visible !== 'boolean' || typeof guide.locked !== 'boolean') ||
       new Set(state.guides.map(guide => guide.id)).size !== state.guides.length) return null;
   return { version: 1, visible: state.visible, locked: state.locked,
-    guides: state.guides.map(({ id, axis, position, visible, locked }) => ({ id, axis, position, visible, locked })) };
+    guides: state.guides.map(guide => ({ id: guide.id, ...guideGeometry(guide)!, visible: guide.visible, locked: guide.locked })) };
 }
 export function readDrawingGuides(editor: Editor): DrawingGuidesState {
   return validateDrawingGuides(editor.getCurrentPage().meta[DRAWING_GUIDES_META_KEY]) ?? empty();
@@ -99,9 +121,10 @@ function changedState(current: DrawingGuidesState, change: DrawingGuideChange): 
     }
   } else if (change.kind === 'add') {
     if (current.locked) throw new DrawingGuideError('locked');
-    if (!['x', 'y'].includes(change.axis) || !validPosition(change.position) || !validId(change.id) || current.guides.some(guide => guide.id === change.id)) throw new DrawingGuideError('invalid');
+    const geometry = guideGeometry(change);
+    if (!geometry || !validId(change.id) || current.guides.some(guide => guide.id === change.id)) throw new DrawingGuideError('invalid');
     if (current.guides.length >= MAX_DRAWING_GUIDES) throw new DrawingGuideError('limit');
-    next.guides.push({ id: change.id, axis: change.axis, position: change.position, visible: true, locked: false });
+    next.guides.push({ id: change.id, ...geometry, visible: true, locked: false });
     // Creating a guide must leave a visible result, including when it is dragged
     // from a ruler while guidelines are hidden. Undo restores both together.
     next.visible = true;
@@ -110,14 +133,19 @@ function changedState(current: DrawingGuidesState, change: DrawingGuideChange): 
     if (change.ids.some(id => !current.guides.some(guide => guide.id === id))) throw new DrawingGuideError('missing');
     if (current.locked || current.guides.some(guide => change.ids.includes(guide.id) && guide.locked)) throw new DrawingGuideError('locked');
     next.guides = next.guides.filter(guide => !change.ids.includes(guide.id));
-  } else if (['move', 'guide-visible', 'guide-locked'].includes(change.kind)) {
-    const update = change as Extract<DrawingGuideChange, { id: string }>;
+  } else if (change.kind === 'move' || change.kind === 'pose' || change.kind === 'guide-visible' || change.kind === 'guide-locked') {
+    const update = change;
     const guide = next.guides.find(guide => guide.id === update.id);
     if (!guide) throw new DrawingGuideError('missing');
     if (update.kind === 'move') {
       if (current.locked || guide.locked) throw new DrawingGuideError('locked');
-      if (!validPosition(update.position)) throw new DrawingGuideError('invalid');
+      if (guide.axis === 'angle' || !validPosition(update.position)) throw new DrawingGuideError('invalid');
       guide.position = update.position;
+    } else if (update.kind === 'pose') {
+      if (current.locked || guide.locked) throw new DrawingGuideError('locked');
+      if (guide.axis !== 'angle' || !validPivot(update.pivot) || !validAngle(update.angle)) throw new DrawingGuideError('invalid');
+      guide.pivot = { x: update.pivot.x, y: update.pivot.y };
+      guide.angle = normalizedAngle(update.angle);
     } else if (update.kind === 'guide-visible') {
       if (typeof update.visible !== 'boolean') throw new DrawingGuideError('invalid');
       guide.visible = update.visible;
@@ -136,7 +164,10 @@ function checkCapacity(editor: Editor, current: DrawingGuidesState, next: Drawin
   const delta = JSON.stringify(next).length - (previous === undefined ? 0 : JSON.stringify(previous).length) + (previous === undefined ? DRAWING_GUIDES_META_KEY.length + 4 : 0);
   // Existing oversized drawings must still permit removal and lock/visibility
   // changes needed to clean them up. New geometry may not increase the excess.
-  const geometryChanges = next.guides.length > current.guides.length || next.guides.some(guide => current.guides.find(before => before.id === guide.id)?.position !== guide.position);
+  const geometryChanges = next.guides.length > current.guides.length || next.guides.some(guide => {
+    const old = current.guides.find(before => before.id === guide.id);
+    return old?.position !== guide.position || old?.angle !== guide.angle || old?.pivot?.x !== guide.pivot?.x || old?.pivot?.y !== guide.pivot?.y;
+  });
   if (before + delta > 1_900_000 && (before <= 1_900_000 || delta > 0 && geometryChanges)) throw new DrawingGuideError('saveLimit');
 }
 
@@ -182,15 +213,41 @@ export function applyDrawingGuideChange(editor: Editor, plan: DrawingGuidePlan):
 export function nearestDrawingGuidePoint(state: DrawingGuidesState, point: CadPoint, tolerance: number): CadPoint | null {
   if (!Number.isFinite(tolerance) || tolerance <= 0 || !validPosition(point.x) || !validPosition(point.y)) return null;
   let x: number | undefined, y: number | undefined, dx = tolerance, dy = tolerance;
+  const angled: Array<{ guide: DrawingGuide; point: CadPoint; distance: number }> = [];
   for (const guide of state.guides.slice(0, MAX_DRAWING_GUIDES)) {
+    if (guide.axis === 'angle') {
+      const projected = projectToDrawingGuide(guide, point);
+      const distance = Math.hypot(projected.x - point.x, projected.y - point.y);
+      if (distance <= tolerance) angled.push({ guide, point: projected, distance });
+      continue;
+    }
     if (!validPosition(guide.position)) continue;
     const distance = Math.abs(point[guide.axis] - guide.position);
     if (guide.axis === 'x' && distance <= dx) { x = guide.position; dx = distance; }
     if (guide.axis === 'y' && distance <= dy) { y = guide.position; dy = distance; }
   }
-  if (x === undefined && y === undefined) return null;
-  // Two-axis acquisition uses the same circular tolerance as all other CAD
-  // point targets. Otherwise prefer the closest single line, without a jump.
-  if (x !== undefined && y !== undefined && Math.hypot(dx, dy) <= tolerance) return { x, y };
-  return x !== undefined && (y === undefined || dx <= dy) ? { x, y: point.y } : { x: point.x, y: y! };
+  angled.sort((a, b) => a.distance - b.distance);
+  const nearest = angled[0];
+  let intersection = x !== undefined && y !== undefined && Math.hypot(dx, dy) <= tolerance ? { x, y } : null;
+  let nearestIntersection = intersection ? Math.hypot(dx, dy) : tolerance;
+  const candidates: DrawingGuideGeometry[] = angled.slice(0, 8).map(item => item.guide);
+  if (x !== undefined) candidates.push({ axis: 'x', position: x });
+  if (y !== undefined) candidates.push({ axis: 'y', position: y });
+  for (let i = 0; i < candidates.length; i++) {
+    const a = drawingGuideLine(candidates[i]);
+    for (let j = i + 1; j < candidates.length; j++) {
+      const b = drawingGuideLine(candidates[j]);
+      const rate = a.along.x * b.normal.x + a.along.y * b.normal.y;
+      if (Math.abs(rate) < 1e-9) continue;
+      const t = ((b.point.x - a.point.x) * b.normal.x + (b.point.y - a.point.y) * b.normal.y) / rate;
+      const target = { x: a.point.x + t * a.along.x, y: a.point.y + t * a.along.y };
+      const distance = Math.hypot(target.x - point.x, target.y - point.y);
+      if (distance <= nearestIntersection && validPivot(target)) { intersection = target; nearestIntersection = distance; }
+    }
+  }
+  if (intersection) return intersection;
+  if (nearest && nearest.distance < Math.min(dx, dy)) return validPivot(nearest.point) ? nearest.point : null;
+  if (x !== undefined && (y === undefined || dx <= dy)) return { x, y: point.y };
+  if (y !== undefined) return { x: point.x, y };
+  return nearest && validPivot(nearest.point) ? nearest.point : null;
 }

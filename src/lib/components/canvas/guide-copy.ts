@@ -4,6 +4,9 @@ import { locale } from 'svelte-i18n';
 
 export const enGuide = {
   title: 'Guidelines', open: 'Guidelines…', horizontal: 'Horizontal', vertical: 'Vertical', orientation: 'Direction', position: 'Position',
+  angled: 'Angled', pivotX: 'Pivot X', pivotY: 'Pivot Y', angle: 'Angle', useCenter: 'Use selection or view center',
+  angleHelp: 'Angles increase counterclockwise from +X. Drag the solid handle to move the pivot along the guide. Drag the hollow handle to rotate. Hold Shift for 15° steps.',
+  pivotHandle: 'Move the pivot along the guideline', rotateHandle: 'Rotate around the guideline pivot',
   add: 'Add guideline', move: 'Move guideline', remove: 'Delete guideline', selected: 'Selected guideline',
   showGuides: 'Show guidelines', lockEditing: 'Lock guideline editing', snapGuides: 'Snap to guidelines',
   guideVisible: 'Show this guideline', guideLocked: 'Lock this guideline', lockedLabel: 'locked', hiddenLabel: 'hidden',
@@ -38,6 +41,9 @@ export const enGuide = {
 type Copy = Record<keyof typeof enGuide, string>;
 const ru: Copy = {
   title: 'Направляющие', open: 'Направляющие…', horizontal: 'Горизонтальная', vertical: 'Вертикальная', orientation: 'Направление', position: 'Положение',
+  angled: 'Наклонная', pivotX: 'Центр вращения X', pivotY: 'Центр вращения Y', angle: 'Угол', useCenter: 'Взять центр выделения или вида',
+  angleHelp: 'Угол отсчитывается против часовой стрелки от +X. Сплошная ручка перемещает центр вдоль направляющей. Полая ручка вращает её. Shift задаёт шаг 15°.',
+  pivotHandle: 'Переместить центр вращения вдоль направляющей', rotateHandle: 'Повернуть вокруг центра направляющей',
   add: 'Добавить направляющую', move: 'Переместить направляющую', remove: 'Удалить направляющую', selected: 'Выбранная направляющая',
   showGuides: 'Показать направляющие', lockEditing: 'Заблокировать редактирование направляющих', snapGuides: 'Привязывать к направляющим',
   guideVisible: 'Показать эту направляющую', guideLocked: 'Заблокировать эту направляющую', lockedLabel: 'заблокирована', hiddenLabel: 'скрыта',
@@ -71,6 +77,9 @@ const ru: Copy = {
 };
 const lv: Copy = {
   title: 'Vadlīnijas', open: 'Vadlīnijas…', horizontal: 'Horizontāla', vertical: 'Vertikāla', orientation: 'Virziens', position: 'Novietojums',
+  angled: 'Slīpa', pivotX: 'Rotācijas centra X', pivotY: 'Rotācijas centra Y', angle: 'Leņķis', useCenter: 'Izmantot atlases vai skata centru',
+  angleHelp: 'Leņķi mēra pretēji pulksteņrādītāja virzienam no +X. Aizpildītais rokturis pārvieto centru gar vadlīniju. Tukšais rokturis pagriež vadlīniju. Ar Shift solis ir 15°.',
+  pivotHandle: 'Pārvietot rotācijas centru gar vadlīniju', rotateHandle: 'Pagriezt vadlīniju ap tās centru',
   add: 'Pievienot vadlīniju', move: 'Pārvietot vadlīniju', remove: 'Dzēst vadlīniju', selected: 'Atlasītā vadlīnija',
   showGuides: 'Rādīt vadlīnijas', lockEditing: 'Bloķēt vadlīniju rediģēšanu', snapGuides: 'Piesaistīt vadlīnijām',
   guideVisible: 'Rādīt šo vadlīniju', guideLocked: 'Bloķēt šo vadlīniju', lockedLabel: 'bloķēta', hiddenLabel: 'paslēpta',

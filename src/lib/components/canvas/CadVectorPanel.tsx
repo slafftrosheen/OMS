@@ -558,7 +558,7 @@ export function VectorExport({ settings, revision, focusSequence }: Props) {
     </details>
   );
 }
-export function CornerControls({ settings, revision, disabled, focusSequence }: Props) {
+export function CornerControls({ settings, revision, disabled, focusSequence, menuFocusSequence }: Props & { menuFocusSequence?: number }) {
   const editor = useEditor(),
     t = useVectorText();
   const section = useRef<HTMLDetailsElement>(null);
@@ -566,13 +566,19 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
   const [scope, setScope] = useState<'all' | 'node'>('all');
   const [kind, setKind] = useState<"fillet" | "chamfer">("fillet"),
     [amount, setAmount] = useState(() => String(2 / unitMm(settings?.unit ?? 'mm'))),
+    [outgoing, setOutgoing] = useState(() => String(2 / unitMm(settings?.unit ?? 'mm'))),
+    [equal, setEqual] = useState(true),
     [review, setReview] = useState<Review>(),
     [message, setMessage] = useState("");
   const previousUnit = useRef(settings?.unit ?? 'mm');
   useEffect(() => {
     const unit = settings?.unit ?? 'mm', factor = unitMm(previousUnit.current) / unitMm(unit);
     previousUnit.current = unit;
-    if (factor !== 1) setAmount(value => value.trim() && Number.isFinite(Number(value)) ? String(Number((Number(value) * factor).toPrecision(14))) : value);
+    if (factor !== 1) {
+      const convert = (value: string) => value.trim() && Number.isFinite(Number(value)) ? String(Number((Number(value) * factor).toPrecision(14))) : value;
+      setAmount(convert);
+      setOutgoing(convert);
+    }
   }, [settings?.unit]);
   useEffect(() => {
     if (focusSequence === undefined || !section.current) return;
@@ -581,8 +587,17 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
     section.current.querySelector<HTMLElement>('summary')?.focus();
     section.current.scrollIntoView({ block: 'nearest' });
   }, [editor, focusSequence]);
-  const key = JSON.stringify([settings, kind, amount, scope, scope === 'node' ? selectedNode : null]);
-  const valid = amount.trim() !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
+  useEffect(() => {
+    if (menuFocusSequence === undefined || !section.current) return;
+    section.current.open = true;
+    section.current.querySelector('summary')?.focus();
+    section.current.scrollIntoView?.({ block: 'nearest' });
+  }, [menuFocusSequence]);
+  const asymmetric = kind === 'chamfer' && !equal;
+  const outgoingValue = asymmetric ? outgoing : amount;
+  const key = JSON.stringify([settings, kind, amount, outgoingValue, scope, scope === 'node' ? selectedNode : null]);
+  const positive = (value: string) => value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) > 0;
+  const valid = positive(amount) && positive(outgoingValue);
   return (
     <details ref={section} className="drawing-cad-section" data-testid="vector-corners">
       <summary>{t("corners")}</summary>
@@ -600,15 +615,20 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
             <option value="chamfer">{t("chamfer")}</option>
           </select>
         </Field>
-        <Field label={`${t(kind === 'fillet' ? 'cornerRadius' : 'cornerSetback')} (${settings?.unit ?? 'mm'})`}>
+        {kind === 'chamfer' && <label className="drawing-vector-check"><input type="checkbox" checked={equal}
+          onChange={event => { setEqual(event.target.checked); if (!event.target.checked) setOutgoing(amount); }} />{t('cornerEqualSetbacks')}</label>}
+        <Field label={`${t(kind === 'fillet' ? 'cornerRadius' : asymmetric ? 'cornerIncoming' : 'cornerSetback')} (${settings?.unit ?? 'mm'})`}>
           <input
             type="number"
             step="any"
             value={amount}
-            aria-invalid={!valid}
+            aria-invalid={!positive(amount)}
             onChange={(e) => setAmount(e.target.value)}
           />
         </Field>
+        {asymmetric && <Field label={`${t('cornerOutgoing')} (${settings?.unit ?? 'mm'})`}>
+          <input type="number" step="any" value={outgoing} aria-invalid={!positive(outgoing)} onChange={event => setOutgoing(event.target.value)} />
+        </Field>}
         <button
           type="button"
           disabled={!valid || scope === 'node' && !selectedNode}
@@ -617,10 +637,11 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
               setMessage("");
               if (!settings || disabled || !valid) return;
               const amountMm = Number(amount) * unitMm(settings.unit);
+              const outgoingMm = Number(outgoingValue) * unitMm(settings.unit);
               if (scope === 'node') {
-                const plan = prepareNodeCorner(editor, settings, amountMm, kind);
+                const plan = prepareNodeCorner(editor, settings, amountMm, kind, outgoingMm);
                 setReview({ plan, key, originalContours: plan.originalContours, previewBounds: plan.previewBounds });
-              } else setReview({ plan: prepareCorners(editor, settings, amountMm, kind), key });
+              } else setReview({ plan: prepareCorners(editor, settings, amountMm, kind, outgoingMm), key });
             } catch (e) {
               setReview(undefined);
               setMessage(vectorError(e));

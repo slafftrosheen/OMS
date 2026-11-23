@@ -31,7 +31,7 @@ import { drawingFileKind, DXF_FILE_ACCEPT } from './drawing-file-types';
 import type { DrawingImportQueue, QueuedImportControls } from './drawing-ui-requests';
 import { useDrawingText } from './drawing-copy';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'exportDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'exportDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'corners' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -113,7 +113,8 @@ export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf, impo
     </div><div hidden={task !== 'edit'}>
     <CadNodeArrangePanel settings={settings} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeArrange' ? focusRequest.sequence : undefined} />
     <CadNodeReducePanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeReduce' ? focusRequest.sequence : undefined} />
-    <CornerControls settings={settings} revision={revision} disabled={disabled} focusSequence={cornerFocus || undefined} />
+    <CornerControls settings={settings} revision={revision} disabled={disabled} focusSequence={cornerFocus || undefined}
+      menuFocusSequence={task === 'edit' && focusRequest?.section === 'corners' ? focusRequest.sequence : undefined} />
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} onCorner={() => setCornerFocus(value => value + 1)} />
     <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />

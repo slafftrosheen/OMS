@@ -35,7 +35,7 @@ import { routeCanvasCadImport } from './drawing-ui-requests';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
 import { CadBezierShapeUtil } from './shapes/CadBezierShape';
 import { CadBezierTool } from './CadBezierTool';
-import { CadPolylineTool } from './CadPolylineTool';
+import { CadLineTool, CadPolylineTool } from './CadPolylineTool';
 import { installCadTransforms } from './cad-transforms';
 import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
 import canvasAssetUrls from './tldraw-asset-urls.json';
@@ -358,7 +358,7 @@ export function CanvasApp({
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
-                    tools={[CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
+                    tools={[CadLineTool, CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}

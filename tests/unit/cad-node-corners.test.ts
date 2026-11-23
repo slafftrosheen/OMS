@@ -8,6 +8,7 @@ import { selectCadNode, getSelectedCadNode } from '../../src/lib/components/canv
 import { DEFAULT_CAD_SETTINGS as settings, cadMmPerPixel } from '../../src/lib/components/canvas/cad-settings';
 import { cadRevision } from '../../src/lib/components/canvas/cad-plans';
 import { buildCadDxf } from '../../src/lib/components/canvas/cad-dxf';
+import { cornerContour } from '../../src/lib/components/canvas/cad-corners';
 
 const near = (a: number, b: number, tolerance = 1e-8) => assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`);
 const path = (points: number[][], closed = false): CadContour => ({ closed, nodes: points.map(([x, y]) => nodeAt({ x, y })) });
@@ -19,6 +20,32 @@ function setup(contours = [elbow()]) {
 const code = (expected: string) => (error: any) => error.code === expected;
 
 describe('fillet and chamfer at a chosen node', () => {
+  it('applies independent incoming and outgoing chamfers while guarding shared edge length', () => {
+    const single = cornerAtNode([elbow()], 0, 1, 10, 'chamfer', 0.005, 30).contours[0];
+    assert.deepEqual(single.nodes.slice(1, 3), [nodeAt({ x: -10, y: 0 }), nodeAt({ x: 0, y: 30 })]);
+    assert.throws(() => cornerAtNode([elbow()], 0, 1, 10, 'chamfer', 0.005, 100), code('corner-size'));
+    const square = path([[0, 0], [200, 0], [200, 200], [0, 200]], true);
+    assert.deepEqual(cornerContour(square, 10, 'chamfer', 40).nodes.slice(0, 2), [nodeAt({ x: 0, y: 10 }), nodeAt({ x: 40, y: 0 })]);
+    assert.throws(() => cornerContour(square, 80, 'chamfer', 120), code('corner-size'));
+  });
+
+  it('subdivides every large fillet to keep the requested physical radius', () => {
+    const radius = 5000, tolerance = 0.005;
+    const square = path([[0, 0], [20000, 0], [20000, 20000], [0, 20000]], true);
+    const fillet = cornerContour(square, radius, 'fillet', radius, tolerance);
+    assert.ok(fillet.nodes.length > 8);
+    const firstCorner = fillet.nodes.slice(0, fillet.nodes.length / 4);
+    for (let j = 1; j < firstCorner.length; j++) for (let i = 0; i <= 100; i++) {
+      const p = cubicAt(cubicPoints(firstCorner[j - 1], firstCorner[j]), i / 100);
+      assert.ok(Math.abs(Math.hypot(p.x - radius, p.y - radius) - radius) <= tolerance);
+    }
+  });
+
+  it('rejects a consistently turning self-crossing outline', () => {
+    const star = path(Array.from({ length: 5 }, (_, i) => [100 * Math.cos(i * 4 * Math.PI / 5), 100 * Math.sin(i * 4 * Math.PI / 5)]), true);
+    assert.throws(() => cornerContour(star, 10, 'fillet'), code('corners'));
+  });
+
   for (const sign of [-1, 1]) it(`creates tangent circular geometry for turn ${sign}`, () => {
     const source = path([[-100, 0], [0, 0], [0, sign * 100]]), before = structuredClone(source);
     const result = cornerAtNode([source], 0, 1, 10, 'fillet', 0.005).contours[0];

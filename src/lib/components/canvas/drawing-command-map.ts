@@ -110,6 +110,7 @@ export const drawingCommands = {
   shaping: { icon: 'fx-shaping' },
   join: { icon: 'join' },
   knife: { icon: 'knife' },
+  corners: { icon: 'corners' },
   convert: { icon: 'text-curves', keys: 'Ctrl+Q' },
   outlineObject: { icon: 'outline-object', keys: 'Ctrl+Shift+Q' },
   artworkClip: { icon: 'artwork-clip' },
@@ -168,7 +169,7 @@ export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly 
     { sub: 'order', items: ['front', 'back', 'forward', 'backward', '-', 'reverseOrder', 'relativeOrder'] },
     { sub: 'transformations', items: ['transform', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'mirrorCopy', '-', 'skew'] },
     { sub: 'alignDistribute', items: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', '-', 'distribute-horizontal', 'distribute-vertical', '-', 'centerToPage', 'arrange'] },
-    { sub: 'shapingTools', items: ['shaping', 'join', 'knife'] },
+    { sub: 'shapingTools', items: ['shaping', 'join', 'knife', 'corners'] },
     'artworkClip', '-', 'convert', 'outlineObject', '-',
     { sub: 'nodeTools', items: ['nodes', 'nodeArrange', 'nodeReduce'] },
     { sub: 'shapeProperties', items: ['rectangleCorners', 'polygonShape', 'ellipseSegments'] },
@@ -202,7 +203,7 @@ export const drawingToolIds = [
 export type DrawingToolId = typeof drawingToolIds[number];
 
 type DrawingToolTarget =
-  | { kind: 'editor'; tool: string; panel?: DrawingDocker }
+  | { kind: 'editor'; tool: string; calibratedTool?: string; panel?: DrawingDocker }
   | { kind: 'geometry'; shape: 'rectangle' | 'ellipse' | 'pentagon' | 'star' | 'triangle' | 'diamond' }
   | { kind: 'command'; command: DrawingCommandId };
 
@@ -215,7 +216,7 @@ export const drawingToolTargets = {
   hand: { kind: 'editor', tool: 'hand' },
   zoom: { kind: 'editor', tool: 'zoom' },
   'cad-freehand': { kind: 'editor', tool: 'cad-freehand' },
-  line: { kind: 'editor', tool: 'line' },
+  line: { kind: 'editor', tool: 'line', calibratedTool: 'cad-line' },
   'cad-bezier': { kind: 'editor', tool: 'cad-bezier' },
   'cad-polyline': { kind: 'editor', tool: 'cad-polyline' },
   draw: { kind: 'editor', tool: 'draw' },

@@ -1,17 +1,16 @@
 import { atom, type Editor, type TLPageId } from '@tldraw/tldraw';
 import { isCadNodeEditing } from './cad-node-selection';
-import { validCadPoint } from './cad-settings';
+import { validCadPoint, type CadPoint } from './cad-settings';
 import {
   applyDrawingGuideChange, drawingGuidesAreValid, drawingGuidesRevision, DrawingGuideError,
-  prepareDrawingGuideChange, readDrawingGuides, selectDrawingGuide, type DrawingGuideAxis,
+  drawingGuideLine, prepareDrawingGuideChange, projectToDrawingGuide, readDrawingGuides, selectDrawingGuide,
+  type DrawingGuideChange, type DrawingGuideGeometry,
   type DrawingGuideErrorCode,
 } from './drawing-guides';
 import { claimDrawingPointerGesture, suppressDrawingKeyRelease } from './drawing-pointer-gesture';
 
-export interface DrawingGuideDragPreview {
-  axis: DrawingGuideAxis;
+export type DrawingGuideDragPreview = DrawingGuideGeometry & {
   guideId?: string;
-  position: number;
   outside: boolean;
   valid: boolean;
 }
@@ -51,14 +50,16 @@ function consume(event: Event): void {
  * page-space UI; release applies one guarded change, Escape applies nothing. */
 export function beginDrawingGuideDrag(
   editor: Editor,
-  source: { axis: DrawingGuideAxis; guideId?: string },
+  source: { axis: DrawingGuideGeometry['axis']; guideId?: string; mode?: 'pivot' | 'rotate' },
   event: PointerEvent,
   captureTarget: Element,
 ): boolean {
   if (event.button !== 0 || event.isPrimary === false || !canDragDrawingGuide(editor) || sessions.has(editor)) return false;
   const state = readDrawingGuides(editor);
   const guide = source.guideId ? state.guides.find(item => item.id === source.guideId) : undefined;
-  if (!['x', 'y'].includes(source.axis) || source.guideId && (!guide || guide.axis !== source.axis || guide.locked || !guide.visible || !state.visible)) return false;
+  if (source.guideId && (!guide || guide.axis !== source.axis || guide.locked || !guide.visible || !state.visible)) return false;
+  const angled = guide?.axis === 'angle' ? guide : undefined;
+  if ((source.axis === 'angle' || source.mode) && !angled) return false;
   const start = editor.screenToPage({ x: event.clientX, y: event.clientY });
   if (!validCadPoint(start)) return false;
   const releaseClaim = claimDrawingPointerGesture(editor, 'guide', event.pointerId);
@@ -73,21 +74,37 @@ export function beginDrawingGuideDrag(
   };
   const initialViewport = viewport();
   const pointerId = event.pointerId;
-  const offset = guide ? start[source.axis] - guide.position : 0;
+  const axis = source.axis === 'x' ? 'x' : 'y';
+  const offset = guide && guide.axis !== 'angle' ? start[axis] - guide.position : 0;
   const origin = { x: event.clientX, y: event.clientY };
   let moved = false, finished = false;
-  let last = { clientX: event.clientX, clientY: event.clientY };
+  let last = { clientX: event.clientX, clientY: event.clientY, shiftKey: event.shiftKey };
   const subscription: { stop?: () => void } = {};
 
   function fresh(): boolean {
     return editor.getCurrentPageId() === pageId && canDragDrawingGuide(editor) && drawingGuidesRevision(editor) === revision && viewport() === initialViewport;
   }
-  function preview(point: { clientX: number; clientY: number }): DrawingGuideDragPreview {
+  function preview(point: typeof last): DrawingGuideDragPreview {
     const p = editor.screenToPage({ x: point.clientX, y: point.clientY });
-    const position = p[source.axis] - offset;
-    return { axis: source.axis, guideId: source.guideId, position,
-      outside: !guidePointerInsideViewport(editor, point),
-      valid: Number.isFinite(position) && validCadPoint({ x: source.axis === 'x' ? position : 0, y: source.axis === 'y' ? position : 0 }) };
+    const common = { guideId: source.guideId, outside: !guidePointerInsideViewport(editor, point) };
+    if (angled) {
+      let pivot: CadPoint = angled.pivot, angle = angled.angle, valid = true;
+      if (source.mode === 'rotate') {
+        const dx = p.x - pivot.x, dy = p.y - pivot.y;
+        valid = Math.hypot(dx, dy) * editor.getZoomLevel() >= 5;
+        angle = Math.atan2(-dy, dx) * 180 / Math.PI;
+        if (point.shiftKey) angle = Math.round(angle / 15) * 15;
+      } else if (source.mode === 'pivot') {
+        pivot = projectToDrawingGuide(angled, { x: pivot.x + p.x - start.x, y: pivot.y + p.y - start.y });
+      } else {
+        const { normal } = drawingGuideLine(angled);
+        const delta = (p.x - start.x) * normal.x + (p.y - start.y) * normal.y;
+        pivot = { x: pivot.x + delta * normal.x, y: pivot.y + delta * normal.y };
+      }
+      return { ...common, axis: 'angle', pivot, angle, valid: valid && validCadPoint(pivot) && Number.isFinite(angle) };
+    }
+    const position = p[axis] - offset;
+    return { ...common, axis, position, valid: validCadPoint({ x: axis === 'x' ? position : 0, y: axis === 'y' ? position : 0 }) };
   }
   function cleanup() {
     if (finished) return;
@@ -112,7 +129,7 @@ export function beginDrawingGuideDrag(
     if (next.pointerId !== pointerId) return;
     consume(next);
     if (!fresh()) { cancel('stale'); return; }
-    last = { clientX: next.clientX, clientY: next.clientY };
+    last = { clientX: next.clientX, clientY: next.clientY, shiftKey: next.shiftKey };
     moved ||= Math.hypot(last.clientX - origin.x, last.clientY - origin.y) >= 3;
     drawingGuideDrag(editor).set(preview(last));
   }
@@ -122,12 +139,13 @@ export function beginDrawingGuideDrag(
     cleanup();
     if (!moved) return;
     if (!result.valid) { drawingGuideNotice(editor).set('invalid'); return; }
-    if (result.outside && !source.guideId) { drawingGuideNotice(editor).set('canceled'); return; }
+    if (result.outside && (!source.guideId || source.mode)) { drawingGuideNotice(editor).set('canceled'); return; }
     try {
-      const change = source.guideId
-        ? result.outside ? { kind: 'remove' as const, ids: [source.guideId] }
-          : { kind: 'move' as const, id: source.guideId, position: result.position }
-        : { kind: 'add' as const, axis: source.axis, position: result.position };
+      const change: DrawingGuideChange | null = source.guideId && result.outside ? { kind: 'remove' as const, ids: [source.guideId] }
+        : result.axis === 'angle' && source.guideId ? { kind: 'pose' as const, id: source.guideId, pivot: result.pivot, angle: result.angle }
+        : result.axis !== 'angle' && source.guideId ? { kind: 'move' as const, id: source.guideId, position: result.position }
+        : result.axis !== 'angle' ? { kind: 'add' as const, axis: result.axis, position: result.position } : null;
+      if (!change) return;
       const plan = prepareDrawingGuideChange(editor, change, revision);
       if (!applyDrawingGuideChange(editor, plan)) { drawingGuideNotice(editor).set('failed'); return; }
       drawingGuideNotice(editor).set(change.kind === 'add' ? 'created' : change.kind === 'remove' ? 'removed' : 'moved');
@@ -137,7 +155,7 @@ export function beginDrawingGuideDrag(
   function up(next: PointerEvent) {
     if (next.pointerId !== pointerId) return;
     consume(next);
-    last = { clientX: next.clientX, clientY: next.clientY };
+    last = { clientX: next.clientX, clientY: next.clientY, shiftKey: next.shiftKey };
     moved ||= Math.hypot(last.clientX - origin.x, last.clientY - origin.y) >= 3;
     finish();
   }
