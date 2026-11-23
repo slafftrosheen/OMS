@@ -12,7 +12,7 @@ const en = {
   oversized: 'Too large for this sheet', unplaced: 'Did not fit within the sheet limit', applied: 'Objects nested.', failed: 'Could not move the objects. Nothing was changed.',
   stale: 'The drawing changed. Preview again.', nextSheets: 'Sheet 2 and later are laid out to the right of sheet 1.',
   nestSheetSize: 'Enter a sheet width and height above zero.', nestSpacing: 'The margin leaves no room on this sheet.', nestNoParts: 'Select at least two objects to nest.',
-  documentRequired: 'Set up document units first.', sheetLabel: 'Sheet {n}',
+  documentRequired: 'Set up document units first.', setup: 'Document setup', sheetLabel: 'Sheet {n}',
   price: 'Price per sheet, € (optional)', material: 'Material to issue', cost: 'Material cost', perPart: 'Material per placed part'
 };
 type Label = keyof typeof en;
@@ -26,7 +26,7 @@ const lv: Record<Label, string> = {
   oversized: 'Par lielu šai loksnei', unplaced: 'Neietilpa lokšņu limitā', applied: 'Objekti izkārtoti.', failed: 'Objektus neizdevās pārvietot. Nekas netika mainīts.',
   stale: 'Zīmējums ir mainīts. Priekšskatiet vēlreiz.', nextSheets: '2. un nākamās loksnes tiek izkārtotas pa labi no 1. loksnes.',
   nestSheetSize: 'Ievadiet loksnes platumu un augstumu, kas lielāki par nulli.', nestSpacing: 'Ar šādu atkāpi loksnē nepaliek vietas.', nestNoParts: 'Atlasiet vismaz divus objektus.',
-  documentRequired: 'Vispirms iestatiet dokumenta mērvienības.', sheetLabel: '{n}. loksne',
+  documentRequired: 'Vispirms iestatiet dokumenta mērvienības.', setup: 'Dokumenta iestatījumi', sheetLabel: '{n}. loksne',
   price: 'Loksnes cena, € (nav obligāti)', material: 'Izsniedzamais materiāls', cost: 'Materiāla izmaksas', perPart: 'Materiāls uz izvietoto detaļu'
 };
 const ru: Record<Label, string> = {
@@ -39,7 +39,7 @@ const ru: Record<Label, string> = {
   oversized: 'Не помещается на этот лист', unplaced: 'Не поместилось в лимит листов', applied: 'Объекты разложены.', failed: 'Не удалось переместить объекты. Ничего не изменено.',
   stale: 'Чертёж изменился. Обновите предпросмотр.', nextSheets: 'Лист 2 и следующие располагаются справа от листа 1.',
   nestSheetSize: 'Введите ширину и высоту листа больше нуля.', nestSpacing: 'При таком отступе на листе не остаётся места.', nestNoParts: 'Выберите не менее двух объектов.',
-  documentRequired: 'Сначала настройте единицы документа.', sheetLabel: 'Лист {n}',
+  documentRequired: 'Сначала настройте единицы документа.', setup: 'Настройка документа', sheetLabel: 'Лист {n}',
   price: 'Цена листа, € (необязательно)', material: 'Выдать материала', cost: 'Стоимость материала', perPart: 'Материал на размещённую деталь'
 };
 const subscribe = (notify: () => void) => locale.subscribe(() => notify());

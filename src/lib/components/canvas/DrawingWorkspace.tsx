@@ -38,7 +38,7 @@ import {drawingPenDiagnostics} from './drawing-pen-input';
 import {enPen, usePenText} from './pen-copy';
 import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
-import {DRAWING_UI_REQUEST, isDrawingUiRequest} from './drawing-ui-requests';
+import { DRAWING_REVIEW_FILE_TYPES, DRAWING_UI_REQUEST, isDrawingUiRequest } from './drawing-ui-requests';
 import {useObjectTreeText} from './object-tree-copy';
 import {captureDrawingObjectStack, prepareDrawingObjectOrder, applyDrawingObjectOrder} from './drawing-object-tree';
 import {RadialArrange} from './RadialArrange';
@@ -86,32 +86,46 @@ import { canvasLengthToUnit, canvasPointToCad, readCadSettings, type CadSettings
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import { useVectorText } from './cad-vector-copy';
 import { DrawingIcon } from './drawing-icons';
-import { drawingToolbox, drawingReadOnlyTools, drawingToolKeys, drawingOwnToolKeys, drawingOwnCommandForKeys, drawingEventKeys, drawingCommands, formatDrawingKeys, ariaDrawingKeys, type DrawingCommandId, type DrawingCommandSpec, type DrawingMenuId, type DrawingToolId } from './drawing-command-map';
+import {
+  ariaDrawingKeys, drawingCommands, drawingCycleIndex, drawingEventKeys, drawingOwnCommandForKeys,
+  drawingReadOnlyTools, drawingRepeatable, drawingToolbox, drawingToolForKeys, drawingToolKeys,
+  drawingToolTargets, formatDrawingKeys, isDrawingToolId,
+  type DrawingCommandId, type DrawingCommandSpec, type DrawingDocker, type DrawingMenuId, type DrawingToolId,
+} from './drawing-command-map';
 import { useDrawingCommandText } from './drawing-command-copy';
 import { DrawingMenuBar, DrawingQuickAccess, buildQuickAccessItems, type DrawingCommandState } from './DrawingCommandUi';
 import { summarizeDrawingSelection, type DrawingStatusPaint } from './drawing-status';
 import { useActions } from '@tldraw/tldraw';
 import { drawingMotion, drawingMoves } from './drawing-motion';
-import { drawingRepeatable } from './drawing-command-map';
 import './drawing-workspace.css';
 
 type Alignment = Pick<Extract<ArrangeOptions, { kind: 'align' }>, 'axis' | 'alignment'>;
-const alignmentKeys: Readonly<Partial<Record<string, Alignment>>> = {
-  l: { axis: 'x', alignment: 'start' },
-  c: { axis: 'x', alignment: 'center' },
-  r: { axis: 'x', alignment: 'end' },
-  t: { axis: 'y', alignment: 'start' },
-  e: { axis: 'y', alignment: 'center' },
-  b: { axis: 'y', alignment: 'end' },
-};
-
-const objectShortcuts: Readonly<Partial<Record<string, string>>> = {
-  front: 'Home', back: 'End', forward: 'PageUp', backward: 'PageDown', group: 'G', ungroup: 'U',
-};
-const objectActionByKey = new Map(Object.entries(objectShortcuts).map(([action, key]) => [key?.toLowerCase(), action]));
+const alignments = {
+  'align-left': { axis: 'x', alignment: 'start' },
+  'align-center': { axis: 'x', alignment: 'center' },
+  'align-right': { axis: 'x', alignment: 'end' },
+  'align-top': { axis: 'y', alignment: 'start' },
+  'align-middle': { axis: 'y', alignment: 'center' },
+  'align-bottom': { axis: 'y', alignment: 'end' },
+} as const satisfies Partial<Record<DrawingCommandId, Alignment>>;
+type AlignmentCommand = keyof typeof alignments;
+const alignmentKeys = new Map((Object.keys(alignments) as AlignmentCommand[]).map(id => [drawingCommands[id].keys as string, id]));
+function isAlignmentCommand(id: string): id is AlignmentCommand {
+  return Object.hasOwn(alignments, id);
+}
+const editorCommands = ['undo', 'redo', 'duplicate', 'delete', 'select-all', 'group', 'ungroup', 'front', 'back', 'forward', 'backward', 'lock',
+  'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'fit', 'fit-selection', 'zoom-reset',
+  'align-left', 'align-right', 'align-top', 'align-bottom', 'align-center', 'align-middle', 'distribute-horizontal', 'distribute-vertical'] as const satisfies readonly DrawingCommandId[];
+function isEditorCommand(id: DrawingCommandId): id is typeof editorCommands[number] {
+  return (editorCommands as readonly DrawingCommandId[]).includes(id);
+}
+const selectionShortcuts: ReadonlySet<DrawingCommandId> = new Set([
+  'selectNext', 'selectPrevious', 'centerToPage', 'duplicateInPlace', 'combine', 'breakApart', 'group', 'ungroup',
+  'front', 'back', 'forward', 'backward',
+]);
 
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
-type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | 'guides' | 'pen' | 'clipart' | null;
+type Panel = DrawingDocker | null;
 interface WorkspaceContext {
   hosts: Partial<Record<Slot, HTMLElement>>;
   panel: Panel;
@@ -265,15 +279,12 @@ function ToolButton({ label, icon, active, disabled, onClick, onDoubleClick, chi
   </button>;
 }
 
-const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
 const toolCategories = drawingToolbox;
 const toolGroups = toolCategories.flatMap(category => category.groups);
-const readOnlyTools: readonly string[] = [...drawingReadOnlyTools];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = Object.fromEntries(Object.entries(drawingToolKeys).map(([tool, keys]) => [tool, formatDrawingKeys(keys)]));
 /** Tool name with its key, without repeating a key the name already carries. */
-const withKey = (name: string, tool: string) => shortcut[tool] && !name.includes(shortcut[tool]) ? `${name} (${shortcut[tool]})` : name;
-const newTools = new Set(['pentagon', 'free-transform', 'knife', 'zoom', 'fx-contour', 'fx-repeat', 'fx-radial', 'fx-shaping', 'eyedropper', 'outline']);
+const withKey = (name: string, tool: string) => shortcut[tool] && !name.endsWith(`(${shortcut[tool]})`) ? `${name} (${shortcut[tool]})` : name;
 
 function NumberField({ field, value, disabled, label }: { field: DrawingTransformField; value: number | undefined; disabled: boolean; label: string }) {
   const editor = useEditor();
@@ -519,13 +530,11 @@ export function DrawingChrome() {
   const words = useDrawingCommandText();
   const nativeActions = useActions();
   const [quick, setQuick] = useState<null | 'search' | 'shortcuts'>(null);
-  const commandRef = useRef<(id: DrawingCommandId, fromKeyboard?: boolean) => void>(() => undefined);
-  const lastCommand = useRef<DrawingCommandId | null>(null);
-  const wordsRef = useRef(words); wordsRef.current = words;
-  const previousTool = useRef<string | null>(null);
+  const commandRef = useRef<(id: DrawingCommandId, fromKeyboard?: boolean) => boolean>(() => false);
+  const [lastCommand, setLastCommand] = useState<DrawingCommandId | null>(null);
+  const previousTool = useRef<DrawingToolId | null>(null);
   const spaceRef = useRef<{ at: number; moved: boolean } | null>(null);
-  const toolRef = useRef<(tool: string, fromKeyboard?: boolean) => void>(() => undefined);
-  const flashRef = useRef<(text: string, keys?: string) => void>(() => undefined);
+  const toolRef = useRef<(tool: DrawingToolId, fromKeyboard?: boolean) => void>(() => undefined);
   const [hud, setHud] = useState<{ text: string; keys?: string; serial: number } | null>(null);
   useEffect(() => {
     if (!hud) return;
@@ -607,7 +616,7 @@ export function DrawingChrome() {
     [editor, nodeEditing]);
   const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
   const [toolGroup, setToolGroup] = useState<string | null>(null);
-  const [groupTools, setGroupTools] = useState<Record<string, string>>({});
+  const [groupTools, setGroupTools] = useState<Partial<Record<string, DrawingToolId>>>({});
   const [flyoutPosition, setFlyoutPosition] = useState({ left: 0, top: 0, maxHeight: 0 });
   const flyoutTrigger = useRef<HTMLButtonElement | null>(null);
   const [saveFormat,setSaveFormat]=useState<'svg'|'png'>('png');
@@ -618,6 +627,7 @@ export function DrawingChrome() {
   const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [selectSameFocusRequest, setSelectSameFocusRequest] = useState(0);
   const [objectOrderFocusRequest, setObjectOrderFocusRequest] = useState(0);
+  const [layerFocusRequest, setLayerFocusRequest] = useState(0);
   const [guidesFocusRequest, setGuidesFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
@@ -687,46 +697,39 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => newTools.has(tool) ? words.tools[tool as DrawingToolId] ?? tool : tool === 'paint' ? vectorLabel('paint') : tool === 'clipart' ? productionLabel('clipart') : tool === 'cad-measure-tools' ? productionLabel('construction') : tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => (isDrawingToolId(tool) ? words.tools[tool] : undefined) ??
+    (tool === 'paint' ? vectorLabel('paint') : tool === 'clipart' ? productionLabel('clipart') : tool === 'cad-measure-tools' ? productionLabel('construction') :
+    tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') :
+    tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') :
+    tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') :
+    tr(toolKeys[tool] ?? `toolkit.toolbar.${tool}`));
+  function toolEnabled(tool: DrawingToolId): boolean {
+    const route = drawingToolTargets[tool];
+    return route.kind === 'command' ? commandState(route.command).enabled : !controls.readOnly || drawingReadOnlyTools.has(tool);
+  }
   function chooseTool(tool: string) {
-    if (editor.getInstanceState().isReadonly && !readOnlyTools.includes(tool)) return;
-    // Task tools open their docker task; the canvas tool stays as it was.
-    const task: Record<string, () => void> = {
-      'free-transform': () => togglePickSkew(), knife: () => focusCad('knife'), 'fx-contour': () => focusCad('offset'),
-      'fx-shaping': () => focusCad('shaping'), 'fx-repeat': () => openRepeat(), 'fx-radial': () => openArrange('radial'),
-      eyedropper: () => openAppearance(), outline: () => focusCad('outline'),
-    };
-    if (task[tool]) {
-      setToolGroup(null);
-      const group = toolGroups.find(group => group.tools.includes(tool as DrawingToolId));
-      if (group) setGroupTools(previous => ({ ...previous, [group.id]: tool }));
-      task[tool]();
-      return;
-    }
-    if (tool === 'cad-measure-tools' || tool === 'clipart') {
-      closeMenus(true);
-      setToolGroup(null);
-      context?.setPanel(tool === 'clipart' ? 'clipart' : 'measure');
-      return;
-    }
-    if (tool === 'paint') { setToolGroup(null); focusCad('paint'); return; }
+    if (!isDrawingToolId(tool) || !toolEnabled(tool) ||
+        (editor.getInstanceState().isReadonly && !drawingReadOnlyTools.has(tool))) return false;
+    const route = drawingToolTargets[tool];
+    setToolGroup(null);
     closeMenus();
-    if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
+    const group = toolGroups.find(group => group.tools.includes(tool));
+    if (group) setGroupTools(previous => ({ ...previous, [group.id]: tool }));
+    if (route.kind === 'command') return commandRef.current(route.command);
     setDrawingSkewMode(editor, false);
     setCadNodeEditing(editor, false);
-    setToolGroup(null);
-    const group = toolGroups.find(group => group.tools.includes(tool as DrawingToolId));
-    if (group) setGroupTools(previous => ({ ...previous, [group.id]: tool }));
-    if(tool==='text')context?.setPanel('text');
-    if(['cad-dimension','cad-arc-three','cad-circle-three','cad-circle'].includes(tool))context?.setPanel('measure');
+    if ('panel' in route && route.panel) context?.setPanel(route.panel);
     editor.complete();
-    if (readCadSettings(editor) && (geometryTools.includes(tool as any) || tool === 'line')) {
+    if (readCadSettings(editor) && (route.kind === 'geometry' || tool === 'line')) {
       editor.setStyleForNextShapes(DefaultDashStyle, 'solid'); editor.setStyleForNextShapes(DefaultFillStyle, 'none');
       if (tool === 'line') editor.setStyleForNextShapes(LineShapeSplineStyle, 'line');
     }
-    if (geometryTools.includes(tool as any)) { editor.setStyleForNextShapes(GeoShapeGeoStyle, tool as any); editor.setCurrentTool('geo'); }
-    else editor.setCurrentTool(tool);
+    if (route.kind === 'geometry') {
+      editor.setStyleForNextShapes(GeoShapeGeoStyle, route.shape);
+      editor.setCurrentTool('geo');
+    } else editor.setCurrentTool(route.tool);
     editor.focus();
+    return true;
   }
   function toggleToolGroup(group: typeof toolGroups[number], trigger: HTMLButtonElement, focusFirst = false) {
     const focus = () => context?.root.current?.querySelector<HTMLButtonElement>('.drawing-tool-flyout button:not(:disabled)')?.focus();
@@ -757,10 +760,26 @@ export function DrawingChrome() {
       window.removeEventListener('resize', close);
     };
   }, [toolGroup, context?.hosts.tools]);
-  function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
+  function command(action: DrawingCommandId): boolean {
+    let applied = false;
+    if (isAlignmentCommand(action)) {
+      try {
+        const roots = arrangementRoots(editor);
+        if (roots.length > 1) applied = applyArrangePlan(editor,
+          prepareArrangePlan(editor, { kind: 'align', ...alignments[action], reference: roots[roots.length - 1] }));
+      } catch { /* The alignment plan rejected the selection. */ }
+      if (applied) editor.focus();
+    } else applied = applyDrawingCommand(editor, action);
+    setNotice(applied ? '' : label('changedFailed'));
+    return applied;
+  }
   function focusCad(section: CadFocusRequest['section'], file?: File, dropPoint?: CadFocusRequest['dropPoint']) {
-    if (section === 'nodes' || section === 'nodeArrange' || section === 'nodeReduce' || section === 'convert') {
+    if (section === 'nodes' || section === 'nodeArrange' || section === 'nodeReduce' ||
+        (section === 'convert' && editor.getOnlySelectedShape()?.type !== 'text')) {
+      setDrawingSkewMode(editor, false);
       editor.complete(); editor.setCurrentTool('select'); setCadNodeEditing(editor, true);
+    } else if (section === 'convert') {
+      setCadNodeEditing(editor, false);
     }
     context?.setPanel('cad'); closeMenus();
     setCadFocus(previous => ({ section, file, dropPoint, sequence: (previous?.sequence ?? 0) + 1 }));
@@ -768,9 +787,10 @@ export function DrawingChrome() {
   function compound(operation: CadCompoundOperation) {
     const settings = readCadSettings(editor);
     let code: string | undefined;
-    const applied = settings && applyCadCompound(editor, settings, operation, issue => { code = issue; });
+    const applied = !!settings && applyCadCompound(editor, settings, operation, issue => { code = issue; });
     setNotice(advancedLabel(applied && !code ? 'applied' : settings ? cadCompoundFeedback(code) : 'settingsRequired'));
     closeMenus();
+    return applied && !code;
   }
   function closeMenus(restoreFocus = false) {
     const trigger = restoreFocus && openMenu ? context?.root.current?.querySelector<HTMLElement>(`[data-drawing-menu="${openMenu}"] > summary`) : null;
@@ -810,6 +830,10 @@ export function DrawingChrome() {
     setObjectOrderFocusRequest(value => value + 1);
     closeMenus();
   }
+  function openProductionLayers() {
+    context?.setPanel('objects');
+    setLayerFocusRequest(value => value + 1);
+  }
   function openGuides() {
     context?.setPanel('guides');
     setGuidesFocusRequest(value => value + 1);
@@ -838,7 +862,7 @@ export function DrawingChrome() {
       const request = (event as CustomEvent<unknown>).detail;
       if (!isDrawingUiRequest(request)) return;
       setToolGroup(null); closeMenus();
-      if (request.kind === 'command') command(request.action);
+      if (request.kind === 'command') commandRef.current(request.action);
       else if (request.kind === 'cad') focusCad(request.action, request.file, request.dropPoint);
       else if (request.kind === 'objects') {
         if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
@@ -922,93 +946,39 @@ export function DrawingChrome() {
       }
       if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
-      if (!(event.target instanceof Element) || isTypingTarget(editor, event.target)) return;
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); commandRef.current('outline', true); return; }
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); commandRef.current('fit-selection', true); return; }
+      if (!(event.target instanceof Element) || isTypingTarget(editor, event.target) || event.isComposing ||
+          event.target.closest('[role="dialog"],dialog[open]')) return;
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
+      const shortcutKeys = drawingEventKeys(event);
       const inDrawing = !!event.target.closest('.drawing-viewport');
-      if (inDrawing && !modifier && !event.altKey && !event.isComposing &&
+      if (inDrawing && !modifier && !event.altKey &&
           (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10')) {
         event.preventDefault(); event.stopPropagation();
         if (!event.repeat) openDrawingContextMenu(editor);
         return;
       }
-      if (inDrawing && modifier && !event.shiftKey && !event.altKey && !event.isComposing && key === 'f') {
+      if (openMenu || toolGroup !== null) {
+        (event as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
+        return;
+      }
+      const canvasFocus = inDrawing && !event.target.closest('button,a[href],[role="button"],[role="textbox"]');
+      const pickIdle = canvasFocus && editor.isIn('select.idle') && !isCadNodeEditing(editor);
+      const alignment = alignmentKeys.get(shortcutKeys);
+      if (pickIdle && alignment && arrangementRoots(editor).length > 1) {
         event.preventDefault(); event.stopPropagation();
-        if (!event.repeat) openFindReplace();
+        if (!event.repeat) commandRef.current(alignment, true);
         return;
       }
-      if (inDrawing && modifier && event.shiftKey && !event.altKey && !event.isComposing && key === 'd') {
+      if (inDrawing && captureToolkitControls(editor).selectionLocked &&
+          (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
+            modifier && ['x', 'd', 'g', 'u', '[', ']'].includes(key))) {
+        // Native shortcuts cannot move or delete a group with protected descendants.
         event.preventDefault(); event.stopPropagation();
-        if (!event.repeat) openRepeat();
-        return;
-      }
-      if (inDrawing && modifier && !event.shiftKey && !event.altKey && !event.isComposing && key === 't') {
-        event.preventDefault(); event.stopPropagation();
-        context?.setPanel('text');
-        return;
-      }
-      if (inDrawing && modifier && event.shiftKey && !event.altKey && key === 'a') {
-        event.preventDefault();
-        event.stopPropagation();
-        openArrange('align');
-        return;
-      }
-      if (inDrawing && modifier && event.shiftKey && !event.altKey && !event.isComposing && key === 'q') {
-        event.preventDefault(); event.stopPropagation();
-        if (!event.repeat) focusCad('outlineObject');
-        return;
-      }
-      const alignment = alignmentKeys[key];
-      if (inDrawing && alignment && !modifier && !event.shiftKey && !event.altKey && !event.isComposing &&
-          !openMenu && toolGroup === null && editor.isIn('select.idle') && !isCadNodeEditing(editor)) {
-        const roots = arrangementRoots(editor);
-        if (roots.length > 1) {
-          event.preventDefault();
-          event.stopPropagation();
-          if (event.repeat || !captureToolkitControls(editor).canEditSelection) return;
-          try {
-            const plan = prepareArrangePlan(editor, { kind: 'align', ...alignment, reference: roots[roots.length - 1] });
-            const applied = applyArrangePlan(editor, plan);
-            setNotice(applied ? '' : label('changedFailed'));
-            const alignCommand = ({ l: 'align-left', r: 'align-right', t: 'align-top', b: 'align-bottom', c: 'align-center', e: 'align-middle' } as Record<string, DrawingCommandId>)[key];
-            if (applied && alignCommand) { lastCommand.current = alignCommand; flashRef.current(wordsRef.current.commands[alignCommand], key.toUpperCase()); }
-          } catch {
-            setNotice(label('changedFailed'));
-          }
-          return;
-        }
-      }
-      const objectAction = inDrawing && modifier && !event.altKey && !event.shiftKey && !event.isComposing &&
-        !openMenu && toolGroup === null && editor.isIn('select.idle') && !isCadNodeEditing(editor) &&
-        !event.target.closest('button,a[href],[role="button"],[role="textbox"]')
-        ? objectActionByKey.get(key) : undefined;
-      if (objectAction && editor.getSelectedShapeIds().length) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!event.repeat) commandRef.current(objectAction as DrawingCommandId, true);
-        return;
-      }
-      const lockedSelection = captureToolkitControls(editor).selectionLocked;
-      if ((!modifier && !event.altKey && !event.shiftKey && event.key === 'F10') || (modifier && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === 'q')) {
-        event.preventDefault(); event.stopPropagation();
-        commandRef.current(event.key === 'F10' ? 'nodes' : 'convert', true);
-        return;
-      }
-      if (lockedSelection && event.target.closest('.drawing-viewport') && (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
-          modifier && ['x', 'd', 'g', '[', ']'].includes(event.key.toLowerCase()))) {
-        // Native group shortcuts do not inspect locked descendants. Keep their
-        // behaviour consistent with the disabled OMS object commands.
-        event.preventDefault(); event.stopPropagation(); return;
-      }
-      if (modifier && !event.altKey && !event.shiftKey && ['k', 'l'].includes(event.key.toLowerCase()) && event.target.closest('.drawing-viewport') && editor.isIn('select.idle')) {
-        event.preventDefault(); event.stopPropagation();
-        commandRef.current(event.key.toLowerCase() === 'l' ? 'combine' : 'breakApart', true);
         return;
       }
       const cad = readCadSettings(editor);
-      if (cad && editor.isIn('select.idle') && editor.getSelectedShapeIds().length && event.target.closest('.drawing-viewport') &&
+      if (cad && canvasFocus && editor.isIn('select.idle') && editor.getSelectedShapeIds().length &&
           ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey) {
         const amount = cad.nudge * (event.shiftKey ? 10 : modifier ? 0.1 : 1);
         const dx = event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0;
@@ -1017,24 +987,19 @@ export function DrawingChrome() {
         if (!nudgeCadSelection(editor, dx, dy, cad)) setNotice(cadLabel('failed'));
         return;
       }
-      // Remaining command-map keys (import, export, F9, Alt+F7, Ctrl+F9, Ctrl+/, F1, dockers…).
-      const ownCommand = drawingOwnCommandForKeys(drawingEventKeys(event));
-      // Tab, P and + belong to the drawing only while you are on the canvas and idle;
-      // elsewhere Tab keeps moving keyboard focus as usual.
-      const canvasOnly = ownCommand === 'selectNext' || ownCommand === 'selectPrevious' || ownCommand === 'centerToPage' || ownCommand === 'duplicateInPlace';
-      if (ownCommand && !['duplicate', 'zoom-out', 'fit'].includes(ownCommand) && (!canvasOnly || inDrawing && editor.isIn('select.idle') && !isCadNodeEditing(editor))) {
+      const ownCommand = drawingOwnCommandForKeys(shortcutKeys);
+      if (ownCommand && (!selectionShortcuts.has(ownCommand) || pickIdle)) {
+        const cycle = ownCommand === 'selectNext' || ownCommand === 'selectPrevious';
+        // Preserve ordinary focus navigation when there are no objects to cycle.
+        if (cycle && !commandRef.current(ownCommand, true)) return;
         event.preventDefault(); event.stopPropagation();
-        if (!event.repeat || ownCommand === 'selectNext' || ownCommand === 'selectPrevious') commandRef.current(ownCommand, true);
+        if (!cycle && !event.repeat) commandRef.current(ownCommand, true);
         return;
       }
-      const ownTool = !modifier && !event.altKey && !event.shiftKey && inDrawing && !event.isComposing ? drawingOwnToolKeys[event.key.length === 1 ? event.key.toLowerCase() : ''] : undefined;
-      if (ownTool && toolGroup === null && !openMenu) { event.preventDefault(); event.stopPropagation(); if (!event.repeat) toolRef.current(ownTool, true); return; }
-      const tool = ({ F5: 'cad-freehand', F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
-      if (tool && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); event.stopPropagation(); toolRef.current(tool, true); }
-      else if (event.key === 'F3') { event.preventDefault(); event.stopPropagation(); commandRef.current('zoom-out', true); }
-      else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); commandRef.current('fit', true); }
-      else if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault(); event.stopPropagation(); commandRef.current('duplicate', true);
+      const ownTool = drawingToolForKeys(shortcutKeys);
+      if (ownTool && (canvasFocus || !inDrawing && /^F[5-8]$/.test(shortcutKeys))) {
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) toolRef.current(ownTool, true);
       }
     };
     const outside = (event: PointerEvent) => { if (event.target instanceof Element && !event.target.closest('.drawing-menu')) closeMenus(); };
@@ -1042,10 +1007,12 @@ export function DrawingChrome() {
     const spaceState = spaceRef;
     const spaceDown = (event: KeyboardEvent) => {
       if (event.key !== ' ' || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (!(event.target instanceof Element) || !event.target.closest('.drawing-viewport') || isTypingTarget(editor, event.target)) return;
+      if (!(event.target instanceof Element) || !event.target.closest('.drawing-viewport') ||
+          event.target.closest('button,a[href],[role="button"],[role="dialog"]') || isTypingTarget(editor, event.target)) return;
       if (editor.getEditingShapeId()) return;
       spaceState.current = { at: performance.now(), moved: false };
     };
+    const clearSpace = () => { spaceState.current = null; };
     const spaceMove = (event: PointerEvent) => { if (spaceState.current && (event.movementX || event.movementY)) spaceState.current.moved = true; };
     const spaceUp = (event: KeyboardEvent) => {
       const space = spaceState.current;
@@ -1062,8 +1029,9 @@ export function DrawingChrome() {
     root.addEventListener('pointermove', spaceMove, true);
     root.addEventListener('keydown', keys, true);
     root.addEventListener('keyup', guardControlKeys, true);
+    window.addEventListener('blur', clearSpace);
     document.addEventListener('pointerdown', outside);
-    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', guardControlKeys, true); document.removeEventListener('pointerdown', outside); };
+    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', guardControlKeys, true); window.removeEventListener('blur', clearSpace); document.removeEventListener('pointerdown', outside); };
   }, [context?.root, context?.setPanel, editor, openMenu, toolGroup, cadLabel, advancedLabel, label]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
@@ -1178,17 +1146,18 @@ export function DrawingChrome() {
     if (action === 'fit-selection') return controls.canFitSelection;
     if (action === 'zoom-reset') return true;
     if (action === 'group') return controls.canGroup; if (action === 'ungroup') return controls.canUngroup;
-    if (action.startsWith('align-')) return controls.canAlign;
+    if (isAlignmentCommand(action)) return controls.canAlign && arrangementRoots(editor).length > 1;
     if (action.startsWith('distribute-')) return controls.canDistribute;
     return controls.canEditSelection;
   };
-  const menuActions = (actions: string[], showShortcuts = false) => actions.map(action => {
-    const key = objectShortcuts[action];
+  const menuActions = (actions: readonly DrawingCommandId[]) => actions.map(action => {
+    const key = (drawingCommands[action] as DrawingCommandSpec).keys;
     const name = actionLabel(action);
-    return <button type="button" key={action} disabled={!actionEnabled(action)}
-      aria-keyshortcuts={key ? `Control+${key} Meta+${key}` : undefined} title={key ? `${name} (Ctrl/⌘+${key})` : undefined}
-      onClick={() => { command(action); closeMenus(); }} data-testid={`drawing-action-${action}`}>
-      {name}{showShortcuts && key && <span aria-hidden="true"> · Ctrl/⌘+{key}</span>}
+    const state = commandState(action);
+    return <button type="button" key={action} disabled={!state.enabled}
+      aria-keyshortcuts={key ? ariaDrawingKeys(key) : undefined} title={key ? `${name} (${formatDrawingKeys(key)})` : undefined}
+      onClick={state.run} data-testid={`drawing-action-${action}`}>
+      {name}
     </button>;
   });
   const fieldNames = { x: 'positionX', y: 'positionY', w: 'width', h: 'height', rotation: 'rotation' } as const;
@@ -1206,11 +1175,11 @@ export function DrawingChrome() {
     if (group.id === 'dimension') return workbenchLabel('measure');
     return group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
   };
-  const toolActive = (tool: string) => {
+  const toolActive = (tool: DrawingToolId) => {
     if (tool === 'nodes') return nodeEditing;
     if (tool === 'free-transform') return skewMode;
     if (['knife', 'fx-contour', 'fx-repeat', 'fx-radial', 'fx-shaping', 'eyedropper', 'outline'].includes(tool)) return false;
-    if (tool === 'select') return controls.tool === 'select' && !nodeEditing;
+    if (tool === 'select') return controls.tool === 'select' && !nodeEditing && !skewMode;
     if (tool === 'clipart') return panel === 'clipart';
     if (tool === 'cad-measure-tools') return panel === 'measure';
     return controls.tool === tool;
@@ -1226,18 +1195,24 @@ export function DrawingChrome() {
   function commandState(id: DrawingCommandId): DrawingCommandState {
     const spec: DrawingCommandSpec = drawingCommands[id];
     const blocked = controls.readOnly && !spec.readOnly;
-    const make = (enabled: boolean, run: () => void, checked?: boolean, keepMenu = false): DrawingCommandState =>
-      ({ enabled: enabled && !blocked, checked, run: () => { if (!keepMenu) closeMenus(); if (drawingRepeatable.has(id)) lastCommand.current = id; run(); } });
+    const make = (enabled: boolean, action: () => boolean | void, checked?: boolean, keepMenu = false): DrawingCommandState => ({
+      enabled: enabled && !blocked, checked,
+      run: () => {
+        if (!enabled || blocked || (!spec.readOnly && editor.getInstanceState().isReadonly)) return false;
+        if (!keepMenu) closeMenus();
+        if (action() === false) return false;
+        if (drawingRepeatable.has(id)) setLastCommand(id);
+        return true;
+      },
+    });
     const cad = (section: CadFocusRequest['section'], enabled = true) => make(enabled, () => focusCad(section));
-    const builtIn = ['undo', 'redo', 'duplicate', 'delete', 'select-all', 'group', 'ungroup', 'front', 'back', 'forward', 'backward', 'lock',
-      'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'fit', 'fit-selection', 'zoom-reset',
-      'align-left', 'align-right', 'align-top', 'align-bottom', 'align-center', 'align-middle', 'distribute-horizontal', 'distribute-vertical'];
-    if (builtIn.includes(id)) return make(actionEnabled(id), () => command(id));
-    if (id.startsWith('dock-')) {
-      const mode = id.slice(5) as Exclude<Panel, null>;
-      return make(true, () => { setToolGroup(null); setPanel(panel === mode ? null : mode); }, panel === mode);
-    }
+    if (isEditorCommand(id)) return make(actionEnabled(id), () => command(id));
     switch (id) {
+      case 'dock-properties': case 'dock-objects': case 'dock-text': case 'dock-arrange': case 'dock-measure':
+      case 'dock-guides': case 'dock-snap': case 'dock-pen': case 'dock-cad': case 'dock-clipart': {
+        const mode = id.slice(5) as DrawingDocker;
+        return make(true, () => { setToolGroup(null); setPanel(panel === mode ? null : mode); }, panel === mode);
+      }
       case 'import': return make(!busy && !!onImport, () => input.current?.click());
       case 'importDxf': return cad('importDxf');
       case 'importVector': return cad('importVector');
@@ -1249,9 +1224,9 @@ export function DrawingChrome() {
       case 'exportDxf': return cad('exportDxf');
       case 'files': return cad('files');
       case 'preflight': return cad('preflight');
-      case 'cut': return make(controls.canEditSelection, () => nativeActions.cut?.onSelect('menu'));
-      case 'copy': return make(controls.selected > 0, () => nativeActions.copy?.onSelect('menu'));
-      case 'paste': return make(!controls.readOnly, () => nativeActions.paste?.onSelect('menu'));
+      case 'cut': return make(!!nativeActions.cut && controls.canEditSelection, () => { nativeActions.cut?.onSelect('menu'); });
+      case 'copy': return make(!!nativeActions.copy && controls.selected > 0, () => { nativeActions.copy?.onSelect('menu'); });
+      case 'paste': return make(!!nativeActions.paste, () => { nativeActions.paste?.onSelect('menu'); });
       case 'repeat': return make(true, openRepeat);
       case 'selectSame': return make(true, openSelectSame);
       case 'findReplace': return make(true, openFindReplace);
@@ -1277,6 +1252,7 @@ export function DrawingChrome() {
       case 'breakApart': return make(controls.canEditSelection && !!settings, () => compound('breakApart'));
       case 'reverseOrder': return make((captureDrawingObjectStack(editor)?.selected.length ?? 0) >= 2, reverseObjectOrder);
       case 'relativeOrder': return make(true, openObjectOrder);
+      case 'productionLayers': return make(true, openProductionLayers);
       case 'transform': return make(true, openTransform);
       case 'skew': return { ...make(skewMode || !skewSelection.error, togglePickSkew, skewMode), title: skewSelection.error ? skewErrorText(skewSelection.error) : pickSkewLabel('help') };
       case 'arrange': return make(true, () => openArrange('align'));
@@ -1302,66 +1278,83 @@ export function DrawingChrome() {
       case 'fonts': return make(true, focusFonts);
       case 'closeDocker': return make(!!panel, () => setPanel(null));
       case 'repeatLast': {
-        const last = lastCommand.current;
-        const target = last && last !== 'repeatLast' ? commandState(last) : null;
-        return { ...make(!!target?.enabled, () => { target?.run(); flash(`${words.ui.repeated}: ${words.commands[last!]}`, 'Ctrl+R'); }),
-          title: last ? `${words.commands.repeatLast}: ${words.commands[last]}` : words.ui.nothingToRepeat };
+        if (!lastCommand || lastCommand === 'repeatLast') return { ...make(false, () => false), title: words.ui.nothingToRepeat };
+        const target = commandState(lastCommand);
+        return { ...make(target.enabled, () => {
+          if (!target.run()) return false;
+          flash(`${words.ui.repeated}: ${words.commands[lastCommand]}`, 'Ctrl+R');
+          return true;
+        }), title: `${words.commands.repeatLast}: ${words.commands[lastCommand]}` };
       }
       case 'duplicateInPlace': return make(controls.canEditSelection, duplicateInPlace);
       case 'selectNext': return make(controls.hasShapes, () => cycleSelection(1));
       case 'selectPrevious': return make(controls.hasShapes, () => cycleSelection(-1));
       case 'centerToPage': return make(controls.canEditSelection && !!pageBounds, centerToPage);
-      case 'togglePick': return make(true, togglePick);
+      case 'togglePick': return make(controls.tool !== 'select' || nodeEditing || skewMode || !!previousTool.current, togglePick);
       case 'options': return cad('document');
       case 'quickAccess': return make(true, () => setQuick('search'));
       case 'shortcuts': return make(true, () => setQuick('shortcuts'));
-      default: return make(false, () => undefined);
+      default: {
+        const unhandled: never = id;
+        throw new Error(`Unhandled drawing command: ${unhandled}`);
+      }
     }
   }
   commandRef.current = (id, fromKeyboard = false) => {
     const item = commandState(id);
-    if (!item.enabled) return;
-    item.run();
+    if (!item.run()) return false;
     const spec: DrawingCommandSpec = drawingCommands[id];
     if (fromKeyboard && id !== 'repeatLast' && id !== 'quickAccess' && id !== 'shortcuts') flash(words.commands[id].replace(/…$/, ''), spec.keys);
+    return true;
   };
   toolRef.current = (tool, fromKeyboard = false) => {
-    chooseTool(tool);
-    if (fromKeyboard) flash(toolLabel(tool), drawingToolKeys[tool as DrawingToolId]);
+    if (chooseTool(tool) && fromKeyboard) flash(toolLabel(tool), drawingToolKeys[tool]);
   };
-  flashRef.current = flash;
   function flash(text: string, keys?: string) { setHud(previous => ({ text, keys, serial: (previous?.serial ?? 0) + 1 })); }
   /** Desktop "+": a copy exactly on top, selected, ready to move. */
   function duplicateInPlace() {
     const ids = [...editor.getSelectedShapeIds()];
-    if (!ids.length || !captureToolkitControls(editor).canEditSelection) return;
+    if (!ids.length || !captureToolkitControls(editor).canEditSelection) return false;
     editor.complete(); editor.setCurrentTool('select');
-    if (!drawingTransaction(editor, () => { editor.duplicateShapes(ids, { x: 0, y: 0 }); })) setNotice(label('changedFailed'));
+    const applied = drawingTransaction(editor, () => { editor.duplicateShapes(ids, { x: 0, y: 0 }); });
+    setNotice(applied ? '' : label('changedFailed'));
+    return applied;
   }
   /** Tab / Shift+Tab walk through top-level objects in stacking order. */
   function cycleSelection(direction: 1 | -1) {
     const page = editor.getCurrentPageId();
     const candidates = editor.getCurrentPageShapesSorted().filter(shape => shape.parentId === page && !editor.isShapeOrAncestorLocked(shape));
-    if (!candidates.length) return;
+    if (!candidates.length) return false;
     const selected = editor.getSelectedShapeIds();
     const index = selected.length ? candidates.findIndex(shape => shape.id === selected[selected.length - 1]) : -1;
-    const next = candidates[(index + direction + candidates.length) % candidates.length] ?? candidates[0];
+    const next = candidates[drawingCycleIndex(candidates.length, index, direction)];
     editor.complete(); editor.setCurrentTool('select'); editor.select(next.id);
+    editor.focus();
+    return true;
   }
   /** P: move the selection so its centre sits on the page centre. */
   function centerToPage() {
     const page = drawingPageBounds(editor), bounds = editor.getSelectionPageBounds();
-    if (!page || !bounds || !captureToolkitControls(editor).canEditSelection) return;
+    if (!page || !bounds || !captureToolkitControls(editor).canEditSelection) return false;
     const dx = page.center.x - bounds.center.x, dy = page.center.y - bounds.center.y;
-    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return false;
     editor.complete(); editor.setCurrentTool('select');
-    if (!drawingTransaction(editor, () => { editor.nudgeShapes([...editor.getSelectedShapeIds()], { x: dx, y: dy }); })) setNotice(label('changedFailed'));
+    const applied = drawingTransaction(editor, () => { editor.nudgeShapes([...editor.getSelectedShapeIds()], { x: dx, y: dy }); });
+    setNotice(applied ? '' : label('changedFailed'));
+    return applied;
   }
   /** Space tap: jump to Pick, tap again to return to the tool you were using. */
   function togglePick() {
-    const current = nodeEditing ? 'nodes' : editor.getCurrentToolId() === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : editor.getCurrentToolId();
-    if (current !== 'select') { previousTool.current = current; chooseTool('select'); flash(toolLabel('select'), 'Space'); }
-    else if (previousTool.current) { const back = previousTool.current; previousTool.current = null; chooseTool(back); flash(toolLabel(back), 'Space'); }
+    const current = isCadNodeEditing(editor) ? 'nodes' : isDrawingSkewMode(editor) ? 'free-transform' :
+      editor.getCurrentToolId() === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : editor.getCurrentToolId();
+    if (current !== 'select') {
+      previousTool.current = isDrawingToolId(current) ? current : null;
+      if (chooseTool('select')) { flash(toolLabel('select'), 'Space'); return true; }
+    } else if (previousTool.current) {
+      const back = previousTool.current; previousTool.current = null;
+      if (chooseTool(back)) { flash(toolLabel(back), 'Space'); return true; }
+    }
+    return false;
   }
   /** Double-click on a toolbox tool, as on the desktop: the tool's "big" action or its options. */
   function toolDoubleClick(tool: string) {
@@ -1389,7 +1382,7 @@ export function DrawingChrome() {
   }
   const quickItems = quick ? buildQuickAccessItems(commandState, toolGroups.flatMap(group => group.tools).map(tool => ({
     id: tool, label: toolLabel(tool), icon: tool, active: toolActive(tool),
-    enabled: !(controls.readOnly && !readOnlyTools.includes(tool)), run: () => chooseTool(tool),
+    enabled: toolEnabled(tool), run: () => chooseTool(tool),
   })), words) : [];
   const selectionSummary = summarizeDrawingSelection(state.selectedShapes, getDefaultColorTheme({ isDarkMode: false }) as any);
   const cursorText = cursor ? (() => {
@@ -1448,7 +1441,7 @@ export function DrawingChrome() {
           toolDirectory: <div className="drawing-tool-directory">{toolCategories.map(category => <section key={category.id} aria-label={words.sections[category.id]}>
             <h3>{words.sections[category.id]}</h3>
             {category.groups.flatMap(group => group.tools).map(tool =>
-              <button type="button" key={tool} aria-pressed={toolActive(tool)} disabled={controls.readOnly && !readOnlyTools.includes(tool)} onClick={() => chooseTool(tool)}>
+              <button type="button" key={tool} aria-pressed={toolActive(tool)} disabled={!toolEnabled(tool)} onClick={() => chooseTool(tool)} data-drawing-tool={tool}>
                 <Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}
               </button>
             )}
@@ -1462,11 +1455,11 @@ export function DrawingChrome() {
       </div>
     </>)}
     {portal('standard', <>
-      <ToolButton icon="import" testId="drawing-import" label={`${label('import')} (${formatDrawingKeys('Ctrl+I')})`} disabled={controls.readOnly || busy || !onImport} onClick={() => input.current?.click()} />
-      <ToolButton icon="export" testId="drawing-export" label={`${words.ui.standardExport} (${formatDrawingKeys('Ctrl+E')})`} onClick={() => commandState('export').run()} />
+      <ToolButton icon="import" testId="drawing-import" label={`${label('import')} (${formatDrawingKeys('Ctrl+I')})`} disabled={!commandState('import').enabled} onClick={() => commandRef.current('import')} />
+      <ToolButton icon="export" testId="drawing-export" label={`${words.ui.standardExport} (${formatDrawingKeys('Ctrl+E')})`} onClick={() => commandRef.current('export')} />
       <span className="drawing-divider" />
-      <ToolButton icon="undo" testId="drawing-undo" label={`${actionLabel('undo')} (Ctrl+Z)`} disabled={!controls.canUndo} onClick={() => command('undo')} />
-      <ToolButton icon="redo" testId="drawing-redo" label={`${actionLabel('redo')} (Ctrl+Shift+Z)`} disabled={!controls.canRedo} onClick={() => command('redo')} />
+      <ToolButton icon="undo" testId="drawing-undo" label={`${actionLabel('undo')} (Ctrl+Z)`} disabled={!commandState('undo').enabled} onClick={() => commandRef.current('undo')} />
+      <ToolButton icon="redo" testId="drawing-redo" label={`${actionLabel('redo')} (Ctrl+Shift+Z)`} disabled={!commandState('redo').enabled} onClick={() => commandRef.current('redo')} />
       <span className="drawing-divider" />
       {(['cut', 'copy', 'paste'] as const).map(id => { const item = commandState(id); return <ToolButton key={id} icon={id} testId={`drawing-${id}`}
         label={`${words.commands[id]} (${formatDrawingKeys(drawingCommands[id].keys)})`} disabled={!item.enabled} onClick={item.run} />; })}
@@ -1484,9 +1477,11 @@ export function DrawingChrome() {
         title={`${words.ui.quickAccessTitle} (${formatDrawingKeys('Ctrl+/')})`}>
         <Icon name="command-search" /><span>{words.ui.quickAccessPlaceholder}</span><kbd>{formatDrawingKeys('Ctrl+/')}</kbd>
       </button>
-      <input ref={input} type="file" hidden multiple accept={order
-          ? '.pdf,.png,.jpg,.jpeg,.webp,.gif,.cdr,.dxf'
-          : 'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a'}
+      <input ref={input} type="file" hidden multiple accept={[
+        DRAWING_REVIEW_FILE_TYPES,
+        order ? '.pdf,.png,.jpg,.jpeg,.webp,.gif' :
+          'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a',
+      ].join(',')}
         onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
     </>)}
     {portal('properties', <>
@@ -1533,7 +1528,7 @@ export function DrawingChrome() {
         const active = group.tools.find(tool => tool === controls.tool && toolActive(tool)) ?? group.tools.find(toolActive);
         const current = active ?? groupTools[group.id] ?? group.tools[0];
         return <div className="drawing-tool-group" key={group.id}>
-          <ToolButton icon={current} label={withKey(toolLabel(current), current)} active={toolActive(current)} disabled={controls.readOnly && !readOnlyTools.includes(current)} onClick={() => chooseTool(current)} onDoubleClick={() => toolDoubleClick(current)} testId={current === 'paint' ? 'drawing-paint' : `drawing-tool-${current}`} />
+          <ToolButton icon={current} label={withKey(toolLabel(current), current)} active={toolActive(current)} disabled={!toolEnabled(current)} onClick={() => chooseTool(current)} onDoubleClick={() => toolDoubleClick(current)} testId={current === 'paint' ? 'drawing-paint' : `drawing-tool-${current}`} />
           {group.tools.length > 1 && <button type="button" className="drawing-tool-expand" title={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-label={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-expanded={toolGroup === group.id} onClick={event => toggleToolGroup(group, event.currentTarget, event.detail === 0)}
             onKeyDown={event => { if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { event.preventDefault(); event.stopPropagation(); toggleToolGroup(group, event.currentTarget, true); } }} data-testid={`drawing-tools-${group.id}`}>▸</button>}
         </div>;
@@ -1542,7 +1537,7 @@ export function DrawingChrome() {
     </div>)}
     {activeToolGroup && hosts.tools && context.root.current && createPortal(<div className="drawing-tool-flyout" role="group" aria-label={groupLabel(activeToolGroup)} style={flyoutPosition}>
       <h3>{groupLabel(activeToolGroup)}</h3>
-      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly && !readOnlyTools.includes(tool)} aria-pressed={toolActive(tool)} title={withKey(toolLabel(tool), tool)} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
+      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={!toolEnabled(tool)} aria-pressed={toolActive(tool)} title={withKey(toolLabel(tool), tool)} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
     </div>, context.root.current, 'tool-flyout')}
     {portal('rulerOrigin', settings?.unit ?? 'px')}
     {portal('rulerX', <Ruler settings={settings} onGuides={openGuides} />)}{portal('rulerY', <Ruler vertical settings={settings} onGuides={openGuides} />)}
@@ -1574,10 +1569,10 @@ export function DrawingChrome() {
             active={panel === 'arrange' && arrangeTask === 'repeat'} focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0}
             onSetup={() => focusCad('pageSetup')} expanded/></div>
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
-          <div hidden={arrangeTask !== 'nest'}>{arrangeTask === 'nest' && <NestPanel settings={settings} disabled={!controls.canEditSelection}/>}</div>
+          <div hidden={arrangeTask !== 'nest'}>{arrangeTask === 'nest' && <NestPanel settings={settings} disabled={!controls.canEditSelection} onSetup={() => focusCad('document')}/>}</div>
         </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
-          <DrawingObjectsPanel focusRequest={objectOrderFocusRequest}/>
+          <DrawingObjectsPanel focusRequest={objectOrderFocusRequest} layerFocusRequest={layerFocusRequest}/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
         </> : <>
           <FormScaleControl/>

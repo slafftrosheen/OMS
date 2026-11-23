@@ -9,6 +9,10 @@ const commands = ['undo', 'redo', 'duplicate', 'delete', 'group', 'ungroup', 'fr
   'lock', 'fit', 'fit-selection', 'select-all'] as const;
 const panels = ['properties', 'objects', 'text', 'transform', 'align', 'repeat', 'radial', 'guides'] as const;
 const cad = ['nodes', 'convert', 'outline', 'paint', 'outlineObject', 'document', 'importDxf', 'importVector'] as const;
+const reviewStateByExtension = {
+  dxf: 'importDxf', eps: 'importVector', cdr: 'importVector', svg: 'importVector',
+} as const;
+export const DRAWING_REVIEW_FILE_TYPES = Object.keys(reviewStateByExtension).map(extension => `.${extension}`).join(',');
 const objects = ['relative', 'reverse'] as const;
 export type DrawingUiRequest =
   | { kind: 'command'; action: typeof commands[number] }
@@ -40,8 +44,9 @@ export function requestDrawingUi(editor: Editor, request: DrawingUiRequest): voi
 export function routeCanvasCadImport(editor: Editor, files: readonly File[], point?: CadPoint): boolean {
   if (files.length !== 1 || editor.getInstanceState().isReadonly) return false;
   const [file] = files;
-  const action = /\.dxf$/i.test(file.name) ? 'importDxf' : /\.(?:eps|cdr)$/i.test(file.name) ? 'importVector' : null;
-  if (!action) return false;
+  const extension = file.name.toLowerCase().match(/\.([a-z]+)$/)?.[1];
+  if (!extension || !Object.hasOwn(reviewStateByExtension, extension)) return false;
+  const action = reviewStateByExtension[extension as keyof typeof reviewStateByExtension];
   const dropPoint = point && Number.isFinite(point.x) && Number.isFinite(point.y)
     ? { x: point.x, y: point.y } : undefined;
   requestDrawingUi(editor, { kind: 'cad', action, file, ...(dropPoint ? { dropPoint } : {}) });

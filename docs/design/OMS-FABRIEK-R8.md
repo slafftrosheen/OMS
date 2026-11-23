@@ -143,7 +143,8 @@ the toolbox exactly once, and no two different actions share keys.
 | Ungroup | `Ctrl+U` | Atgrupēt | Разгруппировать |
 | Combine | `Ctrl+L` | Apvienot | Объединить |
 | Break apart | `Ctrl+K` | Sadalīt | Разъединить |
-| Lock or unlock |  | Bloķēt vai atbloķēt | Заблокировать или разблокировать |
+| Lock selection |  | Bloķēt atlasi | Заблокировать выделенное |
+| Production layers |  | Ražošanas slāņi | Производственные слои |
 | **Order ▸** | | Secība | Порядок |
 | ↳ To front | `Ctrl+Home` | Uz priekšu | На передний план |
 | ↳ To back | `Ctrl+End` | Uz aizmuguri | На задний план |

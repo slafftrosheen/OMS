@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { drawingReadOnlyTools, drawingToolIds, drawingToolTargets } from '../../src/lib/components/canvas/drawing-command-map';
 
 async function scene(page: Page) { return page.evaluate(() => (window as any).__drawingFixture.inspect()); }
 async function open(page: Page, mode: string) {
@@ -19,6 +20,32 @@ async function drawWith(page: Page, key: string) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} lists every instrument and activates every drawing mode`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await open(page, mode);
+    const tools = page.locator('[data-drawing-menu="tools"] > summary');
+    const directory = page.locator('[data-drawing-menu="tools"] .drawing-tool-directory');
+    await tools.click();
+    await expect(directory.locator('[data-drawing-tool]')).toHaveCount(drawingToolIds.length);
+    for (const tool of drawingToolIds) {
+      const target = drawingToolTargets[tool];
+      if (target.kind === 'command') continue;
+      const button = directory.locator(`[data-drawing-tool="${tool}"]`);
+      // The preceding activation closed the menu and may have opened a docker.
+      if (!await button.isVisible()) await tools.click();
+      await button.click();
+      await expect.poll(async () => (await scene(page)).tool).toBe(target.kind === 'geometry' ? 'geo' : target.tool);
+      await expect(page.getByTestId(`drawing-tool-${tool}`)).toHaveAttribute('aria-pressed', 'true');
+    }
+    await page.getByRole('button', { name: 'Toggle read only' }).click();
+    await tools.click();
+    for (const tool of drawingToolIds) {
+      const button = directory.locator(`[data-drawing-tool="${tool}"]`);
+      if (drawingReadOnlyTools.has(tool)) await expect(button).toBeEnabled();
+      else await expect(button).toBeDisabled();
+    }
+  });
+
   test(`${mode} menu bar follows desktop order and Object flyouts list keys`, async ({ page }) => {
     await open(page, mode);
     await expect(page.locator('[data-drawing-menu] > summary')).toHaveText(['File', 'Edit', 'View', 'Layout', 'Object', 'Effects', 'Bitmaps', 'Text', 'Tools', 'Window', 'Help']);
@@ -86,6 +113,16 @@ for (const mode of ['idea', 'order']) {
     await page.getByRole('button', { name: 'Review and export DXF' }).click();
     await expect(page.getByTestId('drawing-cad-task')).toHaveValue('files');
     await expect(page.getByTestId('drawing-cad-cut-order')).toBeVisible();
+  });
+
+  test(`${mode} Quick Access opens the production layer inspector`, async ({ page }) => {
+    await open(page, mode);
+    await page.getByTestId('drawing-quick-trigger').click();
+    await page.getByTestId('drawing-quick-input').fill('production layers');
+    await page.getByRole('option', { name: /Production layers/ }).click();
+    const layers = page.getByTestId('drawing-production-layers');
+    await expect(layers).toHaveAttribute('open', '');
+    await expect(layers.locator('summary')).toBeFocused();
   });
 }
 

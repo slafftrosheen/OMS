@@ -6,7 +6,7 @@ import {
 } from './drawing-command-map';
 import { drawingCommandDictionaries, useDrawingCommandText } from './drawing-command-copy';
 
-export interface DrawingCommandState { enabled: boolean; checked?: boolean; run: () => void; title?: string }
+export interface DrawingCommandState { enabled: boolean; checked?: boolean; run: () => boolean; title?: string }
 export type DrawingCommandResolver = (id: DrawingCommandId) => DrawingCommandState;
 
 /** One menu row: icon · label · keys. Check items use aria-pressed and a tick. */

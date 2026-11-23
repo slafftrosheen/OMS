@@ -27,7 +27,7 @@ function SheetPreview({ result, sheetW, sheetH, margin, label }: {
   </svg>;
 }
 
-export function NestPanel({ settings, disabled }: { settings: CadSettings | null; disabled: boolean }) {
+export function NestPanel({ settings, disabled, onSetup }: { settings: CadSettings | null; disabled: boolean; onSetup: () => void }) {
   const editor = useEditor();
   const t = useNestText();
   const errorId = useId();
@@ -87,6 +87,7 @@ export function NestPanel({ settings, disabled }: { settings: CadSettings | null
   const turned = result?.placements.filter(p => p.rotated).length ?? 0;
   return <section className="drawing-nest" aria-label={t('title')} data-testid="drawing-nest">
     <p className="drawing-help">{t(settings ? 'help' : 'documentRequired')}</p>
+    {!settings && <button type="button" onClick={onSetup}>{t('setup')}</button>}
     <form className="drawing-nest-form" onSubmit={event => { event.preventDefault(); preview(); }} aria-describedby={message?.error ? errorId : undefined}>
       <fieldset disabled={!editable} className="drawing-style-fields">
         <label><span>{t('sheet')}</span><select value={source} data-testid="drawing-nest-sheet"

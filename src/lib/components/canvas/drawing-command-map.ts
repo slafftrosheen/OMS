@@ -83,6 +83,7 @@ export const drawingCommands = {
   combine: { icon: 'combine', keys: 'Ctrl+L' },
   breakApart: { icon: 'break-apart', keys: 'Ctrl+K' },
   lock: { icon: 'lock', testId: 'drawing-action-lock' },
+  productionLayers: { icon: 'objects', readOnly: true },
   front: { icon: 'front', keys: 'Ctrl+Home', testId: 'drawing-action-front' },
   back: { icon: 'back', keys: 'Ctrl+End', testId: 'drawing-action-back' },
   forward: { icon: 'forward', keys: 'Ctrl+PageUp', testId: 'drawing-action-forward' },
@@ -116,7 +117,7 @@ export const drawingCommands = {
   rectangleCorners: { icon: 'corners' },
   polygonShape: { icon: 'polygon' },
   ellipseSegments: { icon: 'ellipse-segments' },
-  paint: { icon: 'paint', keys: 'Shift+F11' },
+  paint: { icon: 'paint', keys: 'Shift+F11', readOnly: true },
   outline: { icon: 'outline', keys: 'F12' },
   // Effects
   contour: { icon: 'fx-contour', keys: 'Ctrl+F9' },
@@ -160,7 +161,7 @@ export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly 
   { id: 'view', items: ['zoom-in', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', 'snap', 'snapOptions', 'penSettings'] },
   { id: 'layout', items: ['pageSetup', 'document', '-', 'guidesSetup', 'measure', '-', 'nest', 'clipart'] },
   { id: 'object', items: [
-    'group', 'ungroup', 'combine', 'breakApart', 'lock', '-',
+    'group', 'ungroup', 'combine', 'breakApart', 'lock', 'productionLayers', '-',
     { sub: 'order', items: ['front', 'back', 'forward', 'backward', '-', 'reverseOrder', 'relativeOrder'] },
     { sub: 'transformations', items: ['transform', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', '-', 'skew'] },
     { sub: 'alignDistribute', items: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', '-', 'distribute-horizontal', 'distribute-vertical', '-', 'centerToPage', 'arrange'] },
@@ -197,6 +198,53 @@ export const drawingToolIds = [
 ] as const;
 export type DrawingToolId = typeof drawingToolIds[number];
 
+type DrawingToolTarget =
+  | { kind: 'editor'; tool: string; panel?: DrawingDocker }
+  | { kind: 'geometry'; shape: 'rectangle' | 'ellipse' | 'pentagon' | 'star' | 'triangle' | 'diamond' }
+  | { kind: 'command'; command: DrawingCommandId };
+
+export const drawingToolTargets = {
+  select: { kind: 'editor', tool: 'select' },
+  'free-transform': { kind: 'command', command: 'skew' },
+  nodes: { kind: 'command', command: 'nodes' },
+  knife: { kind: 'command', command: 'knife' },
+  eraser: { kind: 'editor', tool: 'eraser' },
+  hand: { kind: 'editor', tool: 'hand' },
+  zoom: { kind: 'editor', tool: 'zoom' },
+  'cad-freehand': { kind: 'editor', tool: 'cad-freehand' },
+  line: { kind: 'editor', tool: 'line' },
+  'cad-bezier': { kind: 'editor', tool: 'cad-bezier' },
+  'cad-polyline': { kind: 'editor', tool: 'cad-polyline' },
+  draw: { kind: 'editor', tool: 'draw' },
+  highlight: { kind: 'editor', tool: 'highlight' },
+  rectangle: { kind: 'geometry', shape: 'rectangle' },
+  ellipse: { kind: 'geometry', shape: 'ellipse' },
+  'cad-circle': { kind: 'editor', tool: 'cad-circle', panel: 'measure' },
+  'cad-circle-three': { kind: 'editor', tool: 'cad-circle-three', panel: 'measure' },
+  'cad-arc-three': { kind: 'editor', tool: 'cad-arc-three', panel: 'measure' },
+  pentagon: { kind: 'geometry', shape: 'pentagon' },
+  star: { kind: 'geometry', shape: 'star' },
+  triangle: { kind: 'geometry', shape: 'triangle' },
+  diamond: { kind: 'geometry', shape: 'diamond' },
+  text: { kind: 'editor', tool: 'text', panel: 'text' },
+  'cad-dimension': { kind: 'editor', tool: 'cad-dimension', panel: 'measure' },
+  'cad-measure-tools': { kind: 'command', command: 'measure' },
+  arrow: { kind: 'editor', tool: 'arrow' },
+  frame: { kind: 'editor', tool: 'frame' },
+  'fx-contour': { kind: 'command', command: 'contour' },
+  'fx-repeat': { kind: 'command', command: 'repeat' },
+  'fx-radial': { kind: 'command', command: 'radial' },
+  'fx-shaping': { kind: 'command', command: 'shaping' },
+  eyedropper: { kind: 'command', command: 'copyProperties' },
+  paint: { kind: 'command', command: 'paint' },
+  outline: { kind: 'command', command: 'outline' },
+  clipart: { kind: 'command', command: 'clipart' },
+} as const satisfies Record<DrawingToolId, DrawingToolTarget>;
+
+export function isDrawingToolId(value: string): value is DrawingToolId {
+  return Object.hasOwn(drawingToolTargets, value);
+}
+
 export type DrawingToolSection = 'selectTools' | 'drawTools' | 'annotateTools' | 'effectTools' | 'productionTools';
 export const drawingToolbox: ReadonlyArray<{ id: DrawingToolSection; groups: ReadonlyArray<{ id: string; tools: readonly DrawingToolId[] }> }> = [
   { id: 'selectTools', groups: [
@@ -226,17 +274,19 @@ export const drawingToolbox: ReadonlyArray<{ id: DrawingToolSection; groups: Rea
   ] },
 ];
 
-/** Tool keys. Single letters marked native are the canvas engine's own. */
+/** Tool keys after contextual drawing commands have had priority. */
 export const drawingToolKeys: Partial<Record<DrawingToolId, string>> = {
   select: 'V', nodes: 'F10', eraser: 'E', hand: 'H', zoom: 'Z',
   'cad-freehand': 'F5', line: 'L', draw: 'D', rectangle: 'F6', ellipse: 'F7', pentagon: 'Y',
   text: 'F8', arrow: 'A', eyedropper: 'I', paint: 'Shift+F11', outline: 'F12', 'fx-contour': 'Ctrl+F9',
 };
 /** Tools that only open a docker or a task instead of drawing on the canvas. */
-export const drawingTaskTools: ReadonlySet<DrawingToolId> = new Set(['free-transform', 'knife', 'cad-measure-tools', 'fx-contour', 'fx-repeat', 'fx-radial', 'fx-shaping', 'eyedropper', 'paint', 'outline', 'clipart']);
-export const drawingReadOnlyTools: ReadonlySet<DrawingToolId> = new Set(['select', 'nodes', 'hand', 'zoom', 'cad-measure-tools', 'paint', 'clipart']);
-/** Tool keys our workspace handles itself (the rest are the canvas engine's). */
-export const drawingOwnToolKeys: Readonly<Record<string, DrawingToolId>> = { F5: 'cad-freehand', F6: 'rectangle', F7: 'ellipse', F8: 'text', y: 'pentagon', i: 'eyedropper' };
+export const drawingTaskTools: ReadonlySet<DrawingToolId> = new Set(drawingToolIds.filter(id => drawingToolTargets[id].kind === 'command'));
+export const drawingReadOnlyTools: ReadonlySet<DrawingToolId> = new Set(drawingToolIds.filter(id => {
+  const route = drawingToolTargets[id];
+  return route.kind === 'command' ? (drawingCommands[route.command] as DrawingCommandSpec).readOnly === true :
+    id === 'select' || id === 'hand' || id === 'zoom';
+}));
 export const drawingToolIcon = (tool: DrawingToolId) => tool === 'outline' ? 'outline' : tool;
 
 export function drawingMenuCommands(entries: readonly DrawingMenuEntry[] = drawingMenuBar.flatMap(menu => menu.items)): DrawingCommandId[] {
@@ -266,12 +316,14 @@ export const drawingRepeatable: ReadonlySet<string> = new Set(['duplicate', 'dup
 const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 /** "Ctrl+Shift+D" → "Ctrl+Shift+D" or "⌘⇧D" on macOS. */
 export function formatDrawingKeys(keys: string, mac = isMac()): string {
+  if (keys === '+') return '+';
   if (!mac) return keys.replace('PageUp', 'PgUp').replace('PageDown', 'PgDn');
   const symbols: Record<string, string> = { Ctrl: '⌘', Shift: '⇧', Alt: '⌥', Enter: '↩', Delete: '⌫', PageUp: '⇞', PageDown: '⇟', Home: '↖', End: '↘' };
   return keys.split('+').map(part => symbols[part] ?? part).join('');
 }
 /** "Ctrl+Shift+D" → "Control+Shift+D Meta+Shift+D" for aria-keyshortcuts. */
 export function ariaDrawingKeys(keys: string): string {
+  if (keys === '+') return 'Shift+Equal Add';
   const parts = keys.split('+').map(part => part === "'" ? 'Quote' : part === '/' ? 'Slash' : part === '=' ? 'Equal' : part);
   if (!parts.includes('Ctrl')) return parts.join('+');
   return [parts.map(part => part === 'Ctrl' ? 'Control' : part).join('+'), parts.map(part => part === 'Ctrl' ? 'Meta' : part).join('+')].join(' ');
@@ -283,7 +335,10 @@ export function drawingEventKeys(event: DrawingKeyEvent): string {
   const named: Record<string, string> = { ' ': 'Space', Del: 'Delete' };
   let key = named[event.key] ?? event.key;
   // "+" from the number pad or Shift+= is the same key to people: duplicate in place.
-  if (key === '+' || event.code === 'NumpadAdd') return event.ctrlKey || event.metaKey || event.altKey ? [event.ctrlKey || event.metaKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', '+'].filter(Boolean).join('+') : '+';
+  if (key === '+' || event.code === 'NumpadAdd') {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) return '+';
+    key = 'Add';
+  }
   // Alt (Option on macOS) changes the produced character; the physical key is what users press.
   if (event.altKey && event.code && /^Key[A-Z]$/.test(event.code)) key = event.code.slice(3);
   if (key.length === 1) key = key.toUpperCase();
@@ -304,6 +359,16 @@ export function drawingOwnCommandForKeys(keys: string): DrawingCommandId | undef
     if (canonical(spec.keys) === wanted) return id;
   }
   return undefined;
+}
+
+export function drawingToolForKeys(keys: string): DrawingToolId | undefined {
+  return drawingToolIds.find(tool => drawingToolKeys[tool] === keys);
+}
+
+export function drawingCycleIndex(length: number, current: number, direction: 1 | -1): number {
+  if (!length) return -1;
+  if (current < 0) return direction === 1 ? 0 : length - 1;
+  return (current + direction + length) % length;
 }
 
 /** Every key binding in the workspace, for conflict tests and the keyboard sheet. */

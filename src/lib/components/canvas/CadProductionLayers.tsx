@@ -1,11 +1,17 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { useCadText } from './cad-copy';
 import { addProductionLayer, assignableProductionObjects, assignProductionLayer, MAX_PRODUCTION_LAYER_NAME,
   MAX_PRODUCTION_LAYERS, productionDxfNames, productionLayerId, readProductionLayers, removeProductionLayer, selectableProductionLayerObjects, selectProductionLayer, updateProductionLayer } from './cad-production-layers';
 
-export function CadProductionLayers() {
+export function CadProductionLayers({ focusRequest = 0 }: { focusRequest?: number } = {}) {
   const editor = useEditor(), { label } = useCadText();
+  const details = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (!focusRequest || !details.current) return;
+    details.current.open = true;
+    details.current.querySelector('summary')?.focus();
+  }, [focusRequest]);
   const [name, setName] = useState(''), [picked, setPicked] = useState(''), [rename, setRename] = useState('');
   const [failed, setFailed] = useState(false);
   const [removal, setRemoval] = useState<{ source: string; destination: string }>();
@@ -31,7 +37,7 @@ export function CadProductionLayers() {
   const ids = new Set(selected.map(shape => productionLayerId(shape) ?? ''));
   const assigned = ids.size === 1 ? ids.values().next().value : undefined;
   const assignment = assigned === undefined ? selected.length ? 'mixed' : '' : layers.some(layer => layer.id === assigned) ? assigned : '';
-  return <details className="drawing-cad-section" data-testid="drawing-production-layers">
+  return <details ref={details} className="drawing-cad-section" data-testid="drawing-production-layers">
     <summary>{label('productionLayers')}</summary>
     <p className="drawing-help">{label('productionLayerHelp')}</p>
     <label className="drawing-cad-field">

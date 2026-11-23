@@ -11,7 +11,7 @@ import './drawing-objects.css';
 
 const sessions = new WeakMap<Editor, { page: string; search: string; collapsed: Set<TLShapeId> }>();
 
-export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: number } = {}) {
+export function DrawingObjectsPanel({ focusRequest = 0, layerFocusRequest = 0 }: { focusRequest?: number; layerFocusRequest?: number } = {}) {
   const editor = useEditor(), t = useObjectTreeText(), helpId = useId();
   const { label } = useCadText();
   const state = useValue('drawing object hierarchy', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(),
@@ -99,7 +99,7 @@ export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: numbe
   };
   const hiddenSelected = state.selected.filter(id => !ids.includes(id)).length;
   return <section className="drawing-objects-panel" data-testid="drawing-objects-panel" onKeyDown={event => event.stopPropagation()}>
-    <CadProductionLayers />
+    <CadProductionLayers focusRequest={layerFocusRequest} />
     <p className="drawing-help" aria-live="polite">{t('count').replace('{total}', String(state.shapes.length)).replace('{selected}', String(state.selected.length))}{hiddenSelected > 0 && <> · {t('hidden').replace('{count}', String(hiddenSelected))}</>}</p>
     <label className="drawing-object-search"><span>{t('search')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
     <div className="drawing-tree-actions">
