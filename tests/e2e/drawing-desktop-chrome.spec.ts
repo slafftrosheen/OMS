@@ -20,6 +20,26 @@ async function drawWith(page: Page, key: string) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} configures page snapping and offers Page setup for a sizeless sheet`, async ({ page }) => {
+    await open(page, mode);
+    const view = page.locator('[data-drawing-menu="view"]');
+    await view.locator(':scope > summary').click();
+    const snapTo = view.locator('[data-drawing-submenu="snapTo"]');
+    await snapTo.locator(':scope > summary').hover();
+    await snapTo.locator('[data-command="snapPage"]').click();
+    await page.getByTestId('drawing-status-snap-options').click();
+    const options = page.getByTestId('drawing-snap-options');
+    await expect(options.getByTestId('drawing-snap-page')).toBeChecked();
+    await options.getByRole('button', { name: 'Page setup', exact: true }).click();
+    const setup = page.getByTestId('drawing-page-setup');
+    await setup.getByLabel('Size preset', { exact: true }).selectOption('A4');
+    await setup.getByRole('button', { name: 'Apply page setup', exact: true }).click();
+    await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
+    await page.getByTestId('drawing-status-snap-options').click();
+    await expect(options.getByTestId('drawing-snap-page')).toBeChecked();
+    await expect(options.getByRole('button', { name: 'Page setup', exact: true })).toHaveCount(0);
+  });
+
   test(`${mode} uses one-shot F2, persistent Z and X for erasing`, async ({ page }) => {
     await open(page, mode);
     const viewport = await page.locator('.drawing-viewport').boundingBox();

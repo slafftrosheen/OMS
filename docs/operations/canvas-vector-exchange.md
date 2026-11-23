@@ -21,6 +21,8 @@ In **Shape (F10)** on a Bézier curve, **Ctrl+A** selects its nodes, arrow keys 
 
 In **View → Snap to**, **Alt+Z** toggles object targets, **Alt+Y** toggles grid snapping, and **Guidelines** toggles guideline snapping. Pick and CAD share these choices. **Alt+Q** suspends or restores snapping, and changes to target choices while suspended take effect on resume. Grid visibility has its own switch. Double-click a ruler guideline to reveal its pivot and rotation handle.
 
+With a calibrated sheet size, enable **View → Snap to → Page**. Pick drags can align selection bounds to the sheet corners, edge midpoints, center and finite edges. CAD point tools and CAD handles use the same features. The active document scale controls the target positions. **Snap options** links to **Page setup** when the drawing needs a sheet size. The choice is saved on each sheet.
+
 In **Object → Order**, **Shift+Page Up** and **Shift+Page Down** move a selection to the front or back of its production layer. Unassigned objects share the default layer. Select objects with the same parent and layer. The moves keep every layer assignment and update only the selected objects' stacking order.
 
 ## Supported exchange and explicit limits

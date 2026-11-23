@@ -6,6 +6,7 @@ import { isDrawingPointerGestureActive } from './drawing-pointer-gesture';
 
 export interface CadSnapSettings {
   objects: boolean;
+  page: boolean;
   endpoints: boolean; midpoints: boolean; centers: boolean; quadrants: boolean;
   intersections: boolean; perpendicular: boolean; tangent: boolean; guidelines: boolean; nearest: boolean; grid: boolean;
   /** Screen pixels, independent of camera zoom and drawing units. */
@@ -14,11 +15,11 @@ export interface CadSnapSettings {
   gridSpacing: number;
 }
 export const DEFAULT_CAD_SNAP_SETTINGS: CadSnapSettings = {
-  objects: true,
+  objects: true, page: false,
   endpoints: true, midpoints: false, centers: true, quadrants: true,
   intersections: false, perpendicular: false, tangent: false, guidelines: true, nearest: false, grid: false, tolerance: 8, gridSpacing: 10,
 };
-const switches = ['objects', 'endpoints', 'midpoints', 'centers', 'quadrants', 'intersections', 'perpendicular', 'tangent', 'guidelines', 'nearest', 'grid'] as const;
+const switches = ['objects', 'page', 'endpoints', 'midpoints', 'centers', 'quadrants', 'intersections', 'perpendicular', 'tangent', 'guidelines', 'nearest', 'grid'] as const;
 
 function savedSnapTargets(editor: Editor) {
   const saved = editor.getCurrentPage().meta.omsCadSnap;

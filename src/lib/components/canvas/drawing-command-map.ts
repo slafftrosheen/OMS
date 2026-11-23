@@ -71,6 +71,7 @@ export const drawingCommands = {
   snapObjects: { icon: 'objects', keys: 'Alt+Z', check: true },
   snapGrid: { icon: 'grid', keys: 'Alt+Y', check: true },
   snapGuides: { icon: 'guides', check: true },
+  snapPage: { icon: 'fit-page', check: true },
   snapOptions: { icon: 'snap', readOnly: true, testId: 'drawing-menu-snap-options' },
   surface: { icon: 'surface', check: true, readOnly: true, testId: 'drawing-menu-surface' },
   penSettings: { icon: 'pen', readOnly: true, testId: 'drawing-menu-pen' },
@@ -172,7 +173,7 @@ export type DrawingMenuEntry = DrawingCommandId | '-' | { sub: DrawingSubmenuId;
 export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly DrawingMenuEntry[] }> = [
   { id: 'file', items: ['import', 'importDxf', 'importVector', '-', 'export', { embed: 'exportSettings' }, 'exportDxf', 'publishPdf', { embed: 'saveToOrder' }, '-', 'files', 'preflight'] },
   { id: 'edit', items: ['undo', 'redo', 'repeatLast', '-', 'cut', 'copy', 'paste', 'duplicate', 'duplicateInPlace', 'repeat', 'delete', '-', 'select-all', 'selectNext', 'selectPrevious', 'selectSame', 'findReplace', '-', 'copyProperties'] },
-  { id: 'view', items: ['zoom-in', 'zoomArea', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', { sub: 'snapTo', items: ['snapObjects', 'snapGrid', 'snapGuides'] }, 'snap', 'snapOptions', 'penSettings'] },
+  { id: 'view', items: ['zoom-in', 'zoomArea', 'zoom-out', 'fit', 'fit-selection', 'fitPage', 'zoom-reset', '-', 'fullscreen', 'rulers', 'grid', 'guidesVisible', 'surface', '-', { sub: 'snapTo', items: ['snapObjects', 'snapGrid', 'snapGuides', 'snapPage'] }, 'snap', 'snapOptions', 'penSettings'] },
   { id: 'layout', items: ['pageSetup', 'document', 'previousPage', 'nextPage', '-', 'guidesSetup', 'measure', '-', 'nest', 'clipart'] },
   { id: 'object', items: [
     'group', 'ungroup', 'combine', 'breakApart', 'lock', 'productionLayers', '-',

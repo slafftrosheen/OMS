@@ -87,6 +87,9 @@ export function DrawingGuideOverlay() {
       {state.pickSnap?.guides.map(guide => <line key={guide.id} {...lineProps(guide)} className="drawing-guide-snap"
         data-testid="drawing-pick-guide-snap" data-guide-snap-id={guide.id} data-guide-axis={guide.axis}
         data-guide-anchor={guide.anchor} strokeWidth={2.5 * scale} />)}
+      {state.pickSnap?.page && <circle cx={state.pickSnap.page.point.x} cy={state.pickSnap.page.point.y}
+        r={5 * scale} fill="none" className="drawing-guide-snap" strokeWidth={2 * scale}
+        data-testid="drawing-pick-page-snap" data-page-snap-target={state.pickSnap.page.target} />}
     </svg>
     {/* Hit bands sit below the real shape DOM: form fields and embedded media
         must receive their own pointer events where a guideline crosses them. */}

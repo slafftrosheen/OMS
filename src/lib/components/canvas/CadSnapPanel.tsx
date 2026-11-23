@@ -3,6 +3,7 @@ import {useEditor,useValue,type TLPageId} from '@tldraw/tldraw';
 import {canvasLengthToUnit,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {readCadSnapSettings,writeCadSnapSettings} from './cad-snap-settings';
 import {drawingGridVisible} from './drawing-grid-state';
+import {drawingPageBounds} from './drawing-pages';
 import {ariaDrawingKeys,drawingCommands,formatDrawingKeys} from './drawing-command-map';
 import {useSnapText} from './snap-copy';
 
@@ -11,6 +12,7 @@ const snapTargets = [
   {target:'objects',keys:drawingCommands.snapObjects.keys},
   {target:'grid',keys:drawingCommands.snapGrid.keys},
   {target:'guidelines'},
+  {target:'page'},
 ] as const;
 
 function SnapNumberField({field,value,pageId,settings,disabled}:{
@@ -58,11 +60,12 @@ function SnapNumberField({field,value,pageId,settings,disabled}:{
   </>;
 }
 
-export function CadSnapPanel({settings}:{settings:CadSettings|null}){
+export function CadSnapPanel({settings,onPageSetup}:{settings:CadSettings|null;onPageSetup:()=>void}){
   const editor=useEditor(),t=useSnapText();
   const state=useValue('CAD snap options',()=>({
     pageId:editor.getCurrentPageId(),options:readCadSnapSettings(editor),master:editor.user.getIsSnapMode(),
-    gridShow:drawingGridVisible(editor).get(),readonly:editor.getInstanceState().isReadonly
+    gridShow:drawingGridVisible(editor).get(),readonly:editor.getInstanceState().isReadonly,
+    hasSheet:!!drawingPageBounds(editor)
   }),[editor]);
   const [failed,setFailed]=useState(false);
   useEffect(()=>setFailed(false),[state.pageId]);
@@ -83,6 +86,9 @@ export function CadSnapPanel({settings}:{settings:CadSettings|null}){
           onChange={event => setFailed(editor.getCurrentPageId() !== state.pageId || !writeCadSnapSettings(editor, { [item.target]: event.target.checked }))} />
         <span>{t(item.target)} {'keys' in item && <kbd>{formatDrawingKeys(item.keys)}</kbd>}</span>
       </label>)}
+      {state.options.page && !state.hasSheet && <p className="drawing-help" role="status">
+        {t('pageSizeRequired')} <button type="button" onClick={onPageSetup}>{t('pageSetup')}</button>
+      </p>}
       <fieldset className="drawing-workbench-fields" disabled={!state.options.objects}>
         <legend>{t('objectPoints')}</legend>
         {targets.map(target=><label key={target} className="drawing-cad-check"><input type="checkbox" checked={state.options[target]} data-testid={`drawing-snap-${target}`}

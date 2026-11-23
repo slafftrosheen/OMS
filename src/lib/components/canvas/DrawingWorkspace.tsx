@@ -1327,8 +1327,10 @@ export function DrawingChrome() {
       case 'snap': return make(true, () => command('snap'), !state.snap);
       case 'snapObjects':
       case 'snapGrid':
-      case 'snapGuides': {
-        const target = id === 'snapObjects' ? 'objects' : id === 'snapGrid' ? 'grid' : 'guidelines';
+      case 'snapGuides':
+      case 'snapPage': {
+        const targets = { snapObjects: 'objects', snapGrid: 'grid', snapGuides: 'guidelines', snapPage: 'page' } as const;
+        const target = targets[id];
         return make(canWriteCadSnapSettings(editor), () => writeCadSnapSettings(editor, { [target]: !readCadSnapSettings(editor)[target] }), state.snapTargets[target]);
       }
       case 'guidesVisible': return make(guides.valid && !drawingGuidesBusy(editor), toggleGuides, guides.visible);
@@ -1533,7 +1535,7 @@ export function DrawingChrome() {
       <span className="drawing-status-paint-text">{value}{width}</span>
     </button>;
   };
-  const statusText = freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`);
+  const statusText = freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel(pickGuideSnap.page ? 'page' : 'guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`);
 
   return <>
     {portal('commands', <>
@@ -1685,7 +1687,7 @@ export function DrawingChrome() {
         {mode === 'guides' ? <DrawingGuidesPanel settings={settings} focusRequest={guidesFocusRequest} onDocument={() => focusCad('document')}
           renderAlignment={guide => <DrawingGuideAlignment key={guide?.id ?? 'none'} guide={guide}/>}/>
         : mode === 'pen' ? panel === 'pen' && <DrawingPenPanel onFreehand={() => chooseTool('cad-freehand')} />
-        : mode === 'snap' ? <CadSnapPanel settings={settings}/> : mode === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : mode === 'measure' ? <>
+        : mode === 'snap' ? <CadSnapPanel settings={settings} onPageSetup={() => focusCad('pageSetup')}/> : mode === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : mode === 'measure' ? <>
           <MeasurePanel settings={settings} onTool={chooseTool} onDocument={() => focusCad('document')} />
           <CadStraightEdgeTools settings={settings} />
         </> : mode === 'clipart' ? <CadProductionClipart settings={settings} onSetup={() => focusCad('document')} /> : mode === 'arrange' ? <>

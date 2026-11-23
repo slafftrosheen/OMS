@@ -88,6 +88,65 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('ordinary Pick guideline snapping through native public hooks', () => {
+  it('snaps Pick to an actual sheet edge with no guide or object targets in one undo', async () => {
+    await harness(async ({ editor, cad, snapping, add, ready, down, move, up, snapshot }) => {
+      const id = add(), page = editor.getCurrentPage();
+      editor.updatePage({ id: page.id, meta: { ...page.meta, omsCad: cad.DEFAULT_CAD_SETTINGS,
+        omsPageSize: { widthMm: 127, heightMm: 105.83333333333333 },
+        omsCadSnap: { page: true, objects: false }, omsGuides: 'invalid' } });
+      ready(id); const before = snapshot();
+      await down({ x: 110, y: 110 }); await move({ x: 412, y: 150 });
+      near(editor.getShape(id).x, 400); near(editor.getShape(id).y, 140);
+      const snap = snapping.drawingPickGuideSnap(editor).get();
+      assert.equal(snap?.page?.target, 'edge'); assert.deepEqual(snap?.guides, []);
+      await up({ x: 412, y: 150 });
+      near(editor.getShape(id).x, 400); assert.equal(snapping.drawingPickGuideSnap(editor).get(), null);
+      editor.undo(); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('picks a nearby sheet edge from the raw drag and keeps grid snapping along the edge', async () => {
+    await harness(async ({ editor, cad, snaps, snapping, add, ready, down, move, up, snapshot }) => {
+      const id = add('shape:grid-sheet', 100, 100, 50, 40), page = editor.getCurrentPage();
+      editor.updatePage({ id: page.id, meta: { ...page.meta, omsCad: cad.DEFAULT_CAD_SETTINGS,
+        omsPageSize: { widthMm: 127, heightMm: 105.83333333333333 } } });
+      const disposeGrid = snaps.installDrawingSnapTargets(editor);
+      try {
+        assert.equal(snaps.writeCadSnapSettings(editor, { page: true, grid: true, gridSpacing: 100, objects: false }), true);
+        await Promise.resolve();
+        ready(id); const before = snapshot();
+        await down({ x: 110, y: 110 }); await move({ x: 442, y: 152 });
+        near(editor.getShape(id).x, 430); near(editor.getShape(id).y, 100);
+        const snap = snapping.drawingPickGuideSnap(editor).get()?.page;
+        assert.equal(snap?.target, 'edge'); near(snap.point.x, 480);
+        await move({ x: 426, y: 152 });
+        near(editor.getShape(id).x, 400); near(editor.getShape(id).y, 100);
+        assert.equal(snapping.drawingPickGuideSnap(editor).get(), null);
+        await up({ x: 426, y: 152 });
+        editor.undo(); assert.deepEqual(snapshot(), before);
+      } finally { disposeGrid(); }
+    });
+  });
+
+  it('centers with Pick and stops acquiring an obsolete sheet after a remote resize', async () => {
+    await harness(async ({ editor, cad, snapping, add, ready, down, move, up, tick }) => {
+      const id = add(), page = editor.getCurrentPage();
+      editor.updatePage({ id: page.id, meta: { ...page.meta, omsCad: cad.DEFAULT_CAD_SETTINGS,
+        omsPageSize: { widthMm: 127, heightMm: 105.83333333333333 }, omsCadSnap: { page: true } } });
+      ready(id);
+      await down({ x: 110, y: 110 }); await move({ x: 213, y: 186 });
+      near(editor.getShape(id).x, 200); near(editor.getShape(id).y, 180);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get()?.page?.target, 'center');
+      const changed = editor.getCurrentPage();
+      editor.store.mergeRemoteChanges(() => editor.store.put([{ ...changed,
+        meta: { ...changed.meta, omsPageSize: { widthMm: 254, heightMm: 127 } } }]));
+      await tick();
+      assert.equal(snapping.drawingPickGuideSnap(editor).get(), null);
+      await move({ x: 214, y: 187 }); await up({ x: 214, y: 187 });
+      near(editor.getShape(id).x, 204); near(editor.getShape(id).y, 177);
+    });
+  });
+
   it('snaps Pick and CAD to a hidden grid only while grid snapping is enabled', async () => {
     await harness(async ({ editor, snaps, add, ready, down, move, up }) => {
       const disposeGrid = snaps.installDrawingSnapTargets(editor);
