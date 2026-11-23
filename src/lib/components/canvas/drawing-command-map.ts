@@ -95,6 +95,7 @@ export const drawingCommands = {
   'rotate-right': { icon: 'rotate-right', testId: 'drawing-action-rotate-right' },
   'flip-horizontal': { icon: 'flip-horizontal', testId: 'drawing-action-flip-horizontal' },
   'flip-vertical': { icon: 'flip-vertical', testId: 'drawing-action-flip-vertical' },
+  mirrorCopy: { icon: 'flip-horizontal' },
   skew: { icon: 'skew', check: true, testId: 'drawing-menu-skew-mode' },
   'align-left': { icon: 'align-left', keys: 'L', testId: 'drawing-action-align-left' },
   'align-right': { icon: 'align-right', keys: 'R', testId: 'drawing-action-align-right' },
@@ -164,7 +165,7 @@ export const drawingMenuBar: ReadonlyArray<{ id: DrawingMenuId; items: readonly 
   { id: 'object', items: [
     'group', 'ungroup', 'combine', 'breakApart', 'lock', 'productionLayers', '-',
     { sub: 'order', items: ['front', 'back', 'forward', 'backward', '-', 'reverseOrder', 'relativeOrder'] },
-    { sub: 'transformations', items: ['transform', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', '-', 'skew'] },
+    { sub: 'transformations', items: ['transform', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'mirrorCopy', '-', 'skew'] },
     { sub: 'alignDistribute', items: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', '-', 'distribute-horizontal', 'distribute-vertical', '-', 'centerToPage', 'arrange'] },
     { sub: 'shapingTools', items: ['shaping', 'join', 'knife'] },
     '-', 'convert', 'outlineObject', '-',

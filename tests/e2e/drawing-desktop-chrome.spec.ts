@@ -141,6 +141,25 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-undo').click();
     await expect.poll(async () => (await scene(page)).shapes.length).toBe(before);
   });
+
+  test(`${mode} creates an editable mirror copy across a selected line`, async ({ page }) => {
+    await open(page, mode);
+    await page.evaluate(() => (window as any).__drawingFixture.pathRepeatSample());
+    const before = (await scene(page)).shapes.length;
+    await page.getByTestId('drawing-quick-trigger').click();
+    await page.getByTestId('drawing-quick-input').fill('mirror copy across line');
+    await page.getByRole('option', { name: /Mirror copy across line/ }).click();
+    await expect(page.getByTestId('drawing-mirror-guide')).toHaveValue('shape:path-repeat-guide');
+    await page.getByTestId('drawing-mirror-preview').click();
+    await expect(page.getByTestId('drawing-mirror-copy-overlay').locator('path')).toBeVisible();
+    expect((await scene(page)).shapes.length).toBe(before);
+    await page.getByTestId('drawing-mirror-apply').click();
+    await expect.poll(async () => (await scene(page)).shapes.length).toBe(before + 1);
+    const { shapes, selected } = await scene(page);
+    expect(shapes.find((shape: any) => shape.id === selected[0])?.type).toBe('cad-bezier');
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => (await scene(page)).shapes.length).toBe(before);
+  });
 }
 
 async function rectangleAt(page: Page) {

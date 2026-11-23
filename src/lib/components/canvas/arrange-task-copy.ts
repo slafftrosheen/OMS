@@ -4,21 +4,21 @@ import { locale } from 'svelte-i18n';
 
 const en = {
   task: 'Arrange task', transform: 'Transformations', align: 'Align and distribute',
-  repeat: 'Step and repeat', radial: 'Rotate / circular copies', nest: 'Nest on sheet', pathRepeat: 'Repeat along path',
+  repeat: 'Step and repeat', radial: 'Rotate / circular copies', nest: 'Nest on sheet', pathRepeat: 'Repeat along path', mirror: 'Mirror copy across line',
   paletteHint: 'CAD: click a swatch for fill, right-click for outline. Open paths use outline colour. Native objects keep their own fill style.',
 };
 type Label = keyof typeof en;
 const ru: Record<Label,string> = {
   task: 'Задача размещения', transform: 'Преобразования', align: 'Выравнивание и распределение',
-  repeat: 'Шаг и повтор', radial: 'Поворот / копии по окружности', nest: 'Раскладка на лист', pathRepeat: 'Повтор вдоль кривой',
+  repeat: 'Шаг и повтор', radial: 'Поворот / копии по окружности', nest: 'Раскладка на лист', pathRepeat: 'Повтор вдоль кривой', mirror: 'Зеркальная копия относительно линии',
   paletteHint: 'CAD: щелчок по цвету меняет заливку, правый щелчок — контур. У открытых кривых меняется контур. Обычные объекты сохраняют свой тип заливки.',
 };
 const lv: Record<Label,string> = {
   task: 'Izkārtošanas uzdevums', transform: 'Pārveidojumi', align: 'Līdzināšana un sadalīšana',
-  repeat: 'Solis un atkārtošana', radial: 'Pagriešana / kopijas pa apli', nest: 'Izkārtot uz loksnes', pathRepeat: 'Atkārtot pa līkni',
+  repeat: 'Solis un atkārtošana', radial: 'Pagriešana / kopijas pa apli', nest: 'Izkārtot uz loksnes', pathRepeat: 'Atkārtot pa līkni', mirror: 'Spoguļkopija pret līniju',
   paletteHint: 'CAD: klikšķis uz krāsas maina aizpildījumu, labais klikšķis — kontūru. Atvērtām līknēm mainās kontūra. Parastie objekti saglabā savu aizpildījuma veidu.',
 };
-export type ArrangeTask = 'transform' | 'align' | 'repeat' | 'radial' | 'nest' | 'pathRepeat';
+export type ArrangeTask = 'transform' | 'align' | 'repeat' | 'radial' | 'nest' | 'pathRepeat' | 'mirror';
 const subscribe = (notify: () => void) => locale.subscribe(() => notify());
 export function useArrangeTaskText() {
   const language = useSyncExternalStore(subscribe, () => get(locale), () => get(locale));

@@ -70,6 +70,12 @@ Original pixels are retained up to 25 MiB / 32 megapixels (maximum 16,384 pixels
 
 Canvas/SVG/PDF visualizations include the clipped texture. EPS accepts opaque images; transparency is explicitly reported as an omission. DXF and measurements use the unchanged manufacturing outlines, including holes. Imported raster-page rectangles remain excluded from cutting export. Texture-bearing objects retain the existing restrictions on destructive shaping and selected-node corner operations; clear the texture before those operations.
 
+## Mirror copies across a line
+
+Use **Object → Transformations → Mirror copy across line**. Select artwork together with a two-point straight guide, or select the artwork and enter the two axis coordinates in drawing units. **Preview** shows the axis and reflected curves. **Create mirrored copies** adds editable copies beside their sources in the object stack and selects the results as one undoable operation.
+
+The tool preserves authored fill, outline, opacity and production-layer assignment. Bézier controls and straight segments reflect directly. Ellipses and arcs become Bézier curves. For grouped artwork, enter the group and select its individual objects.
+
 ## Repeat artwork along a path
 
 Select page-level artwork or complete groups and a separate, continuous guide on the same page. Open **Effects → Repeat along path** and choose the guide. A line, polyline, single Bézier contour, arc, ellipse, or unlabelled geometric shape can guide the array.
