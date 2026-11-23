@@ -15,7 +15,7 @@ import {
 import { gradientFillError, useGradientFillText, type GradientFillLabel } from './gradient-fill-copy';
 
 type Stop = { color: string; position: string };
-type Draft = { type: GradientFillSettings['type']; angle: string; opacity: string; stops: Stop[] };
+type Draft = { type: GradientFillSettings['type']; angle: string; opacity: string; refit: boolean; stops: Stop[] };
 type Review = { plan: GradientFillPlan; key: string; name: string };
 type Message = { key: GradientFillLabel; error?: boolean; revision?: string };
 const MAX_STOPS = 256;
@@ -28,6 +28,7 @@ function draftFrom(settings: GradientFillSettings | null): Draft {
     type: settings?.type ?? 'linear',
     angle: String(settings?.angle ?? 0),
     opacity: String(settings?.opacity ?? 100),
+    refit: false,
     stops: (settings?.stops ?? [{ offset: 0, color: '#ffffff' }, { offset: 1, color: '#000000' }])
       .map(stop => ({ color: stop.color, position: String(stop.offset * 100) })),
   };
@@ -83,8 +84,8 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
   const validOpacity = within(draft.opacity, 0, 100);
   const positions = draft.stops.map(stop => number(stop.position));
   const validPositions = positions.map((position, index) => Number.isFinite(position) && position >= 0 && position <= 100 &&
-    (index === 0 ? position === 0 : position > positions[index - 1]) &&
-    (index === positions.length - 1 ? position === 100 : position < positions[index + 1]));
+    (index === 0 ? position === 0 : position >= positions[index - 1]) &&
+    (index === positions.length - 1 ? position === 100 : position <= positions[index + 1]));
   const validStops = draft.stops.length >= 2 && draft.stops.length <= MAX_STOPS &&
     validPositions.every(Boolean) && draft.stops.every(stop => validColor(stop.color));
   const valid = validAngle && validOpacity && validStops;
@@ -135,6 +136,13 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
           change(current => ({ ...current, opacity }));
         }} />
       </label>
+      {selection?.hasGradient && <label className="drawing-cad-field">
+        <span>{t('refit')}</span>
+        <input type="checkbox" checked={draft.refit} data-testid="gradient-fill-refit" onChange={event => {
+          const refit = event.target.checked;
+          change(current => ({ ...current, refit }));
+        }} />
+      </label>}
       <p id={`${id}-stops-help`} className="drawing-help">{t('stopsHelp')}</p>
       {draft.stops.map((stop, index) => <fieldset key={index} className="drawing-cad-fields" aria-describedby={`${id}-stops-help`}>
         <legend className="drawing-cad-preview-title">{t('stop')} {index + 1}</legend>
@@ -174,7 +182,7 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
           setMessage(undefined);
           try {
             const plan = prepareGradientFill(editor, {
-              type: draft.type, angle: draft.type === 'linear' ? number(draft.angle) : 0, opacity: number(draft.opacity),
+              type: draft.type, angle: draft.type === 'linear' ? number(draft.angle) : 0, opacity: number(draft.opacity), refit: draft.refit,
               stops: draft.stops.map(stop => ({ color: stop.color, offset: number(stop.position) / 100 })),
             });
             setReview({ plan, key: inputKey, name: selection.name });

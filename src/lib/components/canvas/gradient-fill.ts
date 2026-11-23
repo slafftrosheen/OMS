@@ -10,6 +10,7 @@ export interface GradientFillSettings {
   type: 'linear' | 'radial';
   angle: number;
   opacity: number;
+  refit?: boolean;
   stops: Array<{ offset: number; color: string }>;
 }
 export interface GradientFillPlan {
@@ -41,41 +42,50 @@ export function gradientFillSelection(editor: Editor) {
   } catch { return null; }
 }
 
-/** Read colours and direction, including imported or resized gradients. Apply
- * deliberately refits the mapping to the current local bounds, without changing
- * the curve. Arbitrary imported focal points/boxes are not silently retained. */
+function gradientAngle(g: VectorGradient | undefined) {
+  if (g?.type !== 'linear') return 0;
+  const x = g.end[0] - g.start[0], y = g.end[1] - g.start[1];
+  const [a, b, c, d] = g.matrix, sign = Math.sign(a * d - b * c);
+  // The inverse transpose maps the direction of fastest colour change.
+  const angle = -Math.atan2(sign * (a * y - c * x), sign * (d * x - b * y)) * 180 / Math.PI;
+  return Number(angle.toPrecision(14));
+}
+
 export function getGradientFillSettings(editor: Editor): GradientFillSettings | null {
   try {
     const { paint } = source(editor), g = paint.gradient;
-    let angle = 0;
-    if (g?.type === 'linear') {
-      const x = g.end[0] - g.start[0], y = g.end[1] - g.start[1], m = g.matrix;
-      angle = -Math.atan2(m[1] * x + m[3] * y, m[0] * x + m[2] * y) * 180 / Math.PI;
-    }
     return {
-      type: g?.type ?? 'linear', angle: Number(angle.toPrecision(14)), opacity: paint.fillOpacity * 100,
+      type: g?.type ?? 'linear', angle: gradientAngle(g), opacity: paint.fillOpacity * 100,
       stops: structuredClone(g?.stops ?? [{ offset: 0, color: paint.fill === 'none' ? '#ffffff' : paint.fill }, { offset: 1, color: '#2563eb' }]),
     };
   } catch { return null; }
 }
 
-export function prepareGradientFill(editor: Editor, settings: GradientFillSettings): GradientFillPlan {
-  const { shape, paint, contours, fillRule, bounds, data } = source(editor);
-  if (!['linear', 'radial'].includes(settings.type) || !Number.isFinite(settings.angle) || Math.abs(settings.angle) > 360 ||
-      !Number.isFinite(settings.opacity) || settings.opacity < 0 || settings.opacity > 100) throw new Error('geometry');
+function fitGradient(settings: GradientFillSettings, bounds: GradientFillPlan['bounds'], stops: VectorGradient['stops']): VectorGradient {
   const cx = bounds.x + bounds.w / 2, cy = bounds.y + bounds.h / 2;
   const theta = -settings.angle * Math.PI / 180, dx = Math.cos(theta), dy = Math.sin(theta);
   // The full bounds projected on the axis: corners reach the end colours at
   // every angle. Coordinates stay in the curve's local system (Y down).
   const half = (Math.abs(dx) * bounds.w + Math.abs(dy) * bounds.h) / 2;
-  const gradient: VectorGradient = settings.type === 'linear' ? {
+  return settings.type === 'linear' ? {
     type: 'linear', matrix: [1, 0, 0, 1, 0, 0],
     start: [cx - dx * half, cy - dy * half], end: [cx + dx * half, cy + dy * half],
-    r0: 0, r1: 0, stops: structuredClone(settings.stops),
+    r0: 0, r1: 0, stops,
   } : {
     type: 'radial', matrix: [bounds.w / 2, 0, 0, bounds.h / 2, cx, cy],
-    start: [0, 0], end: [0, 0], r0: 0, r1: 1, stops: structuredClone(settings.stops),
+    start: [0, 0], end: [0, 0], r0: 0, r1: 1, stops,
   };
+}
+
+export function prepareGradientFill(editor: Editor, settings: GradientFillSettings): GradientFillPlan {
+  const { shape, paint, contours, fillRule, bounds, data } = source(editor);
+  if (!['linear', 'radial'].includes(settings.type) || !Number.isFinite(settings.angle) || Math.abs(settings.angle) > 360 ||
+      !Number.isFinite(settings.opacity) || settings.opacity < 0 || settings.opacity > 100 ||
+      (settings.refit !== undefined && typeof settings.refit !== 'boolean')) throw new Error('geometry');
+  const stored = paint.gradient, stops = structuredClone(settings.stops);
+  const keepMapping = stored?.type === settings.type && !settings.refit &&
+    (settings.type === 'radial' || settings.angle === gradientAngle(stored));
+  const gradient = keepMapping ? { ...structuredClone(stored), stops } : fitGradient(settings, bounds, stops);
   const next: VectorPaint = { ...paint, raster: undefined, gradient, fillOpacity: settings.opacity / 100 };
   if (!validVectorPaint(next)) throw new Error('geometry');
   return { revision: cadRevision(editor), shapeId: shape.id, paint: next, contours: structuredClone(contours), data, bounds: { ...bounds }, fillRule, settings: structuredClone(settings) };

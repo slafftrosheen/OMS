@@ -80,10 +80,7 @@ function gradientStops(chain: Element[], input: GradientInput) {
     if (Math.abs(opacity - localOpacity) > 1e-9) throw new Error('svg-gradient');
     const stop = { offset, color: c.ink === 'none' ? '#000000' : c.ink };
     const previous = stops.at(-1);
-    if (previous?.offset === offset) {
-      if (previous.color !== stop.color) throw new Error('svg-gradient');
-      continue;
-    }
+    if (previous?.offset === offset && previous.color === stop.color) continue;
     stops.push(stop);
     if (stops.length > 256) throw new Error('svg-gradient');
   }

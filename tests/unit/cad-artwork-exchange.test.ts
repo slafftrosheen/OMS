@@ -191,12 +191,42 @@ async function read(text: string | Uint8Array, withImages = false) {
     await task.destroy();
   }
 }
+function readSvgFixture(source: string) {
+  const { JSDOM } = createRequire(resolve("package.json"))("jsdom");
+  const dom = new JSDOM(), previous = Object.getOwnPropertyDescriptor(globalThis, "DOMParser");
+  Object.defineProperty(globalThis, "DOMParser", { value: dom.window.DOMParser, configurable: true });
+  try { return readVectorSvg(source); }
+  finally {
+    if (previous) Object.defineProperty(globalThis, "DOMParser", previous);
+    else Reflect.deleteProperty(globalThis, "DOMParser");
+    dom.window.close();
+  }
+}
+
 describe("clipped artwork, gradients and embedded raster exchange", () => {
+  async function compareSvgShadings(source: string, points: number[][], expectedTypes: (string | undefined)[]) {
+    const sharp = createRequire(resolve("package.json"))("sharp");
+    const imported = readSvgFixture(source);
+    assert.deepEqual(imported.document.warnings, []);
+    assert.deepEqual(imported.document.paths.map(p => p.paint.gradient?.type), expectedTypes);
+    const paths = imported.document.paths.map(p => ({ ...p,
+      paint: scalePaint(p.paint, .75), contours: mapContours(p.contours, ({x, y}) => ({ x: x * .75, y: y * .75 })),
+    }));
+    const { data, info } = await sharp(Buffer.from(source), { density: 54 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.deepEqual([info.width, info.height, info.channels], [imported.document.width * .75, imported.document.height * .75, 3]);
+    for (const format of ["pdf", "eps"] as const) {
+      const output = serializeVectorDocument(paths, format);
+      assert.doesNotMatch(output, /\/Subtype \/Image/);
+      const pixel = await pixels(output, format);
+      for (const [x, y] of points) {
+        const offset = (y * info.width + x) * info.channels;
+        const svg = [...data.subarray(offset, offset + 3)], actual = pixel(x, y);
+        assert.ok(svg.every((value, c) => Math.abs(value - actual[c]) < 10), `${format} ${x},${y}: ${actual} vs ${svg}`);
+      }
+    }
+  }
+
   it("matches independently rendered SVG gradient colors after exporting to PDF and EPS", async () => {
-    const require = createRequire(resolve("package.json"));
-    const { JSDOM } = require("jsdom"), sharp = require("sharp");
-    const dom = new JSDOM(), previous = Object.getOwnPropertyDescriptor(globalThis, "DOMParser");
-    Object.defineProperty(globalThis, "DOMParser", { value: dom.window.DOMParser, configurable: true });
     const source = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
       <defs><linearGradient id="l" x1="10%" x2="85%" y2="20%" gradientTransform="rotate(10 .5 .5)">
       <stop offset="0" stop-color="#ef2311"/><stop offset=".45" stop-color="#317c24"/><stop offset="1" stop-color="#2455be"/>
@@ -205,28 +235,22 @@ describe("clipped artwork, gradients and embedded raster exchange", () => {
       </radialGradient></defs><rect width="100" height="80" fill="white"/>
       <rect width="80" height="40" transform="translate(45) rotate(90)" fill="url(#l)"/>
       <rect x="55" width="40" height="80" fill="url(#r)"/></svg>`;
-    let imported: ReturnType<typeof readVectorSvg>;
-    try { imported = readVectorSvg(source); }
-    finally {
-      if (previous) Object.defineProperty(globalThis, "DOMParser", previous);
-      else Reflect.deleteProperty(globalThis, "DOMParser");
-      dom.window.close();
-    }
-    assert.deepEqual(imported.document.warnings, []);
-    assert.deepEqual(imported.document.paths.map(p => p.paint.gradient?.type), [undefined, "linear", "radial"]);
-    const paths = imported.document.paths.map(p => ({ ...p,
-      paint: scalePaint(p.paint, .75), contours: mapContours(p.contours, ({x, y}) => ({ x: x * .75, y: y * .75 })),
-    }));
-    const { data, info } = await sharp(Buffer.from(source), { density: 54 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-    assert.deepEqual([info.width, info.height, info.channels], [75, 60, 3]);
-    for (const format of ["pdf", "eps"] as const) {
-      const pixel = await pixels(serializeVectorDocument(paths, format), format);
-      for (const [x, y] of [[16, 5], [16, 22], [16, 46], [53, 29], [63, 29], [57, 45]]) {
-        const offset = (y * info.width + x) * info.channels;
-        const svg = [...data.subarray(offset, offset + 3)], actual = pixel(x, y);
-        assert.ok(svg.every((value, c) => Math.abs(value - actual[c]) < 10), `${format} ${x},${y}: ${actual} vs ${svg}`);
-      }
-    }
+    await compareSvgShadings(source, [[16, 5], [16, 22], [16, 46], [53, 29], [63, 29], [57, 45]], [undefined, "linear", "radial"]);
+  });
+
+  it("keeps sharp transitions and pad colors in both linear and radial PDF and EPS shading", async () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">
+      <defs><linearGradient id="l" gradientUnits="userSpaceOnUse" x1="20" x2="100">
+      <stop offset="0" stop-color="#a02010"/><stop offset="0" stop-color="#eda712"/>
+      <stop offset=".5" stop-color="#eda712"/><stop offset=".5" stop-color="#126ca4"/>
+      <stop offset="1" stop-color="#126ca4"/><stop offset="1" stop-color="#5f289e"/>
+      </linearGradient><radialGradient id="r" href="#l" gradientUnits="userSpaceOnUse" cx="62" cy="90" fx="57" fr="12" r="38"/>
+      </defs><rect width="120" height="60" fill="url(#l)"/>
+      <rect y="60" width="120" height="60" fill="url(#r)"/></svg>`;
+    await compareSvgShadings(source, [
+      [8, 20], [17, 20], [43, 20], [47, 20], [72, 20], [79, 20],
+      [42, 67], [56, 67], [62, 67], [67, 67], [72, 67], [80, 67],
+    ], ["linear", "radial"]);
   });
 
   it("preserves independently authored EPS artwork through real Ghostscript conversion and editable PDF import", async () => {

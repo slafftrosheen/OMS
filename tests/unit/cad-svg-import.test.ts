@@ -130,13 +130,13 @@ describe('editable SVG exchange', () => {
       <linearGradient id="external" href="https://example.test/paint.svg#g"/>
       <linearGradient id="fade"><stop stop-color="black"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient>
       <linearGradient id="stripe" spreadMethod="repeat"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient>
-      <linearGradient id="hard"><stop stop-color="black"/><stop stop-color="white"/><stop offset="1" stop-color="white"/></linearGradient>
+      <linearGradient id="rgb" color-interpolation="linearRGB"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient>
       <linearGradient id="short" x2="0"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient>
       </defs><rect width="5" height="5" fill="url(#cycle) #123"/>
       <rect x="10" width="5" height="5" fill="url(#fade) #234"/>
       <rect x="20" width="5" height="5" fill="url(#external) #345"/>
       <rect x="30" width="5" height="5" fill="url(#stripe) #456"/>
-      <rect x="40" width="5" height="5" fill="url(#hard) #567"/>
+      <rect x="40" width="5" height="5" fill="url(#rgb) #567"/>
       <rect x="50" width="5" height="5" fill="url(#short) black" stroke="url(#short) #678"/>`);
     assert.deepEqual(document.paths.map(path => path.paint.fill),
       ['#112233', '#223344', '#334455', '#445566', '#556677', '#ffffff']);

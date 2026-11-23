@@ -309,7 +309,7 @@ describe('physical drawing pages', () => {
 });
 
 describe('portable artwork export through native SVG and PNG APIs', () => {
-  it('reimports a full-size OMS SVG with editable gradient, cubic and hole geometry and exports its cutting curves', async () => harness(async h => {
+  it('reimports a full-size OMS SVG with a sharp gradient transition, cubic and hole geometry and exports its cutting curves', async () => harness(async h => {
     const { exportDrawingArtwork } = await import('../../src/lib/components/canvas/drawing-artwork-export');
     const { readVectorSvg } = await import('../../src/lib/components/canvas/cad-svg-import');
     const { prepareVectorImport } = await import('../../src/lib/components/canvas/cad-vector');
@@ -320,7 +320,8 @@ describe('portable artwork export through native SVG and PNG APIs', () => {
     outer.nodes[0].outX = 48;
     outer.nodes[1].inX = -41;
     const gradient = { type: 'linear', matrix: [1, 0, 0, 1, 0, 0], start: [0, 0], end: [160, 100],
-      r0: 0, r1: 0, stops: [{ offset: 0, color: '#007e5d' }, { offset: 1, color: '#ac125f' }] };
+      r0: 0, r1: 0, stops: [{ offset: 0, color: '#007e5d' }, { offset: .5, color: '#007e5d' },
+        { offset: .5, color: '#ac125f' }, { offset: 1, color: '#ac125f' }] };
     const source = h.create([outer, h.rectangle(50, 20, 60, 60)], { fill: 'none', stroke: 'none', gradient });
     h.editor.select(source.id);
     const svg = await exportDrawingArtwork(h.editor, 'svg', { ...exportOptions, scope: 'selected' }, new AbortController().signal);

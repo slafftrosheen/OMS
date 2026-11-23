@@ -134,7 +134,7 @@ export function validAppearance(p: VectorAppearance) {
           !finite(s.offset) ||
           s.offset < 0 ||
           s.offset > 1 ||
-          (i > 0 && s.offset <= g.stops[i - 1].offset) ||
+          (i > 0 && s.offset < g.stops[i - 1].offset) ||
           !/^#[0-9a-f]{6}$/i.test(s.color),
       ) ||
       g.stops[0].offset !== 0 ||

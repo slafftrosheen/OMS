@@ -103,15 +103,50 @@ describe('editable vector gradient fills', () => {
     }
   });
 
-  it('reads all imported stops and transformed direction, then explicitly refits imported mapping', () => {
+  it('keeps a skewed imported gradient in place while editing its stops and opacity, with an explicit refit option', () => {
     const f=drawing(), g=prepareGradientFill(f.editor,settings()).paint.gradient!;
     const stops=Array.from({length:256},(_,i)=>({offset:i/255,color:i%2?'#112233':'#aabbcc'}));
-    f.only().meta.omsVectorPaint={...f.only().meta.omsVectorPaint,gradient:{...g,matrix:[0,-2,3,0,12,34],bounds:[0,0,200,100],stops}};
-    const read=getGradientFillSettings(f.editor)!; assert.equal(read.angle,90); assert.deepEqual(read.stops,stops);
-    const plan=prepareGradientFill(f.editor,read); assert.equal(plan.paint.gradient!.bounds,undefined); assert.deepEqual(plan.paint.gradient!.matrix,[1,0,0,1,0,0]);
+    const matrix = [2,0,1,3,12,34], bounds = [0,0,200,100];
+    f.only().meta.omsVectorPaint={...f.only().meta.omsVectorPaint,gradient:{...g,matrix,bounds,stops}};
+    const read=getGradientFillSettings(f.editor)!;
+    assert.ok(Math.abs(read.angle - Math.atan(1/3)*180/Math.PI) < 1e-12);
+    assert.deepEqual(read.stops,stops);
+    read.stops[1].offset = 0;
+    const plan=prepareGradientFill(f.editor,{...read, opacity:75});
+    assert.deepEqual(plan.paint.gradient, {...g, matrix, bounds, stops: read.stops});
+    assert.equal(plan.paint.fillOpacity, .75);
     assert.equal(applyGradientFill(f.editor,plan),true);
-    const transformed=transformAppearance(f.only().meta.omsVectorPaint,[2,0,0,3,0,0]); f.only().meta.omsVectorPaint=transformed;
-    assert.equal(getGradientFillSettings(f.editor)!.angle,90);
+    assert.deepEqual(getGradientFillSettings(f.editor)?.stops, read.stops);
+    for (const refit of [{...read, refit:true}, {...read, angle:0}]) {
+      const gradient=prepareGradientFill(f.editor,refit).paint.gradient!;
+      assert.equal(gradient.bounds,undefined);
+      assert.deepEqual(gradient.matrix,[1,0,0,1,0,0]);
+    }
+    const transformed=transformAppearance(f.only().meta.omsVectorPaint,[-1,0,0,1,0,0]); f.only().meta.omsVectorPaint=transformed;
+    assert.ok(Math.abs(getGradientFillSettings(f.editor)!.angle - (180-read.angle)) < 1e-11);
+  });
+
+  it('preserves an off-center radial gradient while editing, and recenters it on explicit refit', () => {
+    const f=drawing(), input={ ...settings(), type:'radial' as const };
+    const initial=prepareGradientFill(f.editor,input).paint.gradient!;
+    const authored={...initial, start:[.2,.25], r0:.1};
+    f.only().meta.omsVectorPaint.gradient=authored;
+    const read=getGradientFillSettings(f.editor)!;
+    read.stops[1].color='#a1b2c3';
+    assert.deepEqual(prepareGradientFill(f.editor,read).paint.gradient, {...authored, stops:read.stops});
+    assert.deepEqual(prepareGradientFill(f.editor,{...read,refit:true}).paint.gradient, {...initial, stops:read.stops});
+  });
+
+  it('uses one representable PDF and EPS bound for stops that share output precision', () => {
+    const f=drawing(), offsets=[0,.5,.5000000001,.5000000002,1];
+    f.only().opacity=1; f.only().meta.omsVectorPaint.strokeOpacity=1;
+    const stops=offsets.map((offset,i)=>({offset,color:i%2?'#ffffff':'#000000'}));
+    assert.equal(applyGradientFill(f.editor,prepareGradientFill(f.editor,{...settings(),stops})),true);
+    for (const format of ['pdf','eps'] as const) {
+      const out=prepareVectorExport(f.editor,DEFAULT_CAD_SETTINGS,'selected',format);
+      assert.equal(out.omitted.length,0);
+      assert.match(out.text,/\/Bounds \[0.5\]/);
+    }
   });
 
   it('replaces material fills without stale material settings and undo restores the material', () => {
