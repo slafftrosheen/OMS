@@ -46,15 +46,15 @@ export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:
  }finally{pending.delete(editor);if(!signal?.aborted)report(failures.length?failures.join(' · '):`${completed} file(s) attached. Save Draft to keep their canvas placement.`,false);}
 }
 export function wireAssetDropHandler(container:HTMLElement,editor:Editor,getOrderId:()=>string|null,
- routeDrawing?:(files:File[],position:{x:number;y:number})=>boolean){
+ routeDrawing?:(files:File[],position:{x:number;y:number})=>File[]){
  const controller=new AbortController();
  const drag=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files')){event.preventDefault();event.dataTransfer.dropEffect=editor.getInstanceState().isReadonly?'none':'copy';}};
  const drop=(event:DragEvent)=>{
   if(!event.dataTransfer?.files.length)return;
   event.preventDefault();event.stopPropagation();
   const files=Array.from(event.dataTransfer.files),position=editor.screenToPage({x:event.clientX,y:event.clientY});
-  if(routeDrawing?.(files,position))return;
-  const id=getOrderId();if(id)void uploadOrderCanvasFiles(editor,files,id,position,controller.signal);
+  const attachments=routeDrawing?.(files,position)??files;
+  const id=getOrderId();if(id&&attachments.length)void uploadOrderCanvasFiles(editor,attachments,id,position,controller.signal);
  };
  container.addEventListener('dragover',drag,true);container.addEventListener('drop',drop,true);
  return ()=>{controller.abort();container.removeEventListener('dragover',drag,true);container.removeEventListener('drop',drop,true);};

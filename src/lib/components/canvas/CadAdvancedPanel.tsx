@@ -28,6 +28,8 @@ import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, t
 import { planDxfImport, readCadDxf, type CadImportPlan, type DxfDrawing } from './cad-import';
 import { readProductionLayers } from './cad-production-layers';
 import { drawingFileKind, DXF_FILE_ACCEPT } from './drawing-file-types';
+import type { DrawingImportQueue, QueuedImportControls } from './drawing-ui-requests';
+import { useDrawingText } from './drawing-copy';
 
 export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'pageSetup' | 'files' | 'importDxf' | 'exportDxf' | 'importVector' | 'publishPdf' | 'shaping' | 'offset' | 'midline' | 'join' | 'knife' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'nodeReduce' | 'preflight'; sequence: number; file?: File; dropPoint?: { x: number; y: number } };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
@@ -83,13 +85,22 @@ function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boole
 }
 
 /** Shared advanced CAD controls for the order and idea workspace docker. */
-export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf }: {
+export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf, importQueue }: {
   settings: CadSettings | null; focusRequest?: CadFocusRequest; task: CadTask; onOpenDxf?: (scope: PreflightDxfScope) => void;
+  importQueue?: DrawingImportQueue;
 }) {
   const editor = useEditor();
   const { label } = useCadAdvancedText();
+  const { label: drawingLabel } = useDrawingText();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
   const revision = useValue('advanced cad revision', () => cadRevision(editor), [editor]);
+  const entries = importQueue?.entries ?? [];
+  const activeImport = entries[0];
+  const queuedDxf = activeImport && drawingFileKind(activeImport.file) === 'dxf';
+  const queued = activeImport && importQueue ? {
+    skipLabel: drawingLabel('skipQueuedDrawing'),
+    finish: (imported: boolean) => importQueue.finish(activeImport.sequence, imported),
+  } : undefined;
   const [cornerFocus, setCornerFocus] = useState(0);
   const disabled = !state.controls.canEditSelection || state.protected;
   return <>
@@ -116,12 +127,20 @@ export function CadAdvancedPanel({ settings, focusRequest, task, onOpenDxf }: {
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && (focusRequest?.section === 'lettering' || focusRequest?.section === 'convert' && state.text)} newText={focusRequest?.section === 'lettering'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'files'}>
     {!settings && !state.controls.readOnly && <button type="button" onClick={() => writeCadSettings(editor, DEFAULT_CAD_SETTINGS)}>{label('enableImportUnits')}</button>}
-    <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly}
-      focusRequest={task === 'files' && focusRequest?.section === 'importVector' ? focusRequest : undefined} />
+    {activeImport && <section className="drawing-import-queue" data-testid="drawing-import-queue" aria-label={drawingLabel('drawingImportQueue')}>
+      <p role="status">{drawingLabel('drawingImportQueue')} · {entries.length}</p>
+      {entries.length > 1 && <details><summary>{drawingLabel('waitingDrawings')}</summary><ol>
+        {entries.slice(1).map(entry => <li key={entry.sequence}>{entry.file.name}</li>)}
+      </ol></details>}
+    </section>}
+    {!queuedDxf && <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly}
+      key={activeImport?.sequence ?? 'vector-picker'} queued={queued}
+      focusRequest={task === 'files' ? activeImport ?? (focusRequest?.section === 'importVector' ? focusRequest : undefined) : undefined} />}
     <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly}
       focusSequence={task === 'files' && focusRequest?.section === 'publishPdf' ? focusRequest.sequence : undefined} />
-    <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly}
-      focusRequest={task === 'files' && focusRequest?.section === 'importDxf' ? focusRequest : undefined} />
+    {(!activeImport || queuedDxf) && <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly}
+      key={activeImport?.sequence ?? 'dxf-picker'} queued={queued}
+      focusRequest={task === 'files' ? activeImport ?? (focusRequest?.section === 'importDxf' ? focusRequest : undefined) : undefined} />}
     </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
     <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} onOpenDxf={onOpenDxf} active={task === 'preflight'} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
   </>;
@@ -547,7 +566,9 @@ function Shaping({ settings, revision, disabled, focus, sequence, requestedOpera
   </details>;
 }
 
-function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps & { focusRequest?: CadFocusRequest }) {
+function DxfImport({ settings, revision, disabled, focusRequest, queued }: SharedProps & {
+  focusRequest?: Pick<CadFocusRequest, 'sequence' | 'file' | 'dropPoint'>; queued?: QueuedImportControls;
+}) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const [file, setFile] = useState<File>(); const [unit, setUnit] = useState<CadUnit | ''>(''); const [keepCoordinates, setKeepCoordinates] = useState(true);
   const [dropPoint, setDropPoint] = useState<CadFocusRequest['dropPoint']>();
@@ -569,7 +590,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   useEffect(() => { request.current++; setBusy(false); setAcknowledged(false); }, [revision, inputKey]);
   useEffect(() => {
-    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence) return;
+    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence || (focusRequest.file && disabled)) return;
     consumedFocus.current = focusRequest.sequence;
     section.current.open = true;
     section.current.querySelector('summary')?.focus();
@@ -623,11 +644,11 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
     <p className="drawing-help">{label('importHelp')}</p>
     <form onSubmit={event => { event.preventDefault(); void prepare(); }} aria-busy={busy}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings || busy}>
-        <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept={DXF_FILE_ACCEPT} onChange={event => {
+        {!queued && <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input ref={input} type="file" accept={DXF_FILE_ACCEPT} onChange={event => {
           request.current++; setFile(event.target.files?.[0]); setDropPoint(undefined); setKeepCoordinates(true);
           setLayerDestinations(new Map());
           setReview(null); setMessage(''); setAcknowledged(false);
-        }} /></label>
+        }} /></label>}
         {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
         <Field label={label('sourceUnit')}><select value={unit} onChange={event => { setUnit(event.target.value as typeof unit); setMessage(''); }}><option value="">{label('automatic')}</option>{(['mm', 'cm', 'm', 'in'] as const).map(value => <option key={value} value={value}>{value}</option>)}</select></Field>
         <Field label={label('projection')}><select value={projection} onChange={event=>setProjection(event.target.value as typeof projection)}>{(['strict','xy','xz','yz'] as const).map(value=><option key={value} value={value}>{label(value==='strict'?'projection2d':value==='xy'?'projectionTop':value==='xz'?'projectionFront':'projectionSide')}</option>)}</select></Field>
@@ -640,6 +661,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
         <button type="submit" disabled={!file}>{label('preview')}</button>
       </fieldset>
     </form>
+    {queued && <button type="button" disabled={busy} onClick={() => queued.finish(false)}>{queued.skipLabel}</button>}
     {!dropPoint && <p className="drawing-help">{label('coordinatesHelp')}</p>}
     {busy && <Message value="preparing" />}
     {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.blocked || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => {
@@ -648,6 +670,7 @@ function DxfImport({ settings, revision, disabled, focusRequest }: SharedProps &
         setReview(null); setCadNodeEditing(editor, false);
         if (editor.getSelectedShapeIds().length) editor.zoomToSelection();
         editor.focus();
+        queued?.finish(true);
       }
     }}>
       <dl className="drawing-cad-values"><dt>{label('sourceUnit')}</dt><dd>{review.plan.sourceUnit || '—'}</dd><dt>{label('omitted')}</dt><dd>{review.plan.omitted.length}</dd></dl>

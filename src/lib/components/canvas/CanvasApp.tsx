@@ -262,8 +262,8 @@ export function CanvasApp({
             // uploads, instead of tldraw's ephemeral data-URL asset store.
             editor.registerExternalContentHandler('files', async ({ files, point }) => {
                 if (editor.getInstanceState().isReadonly) return;
-                if (routeCanvasCadImport(editor, files, point)) return;
-                callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
+                const attachments = hideUI ? files : routeCanvasCadImport(editor, files, point);
+                if (attachments.length) callbacksRef.current.onToolkitFilesDrop?.(attachments, point ?? editor.getViewportPageBounds().center);
             });
             editor.registerExternalContentHandler('url', async ({ url, point }) => {
                 callbacksRef.current.onToolkitLinkDrop?.(url, point);
@@ -271,12 +271,12 @@ export function CanvasApp({
         }
 
         const routeOrderDrawing = (files: File[], position: { x: number; y: number }) =>
-            !orderPocketAtPoint(editor, position) && routeCanvasCadImport(editor, files, position);
+            hideUI || orderPocketAtPoint(editor, position) ? files : routeCanvasCadImport(editor, files, position);
         if (!toolkitBoardId) editor.registerExternalContentHandler('files', async ({ files, point }) => {
             const position = point ?? editor.getViewportPageBounds().center;
-            if (routeOrderDrawing(files, position)) return;
+            const attachments = routeOrderDrawing(files, position);
             const id = seedRef.current?.orderId;
-            if (id) await uploadOrderCanvasFiles(editor, files, id, position);
+            if (id && attachments.length) await uploadOrderCanvasFiles(editor, attachments, id, position);
         });
 
         // Separate order-document uploads from Toolkit shared-board imports.
@@ -299,8 +299,8 @@ export function CanvasApp({
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.
                     const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
-                    if (routeCanvasCadImport(editor, files, position)) return;
-                    callbacksRef.current.onToolkitFilesDrop?.(files, position);
+                    const attachments = hideUI ? files : routeCanvasCadImport(editor, files, position);
+                    if (attachments.length) callbacksRef.current.onToolkitFilesDrop?.(attachments, position);
                 };
                 container.addEventListener('dragover', onDragOver, true);
                 container.addEventListener('drop', onDrop, true);

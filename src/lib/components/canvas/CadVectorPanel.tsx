@@ -28,6 +28,7 @@ import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
 import { useVectorText, vectorError } from "./cad-vector-copy";
 import { MaterialTexturePanel } from './MaterialTexturePanel';
 import { GradientFillPanel } from './GradientFillPanel';
+import type { QueuedImportControls } from './drawing-ui-requests';
 
 type Props = {
   settings: CadSettings | null;
@@ -242,8 +243,9 @@ async function loadVectorDrawing(file: File, page: number, outline: boolean, sig
     sourcePage: source.sourcePage, kind: source.kind };
 }
 
-export function VectorImport({ settings, revision, disabled, focusRequest }: Props & {
+export function VectorImport({ settings, revision, disabled, focusRequest, queued }: Props & {
   focusRequest?: { sequence: number; file?: File; dropPoint?: { x: number; y: number } };
+  queued?: QueuedImportControls;
 }) {
   const editor = useEditor(),
     t = useVectorText(),
@@ -283,7 +285,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
     work.setMessage('');
   }
   useEffect(() => {
-    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence) return;
+    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence || (focusRequest.file && disabled)) return;
     consumedFocus.current = focusRequest.sequence;
     section.current.open = true;
     section.current.querySelector('summary')?.focus();
@@ -309,14 +311,14 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
         className="drawing-cad-fields"
         disabled={disabled || !settings || work.busy}
       >
-        <Field label={t("file")}>
+        {!queued && <Field label={t("file")}>
           <input
             ref={input}
             type="file"
             accept={VECTOR_FILE_ACCEPT}
             onChange={(e) => chooseFile(e.target.files?.[0])}
           />
-        </Field>
+        </Field>}
         {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
         <Field label={t("page")}>
           <input
@@ -400,6 +402,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           {t("preview")}
         </button>
       </fieldset>
+      {queued && <button type="button" disabled={work.busy} onClick={() => queued.finish(false)}>{queued.skipLabel}</button>}
       <WorkStatus work={work} />
       {review && <>
         <Preview
@@ -414,6 +417,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
             editor.zoomToSelection();
             editor.focus();
             work.setMessage("done");
+            queued?.finish(true);
           }}
         />
         <button type="button" disabled={work.busy} onClick={() => { clearReview(); work.setMessage(''); }}>

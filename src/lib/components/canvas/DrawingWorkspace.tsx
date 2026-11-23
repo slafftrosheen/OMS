@@ -41,7 +41,7 @@ import {drawingPenDiagnostics} from './drawing-pen-input';
 import {enPen, usePenText} from './pen-copy';
 import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
-import { DRAWING_UI_REQUEST, isDrawingUiRequest, routeCanvasCadImport } from './drawing-ui-requests';
+import { DRAWING_UI_REQUEST, isDrawingUiRequest, routeCanvasCadImport, type DrawingImportEntry } from './drawing-ui-requests';
 import { DRAWING_FILE_ACCEPT } from './drawing-file-types';
 import {useObjectTreeText} from './object-tree-copy';
 import {captureDrawingObjectStack, prepareDrawingObjectOrder, applyDrawingObjectOrder} from './drawing-object-tree';
@@ -635,6 +635,8 @@ export function DrawingChrome() {
   const [guidesFocusRequest, setGuidesFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
+  const [drawingImports, setDrawingImports] = useState(() => new Map<string, DrawingImportEntry[]>());
+  const nextImport = useRef(0);
   const multiplePages = useContext(CanvasModeContext) === 'toolkit';
   const pages = useValue('drawing page list', () => editor.getPages(), [editor]);
   const pageBounds = useValue('drawing page for export', () => drawingPageBounds(editor), [editor]);
@@ -868,7 +870,13 @@ export function DrawingChrome() {
       setToolGroup(null); closeMenus();
       if (request.kind === 'command') commandRef.current(request.action);
       else if (request.kind === 'cad') focusCad(request.action, request.file, request.dropPoint);
-      else if (request.kind === 'import') setNotice(label(request.action));
+      else if (request.kind === 'import') {
+        if (editor.getInstanceState().isReadonly) return;
+        const pageId = editor.getCurrentPageId();
+        const incoming = request.files.map(file => ({ sequence: ++nextImport.current, file, dropPoint: request.dropPoint }));
+        setDrawingImports(current => new Map(current).set(pageId, [...(current.get(pageId) ?? []), ...incoming]));
+        focusCad('files');
+      }
       else if (request.kind === 'objects') {
         if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
       }
@@ -1105,11 +1113,25 @@ export function DrawingChrome() {
   async function importFiles(files: File[]) {
     if (!files.length || !onImport || editor.getInstanceState().isReadonly) return;
     setNotice('');
-    if (routeCanvasCadImport(editor, files, undefined, true)) return;
+    const attachments = routeCanvasCadImport(editor, files, undefined, true);
+    if (!attachments.length) return;
     setBusy(true);
-    try { await onImport(files, editor.getViewportPageBounds().center); }
+    try { await onImport(attachments, editor.getViewportPageBounds().center); }
     catch { if (alive.current) setNotice(label('uploadFailed')); }
     finally { if (alive.current) setBusy(false); }
+  }
+  const queuedImports = drawingImports.get(state.page);
+  function finishQueuedImport(sequence: number, imported: boolean) {
+    if (queuedImports?.[0]?.sequence !== sequence) return;
+    setDrawingImports(current => {
+      const entries = current.get(state.page);
+      if (entries?.[0]?.sequence !== sequence) return current;
+      const next = new Map(current);
+      if (entries.length > 1) next.set(state.page, entries.slice(1));
+      else next.delete(state.page);
+      return next;
+    });
+    if (imported) setNotice(vectorLabel('done'));
   }
   function exportFailure(error: unknown) {
     const code = error instanceof Error ? error.message : '';
@@ -1466,6 +1488,7 @@ export function DrawingChrome() {
     </>)}
     {portal('standard', <>
       <ToolButton icon="import" testId="drawing-import" label={`${label('import')} (${formatDrawingKeys('Ctrl+I')})`} disabled={!commandState('import').enabled} onClick={() => commandRef.current('import')} />
+      {!!queuedImports?.length && <ToolButton icon="files" testId="drawing-import-queue-open" label={label('reviewQueuedDrawings')} onClick={() => focusCad('files')} />}
       <ToolButton icon="export" testId="drawing-export" label={`${words.ui.standardExport} (${formatDrawingKeys('Ctrl+E')})`} onClick={() => commandRef.current('export')} />
       <span className="drawing-divider" />
       <ToolButton icon="undo" testId="drawing-undo" label={`${actionLabel('undo')} (Ctrl+Z)`} disabled={!commandState('undo').enabled} onClick={() => commandRef.current('undo')} />
@@ -1583,7 +1606,8 @@ export function DrawingChrome() {
           {arrangeTask === 'mirror' && panel === 'arrange' && <MirrorCopyPanel settings={settings} onSetup={() => focusCad('document')} />}
           {arrangeTask === 'artworkClip' && panel === 'arrange' && <ArtworkClipPanel />}
           <div hidden={arrangeTask !== 'nest'}>{arrangeTask === 'nest' && <NestPanel settings={settings} disabled={!controls.canEditSelection} onSetup={() => focusCad('document')}/>}</div>
-        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
+        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages}
+          importQueue={queuedImports?.length ? { entries: queuedImports, finish: finishQueuedImport } : undefined} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
           <DrawingObjectsPanel focusRequest={objectOrderFocusRequest} layerFocusRequest={layerFocusRequest}/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>

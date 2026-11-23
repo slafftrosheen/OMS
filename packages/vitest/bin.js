@@ -52,6 +52,17 @@ async function resolveWithExtensions(basePath) {
 const aliasPlugin = {
   name: 'rf-alias',
   setup(build) {
+    // Vite's ?url imports provide an asset URL, including for Canvas PDF workers.
+    build.onResolve({ filter: /\?url$/ }, async args => {
+      const result = await build.resolve(args.path.slice(0, -4), {
+        resolveDir: args.resolveDir, kind: args.kind,
+      });
+      return result.errors.length ? { errors: result.errors } : { path: result.path, namespace: 'asset-url' };
+    });
+    build.onLoad({ filter: /.*/, namespace: 'asset-url' }, args => ({
+      contents: `export default ${JSON.stringify(pathToFileURL(args.path).href)};`,
+      loader: 'js',
+    }));
     build.onResolve({ filter: /^\$lib\// }, async (args) => ({
       path: await resolveWithExtensions(join(root, 'src/lib', args.path.slice(5))),
       namespace: 'file'

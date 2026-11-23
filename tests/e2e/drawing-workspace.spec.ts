@@ -114,7 +114,7 @@ for (const mode of ['idea', 'order']) {
     await expect(drawing.getByText('Dimension reference missing', { exact: true })).toBeVisible();
     await expect(drawing.getByText('160.00 mm', { exact: true })).toHaveCount(0);
   });
-  test(`${mode} drawing picker opens the matching editable import review`, async ({ page }) => {
+  test(`${mode} drawing picker reviews a batch in order and opens each supported format`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
     const toolbar = page.getByTestId('drawing-import');
@@ -129,12 +129,21 @@ for (const mode of ['idea', 'order']) {
     const dxf = { name: 'workshop.dxf', mimeType: 'application/dxf',
       buffer: await readFile('tests/fixtures/cad-splines/mixed-ascii.dxf') };
     await choose([svg, dxf]);
-    await expect(page.getByText('Choose one drawing file at a time to review and import it.', { exact: true })).toBeVisible();
-    await choose([dxf]);
-    await expect(page.getByTestId('drawing-cad-import').getByText(dxf.name, { exact: true })).toBeVisible();
+    const queue = page.getByTestId('drawing-import-queue');
+    const panel = page.getByTestId('vector-import');
+    await expect(queue).toContainText('Drawing import queue · 2');
+    await queue.getByText('Waiting files', {exact: true}).click();
+    await expect(queue.getByText(dxf.name, {exact: true})).toBeVisible();
+    await expect(panel.getByText(svg.name, {exact: true})).toBeVisible();
     const enable = page.getByRole('button', { name: 'Enable CAD in mm at 1:1', exact: true });
     if (await enable.isVisible()) await enable.click();
-    const panel = page.getByTestId('vector-import');
+    await panel.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await panel.getByTestId('vector-apply').click();
+    const dxfPanel = page.getByTestId('drawing-cad-import');
+    await expect(dxfPanel.getByText(dxf.name, { exact: true })).toBeVisible();
+    await expect(queue).toContainText('Drawing import queue · 1');
+    await dxfPanel.getByRole('button', {name: 'Skip this file'}).click();
+    await expect(queue).toHaveCount(0);
     for (const [name, mimeType, expectedMode, singlePage] of [
       ['workshop.pdf', 'application/pdf', 'auto', false],
       ['workshop.eps', 'application/postscript', 'editable', true],
@@ -145,12 +154,8 @@ for (const mode of ['idea', 'order']) {
       await expect(panel.getByRole('combobox', { name: 'Import mode' })).toHaveValue(expectedMode);
       const pageField = panel.getByRole('spinbutton', { name: 'Page number' });
       if (singlePage) await expect(pageField).toBeDisabled(); else await expect(pageField).toBeEnabled();
+      await panel.getByRole('button', { name: 'Skip this file' }).click();
     }
-    await choose([svg]);
-    await expect(panel.getByText(svg.name, { exact: true })).toBeVisible();
-    await panel.getByRole('button', { name: 'Prepare preview', exact: true }).click();
-    await expect(panel.getByTestId('vector-apply')).toBeEnabled();
-    await panel.getByTestId('vector-apply').click();
     await expect.poll(async () => (await scene(page)).shapes.some((shape: any) => shape.type === 'cad-bezier')).toBe(true);
   });
 
@@ -195,6 +200,9 @@ for (const mode of ['idea', 'order']) {
     await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
     await expect(eps.getByRole('combobox', { name: 'Import mode' })).toHaveValue('editable');
     await drop('editable-logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50"><path fill="#145abc" fill-rule="evenodd" d="M10 10H30V30H10Z M15 15H25V25H15Z"/></svg>');
+    await expect(page.getByTestId('drawing-import-queue')).toContainText('Drawing import queue · 2');
+    await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
+    await eps.getByRole('button', {name: 'Skip this file'}).click();
     const svg = page.getByTestId('vector-import');
     await expect(svg.getByText('editable-logo.svg', { exact: true })).toBeVisible();
     await expect(svg.getByRole('combobox', { name: 'Import mode' })).toHaveCount(0);

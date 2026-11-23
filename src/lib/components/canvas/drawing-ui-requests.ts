@@ -11,17 +11,32 @@ const commands = ['undo', 'redo', 'duplicate', 'delete', 'group', 'ungroup', 'fr
 const panels = ['properties', 'objects', 'text', 'transform', 'align', 'repeat', 'radial', 'guides'] as const;
 const cad = ['nodes', 'convert', 'outline', 'paint', 'outlineObject', 'document', 'importDxf', 'importVector'] as const;
 const objects = ['relative', 'reverse'] as const;
+export type DrawingImportEntry = { sequence: number; file: File; dropPoint?: CadPoint };
+export type DrawingImportQueue = {
+  entries: readonly DrawingImportEntry[];
+  finish: (sequence: number, imported: boolean) => void;
+};
+export type QueuedImportControls = { skipLabel: string; finish: (imported: boolean) => void };
+
 export type DrawingUiRequest =
   | { kind: 'command'; action: typeof commands[number] }
   | { kind: 'panel'; action: typeof panels[number] }
   | { kind: 'cad'; action: typeof cad[number]; file?: File; dropPoint?: CadPoint }
-  | { kind: 'import'; action: 'oneDrawingAtATime' }
+  | { kind: 'import'; action: 'reviewFiles'; files: File[]; dropPoint?: CadPoint }
   | { kind: 'objects'; action: typeof objects[number] };
 
 export function isDrawingUiRequest(value: unknown): value is DrawingUiRequest {
   if (!value || typeof value !== 'object') return false;
-  const request = value as { kind?: unknown; action?: unknown; file?: unknown; dropPoint?: unknown };
+  const request = value as { kind?: unknown; action?: unknown; file?: unknown; files?: unknown; dropPoint?: unknown };
   if (typeof request.action !== 'string') return false;
+  if (request.kind === 'import') {
+    const point = request.dropPoint as Partial<CadPoint> | undefined;
+    return request.action === 'reviewFiles' && request.file === undefined && typeof File !== 'undefined' &&
+      Array.isArray(request.files) && request.files.length > 0 &&
+      request.files.every(file => file instanceof File && !!drawingFileKind(file)) &&
+      (point === undefined || !!point && Number.isFinite(point.x) && Number.isFinite(point.y));
+  }
+  if (request.files !== undefined) return false;
   if (request.file !== undefined &&
       (request.kind !== 'cad' || !['importDxf', 'importVector'].includes(request.action) ||
         typeof File === 'undefined' || !(request.file instanceof File))) return false;
@@ -29,7 +44,6 @@ export function isDrawingUiRequest(value: unknown): value is DrawingUiRequest {
     const point = request.dropPoint as Partial<CadPoint> | null;
     if (!request.file || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
   }
-  if (request.kind === 'import') return request.action === 'oneDrawingAtATime';
   const actions: readonly string[] | undefined = request.kind === 'command' ? commands
     : request.kind === 'panel' ? panels : request.kind === 'cad' ? cad : request.kind === 'objects' ? objects : undefined;
   return !!actions?.includes(request.action);
@@ -39,21 +53,17 @@ export function requestDrawingUi(editor: Editor, request: DrawingUiRequest): voi
   editor.getContainer().dispatchEvent(new CustomEvent(DRAWING_UI_REQUEST, { detail: request }));
 }
 
-/** PDF drops keep the attachment workflow. The drawing picker opens editable PDF review. */
-export function routeCanvasCadImport(editor: Editor, files: readonly File[], point?: CadPoint, picker = false): boolean {
-  if (editor.getInstanceState().isReadonly) return false;
-  const file = files.find(item => {
-    const kind = drawingFileKind(item);
-    return kind && (kind !== 'pdf' || picker);
-  });
-  if (!file) return false;
-  if (files.length > 1) {
-    requestDrawingUi(editor, { kind: 'import', action: 'oneDrawingAtATime' });
-    return true;
+/** Returns the files that still need the canvas's normal attachment handling. */
+export function routeCanvasCadImport(editor: Editor, files: File[], point?: CadPoint, picker = false): File[] {
+  if (editor.getInstanceState().isReadonly) return [];
+  const drawings: File[] = [], attachments: File[] = [];
+  for (const file of files) {
+    const kind = drawingFileKind(file);
+    (kind && (kind !== 'pdf' || picker) ? drawings : attachments).push(file);
   }
-  const action = drawingFileKind(file) === 'dxf' ? 'importDxf' : 'importVector';
+  if (!drawings.length) return attachments;
   const dropPoint = point && Number.isFinite(point.x) && Number.isFinite(point.y)
     ? { x: point.x, y: point.y } : undefined;
-  requestDrawingUi(editor, { kind: 'cad', action, file, ...(dropPoint ? { dropPoint } : {}) });
-  return true;
+  requestDrawingUi(editor, { kind: 'import', action: 'reviewFiles', files: drawings, ...(dropPoint ? { dropPoint } : {}) });
+  return attachments;
 }

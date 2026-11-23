@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
 
 const { JSDOM } = createRequire(`${process.cwd()}/package.json`)('jsdom');
 
@@ -17,7 +18,7 @@ async function harness(run: (h: any) => Promise<void>) {
     ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
   };
   for (const key of ['window', 'document', 'navigator', 'self', 'Element', 'HTMLElement', 'HTMLInputElement', 'HTMLTextAreaElement', 'HTMLSelectElement',
-    'SVGElement', 'Node', 'Event', 'CustomEvent', 'MouseEvent', 'KeyboardEvent', 'FocusEvent', 'DOMRect', 'MutationObserver', 'Image', 'localStorage'])
+    'SVGElement', 'Node', 'Event', 'CustomEvent', 'MouseEvent', 'KeyboardEvent', 'FocusEvent', 'DOMRect', 'DOMParser', 'MutationObserver', 'Image', 'localStorage'])
     values[key] = key === 'window' || key === 'self' ? win : win[key];
   const clearNodeTimeout = globalThis.clearTimeout, clearNodeInterval = globalThis.clearInterval;
   values.clearTimeout = (id: any) => typeof id === 'number' ? win.clearTimeout(id) : clearNodeTimeout(id);
@@ -94,7 +95,7 @@ async function harness(run: (h: any) => Promise<void>) {
     return section;
   };
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
-  try { await run({ editor, tl, cad, sourceId, host, get, render, tick, select, selectControl, input, prepare, snapshot, act }); }
+  try { await run({ editor, tl, cad, sourceId, host, root, EditorContext, get, render, tick, select, selectControl, input, prepare, snapshot, act }); }
   finally {
     await act(async () => root.unmount()); editor.dispose(); host.remove(); stopText();
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
@@ -103,6 +104,52 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('drawing docker continuity', () => {
+  it('keeps invalid queued artwork active and advances after a skip or successful SVG and DXF import', async () => {
+    await harness(async ({ editor, cad, host, root, EditorContext, act, get, tick }: any) => {
+      const React = await import('react');
+      const { CadAdvancedPanel } = await import('../../src/lib/components/canvas/CadAdvancedPanel');
+      const initial = [
+        { sequence: 1, file: new File(['broken'], 'broken.svg') },
+        { sequence: 2, file: new File(['<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="10mm"><rect width="100%" height="100%"/></svg>'], 'panel.svg') },
+        { sequence: 3, file: new File([await readFile('tests/fixtures/cad-splines/mixed-ascii.dxf', 'utf8')], 'cut.dxf') },
+      ];
+      const completed: Array<[number, boolean]> = [];
+      function ImportQueue() {
+        const [entries, setEntries] = React.useState(initial);
+        return <CadAdvancedPanel settings={cad.DEFAULT_CAD_SETTINGS} task="files" importQueue={{ entries, finish: (sequence, imported) => {
+          completed.push([sequence, imported]);
+          setEntries(current => current.slice(1));
+        } }} />;
+      }
+      const click = async (panel: string, button: string) => {
+        const control = [...get(panel).querySelectorAll('button')].find(item => (item as HTMLElement).textContent === button) as HTMLButtonElement | undefined;
+        assert.ok(control && !control.disabled, button);
+        await act(async () => control.click());
+        await tick();
+      };
+      await act(async () => root.render(<EditorContext.Provider value={editor}><ImportQueue /></EditorContext.Provider>));
+      assert.match(get('drawing-import-queue').textContent, /Drawing import queue · 3/);
+      await click('vector-import', 'Prepare preview');
+      assert.deepEqual(completed, []);
+      assert.match(get('vector-import').textContent, /broken\.svg/);
+      await click('vector-import', 'Skip this file');
+      assert.match(get('vector-import').textContent, /panel\.svg/);
+      await click('vector-import', 'Prepare preview');
+      await act(async () => (get('vector-apply') as HTMLButtonElement).click());
+      assert.match(get('drawing-cad-import').textContent, /cut\.dxf/);
+      assert.equal(editor.getCurrentPageShapes().filter((shape: any) => shape.type === 'cad-bezier').length, 2);
+      await click('drawing-cad-import', 'Prepare preview');
+      const acknowledge = get('drawing-cad-import').querySelector('.drawing-cad-report input[type=checkbox]') as HTMLInputElement | null;
+      if (acknowledge) await act(async () => acknowledge.click());
+      const applyDxf = get('drawing-cad-apply-plan') as HTMLButtonElement;
+      assert.equal(applyDxf.disabled, false);
+      await act(async () => applyDxf.click());
+      assert.equal(host.querySelector('[data-testid="drawing-import-queue"]'), null);
+      assert.deepEqual(completed, [[1, false], [2, true], [3, true]]);
+      assert.ok(editor.getCurrentPageShapes().length > 2);
+    });
+  });
+
   it('retains repeat drafts and an unchanged native geometry review across a panel switch', async () => {
     await harness(async ({ get, render, prepare, selectControl, snapshot, act }) => {
       await render(false);

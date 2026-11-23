@@ -23,6 +23,7 @@ import { buildCadDxf, CadDxfError, type DxfExportScope } from './cad-dxf';
 import { DxfReviewPreview } from './DxfReviewPreview';
 import { CutEstimatePanel } from './CutEstimatePanel';
 import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
+import type { DrawingImportQueue } from './drawing-ui-requests';
 import { preflightRevision, type PreflightDxfScope } from './drawing-preflight';
 import { usePreflightText } from './preflight-copy';
 
@@ -47,8 +48,8 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 }
 
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
-export function CadPanel({ settings, focusRequest, multiplePages = false }: {
-  settings: CadSettings | null; focusRequest?: CadFocusRequest; multiplePages?: boolean;
+export function CadPanel({ settings, focusRequest, multiplePages = false, importQueue }: {
+  settings: CadSettings | null; focusRequest?: CadFocusRequest; multiplePages?: boolean; importQueue?: DrawingImportQueue;
 }) {
   const editor = useEditor(); const { label } = useCadText();
   const preflightLabel = usePreflightText();
@@ -152,7 +153,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
       <PathVertices settings={settings} disabled={!controls.canEditSelection} />
       <ArcFields settings={settings} disabled={!controls.canEditSelection} />
     </div>
-    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} onOpenDxf={scope => {
+    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} importQueue={importQueue} onOpenDxf={scope => {
       setPreflightScope(scope);
       setTask('files');
     }} />

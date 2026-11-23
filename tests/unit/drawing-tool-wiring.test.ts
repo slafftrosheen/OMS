@@ -65,32 +65,33 @@ describe('drawing workspace tool wiring', () => {
     assert.equal(drawingCycleIndex(0, -1, 1), -1);
   });
 
-  it('routes each accepted drawing format to its review, preserving the placement point', () => {
+  it('queues each accepted drawing format for review, preserving the placement point', () => {
     const container = new EventTarget();
     const received: unknown[] = [];
     container.addEventListener('oms:drawing-ui-request', event => received.push((event as CustomEvent).detail));
     const editor = { getContainer: () => container, getInstanceState: () => ({ isReadonly: false }) } as unknown as Editor;
     const point = { x: 50, y: 75 };
-    const actions = { '.dxf': 'importDxf', '.cdr': 'importVector', '.eps': 'importVector', '.svg': 'importVector', '.pdf': 'importVector' };
+    const fileTypes = ['.cdr', '.dxf', '.eps', '.pdf', '.svg'];
     const extensions = (accept: string) => accept.split(',').filter(value => value.startsWith('.')).sort();
-    assert.deepEqual(extensions(DRAWING_FILE_ACCEPT), Object.keys(actions).sort());
+    assert.deepEqual(extensions(DRAWING_FILE_ACCEPT), fileTypes);
     assert.deepEqual(extensions(VECTOR_FILE_ACCEPT), ['.cdr', '.eps', '.pdf', '.svg']);
     assert.deepEqual(extensions(DXF_FILE_ACCEPT), ['.dxf']);
-    for (const [extension, action] of Object.entries(actions)) {
+    for (const extension of fileTypes) {
       const file = new File(['sample'], `artwork${extension.toUpperCase()}`);
-      assert.ok(routeCanvasCadImport(editor, [file], undefined, true));
-      assert.deepEqual(received.pop(), { kind: 'cad', action, file });
+      assert.deepEqual(routeCanvasCadImport(editor, [file], undefined, true), []);
+      assert.deepEqual(received.pop(), { kind: 'import', action: 'reviewFiles', files: [file] });
       if (extension === '.pdf') {
-        assert.equal(routeCanvasCadImport(editor, [file], point), false, 'a dropped PDF remains an attachment');
+        assert.deepEqual(routeCanvasCadImport(editor, [file], point), [file], 'a dropped PDF remains an attachment');
         continue;
       }
-      assert.ok(routeCanvasCadImport(editor, [file], point));
-      assert.deepEqual(received.pop(), { kind: 'cad', action, file, dropPoint: point });
+      assert.deepEqual(routeCanvasCadImport(editor, [file], point), []);
+      assert.deepEqual(received.pop(), { kind: 'import', action: 'reviewFiles', files: [file], dropPoint: point });
     }
-    assert.equal(routeCanvasCadImport(editor, [new File(['photo'], 'photo.png')], point), false);
+    const png = new File(['photo'], 'photo.png');
+    assert.deepEqual(routeCanvasCadImport(editor, [png], point), [png]);
   });
 
-  it('accepts drawing MIME aliases and catches mixed drawing selections before attachment upload', () => {
+  it('separates editable drawings and attachments without losing either', () => {
     const container = new EventTarget();
     let notice: unknown, isReadonly = false;
     container.addEventListener('oms:drawing-ui-request', event => { notice = (event as CustomEvent).detail; });
@@ -99,13 +100,13 @@ describe('drawing workspace tool wiring', () => {
     const png = new File(['photo'], 'photo.png', { type: 'image/png' });
     assert.equal(drawingFileKind(dxf), 'dxf');
     assert.equal(drawingFileKind(new File(['sample'], 'artwork.pdf', { type: 'image/svg+xml' })), 'pdf');
-    assert.ok(routeCanvasCadImport(editor, [dxf, png], { x: 0, y: 0 }, true));
-    assert.deepEqual(notice, { kind: 'import', action: 'oneDrawingAtATime' });
+    assert.deepEqual(routeCanvasCadImport(editor, [dxf, png], { x: 0, y: 0 }, true), [png]);
+    assert.deepEqual(notice, { kind: 'import', action: 'reviewFiles', files: [dxf], dropPoint: { x: 0, y: 0 } });
     assert.ok(isDrawingUiRequest(notice));
-    assert.equal(routeCanvasCadImport(editor, [png, png]), false);
+    assert.deepEqual(routeCanvasCadImport(editor, [png, png]), [png, png]);
     isReadonly = true;
     notice = undefined;
-    assert.equal(routeCanvasCadImport(editor, [dxf], undefined, true), false);
+    assert.deepEqual(routeCanvasCadImport(editor, [dxf], undefined, true), []);
     assert.equal(notice, undefined);
   });
 });
