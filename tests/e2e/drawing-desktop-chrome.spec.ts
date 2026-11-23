@@ -142,6 +142,29 @@ for (const mode of ['idea', 'order']) {
     await expect.poll(async () => (await scene(page)).shapes.length).toBe(before);
   });
 
+  test(`${mode} clips artwork in place and can release or undo the mask`, async ({ page }) => {
+    await open(page, mode);
+    await page.evaluate(() => (window as any).__drawingFixture.artworkClipSample());
+    const initial = await scene(page);
+    const artwork = (shapes: any[]) => shapes.find(shape => shape.id === 'shape:clip-artwork');
+    await page.getByTestId('drawing-quick-trigger').click();
+    await page.getByTestId('drawing-quick-input').fill('clip artwork to shape');
+    await page.getByRole('option', { name: /Clip artwork to shape/ }).click();
+    await page.getByTestId('drawing-clip-guide').selectOption('shape:clip-guide');
+    await page.getByTestId('drawing-clip-preview').click();
+    await expect(page.getByTestId('drawing-clip-overlay').locator('path')).toBeVisible();
+    await page.getByTestId('drawing-clip-apply').click();
+    await expect.poll(async () => artwork((await scene(page)).shapes)?.meta.omsVectorPaint?.clips?.length).toBe(1);
+    const clipped = await scene(page);
+    expect(clipped.selected).toEqual(['shape:clip-artwork']);
+    expect(clipped.shapes.length).toBe(initial.shapes.length);
+    expect(artwork(clipped.shapes).props).toEqual(artwork(initial.shapes).props);
+    await page.getByTestId('drawing-clip-release').click();
+    await expect.poll(async () => artwork((await scene(page)).shapes)?.meta.omsVectorPaint?.clips).toBeUndefined();
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => artwork((await scene(page)).shapes)?.meta.omsVectorPaint?.clips?.length).toBe(1);
+  });
+
   test(`${mode} creates an editable mirror copy across a selected line`, async ({ page }) => {
     await open(page, mode);
     await page.evaluate(() => (window as any).__drawingFixture.pathRepeatSample());

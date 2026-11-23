@@ -196,6 +196,16 @@
             props: { points: [{ x: 0, y: 0 }, { x: 190, y: 0 }], closed: false }, meta: { omsObjectName: 'Path repeat guide' } });
           editor.setSelectedShapes([motif, guide]);
         },
+      artworkClipSample: () => {
+        const { x, y } = editor.getViewportPageBounds().center;
+        const artwork = 'shape:clip-artwork', guide = 'shape:clip-guide';
+        editor.createShape({ id: artwork, type: 'cad-path', x: x - 110, y: y - 70,
+          props: { points: [{ x: 0, y: 0 }, { x: 140, y: 0 }, { x: 140, y: 95 }, { x: 0, y: 95 }], closed: true },
+          meta: { omsObjectName: 'Clip artwork' } });
+        editor.createShape({ id: guide, type: 'geo', x: x - 51, y: y - 84,
+          props: { geo: 'ellipse', w: 118, h: 82, fill: 'none', dash: 'solid' }, meta: { omsObjectName: 'Clip guide' } });
+        editor.setSelectedShapes([artwork, guide]);
+      },
       dimensionSample: (width: number | null, ellipseHeight?: number) => {
         const id = 'shape:dimension-sample';
         if (width === null) { editor.deleteShapes([id]); return; }

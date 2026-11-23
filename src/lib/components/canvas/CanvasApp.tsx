@@ -14,6 +14,7 @@ import { DrawingPageSheet } from './DrawingPageSetup';
 import { DrawingRepeatOverlay } from './DrawingRepeatOverlay';
 import { DrawingPathRepeatOverlay } from './DrawingPathRepeatOverlay';
 import { DrawingMirrorCopyOverlay } from './MirrorCopyPanel';
+import { DrawingArtworkClipOverlay } from './ArtworkClipPanel';
 import { DrawingPreflightOverlay } from './DrawingPreflightOverlay';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import { DrawingContextMenu } from './DrawingContextMenu';
@@ -92,7 +93,7 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
-    OnTheCanvas: () => <><DrawingPageSheet/><DrawingRepeatOverlay/><DrawingPathRepeatOverlay/><DrawingMirrorCopyOverlay/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/><DrawingPreflightOverlay/></>,
+    OnTheCanvas: () => <><DrawingPageSheet/><DrawingRepeatOverlay/><DrawingPathRepeatOverlay/><DrawingMirrorCopyOverlay/><DrawingArtworkClipOverlay/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/><DrawingPreflightOverlay/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
     SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
     Toolbar: null, StylePanel: null,

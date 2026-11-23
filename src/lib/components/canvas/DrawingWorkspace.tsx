@@ -3,6 +3,7 @@ import { CadProductionClipart, CadStraightEdgeTools } from './CadProductionTools
 import { NestPanel } from './NestPanel';
 import { PathRepeatPanel } from './PathRepeatPanel';
 import { MirrorCopyPanel } from './MirrorCopyPanel';
+import { ArtworkClipPanel } from './ArtworkClipPanel';
 import { useProductionToolsText } from './production-tools-copy';
 import { setCanvasSurface, useCanvasSurface } from './canvas-surface';
 import {cadConstruction} from './cad-construction';
@@ -1264,6 +1265,7 @@ export function DrawingChrome() {
       case 'knife': return cad('knife');
       case 'convert': return cad('convert');
       case 'outlineObject': return cad('outlineObject');
+      case 'artworkClip': return make(true, () => openArrange('artworkClip'));
       case 'nodes': return cad('nodes');
       case 'nodeArrange': return cad('nodeArrange');
       case 'nodeReduce': return cad('nodeReduce');
@@ -1565,7 +1567,7 @@ export function DrawingChrome() {
           <CadStraightEdgeTools settings={settings} />
         </> : mode === 'clipart' ? <CadProductionClipart settings={settings} onSetup={() => focusCad('document')} /> : mode === 'arrange' ? <>
           <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
-            {(['transform','align','mirror','repeat','pathRepeat','radial','nest'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
+            {(['transform','align','mirror','artworkClip','repeat','pathRepeat','radial','nest'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
           </select></label>
           <div hidden={arrangeTask !== 'transform'}><DrawingTransformPanel settings={settings} focusRequest={arrangeTask === 'transform' ? transformFocusRequest : 0}/></div>
           <div hidden={arrangeTask !== 'align'}><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel></div>
@@ -1575,6 +1577,7 @@ export function DrawingChrome() {
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
           {arrangeTask === 'pathRepeat' && panel === 'arrange' && <PathRepeatPanel settings={settings} onSetup={() => focusCad('document')} />}
           {arrangeTask === 'mirror' && panel === 'arrange' && <MirrorCopyPanel settings={settings} onSetup={() => focusCad('document')} />}
+          {arrangeTask === 'artworkClip' && panel === 'arrange' && <ArtworkClipPanel />}
           <div hidden={arrangeTask !== 'nest'}>{arrangeTask === 'nest' && <NestPanel settings={settings} disabled={!controls.canEditSelection} onSetup={() => focusCad('document')}/>}</div>
         </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>

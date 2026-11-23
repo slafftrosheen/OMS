@@ -70,6 +70,14 @@ Original pixels are retained up to 25 MiB / 32 megapixels (maximum 16,384 pixels
 
 Canvas/SVG/PDF visualizations include the clipped texture. EPS accepts opaque images; transparency is explicitly reported as an omission. DXF and measurements use the unchanged manufacturing outlines, including holes. Imported raster-page rectangles remain excluded from cutting export. Texture-bearing objects retain the existing restrictions on destructive shaping and selected-node corner operations; clear the texture before those operations.
 
+## Clipping artwork to a shape
+
+Select CAD curves, paths, ellipses or arcs together with a closed curve or geometric shape. Open **Object → Clip artwork to shape**, choose the boundary, and use **Show boundary** to highlight the mask. **Apply clip** masks the artwork in place and selects the clipped objects. The boundary remains a separate drawing object. Use an unfilled boundary, or move it away after applying the clip. For other supported artwork, use **Convert to curves** before clipping.
+
+The clip uses the boundary at the time you apply it, including holes in compound curves. Moving the boundary later leaves the mask in place. Moving the artwork carries its mask with it. **Release last clip** removes the most recent mask from each selected object with a clip. Both actions support undo.
+
+Clips affect the on-screen artwork and artwork exports. DXF omits geometry whose cut lines a mask may affect. Use **Trim** or **Intersect** when the cut contours themselves need to change.
+
 ## Mirror copies across a line
 
 Use **Object → Transformations → Mirror copy across line**. Select artwork together with a two-point straight guide, or select the artwork and enter the two axis coordinates in drawing units. **Preview** shows the axis and reflected curves. **Create mirrored copies** adds editable copies beside their sources in the object stack and selects the results as one undoable operation.
