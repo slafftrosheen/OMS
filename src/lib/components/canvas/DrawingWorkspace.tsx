@@ -1443,7 +1443,7 @@ export function DrawingChrome() {
           {exportPlans && <p className="drawing-help" role="status">{exportPlans.svg.ok === false ? label(exportPlans.svg.error) : exportPlans.png.ok === false ? label(exportPlans.png.error) : `${label('exportOmitted')}: ${exportPlans.svg.value.omitted}`}</p>}
           <p>{label('exportHint')}</p>
           <p>{label('exportScaleHint')}</p></div>,
-          saveToOrder: order ? <div className="drawing-export-save">{order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
+          saveToOrder: order ? <div className="drawing-export-save">{order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} source={JSON.stringify(exportOptions)} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
             const output=await exportDrawingArtwork(editor,saveFormat,exportOptions,signal);
             if(output.reduced)throw new Error('exportReduced');
             return output.blob;

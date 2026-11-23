@@ -78,6 +78,60 @@ async function exported(h: any, ids: any[], padding = 0) {
   return { plan: plan.value, svg: svg.svg, alpha, pixel: (point: any) => ({ x: point.x - b.x + padding, y: point.y - b.y + padding }) };
 }
 
+describe('production save control', () => {
+  it('rejects a changed export while rendering and places a confirmed file after a canvas edit', async () => harness(async () => {
+    const React = await import('react'), { act } = React;
+    const { createRoot } = await import('react-dom/client');
+    const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
+    const { ProductionSaveButton } = await import('../../src/lib/components/canvas/ProductionSaveButton');
+    const { setOrderBridge } = await import('../../src/lib/components/canvas/state-bridge');
+    const { fixture } = await import('../helpers/cad-editor');
+    const f = fixture();
+    f.editor.createShape({ id:'shape:pocket', type:'frame', props:{w:800,h:500}, meta:{omsFilePocket:'visuals'} });
+    let uploads = 0, renders = 0, finish!: (blob: Blob) => void;
+    const pending = new Promise<Blob>(resolve => { finish = resolve; });
+    const blob = new Blob(['%PDF-fixture'], { type:'application/pdf' });
+    setOrderBridge(f.editor, { orderId:'draft', onFilesUpload:async()=>{}, onStoreCanvasFile:async()=>{
+      uploads++;
+      return { id:'stored', url:'blob:stored' };
+    } });
+    const host = document.createElement('div'); document.body.append(host);
+    const root = createRoot(host);
+    const oldAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { value:true, configurable:true });
+    const render = (source: string, disabled = false) => act(async () => root.render(<EditorContext.Provider value={f.editor}>
+      <ProductionSaveButton extension="pdf" source={source} disabled={disabled} createFile={() => ++renders === 1 ? pending : blob}/>
+    </EditorContext.Provider>));
+    try {
+      await render('original');
+      await act(async () => host.querySelector('button')!.click());
+      await render('changed');
+      await act(async () => finish(blob));
+      assert.match(host.textContent ?? '', /drawing changed/i);
+      assert.equal(uploads, 0);
+
+      f.state.failCreation = true;
+      await act(async () => host.querySelector('button')!.click());
+      assert.match(host.querySelector('button')!.textContent ?? '', /Place saved file/);
+      assert.equal(uploads, 1);
+      assert.equal(f.shapes.size, 1);
+      f.state.failCreation = false;
+      f.editor.updatePage({ meta:{ edited:true } });
+      await render('changed', true);
+      assert.equal(host.querySelector('button')!.disabled, false);
+      await act(async () => host.querySelector('button')!.click());
+      assert.equal(uploads, 1);
+      assert.equal(renders, 2);
+      assert.equal([...f.shapes.values()].find(shape => shape.type === 'document')?.parentId, 'shape:pocket');
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+      if (oldAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', oldAct);
+      else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    }
+  }));
+});
+
 describe('paint-aware CAD artwork export bounds', () => {
   for (const vertical of [false, true]) it(`exports the complete thick ${vertical ? 'vertical' : 'horizontal'} centerline with zero padding`, async () => harness(async h => {
     const shape = h.create([h.contour(vertical ? [[0, 0], [0, 100]] : [[0, 0], [100, 0]])], { strokeWidth: 100, strokeOpacity: 1 });

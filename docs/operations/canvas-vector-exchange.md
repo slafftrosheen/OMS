@@ -13,6 +13,8 @@ Both the idea canvas and the order drawing use these controls. Set document unit
 
 7. **DXF export → Cutting layers** defaults to the existing open and closed layers (R2000). **By color (R2004)** separates open and closed paths into layers named by their RGB color, such as `OMS_CLOSED_FF0000`. It uses the visible outline color or falls back to a solid fill. The review lists the layer names and entity counts. Both modes produce 1:1 cutting geometry. Use PDF or EPS for painted artwork.
 
+When an order save succeeds and the canvas card cannot be placed, **Place saved file** retries placement into the original pocket using the confirmed attachment. This retry is available while the save controls remain open. The selected export settings, drawing and order are checked before uploading newly generated artwork.
+
 Additional familiar keys: F5 freehand, F6 rectangle, F7 ellipse, F8 text, F10 nodes, F12 fill/outline, F3 zoom out, F4 fit drawing and Shift+F2 fit selection. Existing Ctrl+Q/L/K/D workflows remain available (browser-reserved shortcuts also have menu commands).
 
 ## Supported exchange and explicit limits

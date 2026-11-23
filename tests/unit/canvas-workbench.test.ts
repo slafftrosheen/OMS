@@ -6,7 +6,7 @@ import {editDrawingText,textPointSize,spaceDrawingSelection,scaleCanvasForm} fro
 import {addOrderFileDocument} from '../../src/lib/components/canvas/order-file-documents';
 import {arrangeProductionPocket} from '../../src/lib/components/canvas/production-layout';
 import {uploadOrderCanvasFiles} from '../../src/lib/components/canvas/asset-uploader';
-import {saveProductionExport} from '../../src/lib/components/canvas/production-export';
+import {productionExportTarget,saveProductionExport} from '../../src/lib/components/canvas/production-export';
 import {setOrderBridge} from '../../src/lib/components/canvas/state-bridge';
 
 describe('CAD drawing and text workbench',()=>{
@@ -93,7 +93,28 @@ describe('production file destinations',()=>{
  });
  it('retains a stored attachment but skips canvas placement when permissions change during upload',async()=>{
   const f=pocket();setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async()=>{},onStoreCanvasFile:async()=>{f.state.isReadonly=true;return {id:'queued',url:'blob:queued'};}});
-  await saveProductionExport(f.editor,new File(['x'],'part.dxf',{type:'application/dxf'}),'cnc');assert.equal(f.shapes.size,2);
+  const result=await saveProductionExport(f.editor,new File(['x'],'part.dxf',{type:'application/dxf'}),'cnc');assert.equal(f.shapes.size,2);
+  assert.equal(result.placed,false);
+ });
+ it('rolls back partial layout and retries the saved draft file after canvas edits without another upload',async()=>{
+  const f=pocket(), file=new File(['drawing'],'part.pdf',{type:'application/pdf'});
+  let uploads=0;
+  setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async()=>{},onStoreCanvasFile:async()=>{
+   uploads++;
+   return {id:'queued',url:'blob:queued'};
+  }});
+  const originalUpdate=f.editor.updateShape;
+  f.editor.updateShape=(patch:any)=>{if(patch.type==='document')throw new Error('layout failed');return originalUpdate(patch);};
+  const first=await saveProductionExport(f.editor,file,'cnc');
+  assert.equal(first.placed,false);
+  assert.equal(f.shapes.size,2);
+  f.editor.updateShape=originalUpdate;
+  f.editor.updatePage({meta:{edited:true}});
+  const retry=await saveProductionExport(f.editor,file,'cnc');
+  assert.equal(retry.placed,true);
+  assert.equal(retry.id,first.id);
+  assert.equal(uploads,1);
+  assert.equal([...f.shapes.values()].filter(s=>s.props.fileId==='queued').length,1);
  });
 });
 
@@ -112,6 +133,28 @@ describe('stored production export contract',()=>{
    globalThis.fetch=async()=>new Response('{}',{status:403});
    await assert.rejects(()=>saveProductionExport(f.editor,new File(['x'],'other.dxf'),'laser'));assert.equal(f.shapes.size,2);
   }finally{globalThis.fetch=original;}
+ });
+ it('skips upload for a stale target and skips placement in a replacement pocket',async()=>{
+  const f=fixture(), file=new File(['drawing'],'part.svg',{type:'image/svg+xml'});
+  const frame=(id:string)=>f.editor.createShape({id,type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
+  frame('shape:first');
+  setOrderBridge(f.editor,{orderId:'order-123'});
+  const before=productionExportTarget(f.editor,'laser')!;
+  setOrderBridge(f.editor,{orderId:'order-456'});
+  const original=globalThis.fetch;
+  try {
+   globalThis.fetch=async()=>assert.fail('stale export must not be uploaded');
+   await assert.rejects(saveProductionExport(f.editor,file,'laser',undefined,undefined,before),/changed/);
+   globalThis.fetch=async()=>{
+    f.editor.deleteShapes(['shape:first']);
+    frame('shape:replacement');
+    return Response.json({file:{id:'committed'}},{status:201});
+   };
+   const result=await saveProductionExport(f.editor,file,'laser');
+   assert.equal(result.placed,false);
+   assert.equal(f.shapes.size,1);
+   assert.equal(result.id,'committed');
+  } finally { globalThis.fetch=original; }
  });
 });
 

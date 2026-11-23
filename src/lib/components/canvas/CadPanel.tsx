@@ -510,7 +510,7 @@ function DxfExport({ settings, preflightScope, focusSequence }: {
       {stale && !captureStale && <Message text={label('stale')} error />}
       {!report.data.entities && <Message text={label('noEntities')} error />}
       <button type="button" disabled={!canExport} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
-      <ProductionSaveButton extension="dxf" disabled={!canExport} createFile={createFile} release={report.release} />
+      <ProductionSaveButton extension="dxf" source={report} disabled={!canExport} createFile={createFile} release={report.release} />
     </div>}
     <Message text={message ? label(message) : ''} error={message !== 'exported'} />
   </details>;

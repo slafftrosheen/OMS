@@ -547,7 +547,7 @@ export function VectorExport({ settings, revision, focusSequence }: Props) {
           >
             {t("download")}
           </button>
-          <ProductionSaveButton extension={format} disabled={!canExport} createFile={createFile}/>
+          <ProductionSaveButton extension={format} source={review} disabled={!canExport} createFile={createFile}/>
         </div>
       )}
       <WorkStatus work={work}/>
