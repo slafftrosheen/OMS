@@ -3,9 +3,11 @@ import { getCadShapePageBounds } from './cad-bounds';
 import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
 import { validCadPoint, canvasLengthToUnit, unitLengthToCanvas, type CadSettings, type CadPoint } from './cad-settings';
 import { drawingTransaction } from './drawing-commands';
+import { drawingPageBounds } from './drawing-pages';
 
 export type ArrangeOptions =
-  | { kind: 'align'; axis: 'x' | 'y'; alignment: 'start' | 'center' | 'end'; reference: 'selection' | TLShapeId | { position: number; together?: boolean } }
+  | { kind: 'align'; axis: 'x' | 'y'; alignment: 'start' | 'center' | 'end'; reference: 'selection' | 'last' | 'page' | TLShapeId | { position: number; together?: boolean }; together?: boolean }
+  | { kind: 'align-guide'; point: CadPoint; normal: CadPoint; together?: boolean }
   | { kind: 'distribute'; axis: 'x' | 'y'; mode: 'centers' | 'gaps' }
   | { kind: 'space'; axis: 'x' | 'y'; gap: number; anchor: 'start' | 'end' | TLShapeId };
 interface Item { id: TLShapeId; bounds: Box; leaves: Array<{ id: TLShapeId; bounds: Box; rotation: number }> }
@@ -77,15 +79,31 @@ const position = (b: Box, axis: 'x' | 'y', alignment: 'start' | 'center' | 'end'
 /** Layout uses page-axis geometry bounds, excluding outline thickness. Sorting
  * ties by stable shape ID keeps coincident items independent of selection order. */
 export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): ArrangePlan {
-  if (!options || !['x', 'y'].includes(options.axis) || !['align', 'distribute', 'space'].includes(options.kind)) throw new CadOperationError('arrangeFailed');
-  const coordinateReference = options.kind === 'align' && typeof options.reference === 'object';
-  const items = selection(editor, coordinateReference ? 1 : 2), { axis } = options, size = axis === 'x' ? 'w' : 'h';
+  if (!options || !['align', 'align-guide', 'distribute', 'space'].includes(options.kind) ||
+      options.kind !== 'align-guide' && !['x', 'y'].includes(options.axis)) throw new CadOperationError('arrangeFailed');
+  const coordinateReference = options.kind === 'align-guide' || options.kind === 'align' && (typeof options.reference === 'object' || options.reference === 'page');
+  const items = selection(editor, coordinateReference ? 1 : 2), axis = options.kind === 'align-guide' ? 'x' : options.axis, size = axis === 'x' ? 'w' : 'h';
   const targets = new Map<TLShapeId, number>();
+  const guideDeltas = new Map<TLShapeId, CadPoint>();
   let gap: number | undefined;
-  if (options.kind === 'align') {
+  if (options.kind === 'align-guide') {
+    const { point, normal } = options;
+    const length = normal && Math.hypot(normal.x, normal.y);
+    if (!point || !validCadPoint(point) || !Number.isFinite(length) || length < EPSILON ||
+        options.together !== undefined && typeof options.together !== 'boolean') throw new CadOperationError('arrangeBounds');
+    const unit = { x: normal.x / length, y: normal.y / length }, common = Box.Common(items.map(item => item.bounds));
+    for (const item of items) {
+      const center = (options.together === false ? item.bounds : common).center;
+      const distance = (point.x - center.x) * unit.x + (point.y - center.y) * unit.y;
+      guideDeltas.set(item.id, { x: distance * unit.x, y: distance * unit.y });
+    }
+  } else if (options.kind === 'align') {
     if (!['start', 'center', 'end'].includes(options.alignment)) throw new CadOperationError('arrangeFailed');
-    if (typeof options.reference === 'object') {
-      const reference = options.reference;
+    if (typeof options.reference === 'object' || options.reference === 'page') {
+      const page = options.reference === 'page' ? drawingPageBounds(editor) : null;
+      if (options.reference === 'page' && !page) throw new CadOperationError('arrangePage');
+      const reference = typeof options.reference === 'object' ? options.reference
+        : { position: position(page!, axis, options.alignment), together: options.together };
       if (!reference || !validCadPoint({ x: axis === 'x' ? reference.position : 0, y: axis === 'y' ? reference.position : 0 }) ||
           reference.together !== undefined && typeof reference.together !== 'boolean') throw new CadOperationError('arrangeBounds');
       // A guide can move the selection as one motif, preserving the spacing
@@ -94,7 +112,8 @@ export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): Arr
       for (const item of items) targets.set(item.id, item.bounds[axis] + reference.position -
         position(reference.together === false ? item.bounds : common, axis, options.alignment));
     } else {
-      const reference = options.reference === 'selection' ? Box.Common(items.map(i => i.bounds)) : items.find(i => i.id === options.reference)?.bounds;
+      const reference = options.reference === 'selection' ? Box.Common(items.map(i => i.bounds))
+        : options.reference === 'last' ? items.at(-1)!.bounds : items.find(i => i.id === options.reference)?.bounds;
       if (!reference) throw new CadOperationError('arrangeSelection');
       const target = position(reference, axis, options.alignment);
       for (const item of items) targets.set(item.id, item.bounds[axis] + target - position(item.bounds, axis, options.alignment));
@@ -127,7 +146,8 @@ export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): Arr
     }
   }
   const placements = items.map(item => {
-    const delta = { x: 0, y: 0 }; delta[axis] = targets.get(item.id)! - item.bounds[axis];
+    const delta = options.kind === 'align-guide' ? guideDeltas.get(item.id)! : { x: 0, y: 0 };
+    if (options.kind !== 'align-guide') delta[axis] = targets.get(item.id)! - item.bounds[axis];
     const shape = editor.getShape(item.id)!, origin = editor.getShapePageTransform(shape).point();
     const target = { x: origin.x + delta.x, y: origin.y + delta.y };
     if (!validCadPoint(target) || !validCadPoint(editor.getPointInParentSpace(shape, target)) ||
@@ -147,7 +167,7 @@ export function applyArrangePlan(editor: Editor, plan: ArrangePlan): boolean {
     editor.complete(); editor.setCurrentTool('select');
     if (plan.revision !== cadRevision(editor)) return false;
     const fresh = prepareArrangePlan(editor, plan.options), items = selection(editor,
-      plan.options.kind === 'align' && typeof plan.options.reference === 'object' ? 1 : 2);
+      plan.options.kind === 'align-guide' || plan.options.kind === 'align' && (typeof plan.options.reference === 'object' || plan.options.reference === 'page') ? 1 : 2);
     if (!fresh.moved) return true;
     const updates = fresh.placements.map(({ id, delta }) => {
       const shape = editor.getShape(id)!, origin = editor.getShapePageTransform(shape).point();

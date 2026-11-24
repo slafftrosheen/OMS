@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
+import { DefaultSnapIndicator, useEditor, useValue, type Editor, type TLSnapIndicatorProps } from '@tldraw/tldraw';
 import {
   applyDrawingGuideChange, drawingGuideLine, drawingGuideRotationPose, drawingGuidesRevision, guidePositionToUnit, prepareDrawingGuideChange,
   projectToDrawingGuide, readDrawingGuides, selectedDrawingGuide, selectDrawingGuide, type DrawingGuide, type DrawingGuideGeometry,
@@ -12,7 +12,16 @@ import { readCadSettings, unitLengthToCanvas, type CadPoint } from './cad-settin
 import { requestDrawingUi } from './drawing-ui-requests';
 import { useGuideText } from './guide-copy';
 import { drawingPickGuideSnap } from './drawing-pick-guide-snap';
+import { useSnapText } from './snap-copy';
 
+/** Geometric Pick snapping can override the native bounding-box displacement.
+ * Keep native state intact for its gesture, but never draw the obsolete bbox
+ * lines alongside a marker at the actual snapped node. */
+export function DrawingSnapIndicator(props: TLSnapIndicatorProps) {
+  const editor = useEditor();
+  const geometric = useValue('Geometric Pick snap feedback', () => !!drawingPickGuideSnap(editor).get()?.object, [editor]);
+  return geometric ? null : <DefaultSnapIndicator {...props} />;
+}
 function guardGuideControlKey(event: React.KeyboardEvent<SVGSVGElement>) {
   if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key) && event.target instanceof Element && event.target.closest('[data-drawing-guide-control]'))
     (event.nativeEvent as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
@@ -48,7 +57,7 @@ function handleGuideKey(editor: Editor, id: string, event: React.KeyboardEvent<S
 /** OnTheCanvas already applies the editor's camera transform. Guidelines are UI
  * in page coordinates and never enter the shape list, fit bounds or exports. */
 export function DrawingGuideOverlay() {
-  const editor = useEditor(), t = useGuideText();
+  const editor = useEditor(), t = useGuideText(), snapText = useSnapText();
   const [rotation, setRotation] = useState<{ id: string; revision: string; pivot: CadPoint } | null>(null);
   const state = useValue('Document guidelines overlay', () => ({
     pageId: editor.getCurrentPageId(), guides: readDrawingGuides(editor), bounds: editor.getViewportPageBounds(),
@@ -90,6 +99,14 @@ export function DrawingGuideOverlay() {
       {state.pickSnap?.page && <circle cx={state.pickSnap.page.point.x} cy={state.pickSnap.page.point.y}
         r={5 * scale} fill="none" className="drawing-guide-snap" strokeWidth={2 * scale}
         data-testid="drawing-pick-page-snap" data-page-snap-target={state.pickSnap.page.target} />}
+      {[
+        { id: 'drawing-guide-object-snap', snap: state.preview?.valid && !state.preview.outside ? state.preview.snap : undefined },
+        { id: 'drawing-pick-object-snap', snap: state.pickSnap?.object },
+      ].map(({ id, snap }) => snap && <g key={id} data-testid={id} data-snap-kind={snap.kind}>
+        <circle cx={snap.point.x} cy={snap.point.y} r={4 * scale} className="drawing-guide-target" strokeWidth={1.5 * scale} />
+        <text x={snap.point.x + 9 * scale} y={snap.point.y - 9 * scale} fontSize={12 * scale} strokeWidth={3 * scale}
+          className="rf-cv-label drawing-guide-target-label">{snapText(snap.kind)}</text>
+      </g>)}
     </svg>
     {/* Hit bands sit below the real shape DOM: form fields and embedded media
         must receive their own pointer events where a guideline crosses them. */}

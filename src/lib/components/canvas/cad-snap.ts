@@ -1,6 +1,7 @@
 import { atom, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { validCadPoint, type CadPoint } from './cad-settings';
-import { readCadSnapSettings } from './cad-snap-settings';
+import { isCadSnapSuppressed, readCadSnapSettings, type CadSnapSettings } from './cad-snap-settings';
+import { getCadShapePageBounds } from './cad-bounds';
 import { nearestDrawingGuidePoint, readDrawingGuides } from './drawing-guides';
 import { drawingPageBounds } from './drawing-pages';
 import { nearestDrawingPageSnap } from './drawing-page-snap';
@@ -14,6 +15,15 @@ export { lineSnapIntersection } from './cad-intersections';
 
 export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'perpendicular' | 'tangent' | 'guidelines' | 'page' | 'nearest' | 'grid';
 export interface CadSnapResult { point: CadPoint; kind: CadSnapKind }
+/** Gesture-local filters never change the page's saved snap preferences. */
+export interface CadSnapQuery {
+  settings?: Partial<CadSnapSettings>;
+  excludeIds?: ReadonlySet<TLShapeId>;
+  onlyIds?: ReadonlySet<TLShapeId>;
+  shapes?: readonly TLShape[];
+  /** Captured DOM gestures may not update the editor's native modifier state. */
+  enabled?: boolean;
+}
 const indicators = new WeakMap<Editor, ReturnType<typeof atom<CadSnapResult | null>>>();
 export function cadSnapIndicator(editor: Editor) {
   let value = indicators.get(editor);
@@ -68,9 +78,9 @@ const midpoints = new WeakMap<object, Map<number, CadPoint>>();
 
 /** Geometric snaps are shared by every CAD drawing tool. Discrete targets win
  * over nearest-edge and grid fallback; each category remains independently off. */
-export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId | null, anchor?: CadPoint | null): CadSnapResult | null {
-  if (!validCadPoint(point) || editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey) return null;
-  const settings = readCadSnapSettings(editor), tolerance = settings.tolerance / editor.getZoomLevel();
+export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId | null, anchor?: CadPoint | null, query: CadSnapQuery = {}): CadSnapResult | null {
+  if (!validCadPoint(point) || !(query.enabled ?? (!isCadSnapSuppressed(editor) && editor.user.getIsSnapMode() !== !!editor.inputs.ctrlKey))) return null;
+  const settings = { ...readCadSnapSettings(editor), ...query.settings }, tolerance = settings.tolerance / editor.getZoomLevel();
   const constructionAnchor = anchor && validCadPoint(anchor) ? anchor : null;
   if (!Number.isFinite(tolerance) || tolerance <= 0) return null;
   let best: CadSnapResult | null = null, bestDistance = tolerance;
@@ -81,8 +91,12 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
     const delta = distance(point, candidate);
     if (delta <= bestDistance) { best = { point: { x: candidate.x, y: candidate.y }, kind }; bestDistance = delta; }
   };
-  for (const shape of settings.objects ? editor.getCurrentPageShapesSorted() : []) {
-    if (shape.id === exclude || shape.opacity === 0 || ['group', 'order-details', 'order-address', 'profile-7st', 'cad-dimension'].includes(shape.type)) continue;
+  const shapes = !settings.objects ? [] : query.shapes ?? (query.onlyIds
+    ? [...query.onlyIds].flatMap(id => { const shape = editor.getShape(id); return shape ? [shape] : []; })
+    : editor.getCurrentPageShapesSorted());
+  for (const shape of shapes) {
+    if (shape.id === exclude || query.excludeIds?.has(shape.id) || query.onlyIds && !query.onlyIds.has(shape.id) || shape.opacity === 0 ||
+      ['group', 'order-details', 'order-address', 'profile-7st', 'cad-dimension'].includes(shape.type)) continue;
     // Clipped artwork has a different visible boundary. Do not target hidden nodes.
     if (editor.getShapeMask?.(shape.id) || (shape.meta.omsVectorPaint as any)?.clips?.length) continue;
     const p = shape.props as Record<string, any>;
@@ -94,6 +108,10 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
     const matrix = editor.getShapePageTransform(shape);
     const world = (q: CadPoint) => matrix.applyToPoint(q);
     const offerLocal = (q: CadPoint, kind: CadSnapKind) => offer(world(q), kind);
+    if (settings.centers && (shape.type === 'cad-bezier' || shape.type === 'cad-path')) {
+      const exact = getCadShapePageBounds(editor, shape);
+      if (exact) offer(exact.center, 'centers');
+    }
     const segment = (a: CadPoint, b: CadPoint) => {
       const aa = world(a), bb = world(b);
       if (!nearby(point, [aa, bb], tolerance)) return;

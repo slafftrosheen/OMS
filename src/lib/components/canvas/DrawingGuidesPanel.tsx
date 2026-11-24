@@ -8,6 +8,7 @@ import {
   type DrawingGuide, type DrawingGuideGeometry, type DrawingGuideChange, type DrawingGuideErrorCode,
 } from './drawing-guides';
 import { useGuideText } from './guide-copy';
+import { drawingGuidesFromSelection, middleDrawingGuide } from './drawing-guide-construction';
 
 const display = (value: number) => Number.isFinite(value) ? String(Number(value.toPrecision(12))) : '';
 const numeric = (value: string) => value.trim() ? Number(value) : NaN;
@@ -61,13 +62,17 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
     valid: drawingGuidesAreValid(editor), revision: drawingGuidesRevision(editor), selected: selectedDrawingGuide(editor).get(),
     readonly: editor.getInstanceState().isReadonly, busy: drawingGuidesBusy(editor), snapping: readCadSnapSettings(editor).guidelines, master: editor.user.getIsSnapMode() }), [editor, activity]);
   const guide = state.guides.guides.find(guide => guide.id === state.selected) ?? null;
+  const construction = useValue('Guidelines from selected artwork', () => drawingGuidesFromSelection(editor), [editor]);
+  const [secondGuideId, setSecondGuideId] = useState('');
+  const parallelGuides = guide ? state.guides.guides.filter(other => other.id !== guide.id && middleDrawingGuide(guide, other)) : [];
+  const secondGuide = parallelGuides.find(other => other.id === secondGuideId) ?? parallelGuides[0];
   const [axis, setAxis] = useState<DrawingGuideGeometry['axis']>('y'), [addDraft, setAddDraft] = useState('0');
   const [addPose, setAddPose] = useState(defaultPose), [movePose, setMovePose] = useState(defaultPose);
   const addPosition = useRef(guidePositionFromUnit('y', 0, settings)), addInput = useRef<HTMLInputElement>(null), guideList = useRef<HTMLSelectElement>(null);
   const [moveDraft, setMoveDraft] = useState(''), [moveRevision, setMoveRevision] = useState<string | null>(null);
   const [rotateAxisGuide, setRotateAxisGuide] = useState(false);
   const movePosition = useRef<number>(NaN), moveInput = useRef<HTMLInputElement>(null);
-  const [message, setMessage] = useState<DrawingGuideErrorCode | 'done' | null>(null);
+  const [message, setMessage] = useState<DrawingGuideErrorCode | 'done' | 'constructionUnavailable' | null>(null);
   const stale = moveRevision !== null && moveRevision !== state.revision;
   const readonly = state.readonly || !state.valid || state.busy, geometryDisabled = readonly || state.guides.locked;
   const resetMove = () => {
@@ -102,14 +107,33 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
       setMessage('done'); return true;
     } catch (error) { setMessage(error instanceof DrawingGuideError ? error.code : 'failed'); return false; }
   }
+  function construct(kind: 'centerX' | 'centerY' | 'centerBoth' | 'gapX' | 'gapY' | 'parallel') {
+    if (geometryDisabled) return;
+    const current = drawingGuidesFromSelection(editor);
+    const geometries = kind === 'centerBoth' ? current.centers : kind === 'centerX' || kind === 'centerY'
+      ? current.centers.filter(item => item.axis === (kind === 'centerX' ? 'x' : 'y')) : current[kind] ? [current[kind]!] : [];
+    if (!geometries.length) { setMessage('constructionUnavailable'); return; }
+    apply({ kind: 'add-many', guides: geometries });
+  }
+  function betweenGuides() {
+    if (geometryDisabled || !guide || !secondGuide) return;
+    const current = readDrawingGuides(editor).guides;
+    const first = current.find(item => item.id === guide.id), second = current.find(item => item.id === secondGuide.id);
+    const middle = first && second ? middleDrawingGuide(first, second) : null;
+    if (!middle) { setMessage('constructionUnavailable'); return; }
+    apply({ kind: 'add', ...middle });
+  }
   const unit = settings?.unit ?? 'px';
   const order = { y: 0, x: 1, angle: 2 } as const;
   const ordered = [...state.guides.guides].sort((a, b) => order[a.axis] - order[b.axis] ||
     (a.axis !== 'angle' && b.axis !== 'angle'
       ? guidePositionToUnit(a.axis, a.position, settings) - guidePositionToUnit(b.axis, b.position, settings)
       : (a.angle ?? 0) - (b.angle ?? 0)));
-  const description = (item: DrawingGuide) => item.axis === 'angle' ? `${t('angled')} · ${display(item.angle)}°`
-    : `${t(item.axis === 'x' ? 'vertical' : 'horizontal')} · ${display(guidePositionToUnit(item.axis, item.position, settings))} ${unit}`;
+  const description = (item: DrawingGuide) => {
+    if (item.axis !== 'angle') return `${t(item.axis === 'x' ? 'vertical' : 'horizontal')} · ${display(guidePositionToUnit(item.axis, item.position, settings))} ${unit}`;
+    const point = settings ? canvasPointToCad(item.pivot, settings) : item.pivot;
+    return `${t('angled')} · ${display(item.angle)}° · X ${display(point.x)} / Y ${display(point.y)} ${unit}`;
+  };
   return <section className="drawing-guides" aria-label={t('title')} data-testid="drawing-guides-panel" onKeyDown={event => event.stopPropagation()}>
     <p className="drawing-help">{t('help')}</p>
     {!state.valid && <p className="drawing-help is-error" role="alert">{t('corrupt')}</p>}
@@ -153,6 +177,28 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
         <button type="submit" data-testid="drawing-guide-add">{t('add')}</button>
       </fieldset>
     </form>
+    <details className="drawing-guide-construction">
+      <summary>{t('fromArtwork')}</summary>
+      <fieldset className="drawing-workbench-fields" disabled={geometryDisabled || state.guides.guides.length >= MAX_DRAWING_GUIDES}>
+        <legend>{t('selectionCenter')}</legend>
+        <p className="drawing-help">{t('selectionCenterHelp')}</p>
+        <div className="drawing-guide-align-actions">
+          <button type="button" disabled={!construction.centers.length} onClick={() => construct('centerX')} data-testid="drawing-guide-center-x">{t('vertical')}</button>
+          <button type="button" disabled={!construction.centers.length} onClick={() => construct('centerY')} data-testid="drawing-guide-center-y">{t('horizontal')}</button>
+          <button type="button" disabled={!construction.centers.length || state.guides.guides.length > MAX_DRAWING_GUIDES - 2}
+            onClick={() => construct('centerBoth')} data-testid="drawing-guide-center-both">{t('bothCenters')}</button>
+        </div>
+      </fieldset>
+      <fieldset className="drawing-workbench-fields" disabled={geometryDisabled || state.guides.guides.length >= MAX_DRAWING_GUIDES}>
+        <legend>{t('middleLine')}</legend>
+        <p className="drawing-help">{t('middleLineHelp')}</p>
+        <button type="button" disabled={!construction.parallel} onClick={() => construct('parallel')} data-testid="drawing-guide-middle-lines">{t('betweenParallelLines')}</button>
+        <div className="drawing-guide-actions">
+          <button type="button" disabled={!construction.gapX} onClick={() => construct('gapX')} data-testid="drawing-guide-gap-x">{t('gapMiddleX')}</button>
+          <button type="button" disabled={!construction.gapY} onClick={() => construct('gapY')} data-testid="drawing-guide-gap-y">{t('gapMiddleY')}</button>
+        </div>
+      </fieldset>
+    </details>
     <p className="drawing-help" aria-live="polite">{t('count').replace('{count}', String(state.guides.guides.length)).replace('{maximum}', String(MAX_DRAWING_GUIDES))}</p>
     {ordered.length ? <label className="drawing-guide-list"><span>{t('guides')}</span>
       <select ref={guideList} size={Math.min(7, ordered.length + 1)} value={guide?.id ?? ''} data-testid="drawing-guides-list" onChange={event => selectDrawingGuide(editor, event.target.value || null)}>
@@ -198,6 +244,16 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
         <label className="drawing-cad-check"><input type="checkbox" checked={guide.locked} data-testid="drawing-guide-locked"
           onChange={event => apply({ kind: 'guide-locked', id: guide.id, locked: event.target.checked })} /><span>{t('guideLocked')}</span></label>
         <button type="button" disabled={geometryDisabled || guide.locked} data-testid="drawing-guide-delete" onClick={() => apply({ kind: 'remove', ids: [guide.id] })}>{t('remove')}</button>
+      </fieldset>
+      <fieldset className="drawing-workbench-fields" disabled={geometryDisabled || state.guides.guides.length >= MAX_DRAWING_GUIDES}>
+        <legend>{t('betweenGuides')}</legend>
+        <label><span>{t('secondGuide')}</span><select value={secondGuide?.id ?? ''} disabled={!parallelGuides.length}
+          data-testid="drawing-guide-middle-second" onChange={event => { setSecondGuideId(event.target.value); setMessage(null); }}>
+          {!parallelGuides.length && <option value="">{t('parallelGuideRequired')}</option>}
+          {parallelGuides.map(item => <option key={item.id} value={item.id}>{description(item)}</option>)}
+        </select></label>
+        <button type="button" disabled={!secondGuide} data-testid="drawing-guide-middle-guides" onClick={betweenGuides}>{t('createMiddleGuide')}</button>
+        <p className="drawing-help">{t('middleGuideHelp')}</p>
       </fieldset>
     </section>}
     {renderAlignment?.(guide)}

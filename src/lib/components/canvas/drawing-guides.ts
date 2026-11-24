@@ -15,6 +15,7 @@ export type DrawingGuide = DrawingGuideGeometry & { id: string; visible: boolean
 export type DrawingGuidesState = { version: 1; visible: boolean; locked: boolean; guides: DrawingGuide[]; };
 export type DrawingGuideChange =
   | ({ kind: 'add'; id?: string } & DrawingGuideGeometry)
+  | { kind: 'add-many'; guides: Array<DrawingGuideGeometry & { id?: string }> }
   | { kind: 'move'; id: string; position: number }
   | { kind: 'pose'; id: string; pivot: CadPoint; angle: number }
   | { kind: 'remove'; ids: string[] }
@@ -120,7 +121,11 @@ export function guidePositionFromUnit(axis: DrawingGuideAxis, position: number, 
 function changedState(current: DrawingGuidesState, change: DrawingGuideChange): DrawingGuidesState {
   const next = { ...current, guides: current.guides.map(guide => ({ ...guide })) };
   if (!change || typeof change !== 'object') throw new DrawingGuideError('invalid');
-  if (change.kind === 'settings') {
+  if (change.kind === 'add-many') {
+    if (!Array.isArray(change.guides) || !change.guides.length || change.guides.length > MAX_DRAWING_GUIDES) throw new DrawingGuideError('invalid');
+    if (current.guides.length + change.guides.length > MAX_DRAWING_GUIDES) throw new DrawingGuideError('limit');
+    return change.guides.reduce((state, geometry) => changedState(state, { ...geometry, kind: 'add' }), next);
+  } else if (change.kind === 'settings') {
     if (!Object.keys(change).some(key => key !== 'kind') || Object.keys(change).some(key => !['kind', 'visible', 'locked'].includes(key))) throw new DrawingGuideError('invalid');
     for (const key of ['visible', 'locked'] as const) {
       if (key in change) { if (typeof change[key] !== 'boolean') throw new DrawingGuideError('invalid'); next[key] = change[key]!; }
@@ -186,7 +191,11 @@ export function prepareDrawingGuideChange(editor: Editor, change: DrawingGuideCh
   if (expectedRevision !== undefined && expectedRevision !== revision) throw new DrawingGuideError('stale');
   const current = validateDrawingGuides(page.meta[DRAWING_GUIDES_META_KEY]);
   if (!current) throw new DrawingGuideError('corrupt');
-  const resolved = change?.kind === 'add' ? { ...change, id: change.id ?? `guide:${uniqueId()}` } : change;
+  if (change?.kind === 'add-many' && (!Array.isArray(change.guides) || !change.guides.length || change.guides.length > MAX_DRAWING_GUIDES ||
+      change.guides.some(guide => !guide || typeof guide !== 'object'))) throw new DrawingGuideError('invalid');
+  const resolved = change?.kind === 'add' ? { ...change, id: change.id ?? `guide:${uniqueId()}` }
+    : change?.kind === 'add-many' && Array.isArray(change.guides)
+      ? { ...change, guides: change.guides.map(guide => ({ ...guide, id: guide.id ?? `guide:${uniqueId()}` })) } : change;
   const next = changedState(current, resolved);
   checkCapacity(editor, current, next);
   return { pageId: page.id, revision, change: structuredClone(resolved), next };
@@ -210,6 +219,7 @@ export function applyDrawingGuideChange(editor: Editor, plan: DrawingGuidePlan):
     });
     if (changed) {
       if (fresh.change.kind === 'add') selectDrawingGuide(editor, fresh.change.id!);
+      else if (fresh.change.kind === 'add-many') selectDrawingGuide(editor, fresh.change.guides.at(-1)!.id!);
       else if (!fresh.next.guides.some(guide => guide.id === selectedDrawingGuide(editor).get())) selectDrawingGuide(editor, null);
     }
     return changed;

@@ -1,4 +1,4 @@
-import { react, type Editor, type TLShapeId } from '@tldraw/tldraw';
+import { atom, react, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import { drawingGridVisible } from './drawing-grid-state';
 import { drawingTransaction } from './drawing-commands';
 import { hasCanvasDraft } from './canvas-document';
@@ -20,6 +20,15 @@ export const DEFAULT_CAD_SNAP_SETTINGS: CadSnapSettings = {
   intersections: false, perpendicular: false, tangent: false, guidelines: true, nearest: false, grid: false, tolerance: 8, gridSpacing: 10,
 };
 const switches = ['objects', 'page', 'endpoints', 'midpoints', 'centers', 'quadrants', 'intersections', 'perpendicular', 'tangent', 'guidelines', 'nearest', 'grid'] as const;
+const bypasses = new WeakMap<Editor, ReturnType<typeof atom<boolean>>>();
+function snapBypass(editor: Editor) {
+  let state = bypasses.get(editor);
+  if (!state) { state = atom('Temporary snapping bypass', false); bypasses.set(editor, state); }
+  return state;
+}
+/** Q is a temporary gesture preference, never persisted in document metadata. */
+export const isCadSnapSuppressed = (editor: Editor) => snapBypass(editor).get();
+export function setCadSnapSuppressed(editor: Editor, suppressed: boolean) { snapBypass(editor).set(suppressed); }
 
 function savedSnapTargets(editor: Editor) {
   const saved = editor.getCurrentPage().meta.omsCadSnap;
@@ -42,18 +51,19 @@ export function installDrawingSnapTargets(editor: Editor): () => void {
   const snaps = editor.snaps, handles = snaps.handles;
   const originalShapes = snaps.getSnappableShapes, originalHandle = handles.snapHandle;
   const empty = new Set<TLShapeId>();
-  const shapes: typeof originalShapes = () => savedSnapTargets(editor)?.objects === false ? empty : originalShapes.call(snaps);
-  const handle: typeof originalHandle = input => savedSnapTargets(editor)?.objects === false ? null : originalHandle.call(handles, input);
+  const shapes: typeof originalShapes = () => isCadSnapSuppressed(editor) || savedSnapTargets(editor)?.objects === false ? empty : originalShapes.call(snaps);
+  const handle: typeof originalHandle = input => isCadSnapSuppressed(editor) || savedSnapTargets(editor)?.objects === false ? null : originalHandle.call(handles, input);
   snaps.getSnappableShapes = shapes;
   handles.snapHandle = handle;
   drawingGridVisible(editor);
   // tldraw invokes the scheduler as a method, so keep the browser API inside a closure.
   const untrack = react('Drawing grid snapping', () => {
-    const grid = editor.user.getIsSnapMode() && readCadSnapSettings(editor).grid;
+    const grid = !isCadSnapSuppressed(editor) && editor.user.getIsSnapMode() && readCadSnapSettings(editor).grid;
     if (editor.getInstanceState().isGridMode !== grid) editor.updateInstanceState({ isGridMode: grid });
   }, { scheduleEffect: callback => queueMicrotask(callback) });
   return () => {
     untrack();
+    setCadSnapSuppressed(editor, false);
     if (snaps.getSnappableShapes === shapes) snaps.getSnappableShapes = originalShapes;
     if (handles.snapHandle === handle) handles.snapHandle = originalHandle;
   };

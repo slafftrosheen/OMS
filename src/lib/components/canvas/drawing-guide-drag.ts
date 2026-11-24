@@ -1,9 +1,12 @@
 import { atom, type Editor, type TLPageId } from '@tldraw/tldraw';
 import { isCadNodeEditing } from './cad-node-selection';
 import { validCadPoint, type CadPoint } from './cad-settings';
+import type { CadSnapResult } from './cad-snap';
+import { snapDrawingGuideToObjects } from './drawing-guide-object-snap';
+import { isCadSnapSuppressed, setCadSnapSuppressed } from './cad-snap-settings';
 import {
   applyDrawingGuideChange, drawingGuidesAreValid, drawingGuidesRevision, DrawingGuideError,
-  drawingGuideLine, drawingGuideRotationPose, prepareDrawingGuideChange, projectToDrawingGuide, readDrawingGuides, selectDrawingGuide,
+  drawingGuideRotationPose, prepareDrawingGuideChange, projectToDrawingGuide, readDrawingGuides, selectDrawingGuide,
   type DrawingGuideChange, type DrawingGuideGeometry,
   type DrawingGuideErrorCode,
 } from './drawing-guides';
@@ -13,6 +16,7 @@ export type DrawingGuideDragPreview = DrawingGuideGeometry & {
   guideId?: string;
   outside: boolean;
   valid: boolean;
+  snap?: CadSnapResult;
 }
 export type DrawingGuideNotice = DrawingGuideErrorCode | 'created' | 'moved' | 'removed' | 'canceled' | null;
 const previews = new WeakMap<Editor, ReturnType<typeof atom<DrawingGuideDragPreview | null>>>();
@@ -77,8 +81,8 @@ export function beginDrawingGuideDrag(
   const axis = source.axis === 'x' ? 'x' : 'y';
   const offset = guide && guide.axis !== 'angle' ? start[axis] - guide.position : 0;
   const origin = { x: event.clientX, y: event.clientY };
-  let moved = false, finished = false;
-  let last = { clientX: event.clientX, clientY: event.clientY, shiftKey: event.shiftKey };
+  let moved = false, finished = false, qHeld = isCadSnapSuppressed(editor);
+  let last = { clientX: event.clientX, clientY: event.clientY, shiftKey: event.shiftKey, ctrlKey: event.ctrlKey };
   const subscription: { stop?: () => void } = {};
 
   function fresh(): boolean {
@@ -87,6 +91,11 @@ export function beginDrawingGuideDrag(
   function preview(point: typeof last): DrawingGuideDragPreview {
     const p = editor.screenToPage({ x: point.clientX, y: point.clientY });
     const common = { guideId: source.guideId, outside: !guidePointerInsideViewport(editor, point) };
+    const snap = (geometry: DrawingGuideGeometry, valid = true): DrawingGuideDragPreview => {
+      const result = moved && valid && !common.outside && !source.mode
+        ? snapDrawingGuideToObjects(editor, geometry, p, editor.user.getIsSnapMode() !== !!point.ctrlKey && !qHeld && !isCadSnapSuppressed(editor)) : null;
+      return { ...common, ...(result?.geometry ?? geometry), valid, ...(result ? { snap: result.snap } : {}) };
+    };
     if (angled) {
       let pivot: CadPoint = angled.pivot, angle = angled.angle, valid = true;
       if (source.mode === 'rotate') {
@@ -97,14 +106,14 @@ export function beginDrawingGuideDrag(
       } else if (source.mode === 'pivot') {
         pivot = projectToDrawingGuide(angled, { x: pivot.x + p.x - start.x, y: pivot.y + p.y - start.y });
       } else {
-        const { normal } = drawingGuideLine(angled);
-        const delta = (p.x - start.x) * normal.x + (p.y - start.y) * normal.y;
-        pivot = { x: pivot.x + delta * normal.x, y: pivot.y + delta * normal.y };
+        // Whole-line dragging is a 2D translation. Projecting onto its normal
+        // made the visible pivot slide away from the user's grabbed location.
+        pivot = { x: pivot.x + p.x - start.x, y: pivot.y + p.y - start.y };
       }
-      return { ...common, axis: 'angle', pivot, angle, valid: valid && validCadPoint(pivot) && Number.isFinite(angle) };
+      return snap({ axis: 'angle', pivot, angle }, valid && validCadPoint(pivot) && Number.isFinite(angle));
     }
     const position = p[axis] - offset;
-    return { ...common, axis, position, valid: validCadPoint({ x: axis === 'x' ? position : 0, y: axis === 'y' ? position : 0 }) };
+    return snap({ axis, position }, validCadPoint({ x: axis === 'x' ? position : 0, y: axis === 'y' ? position : 0 }));
   }
   function cleanup() {
     if (finished) return;
@@ -119,6 +128,7 @@ export function beginDrawingGuideDrag(
     subscription.stop?.();
     sessions.delete(editor);
     drawingGuideDrag(editor).set(null);
+    if (qHeld) setCadSnapSuppressed(editor, false);
     releaseClaim!();
     try { if (captureTarget.hasPointerCapture(pointerId)) captureTarget.releasePointerCapture(pointerId); } catch { /* Detached targets already lost capture. */ }
   }
@@ -129,7 +139,7 @@ export function beginDrawingGuideDrag(
     if (next.pointerId !== pointerId) return;
     consume(next);
     if (!fresh()) { cancel('stale'); return; }
-    last = { clientX: next.clientX, clientY: next.clientY, shiftKey: next.shiftKey };
+    last = { clientX: next.clientX, clientY: next.clientY, shiftKey: next.shiftKey, ctrlKey: next.ctrlKey };
     moved ||= Math.hypot(last.clientX - origin.x, last.clientY - origin.y) >= 3;
     drawingGuideDrag(editor).set(preview(last));
   }
@@ -155,7 +165,7 @@ export function beginDrawingGuideDrag(
   function up(next: PointerEvent) {
     if (next.pointerId !== pointerId) return;
     consume(next);
-    last = { clientX: next.clientX, clientY: next.clientY, shiftKey: next.shiftKey };
+    last = { clientX: next.clientX, clientY: next.clientY, shiftKey: next.shiftKey, ctrlKey: next.ctrlKey };
     moved ||= Math.hypot(last.clientX - origin.x, last.clientY - origin.y) >= 3;
     finish();
   }
@@ -163,13 +173,31 @@ export function beginDrawingGuideDrag(
   function lostCapture(next: Event) { if ((next as PointerEvent).pointerId === pointerId) cancel(); }
   function blur() { cancel(); }
   function keys(next: KeyboardEvent) {
-    if (['Shift', 'Control', 'Alt', 'Meta'].includes(next.key)) return;
+    if (['Shift', 'Control', 'Alt', 'Meta'].includes(next.key)) {
+      last = { ...last, shiftKey: next.shiftKey, ctrlKey: next.ctrlKey };
+      if (fresh()) drawingGuideDrag(editor).set(preview(last));
+      return;
+    }
     consume(next);
+    if (next.key.toLowerCase() === 'q' && !next.altKey && !next.ctrlKey && !next.metaKey) {
+      qHeld = true;
+      setCadSnapSuppressed(editor, true);
+      if (fresh()) drawingGuideDrag(editor).set(preview(last));
+      return;
+    }
     if (next.key === 'Escape' || next.key === 'Enter') suppressDrawingKeyRelease(editor, next.key);
     if (next.key === 'Escape') cancel();
     else if (next.key === 'Enter') finish();
   }
-  function keyUp(next: KeyboardEvent) { if (!['Shift', 'Control', 'Alt', 'Meta'].includes(next.key)) consume(next); }
+  function keyUp(next: KeyboardEvent) {
+    if (['Shift', 'Control', 'Alt', 'Meta'].includes(next.key)) {
+      last = { ...last, shiftKey: next.shiftKey, ctrlKey: next.ctrlKey };
+    } else {
+      consume(next);
+      if (next.key.toLowerCase() === 'q') { qHeld = false; setCadSnapSuppressed(editor, false); }
+    }
+    if (fresh()) drawingGuideDrag(editor).set(preview(last));
+  }
 
   consume(event);
   drawingGuideNotice(editor).set(null);

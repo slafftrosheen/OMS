@@ -19,7 +19,7 @@ import { DrawingArtworkClipOverlay } from './ArtworkClipPanel';
 import { DrawingPreflightOverlay } from './DrawingPreflightOverlay';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import { DrawingContextMenu } from './DrawingContextMenu';
-import { DrawingGuideOverlay } from './DrawingGuideOverlay';
+import { DrawingGuideOverlay, DrawingSnapIndicator } from './DrawingGuideOverlay';
 import { DrawingPickHandles, DrawingPickSelectionForeground } from './DrawingPickSelectionForeground';
 import { installDrawingSkewMode } from './drawing-pick-skew';
 import { clearDrawingKeyReleases } from './drawing-pointer-gesture';
@@ -98,7 +98,7 @@ const customShapeUtils = [
 const drawingUi = {
     OnTheCanvas: () => <><DrawingPageSheet/><DrawingRepeatOverlay/><DrawingPathRepeatOverlay/><DrawingMirrorCopyOverlay/><DrawingArtworkClipOverlay/><OrderFilePocketOverlays/><CadFreehandOverlay/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/><CadDrawingMeasurements/><DrawingPreflightOverlay/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
-    SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
+    SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles, SnapIndicator: DrawingSnapIndicator,
     Toolbar: null, StylePanel: null,
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: DrawingContextMenu,

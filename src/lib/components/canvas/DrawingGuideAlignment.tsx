@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { applyArrangePlan, prepareArrangePlan } from './drawing-arrange';
 import { cadRevision } from './cad-plans';
-import { drawingGuidesBusy, readDrawingGuides, type DrawingGuide } from './drawing-guides';
+import { drawingGuideLine, drawingGuidesBusy, readDrawingGuides, type DrawingGuide } from './drawing-guides';
 import { useGuideText } from './guide-copy';
 
 export function DrawingGuideAlignment({ guide }: { guide: DrawingGuide | null }) {
@@ -12,20 +12,25 @@ export function DrawingGuideAlignment({ guide }: { guide: DrawingGuide | null })
   const revision = useValue('Guideline alignment selection', () => cadRevision(editor), [editor]);
   const readonly = useValue('Guideline alignment readonly', () => editor.getInstanceState().isReadonly, [editor]);
   const busy = drawingGuidesBusy(editor);
+  function planFor(current: DrawingGuide, alignment: 'start' | 'center' | 'end' = 'center') {
+    if (current.axis !== 'angle') return prepareArrangePlan(editor, { kind: 'align', axis: current.axis, alignment, reference: { position: current.position, together } });
+    const { point, normal } = drawingGuideLine(current);
+    return prepareArrangePlan(editor, { kind: 'align-guide', point, normal, together });
+  }
   const ready = useValue('Guideline alignment readiness', () => {
-    if (!guide || guide.axis === 'angle' || busy) return false;
-    try { return !!prepareArrangePlan(editor, { kind: 'align', axis: guide.axis, alignment: 'center', reference: { position: guide.position, together } }); }
+    if (!guide || busy) return false;
+    try { return !!planFor(guide); }
     catch { return false; }
-  }, [editor, guide?.id, guide?.axis, guide?.position, together, revision, readonly, busy]);
-  if (!guide || guide.axis === 'angle') return null;
+  }, [editor, guide?.id, guide?.axis, guide?.position, guide?.pivot?.x, guide?.pivot?.y, guide?.angle, together, revision, readonly, busy]);
+  if (!guide) return null;
   const alignmentLabels = guide.axis === 'x' ? ['alignLeft', 'alignCenterX', 'alignRight'] as const
     : ['alignTop', 'alignCenterY', 'alignBottom'] as const;
   function align(alignment: 'start' | 'center' | 'end') {
     if (drawingGuidesBusy(editor)) { setMessage('busy'); return; }
     const current = readDrawingGuides(editor).guides.find(item => item.id === guide!.id);
-    if (!current || current.axis === 'angle' || current.axis !== guide!.axis || current.position !== guide!.position || cadRevision(editor) !== revision) { setMessage('alignFailed'); return; }
+    if (!current || JSON.stringify(current) !== JSON.stringify(guide) || cadRevision(editor) !== revision) { setMessage('alignFailed'); return; }
     try {
-      const plan = prepareArrangePlan(editor, { kind: 'align', axis: current.axis, alignment, reference: { position: current.position, together } });
+      const plan = planFor(current, alignment);
       setMessage(applyArrangePlan(editor, plan) ? 'aligned' : 'alignFailed');
     } catch { setMessage('alignFailed'); }
   }
@@ -33,13 +38,13 @@ export function DrawingGuideAlignment({ guide }: { guide: DrawingGuide | null })
     <h3>{t('alignTitle')}</h3>
     <label className="drawing-cad-check"><input type="checkbox" checked={together} onChange={event => { setTogether(event.target.checked); setMessage(null); }}
       data-testid="drawing-guide-align-together" /><span>{t('keepTogether')}</span></label>
-    <div className="drawing-guide-align-actions">
-      {(['start', 'center', 'end'] as const).map((alignment, index) => <button key={alignment} type="button" disabled={!ready}
+    <div className={`drawing-guide-align-actions${guide.axis === 'angle' ? ' is-angle' : ''}`}>
+      {(guide.axis === 'angle' ? ['center'] as const : ['start', 'center', 'end'] as const).map((alignment, index) => <button key={alignment} type="button" disabled={!ready}
         data-testid={`drawing-guide-align-${alignment}`} onClick={() => align(alignment)}>
-        {t(alignmentLabels[index])}
+        {t(guide.axis === 'angle' ? 'alignCenterGuide' : alignmentLabels[index])}
       </button>)}
     </div>
-    <p className="drawing-help">{t('alignmentHelp')}</p>
+    <p className="drawing-help">{t(guide.axis === 'angle' ? 'angledAlignmentHelp' : 'alignmentHelp')}</p>
     {!ready && !busy && <p className="drawing-help">{t('alignFailed')}</p>}
     {message && <p className={`drawing-help${message === 'alignFailed' ? ' is-error' : ''}`} role={message === 'alignFailed' ? 'alert' : 'status'}>{t(message)}</p>}
   </section>;

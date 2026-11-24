@@ -7,6 +7,8 @@ import {drawingRepeatPreview} from './DrawingRepeatOverlay';
 import {useDrawingText} from './drawing-copy';
 import {useCadText} from './cad-copy';
 import {useRepeatText} from './repeat-copy';
+import {drawingDuplicateOffsetFromDisplay,drawingDuplicateOffsetToDisplay,MAX_DRAWING_DUPLICATE_OFFSET,readDrawingDuplicateOffset,writeDrawingDuplicateOffset} from './drawing-duplicate';
+import {canWriteCadSnapSettings} from './cad-snap-settings';
 
 const preferences=new WeakMap<Editor,RepeatGridOptions & {fit:boolean;margin:number}>();
 const defaultMargin=unitLengthToCanvas(5,DEFAULT_CAD_SETTINGS);
@@ -158,7 +160,83 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
       }}>{t('apply')}</button>
     </div>}
     {message&&<p className="drawing-help" role="status">{message}</p>}
+    <DuplicateOffsetControls settings={settings}/>
   </details>;
+}
+
+function DuplicateOffsetControls({settings}:{settings:CadSettings|null}){
+  const editor=useEditor(),t=useRepeatText(),errorId=useId(),helpId=useId(),busyId=useId();
+  const [activity,setActivity]=useState(0);
+  useEffect(()=>{
+    let mounted=true,queued=false,previous=canWriteCadSnapSettings(editor);
+    const changed=()=>{
+      if(queued)return;
+      queued=true;
+      // Drafts and custom pointer ownership are updated after event dispatch;
+      // their first point need not create a document/store record.
+      queueMicrotask(()=>{
+        queued=false;if(!mounted)return;
+        const available=canWriteCadSnapSettings(editor);
+        if(available!==previous){previous=available;setActivity(value=>value+1);}
+      });
+    };
+    const win=editor.getContainer().ownerDocument.defaultView;
+    const events=['pointerdown','pointerup','pointercancel','lostpointercapture','keydown','keyup','blur'] as const;
+    editor.on('event',changed);
+    events.forEach(event=>win?.addEventListener(event,changed,true));
+    return ()=>{mounted=false;editor.off('event',changed);events.forEach(event=>win?.removeEventListener(event,changed,true));};
+  },[editor]);
+  const saved=useValue('default duplicate offsets',()=>({pageId:editor.getCurrentPageId(),...readDrawingDuplicateOffset(editor),
+    readOnly:editor.getInstanceState().isReadonly,available:canWriteCadSnapSettings(editor)}),[editor,activity]);
+  const shown=drawingDuplicateOffsetToDisplay(saved,settings);
+  const [draft,setDraft]=useState(()=>({x:String(shown.x),y:String(shown.y)}));
+  const previous=useRef({pageId:saved.pageId,x:saved.x,y:saved.y,settings});
+  const ownSave=useRef('');
+  const [result,setResult]=useState<'duplicateSaved'|'duplicateFailed'>();
+  useEffect(()=>{
+    const old=previous.current;
+    if(old.pageId!==saved.pageId||old.x!==saved.x||old.y!==saved.y){
+      const display=drawingDuplicateOffsetToDisplay(saved,settings);
+      setDraft({x:String(display.x),y:String(display.y)});
+    }else if(old.settings?.unit!==settings?.unit||old.settings?.scale!==settings?.scale){
+      setDraft(current=>{
+        const convert=(value:string)=>{
+          const px=toCanvas(value,old.settings);
+          return Number.isFinite(px)?display(px,settings):value;
+        };
+        return {x:convert(current.x),y:convert(current.y)};
+      });
+    }
+    previous.current={pageId:saved.pageId,x:saved.x,y:saved.y,settings};
+    if(ownSave.current!==JSON.stringify([saved.pageId,saved.x,saved.y]))setResult(undefined);
+    ownSave.current='';
+  },[saved.pageId,saved.x,saved.y,settings?.unit,settings?.scale]);
+  const offset=drawingDuplicateOffsetFromDisplay({x:number(draft.x),y:number(draft.y)},settings);
+  const unit=settings?.unit??'px',limit=settings?canvasLengthToUnit(MAX_DRAWING_DUPLICATE_OFFSET,settings):MAX_DRAWING_DUPLICATE_OFFSET;
+  const invalid=(axis:'x'|'y')=>!Number.isFinite(number(draft[axis]))||Math.abs(number(draft[axis]))>limit;
+  const busy=!saved.readOnly&&!saved.available;
+  const describedBy=[helpId,!offset?errorId:null,busy?busyId:null].filter(Boolean).join(' ');
+  return <form className="drawing-production-section" data-testid="drawing-duplicate-offset" onSubmit={event=>{
+    event.preventDefault();
+    if(!offset||!saved.available||!canWriteCadSnapSettings(editor))return;
+    const success=writeDrawingDuplicateOffset(editor,offset);
+    ownSave.current=success?JSON.stringify([saved.pageId,offset.x,offset.y]):'';
+    setResult(success?'duplicateSaved':'duplicateFailed');
+  }}>
+    <h4>{t('duplicateOffsetTitle')}</h4>
+    <fieldset className="drawing-style-fields" disabled={!saved.available} aria-describedby={describedBy}>
+      {(['x','y'] as const).map(axis=><label key={axis}><span>{t(axis==='x'?'duplicateX':'duplicateY')} ({unit})</span>
+        <input type="number" step="any" required min={-limit} max={limit} value={draft[axis]}
+          aria-invalid={invalid(axis)} aria-describedby={describedBy}
+          onChange={event=>{setDraft(current=>({...current,[axis]:event.target.value}));setResult(undefined);}}/>
+      </label>)}
+      <button type="submit" disabled={!offset}>{t('saveDuplicateOffsets')}</button>
+    </fieldset>
+    <p id={helpId} className="drawing-help">{t('duplicateOffsetHelp')}</p>
+    {busy&&<p id={busyId} className="drawing-help" role="status">{t('duplicateBusy')}</p>}
+    {!offset&&<p id={errorId} className="drawing-help is-error" role="alert">{t('duplicateInvalid')}</p>}
+    {result&&<p className={`drawing-help${result==='duplicateFailed'?' is-error':''}`} role={result==='duplicateFailed'?'alert':'status'}>{t(result)}</p>}
+  </form>;
 }
 
 function GridPreview({plan}:{plan:RepeatGridPlan}){

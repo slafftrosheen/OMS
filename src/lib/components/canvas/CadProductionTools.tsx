@@ -238,7 +238,8 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
   </section>;
 }
 
-const clipartCategories = ['mounting', 'signBlanks', 'printMarks'] as const;
+const clipartCategories = ['allClipart', 'mounting', 'signBlanks', 'arrows', 'symbols', 'printMarks'] as const;
+const clipartSearchText = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
 
 function ClipartPreview({ entities, width, height }: {
   entities: ReturnType<typeof productionPresetGeometry>; width: number; height: number;
@@ -260,7 +261,10 @@ export function CadProductionClipart({ settings, onSetup }: { settings: CadSetti
   const readOnly = useValue('Production clipart read-only', () => editor.getInstanceState().isReadonly, [editor]);
   const [result, setResult] = useState<'created' | 'failed'>();
   const firstPreset = productionPresets[0];
-  const [category, setCategory] = useState<typeof clipartCategories[number]>(firstPreset.category);
+  const [category, setCategory] = useState<typeof clipartCategories[number]>('allClipart');
+  const [query, setQuery] = useState('');
+  const [lockAspect, setLockAspect] = useState(false);
+  const aspectRatio = useRef<number>(firstPreset.width / firstPreset.height);
   const [presetId, setPresetId] = useState<ProductionPreset>(firstPreset.id);
   const [draft, setDraft] = useState({ width: String(firstPreset.width), height: String(firstPreset.height) });
   const dimensionError = useId();
@@ -269,18 +273,36 @@ export function CadProductionClipart({ settings, onSetup }: { settings: CadSetti
   const square = 'square' in preset;
   const height = square ? width : numeric(draft.height);
   const entities = productionPresetGeometry(presetId, { width, height });
-  const canInsert = !!settings && !readOnly && entities.length > 0;
+  const terms = clipartSearchText(query).trim().split(/\s+/).filter(Boolean);
+  const filtered = productionPresets.filter(item => (category === 'allClipart' || item.category === category) &&
+    terms.every(term => clipartSearchText(`${t(item.id)} ${t(item.category)} ${item.id.replace(/([a-z])([A-Z])/g, '$1 $2')}`).includes(term)));
+  const selectedVisible = filtered.some(item => item.id === presetId);
+  const canInsert = !!settings && !readOnly && selectedVisible && entities.length > 0;
 
   function selectPreset(id: ProductionPreset) {
     const next = productionPresets.find(item => item.id === id)!;
     setPresetId(id);
     setDraft({ width: String(next.width), height: String(next.height) });
+    aspectRatio.current = next.width / next.height;
+    setLockAspect(next.category === 'arrows' || next.category === 'symbols');
     setResult(undefined);
+  }
+
+  function editSize(axis: 'width' | 'height', text: string) {
+    setResult(undefined);
+    setDraft(previous => {
+      const next = { ...previous, [axis]: text }, value = numeric(text);
+      if (lockAspect && Number.isFinite(value) && value > 0) {
+        const other = axis === 'width' ? 'height' : 'width';
+        next[other] = String(Number((axis === 'width' ? value / aspectRatio.current : value * aspectRatio.current).toPrecision(12)));
+      }
+      return next;
+    });
   }
 
   function insert() {
     const current = readCadSettings(editor);
-    if (!current || editor.getInstanceState().isReadonly || !entities.length) return;
+    if (!current || editor.getInstanceState().isReadonly || !selectedVisible || !entities.length) return;
     const factor = cadMmPerPixel(current);
     const center = editor.getViewportPageBounds().center;
     const toLocal = (p: { x: number; y: number }) => ({ x: p.x / factor, y: -p.y / factor });
@@ -304,26 +326,35 @@ export function CadProductionClipart({ settings, onSetup }: { settings: CadSetti
     setResult(addGeometry(editor, current, contours, t(presetId), shapes, shapes.length > 1) ? 'created' : 'failed');
   }
 
-  return <section className="drawing-production-section" aria-label={t('clipart')}>
+  return <section className="drawing-production-section" aria-label={t('clipart')} onKeyDown={event => event.stopPropagation()}>
     <p className="drawing-help">{t(settings ? 'clipartHelp' : 'documentRequired')}</p>
     {!settings && !readOnly && <button type="button" onClick={onSetup}>{t('setDocumentUnits')}</button>}
+    <label className="drawing-clipart-search"><span>{t('searchClipart')}</span>
+      <input type="search" value={query} placeholder={t('searchClipartPlaceholder')} data-testid="drawing-clipart-search"
+        onChange={event => { setQuery(event.target.value); setResult(undefined); }} />
+    </label>
     <div className="drawing-clipart-categories" role="group" aria-label={t('clipartCategories')}>
       {clipartCategories.map(item => <button type="button" key={item} aria-pressed={category === item}
         onClick={() => {
           if (item === category) return;
           setCategory(item);
-          selectPreset(productionPresets.find(preset => preset.category === item)!.id);
+          const first = productionPresets.find(preset => (item === 'allClipart' || preset.category === item) &&
+            terms.every(term => clipartSearchText(`${t(preset.id)} ${t(preset.category)} ${preset.id.replace(/([a-z])([A-Z])/g, '$1 $2')}`).includes(term)));
+          if (first) selectPreset(first.id);
+          else setResult(undefined);
         }}>{t(item)}</button>)}
     </div>
+    <p className="drawing-help" role="status" data-testid="drawing-clipart-results">{t('clipartResults').replace('{count}', String(filtered.length)).replace('{total}', String(productionPresets.length))}</p>
+    {!filtered.length && <p className="drawing-help" data-testid="drawing-clipart-empty">{t('noClipartResults')}</p>}
     <ul className="drawing-clipart-list">
-      {productionPresets.filter(item => item.category === category).map(({ id, width, height }) => <li key={id}>
+      {filtered.map(({ id, width, height }) => <li key={id}>
         <button type="button" aria-pressed={presetId === id} onClick={() => selectPreset(id)} data-testid={`drawing-clipart-${id}`}>
           <ClipartPreview entities={productionPresetGeometry(id)} width={width} height={height} />
           <span><strong>{t(id)}</strong><small>{width} × {height} mm</small></span>
         </button>
       </li>)}
     </ul>
-    <form className="drawing-clipart-form" onSubmit={event => { event.preventDefault(); if (canInsert) insert(); }}>
+    {selectedVisible && <form className="drawing-clipart-form" onSubmit={event => { event.preventDefault(); if (canInsert) insert(); }}>
       <h4>{t(presetId)}</h4>
       {entities.length > 0 && <div className="drawing-clipart-preview"><ClipartPreview entities={entities} width={width} height={height} /></div>}
       <p className="drawing-help">{t(`${presetId}Detail`)}</p>
@@ -332,13 +363,21 @@ export function CadProductionClipart({ settings, onSetup }: { settings: CadSetti
           <label key={axis}><span>{t(axis === 'width' ? presetId === 'cableEntry' ? 'diameterMm' : 'widthMm' : 'heightMm')}</span>
             <input type="number" min="0" step="any" value={draft[axis]} disabled={!settings || readOnly}
               aria-invalid={!entities.length} aria-describedby={entities.length ? undefined : dimensionError}
-              onChange={event => { setResult(undefined); setDraft(previous => ({ ...previous, [axis]: event.target.value })); }} />
+              data-testid={`drawing-clipart-${axis}`} onChange={event => editSize(axis, event.target.value)} />
           </label>
         )}
       </div>
-      {!entities.length && <p id={dimensionError} className="drawing-help is-error">{t('invalidClipartSize')}</p>}
+      {!square && <label className="drawing-cad-check"><input type="checkbox" checked={lockAspect}
+        disabled={!settings || readOnly} data-testid="drawing-clipart-lock-aspect" onChange={event => {
+          const ratio = width / height;
+          if (event.target.checked && (!Number.isFinite(ratio) || ratio <= 0)) return;
+          aspectRatio.current = ratio;
+          setLockAspect(event.target.checked);
+        }} /><span>{t('keepClipartAspect')}</span></label>}
+      {!entities.length && <p id={dimensionError} className="drawing-help is-error" role="alert">{t('invalidClipartSize')}</p>}
       <button type="submit" className="drawing-clipart-insert" disabled={!canInsert} data-testid="drawing-clipart-insert">{t('insertClipart')}</button>
-    </form>
+    </form>}
+    {!selectedVisible && filtered.length > 0 && <p className="drawing-help">{t('selectClipartResult')}</p>}
     {result && <p className={`drawing-help${result === 'failed' ? ' is-error' : ''}`} role={result === 'failed' ? 'alert' : 'status'}>{t(result)}</p>}
   </section>;
 }

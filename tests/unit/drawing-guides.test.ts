@@ -103,6 +103,28 @@ describe('per-page document guideline data', () => {
 });
 
 describe('guarded document guideline transactions', () => {
+  it('adds a center-guide pair atomically and refuses partial, duplicate or over-capacity batches', () => {
+    const f = fixture();
+    const pair: DrawingGuideChange = { kind: 'add-many', guides: [
+      { axis: 'x', position: 120, id: 'guide:center-x' }, { axis: 'y', position: 80, id: 'guide:center-y' },
+    ] };
+    assert.equal(change(f.editor, pair), true);
+    assert.equal(readDrawingGuides(f.editor).guides.length, 2);
+    assert.equal(selectedDrawingGuide(f.editor).get(), 'guide:center-y');
+    assert.equal(f.marks.length, 2, 'one pair uses one transaction');
+    const before = structuredClone(f.editor.getCurrentPage());
+    assert.throws(() => prepareDrawingGuideChange(f.editor, pair), error('invalid'));
+    assert.throws(() => prepareDrawingGuideChange(f.editor, { kind: 'add-many', guides: [
+      { axis: 'x', position: 10 }, { axis: 'y', position: Infinity },
+    ] }), error('invalid'));
+    assert.throws(() => prepareDrawingGuideChange(f.editor, { kind: 'add-many', guides: [null] } as any), error('invalid'));
+    assert.deepEqual(f.editor.getCurrentPage(), before);
+    assert.equal(f.marks.length, 2);
+    put(f.editor, state(...Array.from({ length: MAX_DRAWING_GUIDES - 1 }, (_, i) => guide(`guide:limit-${i}`))));
+    assert.throws(() => prepareDrawingGuideChange(f.editor, pair), error('limit'));
+    assert.equal(readDrawingGuides(f.editor).guides.length, MAX_DRAWING_GUIDES - 1);
+  });
+
   it('keeps guide writes outside an unfinished CAD draft rollback while allowing its idle tool', () => {
     const f = fixture(); put(f.editor, state(guide())); f.state.tool = 'cad-polyline';
     const tool = new CadPolylineTool(f.editor, undefined as any); tool.onEnter();

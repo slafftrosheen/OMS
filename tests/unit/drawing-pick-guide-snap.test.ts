@@ -88,6 +88,82 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('ordinary Pick guideline snapping through native public hooks', () => {
+  it('rechecks a stationary geometric snap when Shift locks an otherwise unchanged pointer axis', async () => {
+    await harness(async ({ editor, snapping, ready, down, move, up, key }) => {
+      editor.createShapes([
+        { id: 'shape:source', type: 'cad-path', x: 100, y: 100, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 200 }] } },
+        { id: 'shape:target', type: 'cad-path', x: 600, y: 204, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 80, y: 30 }] } },
+      ]);
+      ready('shape:source');
+      await down({ x: 200, y: 200 }); await move({ x: 603, y: 200 });
+      near(editor.getShape('shape:source').x, 500); near(editor.getShape('shape:source').y, 104);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get()?.object?.kind, 'endpoints');
+      // Raw Y was already zero, so only the modifier distinguishes this query.
+      await key('key_down', 'Shift', { shiftKey: true });
+      near(editor.getShape('shape:source').y, 100);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get()?.object, undefined);
+      await key('key_up', 'Shift');
+      near(editor.getShape('shape:source').x, 500); near(editor.getShape('shape:source').y, 104);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get()?.object?.kind, 'endpoints');
+      await up({ x: 603, y: 200 });
+    });
+  });
+
+  it('snaps a grabbed internal path node to real geometry without guides or a sheet', async () => {
+    await harness(async ({ editor, snapping, ready, down, move, up, snapshot }) => {
+      editor.createShapes([
+        { id: 'shape:source', type: 'cad-path', x: 100, y: 100, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 200 }] } },
+        { id: 'shape:target', type: 'cad-path', x: 600, y: 400, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 80, y: 30 }] } },
+      ]);
+      ready('shape:source'); const before = snapshot();
+      await down({ x: 200, y: 200 }); await move({ x: 603, y: 402 });
+      near(editor.getShape('shape:source').x, 500); near(editor.getShape('shape:source').y, 300);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get()?.object?.kind, 'endpoints');
+      await up({ x: 603, y: 402 }); near(editor.getShape('shape:source').x, 500);
+      editor.undo(); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('retains geometry snapping when native Alt dragging creates a copy', async () => {
+    await harness(async ({ editor, snapping, ready, down, move, up, snapshot }) => {
+      editor.createShapes([
+        { id: 'shape:source', type: 'cad-path', x: 100, y: 100, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 200 }] } },
+        { id: 'shape:target', type: 'cad-path', x: 600, y: 400, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 80, y: 30 }] } },
+      ]);
+      ready('shape:source'); const before = snapshot();
+      await down({ x: 200, y: 200 }, { altKey: true }); await move({ x: 603, y: 402 }, { altKey: true });
+      const copy = editor.getOnlySelectedShape();
+      assert.notEqual(copy.id, 'shape:source'); near(copy.x, 500); near(copy.y, 300);
+      near(editor.getShape('shape:source').x, 100);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get()?.object?.kind, 'endpoints');
+      await up({ x: 603, y: 402 }, { altKey: true });
+      near(editor.getInstanceState().duplicateProps.offset.x, 400); near(editor.getInstanceState().duplicateProps.offset.y, 200);
+      editor.undo(); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('temporarily bypasses geometric Pick snapping without changing saved preferences', async () => {
+    await harness(async ({ editor, snaps, snapping, ready, down, move, up }) => {
+      const disposeNativeTargets = snaps.installDrawingSnapTargets(editor);
+      try {
+      editor.createShapes([
+        { id: 'shape:source', type: 'cad-path', x: 100, y: 100, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 200 }] } },
+        { id: 'shape:target', type: 'cad-path', x: 600, y: 400, props: { closed: false, points: [{ x: 0, y: 0 }, { x: 80, y: 30 }] } },
+      ]);
+      ready('shape:source'); const preferences = structuredClone(editor.getCurrentPage().meta);
+      await down({ x: 200, y: 200 });
+      snaps.setCadSnapSuppressed(editor, true);
+      await move({ x: 603, y: 402 });
+      near(editor.getShape('shape:source').x, 503); near(editor.getShape('shape:source').y, 302);
+      assert.equal(snapping.drawingPickGuideSnap(editor).get(), null);
+      snaps.setCadSnapSuppressed(editor, false);
+      await move({ x: 602, y: 401 }); await up({ x: 602, y: 401 });
+      near(editor.getShape('shape:source').x, 500); near(editor.getShape('shape:source').y, 300);
+      assert.deepEqual(editor.getCurrentPage().meta, preferences);
+      } finally { disposeNativeTargets(); }
+    });
+  });
+
   it('snaps Pick to an actual sheet edge with no guide or object targets in one undo', async () => {
     await harness(async ({ editor, cad, snapping, add, ready, down, move, up, snapshot }) => {
       const id = add(), page = editor.getCurrentPage();

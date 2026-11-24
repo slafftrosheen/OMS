@@ -1,4 +1,8 @@
 export const enArrange = {
+  arrangeLastSelected:'Last selected object', arrangePageBounds:'Page edges and centre', arrangeKeepTogether:'Keep relative positions',
+  arrangeLastHelp:'Align to the last selected object, keeping that reference fixed.',
+  arrangePageHelp:'Align to the physical page. Keep relative positions moves the selection as one layout; turn it off to align each object separately.',
+  arrangePage:'Set a physical page size in Page setup before aligning to the page.',
   arrangePath:'Path',arrangeCurve:'Curve',arrangeEllipse:'Ellipse',arrangeArc:'Arc',arrangeDimension:'Dimension',arrangeGroup:'Group',arrangeImage:'Image',arrangeObject:'Object',
   arrangeShortcutHelp:"On the drawing, L/C/R align left, center horizontally, or right. T/E/B align top, center vertically, or bottom. The last selected object stays in place.",
   arrangeAlignment:'Align objects', arrangeReference:'Align relative to', arrangeSelectionBounds:'Selection bounds', arrangeSelectedObjects:'Selected objects',
@@ -12,6 +16,10 @@ export const enArrange = {
   arrangeSelection:'Select enough independent objects and choose a reference from the current selection.', arrangeProtected:'Locked objects, order forms and read-only drawings cannot be arranged here.', arrangeUnsupported:'This selection includes a bound object, clipped frame child or unsupported object. Select independent artwork.', arrangeBounds:'The arrangement exceeds the drawing coordinate limits.', arrangeGapLimit:'Maximum gap', arrangeGap:'Enter a finite gap from zero to the maximum shown.', arrangeOverlap:'Equal gaps would overlap objects. Increase the distance between the outer objects or use an exact gap.', arrangeStale:'The drawing or selection changed. Try the arrangement again.', arrangeFailed:'The arrangement could not be applied.'
 };
 export const ruArrange:Record<keyof typeof enArrange,string> = {
+  arrangeLastSelected:'Последний выбранный объект', arrangePageBounds:'Края и центр страницы', arrangeKeepTogether:'Сохранить взаимное положение',
+  arrangeLastHelp:'Выравнивание относительно последнего выбранного объекта. Он остаётся на месте.',
+  arrangePageHelp:'Выравнивание по физической странице. Сохранение взаимного положения перемещает всё выделение вместе; отключите его для выравнивания каждого объекта отдельно.',
+  arrangePage:'Перед выравниванием задайте физический размер страницы в настройках страницы.',
   arrangePath:'Контур',arrangeCurve:'Кривая',arrangeEllipse:'Эллипс',arrangeArc:'Дуга',arrangeDimension:'Размер',arrangeGroup:'Группа',arrangeImage:'Изображение',arrangeObject:'Объект',
   arrangeShortcutHelp:"На чертеже L/C/R выравнивают по левому краю, центру по горизонтали или правому краю. T/E/B выравнивают по верхнему краю, центру по вертикали или нижнему краю. Последний выбранный объект остаётся на месте.",
   arrangeAlignment:'Выравнивание объектов', arrangeReference:'Выровнять относительно', arrangeSelectionBounds:'Границ выделения', arrangeSelectedObjects:'Выбранные объекты',
@@ -25,6 +33,10 @@ export const ruArrange:Record<keyof typeof enArrange,string> = {
   arrangeSelection:'Выберите достаточно независимых объектов и опорный объект из текущего выделения.', arrangeProtected:'Заблокированные объекты, формы заказа и чертежи только для чтения здесь не изменяются.', arrangeUnsupported:'В выделении есть связанный объект, обрезанный элемент рамки или неподдерживаемый объект. Выберите независимую графику.', arrangeBounds:'Расположение выходит за пределы координат чертежа.', arrangeGapLimit:'Максимальный промежуток', arrangeGap:'Введите конечное число от нуля до указанного максимума.', arrangeOverlap:'При равных промежутках объекты будут перекрываться. Раздвиньте крайние объекты или задайте точный промежуток.', arrangeStale:'Чертёж или выделение изменились. Повторите расположение.', arrangeFailed:'Не удалось применить расположение.'
 };
 export const lvArrange:Record<keyof typeof enArrange,string> = {
+  arrangeLastSelected:'Pēdējais atlasītais objekts', arrangePageBounds:'Lapas malas un centrs', arrangeKeepTogether:'Saglabāt savstarpējo novietojumu',
+  arrangeLastHelp:'Līdzināt pēc pēdējā atlasītā objekta, atstājot to vietā.',
+  arrangePageHelp:'Līdzināt pēc fiziskās lapas. Saglabājot savstarpējo novietojumu, atlase pārvietojas kopā; izslēdziet šo iespēju, lai līdzinātu katru objektu atsevišķi.',
+  arrangePage:'Pirms līdzināšanas lapas iestatījumos norādiet fizisku lapas izmēru.',
   arrangePath:'Kontūra',arrangeCurve:'Līkne',arrangeEllipse:'Elipse',arrangeArc:'Loks',arrangeDimension:'Izmērs',arrangeGroup:'Grupa',arrangeImage:'Attēls',arrangeObject:'Objekts',
   arrangeShortcutHelp:"Zīmējumā L/C/R līdzinās pa kreisi, horizontāli centrā vai pa labi. T/E/B līdzinās augšā, vertikāli centrā vai apakšā. Pēdējais atlasītais objekts paliek vietā.",
   arrangeAlignment:'Objektu līdzināšana', arrangeReference:'Līdzināt attiecībā pret', arrangeSelectionBounds:'Atlases robežām', arrangeSelectedObjects:'Atlasītie objekti',

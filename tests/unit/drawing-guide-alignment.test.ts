@@ -63,6 +63,35 @@ function withNativeHistory(f: Fixture) {
 }
 
 describe('Alignment to a guideline coordinate', () => {
+  it('projects the common artwork center onto an angled guide without changing motif spacing or rotation', () => {
+    const f = setup(true), before = artwork(f);
+    const plan = prepareArrangePlan(f.editor, { kind: 'align-guide', point: { x: 0, y: 0 }, normal: { x: 2, y: 2 }, together: true });
+    assert.equal(applyArrangePlan(f.editor, plan), true);
+    // Combined bounds center is (75, 60), projected onto x + y = 0.
+    near(shape(f).x, 10 - 67.5); near(shape(f).y, 20 - 67.5);
+    near(shape(f, 'b').x - shape(f).x, 90); near(shape(f, 'b').y - shape(f).y, 50);
+    for (const old of before) {
+      const current = f.editor.getShape(old.id);
+      assert.deepEqual(current.props, old.props); assert.equal(current.rotation, old.rotation);
+    }
+  });
+
+  it('centers objects independently on an angled guide with one real Undo and Redo', () => {
+    const f = setup(true), native = withNativeHistory(f);
+    try {
+      const before = artwork(f);
+      const plan = prepareArrangePlan(f.editor, { kind: 'align-guide', point: { x: 50, y: 0 }, normal: { x: 1, y: -1 }, together: false });
+      assert.equal(applyArrangePlan(f.editor, plan), true);
+      for (const id of ['a', 'b']) {
+        const current = shape(f, id);
+        near(current.x + current.props.w / 2 - current.y - current.props.h / 2, 50);
+      }
+      const after = artwork(f);
+      native.history.undo(); assert.deepEqual(artwork(f), before);
+      native.history.redo(); assert.deepEqual(artwork(f), after);
+    } finally { native.dispose(); }
+  });
+
   for (const [axis, alignment, target, expectedX, expectedY] of [
     ['x', 'start', 200, 200, 20], ['x', 'center', 200, 190, 20], ['x', 'end', 200, 180, 20],
     ['y', 'start', -50, 10, -50], ['y', 'center', -50, 10, -55], ['y', 'end', -50, 10, -60],

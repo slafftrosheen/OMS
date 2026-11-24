@@ -19,6 +19,7 @@ import {applyArrangePlan,arrangementRoots,arrangeGapFromDisplay,MAX_ARRANGE_GAP,
 import {drawingObjectName,drawingObjectAlias} from './drawing-operations';
 import {CadOperationError,cadRevision} from './cad-plans';
 import {enArrange} from './arrange-copy';
+import {drawingPageBounds} from './drawing-pages';
 
 // Keep the last valid physical spacing while switching docker panels. This is
 // editor-local UI state, never document metadata or exported drawing content.
@@ -90,9 +91,10 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
  const revision=useValue('arrange document revision',()=>cadRevision(editor),[editor]);
  const state=useValue('arrange selected roots',()=>{
   const roots=arrangementRoots(editor);
-  return {roots,objects:roots.flatMap(id=>{const shape=editor.getShape(id);if(!shape)return [];const props=shape.props as Record<string,unknown>;return [{id,name:drawingObjectName(shape),kind:drawingObjectAlias(shape).trim()||props.title||props.name||props.text?null:shape.type}];})};
+  return {roots,hasPage:!!drawingPageBounds(editor),objects:roots.flatMap(id=>{const shape=editor.getShape(id);if(!shape)return [];const props=shape.props as Record<string,unknown>;return [{id,name:drawingObjectName(shape),kind:drawingObjectAlias(shape).trim()||props.title||props.name||props.text?null:shape.type}];})};
  },[editor]);
- const [reference,setReference]=useState<'selection'|TLShapeId>('selection');
+ const [reference,setReference]=useState<'selection'|'last'|'page'|TLShapeId>('last');
+ const [together,setTogether]=useState(true);
  const [mode,setMode]=useState<'gaps'|'centers'|'exact'>('gaps');
  const [anchor,setAnchor]=useState<'start'|'end'|TLShapeId>('start');
  const [gapDraft,setGapDraft]=useState<{text:string;canvas:number|undefined}>(()=>{
@@ -104,10 +106,10 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
  const gapErrorId=useId(),gapLimitId=useId(),alignmentHintId=useId(),distributionHintId=useId();
  const rootsKey=state.roots.join('|');
  // Resolve a removed key immediately, before the selection-change effect runs.
- const currentReference=reference==='selection'||state.roots.includes(reference)?reference:'selection';
+ const currentReference=reference==='selection'||reference==='last'||reference==='page'||state.roots.includes(reference)?reference:'last';
  const currentAnchor=anchor==='start'||anchor==='end'||state.roots.includes(anchor)?anchor:'start';
  useEffect(()=>{
-  setReference(current=>current==='selection'||state.roots.includes(current)?current:'selection');
+  setReference(current=>current==='selection'||current==='last'||current==='page'||state.roots.includes(current)?current:'last');
   setAnchor(current=>current==='start'||current==='end'||state.roots.includes(current)?current:'start');
   setMessage(undefined);
  },[rootsKey]);
@@ -127,7 +129,7 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
  };
  const validGap=gapDraft.canvas!==undefined;
  const protectedSelection=controls.readOnly||controls.selectionLocked;
- const canAlign=controls.canEditSelection&&state.roots.length>=2;
+ const canAlign=controls.canEditSelection&&state.roots.length>=(currentReference==='page'?1:2)&&(currentReference!=='page'||state.hasPage);
  const canDistribute=controls.canEditSelection&&state.roots.length>=(mode==='exact'?2:3)&&(mode!=='exact'||validGap);
  const unit=settings?.unit??'px';
  const maxGap=settings?canvasLengthToUnit(MAX_ARRANGE_GAP,settings):MAX_ARRANGE_GAP;
@@ -158,15 +160,19 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
   <fieldset className="drawing-workbench-fields drawing-arrange-section" disabled={protectedSelection} aria-describedby={alignmentHintId}>
    <legend>{t('arrangeAlignment')}</legend>
    <label><span>{t('arrangeReference')}</span><select value={currentReference} onChange={e=>{setReference(e.target.value as typeof reference);setMessage(undefined);}}>
+    <option value="last">{t('arrangeLastSelected')}</option>
     <option value="selection">{t('arrangeSelectionBounds')}</option>
+    <option value="page">{t('arrangePageBounds')}</option>
     {objectOptions.length>0&&<optgroup label={t('arrangeSelectedObjects')}>{objectOptions}</optgroup>}
    </select></label>
+   {currentReference==='page'&&<label className="drawing-cad-check"><input type="checkbox" checked={together}
+    onChange={event=>{setTogether(event.target.checked);setMessage(undefined);}}/><span>{t('arrangeKeepTogether')}</span></label>}
    <div className="drawing-align-grid drawing-arrange-align">
-    {alignments.map(({axis,alignment,label,title})=><button type="button" key={`${axis}-${alignment}`} title={t(title)} aria-label={t(title)} disabled={!canAlign} onClick={()=>apply({kind:'align',axis,alignment,reference:currentReference})}>
+    {alignments.map(({axis,alignment,label,title})=><button type="button" key={`${axis}-${alignment}`} title={t(title)} aria-label={t(title)} disabled={!canAlign} onClick={()=>apply({kind:'align',axis,alignment,reference:currentReference,together})}>
      <ArrangeAlignmentIcon axis={axis} alignment={alignment}/><span>{t(label)}</span>
     </button>)}
    </div>
-   <p id={alignmentHintId} className="drawing-help">{t(state.roots.length<2?'arrangeSelectionHelp':currentReference==='selection'?'arrangeBoundsHelp':'arrangeKeyHelp')}</p>
+   <p id={alignmentHintId} className="drawing-help">{t(currentReference==='page'?(state.hasPage?'arrangePageHelp':'arrangePage'):state.roots.length<2?'arrangeSelectionHelp':currentReference==='selection'?'arrangeBoundsHelp':currentReference==='last'?'arrangeLastHelp':'arrangeKeyHelp')}</p>
    <p className="drawing-help">{t('arrangeShortcutHelp')}</p>
   </fieldset>
   <fieldset className="drawing-workbench-fields drawing-arrange-section" disabled={protectedSelection} aria-describedby={distributionHintId}>

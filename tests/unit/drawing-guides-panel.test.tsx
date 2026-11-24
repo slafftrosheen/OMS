@@ -83,6 +83,40 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('Guidelines docker with a real React and tldraw editor', () => {
+  it('creates selection-center pairs in one undo step and the exact middle between parallel guides', async () => {
+    await harness(async ({ editor, guides, container, get, click, select, change, act, tick }) => {
+      await act(async () => {
+        editor.createShapes([
+          { id: 'shape:left', type: 'geo', x: 0, y: 10, props: { w: 100, h: 40 } },
+          { id: 'shape:right', type: 'geo', x: 200, y: 20, props: { w: 40, h: 40 } },
+        ]);
+        editor.select('shape:left', 'shape:right');
+        (container.querySelector('.drawing-guide-construction') as HTMLDetailsElement).open = true;
+      });
+      await tick();
+      assert.equal(get('drawing-guide-center-both').matches(':disabled'), false);
+      assert.equal(get('drawing-guide-gap-y').matches(':disabled'), true, 'overlapping Y bounds do not offer an outside gap');
+      await click('drawing-guide-center-both');
+      const centers = guides.readDrawingGuides(editor).guides;
+      assert.deepEqual(centers.map((guide: any) => [guide.axis, guide.position]), [['x', 120], ['y', 35]]);
+      await act(async () => editor.undo()); await tick();
+      assert.equal(guides.readDrawingGuides(editor).guides.length, 0);
+      await act(async () => editor.redo()); await tick();
+      assert.equal(guides.readDrawingGuides(editor).guides.length, 2);
+      await change({ kind: 'add', id: 'guide:partner', axis: 'y', position: 120 });
+      await select('drawing-guides-list', centers[1].id);
+      assert.equal((get('drawing-guide-middle-second') as HTMLSelectElement).value, 'guide:partner');
+      await click('drawing-guide-middle-guides');
+      const middle = guides.readDrawingGuides(editor).guides.at(-1);
+      assert.equal(middle.axis, 'y'); assert.equal(middle.position, 77.5);
+      assert.deepEqual(editor.getSelectedShapeIds(), ['shape:left', 'shape:right']);
+      await act(async () => editor.undo()); await tick();
+      assert.equal(guides.readDrawingGuides(editor).guides.length, 3);
+      await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      assert.equal(get('drawing-guide-center-both').matches(':disabled'), true);
+    });
+  });
+
   it('converts a selected ruler guide by typing its pivot and angle', async () => {
     await harness(async ({ editor, guides, settings, get, input, click, change, act, tick }) => {
       await change({ kind: 'add', id: 'guide:convert', axis: 'x', position: 150 });

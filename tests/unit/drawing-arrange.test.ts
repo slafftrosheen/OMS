@@ -20,6 +20,27 @@ const bounds=(f:ReturnType<typeof fixture>,id:string)=>getCadShapePageBounds(f.e
 const apply=(f:ReturnType<typeof fixture>,options:ArrangeOptions)=>{const plan=prepareArrangePlan(f.editor,options);assert.equal(applyArrangePlan(f.editor,plan),true);return plan;};
 
 describe('precise alignment to selection and reference objects',()=>{
+ it('keeps the last selected object fixed through the shared reference mode',()=>{
+  const f=setup(),reference=structuredClone(f.editor.getShape('shape:b'));
+  apply(f,{kind:'align',axis:'x',alignment:'end',reference:'last'});
+  assert.deepEqual(f.editor.getShape('shape:b'),reference);
+  for(const id of ['a','b','c'])near(bounds(f,id).maxX,bounds(f,'b').maxX);
+ });
+ it('aligns a complete layout to physical page edges and can align each item independently',()=>{
+  const f=setup();
+  f.editor.updatePage({meta:{...f.editor.getCurrentPage().meta,omsCad:{...DEFAULT_CAD_SETTINGS,originX:300,originY:-100},omsPageSize:{widthMm:254,heightMm:127}}});
+  const ab=bounds(f,'b').x-bounds(f,'a').x;
+  apply(f,{kind:'align',axis:'x',alignment:'end',reference:'page'});
+  near(bounds(f,'c').maxX,960);near(bounds(f,'b').x-bounds(f,'a').x,ab);
+  apply(f,{kind:'align',axis:'y',alignment:'center',reference:'page',together:false});
+  for(const id of ['a','b','c'])near(bounds(f,id).center.y,240);
+ });
+ it('aligns a single object to the page and rejects pages without a physical size',()=>{
+  const f=setup();f.editor.setSelectedShapes(['shape:a']);
+  assert.throws(()=>prepareArrangePlan(f.editor,{kind:'align',axis:'x',alignment:'center',reference:'page'}),code('arrangePage'));
+  f.editor.updatePage({meta:{...f.editor.getCurrentPage().meta,omsCad:DEFAULT_CAD_SETTINGS,omsPageSize:{widthMm:254,heightMm:127}}});
+  apply(f,{kind:'align',axis:'x',alignment:'center',reference:'page'});near(bounds(f,'a').center.x,480);
+ });
  for(const axis of ['x','y'] as const)for(const alignment of ['start','center','end'] as const)it(`aligns ${axis} ${alignment} to a fixed named object`,()=>{
   const f=setup(),before=structuredClone(f.editor.getShape('shape:b')),key=bounds(f,'b'),size=axis==='x'?'w':'h',factor=alignment==='start'?0:alignment==='center'?.5:1;
   const target=key[axis]+key[size]*factor;

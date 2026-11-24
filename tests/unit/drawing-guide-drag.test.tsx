@@ -51,7 +51,7 @@ async function harness(run: (value: any) => Promise<void>) {
   const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
   const { useCanvasEvents } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useCanvasEvents.mjs');
   const { useDocumentEvents } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useDocumentEvents.mjs');
-  const { DrawingGuideOverlay } = await import('../../src/lib/components/canvas/DrawingGuideOverlay');
+  const { DrawingGuideOverlay, DrawingSnapIndicator } = await import('../../src/lib/components/canvas/DrawingGuideOverlay');
   const drag = await import('../../src/lib/components/canvas/drawing-guide-drag');
   const guides = await import('../../src/lib/components/canvas/drawing-guides');
   const gesture = await import('../../src/lib/components/canvas/drawing-pointer-gesture');
@@ -63,11 +63,18 @@ async function harness(run: (value: any) => Promise<void>) {
   const root = createRoot(host), rect = env.win.DOMRect.fromRect({ x: 140, y: 90, width: 800, height: 600 });
   let container!: HTMLDivElement;
   const containerRef = (node: HTMLDivElement | null) => { if (node) { container = node; node.getBoundingClientRect = () => rect; } };
+  function NativeSnapFeedback() {
+    const editor = tldraw.useEditor();
+    const lines = tldraw.useValue('Native snap feedback under test', () => editor.snaps.getIndicators(), [editor]);
+    const zoom = tldraw.useValue('Native snap feedback zoom', () => editor.getZoomLevel(), [editor]);
+    return <>{lines.map(line => <DrawingSnapIndicator key={line.id} className="tl-user-snapline" line={line} zoom={zoom} />)}</>;
+  }
   function Canvas() {
     useDocumentEvents();
     const events = useCanvasEvents();
     return <div className="tl-canvas" {...events}>
       <DrawingGuideOverlay />
+      <NativeSnapFeedback />
       <div className="canvas-form-sheet" onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         <input aria-label="Order address" defaultValue="Rīga" />
       </div>
@@ -141,6 +148,96 @@ async function harness(run: (value: any) => Promise<void>) {
 }
 
 describe('Guideline drag with a real editor and DOM events', () => {
+  it('hides obsolete native bbox feedback during geometric snapping and restores it without changing native snap state', async () => {
+    await harness(async ({ editor, container, act, tick }) => {
+      const { drawingPickGuideSnap } = await import('../../src/lib/components/canvas/drawing-pick-guide-snap');
+      const native = [{ id: 'native-bbox', type: 'points', points: [{ x: 180, y: 50 }, { x: 180, y: 220 }] }];
+      await act(async () => editor.snaps.setIndicators(native));
+      await tick();
+      const nativeLine = () => container.querySelector('.tl-user-snapline .tl-snap-indicator line');
+      assert.ok(nativeLine(), 'the default indicator draws native bbox alignment before a geometric target is acquired');
+      assert.equal(nativeLine()!.getAttribute('x1'), '180');
+      assert.equal(nativeLine()!.getAttribute('y2'), '220');
+      const nativeState = editor.snaps.getIndicators();
+      await act(async () => drawingPickGuideSnap(editor).set({
+        guides: [], delta: { x: 5, y: 0 }, object: { point: { x: 185, y: 90 }, kind: 'endpoints' },
+      }));
+      await tick();
+      assert.equal(nativeLine(), null, 'obsolete native alignment lines do not contradict the actual geometric snap');
+      const objectMarker = container.querySelector('[data-testid="drawing-pick-object-snap"] circle');
+      assert.ok(objectMarker); assert.equal(objectMarker.getAttribute('cx'), '185');
+      assert.strictEqual(editor.snaps.getIndicators(), nativeState, 'hiding feedback leaves the native gesture state intact');
+      assert.deepEqual(editor.snaps.getIndicators(), native);
+      await act(async () => drawingPickGuideSnap(editor).set(null));
+      await tick();
+      assert.ok(nativeLine(), 'native feedback returns when the geometric snap is cleared');
+      assert.equal(container.querySelector('[data-testid="drawing-pick-object-snap"]'), null);
+      assert.strictEqual(editor.snaps.getIndicators(), nativeState);
+      assert.deepEqual(editor.snaps.getIndicators(), native);
+    });
+  });
+
+  it('translates an angled line and its pivot freely in both axes while preserving the grabbed offset', async () => {
+    await harness(async ({ editor, guides, drag, env, line, pointer, snapshot, act, tick }) => {
+      await act(async () => {
+        editor.user.updateUserPreferences({ isSnapMode: false });
+        assert.equal(guides.applyDrawingGuideChange(editor, guides.prepareDrawingGuideChange(editor, {
+          kind: 'add', id: 'guide:free', axis: 'angle', pivot: { x: 160, y: 140 }, angle: 45,
+        })), true);
+      });
+      await tick();
+      const screen = (x: number, y: number) => { const p = editor.pageToScreen({ x, y }); return { clientX: p.x, clientY: p.y }; };
+      const before = snapshot();
+      // Grab six page units off the line, away from both handles.
+      await pointer(line('guide:free'), 'pointerdown', screen(220, 86));
+      await pointer(env.win, 'pointermove', screen(260, 111));
+      assert.deepEqual(drag.drawingGuideDrag(editor).get().pivot, { x: 200, y: 165 });
+      assert.equal(drag.drawingGuideDrag(editor).get().angle, 45);
+      assert.deepEqual(snapshot(), before);
+      await pointer(env.win, 'pointerup', screen(260, 111));
+      assert.deepEqual(guides.readDrawingGuides(editor).guides[0].pivot, { x: 200, y: 165 });
+      await act(async () => editor.undo());
+      assert.deepEqual(snapshot(), before, 'one Undo restores the complete diagonal translation');
+    });
+  });
+
+  it('snaps a moved guideline to artwork and releases/reacquires the target with Q without moving the pointer', async () => {
+    await harness(async ({ editor, guides, drag, env, container, line, pointer, addArtwork, addGuide, snapshot, act, tick }) => {
+      const { isCadSnapSuppressed, setCadSnapSuppressed } = await import('../../src/lib/components/canvas/cad-snap-settings');
+      await addArtwork(); await addGuide('x', 150);
+      await act(async () => editor.user.updateUserPreferences({ isSnapMode: true }));
+      const screen = (x: number, y: number) => { const p = editor.pageToScreen({ x, y }); return { clientX: p.x, clientY: p.y }; };
+      const before = snapshot();
+      await pointer(line(), 'pointerdown', screen(150, 70));
+      await pointer(env.win, 'pointermove', screen(83, 70));
+      near(drag.drawingGuideDrag(editor).get().position, 80);
+      assert.equal(drag.drawingGuideDrag(editor).get().snap.kind, 'centers');
+      assert.ok(container.querySelector('[data-testid="drawing-guide-object-snap"]'));
+      await act(async () => env.win.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', code: 'KeyQ', bubbles: true, cancelable: true })));
+      await tick();
+      near(drag.drawingGuideDrag(editor).get().position, 83);
+      assert.equal(isCadSnapSuppressed(editor), true);
+      assert.equal(container.querySelector('[data-testid="drawing-guide-object-snap"]'), null);
+      assert.deepEqual(snapshot(), before);
+      await act(async () => env.win.dispatchEvent(new KeyboardEvent('keyup', { key: 'q', code: 'KeyQ', bubbles: true, cancelable: true })));
+      await tick();
+      near(drag.drawingGuideDrag(editor).get().position, 80);
+      assert.equal(isCadSnapSuppressed(editor), false);
+      await pointer(env.win, 'pointerup', screen(83, 70));
+      near(guides.readDrawingGuides(editor).guides[0].position, 80);
+      assert.equal(editor.user.getIsSnapMode(), true, 'temporary bypass does not change preferences');
+      await act(async () => editor.undo());
+      assert.deepEqual(snapshot(), before);
+      await act(async () => setCadSnapSuppressed(editor, true));
+      await pointer(line(), 'pointerdown', screen(150, 70));
+      await pointer(env.win, 'pointermove', screen(83, 70));
+      near(drag.drawingGuideDrag(editor).get().position, 83);
+      await act(async () => drag.cancelDrawingGuideDrag(editor));
+      assert.equal(isCadSnapSuppressed(editor), false, 'canceling the capturing guide never leaves global snapping suppressed');
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
   it('exposes rotation on the second click of an axis guide and promotes it only when committed', async () => {
     await harness(async ({ editor, container, env, guides, addGuide, pointer, line, snapshot, act, tick }) => {
       await addGuide('x', 150);

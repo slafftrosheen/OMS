@@ -1,4 +1,5 @@
 import type { Editor } from '@tldraw/tldraw';
+import { duplicateDrawingSelection } from './drawing-duplicate';
 
 export interface ToolkitControlsState {
   tool: string;
@@ -100,6 +101,7 @@ export function applyToolkitToolbarAction(editor: Editor | null, action: string)
   else if (action === 'redo' && state.canRedo) editor.redo();
   else {
     if (!canApplySelectionCommand(state, action)) return false;
+    if (action === 'duplicate') return duplicateDrawingSelection(editor);
     // Native group/ungroup silently refuse outside Select. Finish the user's
     // gesture before the dock's history boundary, then recheck what is selected.
     editor.complete();
@@ -109,8 +111,7 @@ export function applyToolkitToolbarAction(editor: Editor | null, action: string)
     const ids = [...editor.getSelectedShapeIds()];
     let operation: (() => void) | undefined;
     if (current.canEditSelection) {
-      if (action === 'duplicate') operation = () => { editor.duplicateShapes(ids, { x: 24, y: 24 }); };
-      else if (action === 'delete') operation = () => { editor.deleteShapes(ids); };
+      if (action === 'delete') operation = () => { editor.deleteShapes(ids); };
       else if (action === 'front') operation = () => { editor.bringToFront(ids); };
       else if (action === 'back') operation = () => { editor.sendToBack(ids); };
       else if (action === 'group' && current.canGroup) operation = () => {

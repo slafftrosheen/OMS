@@ -22,7 +22,14 @@ const en = {
   showOverlay:'Show layout on canvas',
   repeatOutsideSheet:'Move the selection inside the sheet margin or reduce the margin.',
   repeatNoRoom:'There is no room for another copy. Try a different direction or smaller gaps.',
-  invalidSheet:'Enter a nonnegative margin and gaps.'
+  invalidSheet:'Enter a nonnegative margin and gaps.',
+  duplicateOffsetTitle:'Duplicate offsets · Ctrl+D', duplicateX:'X offset', duplicateY:'Y offset',
+  saveDuplicateOffsets:'Use these duplicate offsets',
+  duplicateOffsetHelp:'Positive X moves right; positive Y moves up. Zero places a copy on top. These page defaults replace the last Alt-drag displacement.',
+  duplicateInvalid:'Enter finite X and Y offsets within the drawing coordinate limit. Zero is allowed.',
+  duplicateSaved:'Duplicate offsets saved for this page.',
+  duplicateBusy:'Finish or cancel the current drawing or drag before saving duplicate offsets.',
+  duplicateFailed:'Duplicate offsets could not be saved. The drawing may be read-only or at its capacity.'
 };
 type Key=keyof typeof en;
 const ru:Record<Key,string>={
@@ -45,7 +52,14 @@ const ru:Record<Key,string>={
   showOverlay:'Показать раскладку на чертеже',
   repeatOutsideSheet:'Переместите выделение внутрь области листа или уменьшите отступ.',
   repeatNoRoom:'Для ещё одной копии нет места. Измените направление или уменьшите зазоры.',
-  invalidSheet:'Укажите неотрицательные значения отступа и зазоров.'
+  invalidSheet:'Укажите неотрицательные значения отступа и зазоров.',
+  duplicateOffsetTitle:'Смещение копии · Ctrl+D', duplicateX:'Смещение X', duplicateY:'Смещение Y',
+  saveDuplicateOffsets:'Применить смещение копий',
+  duplicateOffsetHelp:'Положительный X — вправо, положительный Y — вверх. Ноль размещает копию поверх оригинала. Настройки этой страницы заменяют смещение последнего копирования с Alt.',
+  duplicateInvalid:'Введите конечные значения X и Y в пределах координат чертежа. Нулевое смещение допустимо.',
+  duplicateSaved:'Смещение копий сохранено для этой страницы.',
+  duplicateBusy:'Завершите или отмените текущее рисование или перетаскивание перед сохранением смещения копий.',
+  duplicateFailed:'Не удалось сохранить смещение. Чертёж может быть доступен только для чтения или достиг предела объёма.'
 };
 const lv:Record<Key,string>={
   protected:'Atlasiet rediģējamus zīmējuma objektus. Pasūtījuma formas, rāmjus, apgrieztus un bloķētus objektus nevar atkārtot.',
@@ -67,7 +81,14 @@ const lv:Record<Key,string>={
   showOverlay:'Rādīt izkārtojumu zīmējumā',
   repeatOutsideSheet:'Pārvietojiet atlasi atkāpes iekšpusē vai samaziniet atkāpi.',
   repeatNoRoom:'Vēl vienai kopijai nepietiek vietas. Mainiet virzienu vai samaziniet atstarpes.',
-  invalidSheet:'Ievadiet nenegatīvas atkāpes un atstarpju vērtības.'
+  invalidSheet:'Ievadiet nenegatīvas atkāpes un atstarpju vērtības.',
+  duplicateOffsetTitle:'Kopijas nobīde · Ctrl+D', duplicateX:'X nobīde', duplicateY:'Y nobīde',
+  saveDuplicateOffsets:'Lietot šīs kopiju nobīdes',
+  duplicateOffsetHelp:'Pozitīvs X pārvieto pa labi, pozitīvs Y — uz augšu. Nulle novieto kopiju uz oriģināla. Šīs lapas iestatījumi aizstāj pēdējo nobīdi, kas iegūta, kopējot ar Alt.',
+  duplicateInvalid:'Ievadiet galīgas X un Y vērtības zīmējuma koordinātu robežās. Ir atļauta arī nulle.',
+  duplicateSaved:'Kopiju nobīdes ir saglabātas šai lapai.',
+  duplicateBusy:'Pirms kopiju nobīžu saglabāšanas pabeidziet vai atceliet pašreizējo zīmēšanu vai vilkšanu.',
+  duplicateFailed:'Neizdevās saglabāt nobīdes. Zīmējums var būt tikai lasāms vai sasniedzis ietilpības ierobežojumu.'
 };
 const subscribe=(notify:()=>void)=>locale.subscribe(()=>notify());
 export function useRepeatText(){

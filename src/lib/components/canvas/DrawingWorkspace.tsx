@@ -61,7 +61,7 @@ import {CadSnapPanel} from './CadSnapPanel';
 import { convertSelectionToCurves, deleteCadCurveNodes, getCadCurveConversionIssue, nudgeCadCurveNodes } from './cad-editing';
 import { hasCanvasDraft } from './canvas-document';
 import { drawingGridVisible } from './drawing-grid-state';
-import { canWriteCadSnapSettings, readCadSnapSettings, writeCadSnapSettings } from './cad-snap-settings';
+import { canWriteCadSnapSettings, isCadSnapSuppressed, setCadSnapSuppressed, readCadSnapSettings, writeCadSnapSettings } from './cad-snap-settings';
 import {useSnapText} from './snap-copy';
 import {DrawingFontPicker, NextDrawingFontPicker} from './DrawingFonts';
 import {applySelectedDrawingFont, clearSelectedDrawingFontOverrides, drawingFontValue, setNextDrawingFont} from './drawing-fonts';
@@ -78,6 +78,7 @@ import {
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
+import { duplicateDrawingSelection } from './drawing-duplicate';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { DrawingPageNavigator } from './DrawingPageSetup';
 import { CanvasModeContext } from './canvas-mode';
@@ -549,6 +550,7 @@ const styleFields = [
 export function DrawingChrome() {
   const context = useContext(Context);
   const editor = useEditor();
+  useEffect(() => () => setCadSnapSuppressed(editor, false), [editor]);
   const { label, tr } = useDrawingText();
   const productionLabel = useProductionToolsText();
   const { label: cadLabel } = useCadText();
@@ -1021,6 +1023,13 @@ export function DrawingChrome() {
         return;
       }
       const canvasFocus = inDrawing && !event.target.closest('button,a[href],[role="button"],[role="textbox"]');
+      if (canvasFocus && (event.code === 'KeyQ' || key === 'q') && !modifier && !event.altKey) {
+        setCadSnapSuppressed(editor, true);
+        event.preventDefault();
+        // Let native Translating see Q, so it immediately refreshes the same
+        // pointer with all snap targets disabled, even without a mouse move.
+        return;
+      }
       if (canvasFocus && event.key === 'Escape' && oneShotZoom.current && editor.isIn('zoom')) {
         event.preventDefault(); event.stopPropagation(); restoreZoomTool(); return;
       }
@@ -1090,6 +1099,12 @@ export function DrawingChrome() {
       spaceState.current = { at: performance.now(), moved: false };
     };
     const clearSpace = () => { spaceState.current = null; };
+    const clearSnapBypass = () => setCadSnapSuppressed(editor, false);
+    const releaseSnapBypass = (event: KeyboardEvent) => {
+      if (event.code === 'KeyQ' || event.key.toLowerCase() === 'q') {
+        if (isCadSnapSuppressed(editor)) setCadSnapSuppressed(editor, false);
+      }
+    };
     const spaceMove = (event: PointerEvent) => { if (spaceState.current && (event.movementX || event.movementY)) spaceState.current.moved = true; };
     const spaceUp = (event: KeyboardEvent) => {
       const space = spaceState.current;
@@ -1112,12 +1127,14 @@ export function DrawingChrome() {
     // Key-up can land outside the workspace once the canvas arms panning; the
     // document sees it either way, and `space` is only set by a canvas key-down.
     root.ownerDocument.addEventListener('keyup', spaceUp, true);
+    root.ownerDocument.addEventListener('keyup', releaseSnapBypass, true);
     root.addEventListener('pointermove', spaceMove, true);
     root.addEventListener('keydown', keys, true);
     root.addEventListener('keyup', keyUp, true);
     window.addEventListener('blur', clearSpace);
+    window.addEventListener('blur', clearSnapBypass);
     document.addEventListener('pointerdown', outside);
-    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', keyUp, true); editor.off('event', afterZoom); window.removeEventListener('blur', clearSpace); document.removeEventListener('pointerdown', outside); };
+    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.ownerDocument.removeEventListener('keyup', releaseSnapBypass, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', keyUp, true); editor.off('event', afterZoom); window.removeEventListener('blur', clearSpace); window.removeEventListener('blur', clearSnapBypass); document.removeEventListener('pointerdown', outside); };
   }, [context?.root, context?.setPanel, editor, openMenu, toolGroup, cadLabel, advancedLabel, label]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
@@ -1464,10 +1481,7 @@ export function DrawingChrome() {
   function flash(text: string, keys?: string) { setHud(previous => ({ text, keys, serial: (previous?.serial ?? 0) + 1 })); }
   /** Desktop "+": a copy exactly on top, selected, ready to move. */
   function duplicateInPlace() {
-    const ids = [...editor.getSelectedShapeIds()];
-    if (!ids.length || !captureToolkitControls(editor).canEditSelection) return false;
-    editor.complete(); editor.setCurrentTool('select');
-    const applied = drawingTransaction(editor, () => { editor.duplicateShapes(ids, { x: 0, y: 0 }); });
+    const applied = duplicateDrawingSelection(editor, { x: 0, y: 0 });
     setNotice(applied ? '' : label('changedFailed'));
     return applied;
   }
