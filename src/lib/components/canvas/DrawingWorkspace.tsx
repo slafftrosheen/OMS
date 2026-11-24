@@ -462,6 +462,42 @@ function CadAnchorControl({ value, onChange }: { value: CadAnchor; onChange: (an
   </label>;
 }
 
+function DrawingStatusCursor({ settings, label }: { settings: CadSettings | null; label: string }) {
+  const editor = useEditor();
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const container = editor.getContainer();
+    let frame = 0;
+    let screen = { x: 0, y: 0 };
+    const move = (event: PointerEvent) => {
+      screen = { x: event.clientX, y: event.clientY };
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; setCursor(screen); });
+    };
+    const leave = () => { if (frame) cancelAnimationFrame(frame); frame = 0; setCursor(null); };
+    container.addEventListener('pointermove', move);
+    container.addEventListener('pointerleave', leave);
+    return () => { container.removeEventListener('pointermove', move); container.removeEventListener('pointerleave', leave); if (frame) cancelAnimationFrame(frame); };
+  }, [editor]);
+  const page = useValue('Drawing cursor position', () => cursor ? editor.screenToPage(cursor) : null, [editor, cursor]);
+  const point = page && settings ? canvasPointToCad(page, settings) : page;
+  const digits = settings ? Math.min(3, settings.precision) : 0;
+  return <span className="drawing-status-cursor" title={label} aria-label={label} data-testid="drawing-status-cursor">
+    {point ? `${point.x.toFixed(digits)}, ${point.y.toFixed(digits)}${settings ? ` ${settings.unit}` : ''}` : '—'}
+  </span>;
+}
+
+function DrawingZoomOptions({ label, children, onChange }: { label: string; children: ReactNode; onChange: (value: string) => void }) {
+  const editor = useEditor();
+  const zoom = useValue('Drawing zoom percentage', () => editor.getZoomLevel(), [editor]);
+  const percent = zoom * 100;
+  return <select aria-label={label} value="current" onChange={event => onChange(event.target.value)}>
+    <option value="current" disabled>{percent < 1 ? Number(percent.toPrecision(3)) : Math.round(percent)}%</option>
+    {[.01, .05, .1, .25, .5, 1, 2, 4].map(value => <option key={value} value={value}>{value * 100}%</option>)}
+    {children}
+  </select>;
+}
+
 function Ruler({ vertical = false, settings, onGuides }: { vertical?: boolean; settings: CadSettings | null; onGuides: () => void }) {
   const editor = useEditor();
   const t = useGuideText();
@@ -554,7 +590,6 @@ export function DrawingChrome() {
     const timer = setTimeout(() => setHud(current => current?.serial === hud.serial ? null : current), 1300);
     return () => clearTimeout(timer);
   }, [hud]);
-  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   // Desktop click rhythm: a second single click on the selected object shows the
   // rotate/skew handles; a double-click edits its text. The canvas engine would
   // start label editing on that second click, so hand it back to Pick here.
@@ -608,19 +643,6 @@ export function DrawingChrome() {
     const pressed = context?.hosts.tools?.querySelector('.drawing-tool-group .drawing-button[aria-pressed="true"]');
     drawingMotion(pressed, drawingMoves.press, { duration: 220 });
   }, [motionTool]);
-  useEffect(() => {
-    // The status bar shows the pointer in page (or CAD) coordinates, throttled to one frame.
-    const container = editor.getContainer();
-    let frame = 0;
-    const move = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => { frame = 0; const point = editor.inputs.currentPagePoint; setCursor({ x: point.x, y: point.y }); });
-    };
-    const leave = () => { if (frame) cancelAnimationFrame(frame); frame = 0; setCursor(null); };
-    container.addEventListener('pointermove', move);
-    container.addEventListener('pointerleave', leave);
-    return () => { container.removeEventListener('pointermove', move); container.removeEventListener('pointerleave', leave); if (frame) cancelAnimationFrame(frame); };
-  }, [editor]);
   const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
   const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
   const nodeEditing = useValue('CAD node editing mode', () => isCadNodeEditing(editor), [editor]);
@@ -658,8 +680,9 @@ export function DrawingChrome() {
   const styles = useRelevantStyles();
   const controls = useValue('drawing controls', () => captureToolkitControls(editor, editor.getStyleForNextShape(GeoShapeGeoStyle)), [editor]);
   const state = useValue('drawing display', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(), selectedShapes: editor.getSelectedShapes(),
-    zoom: editor.getZoomLevel(), grid: drawingGridVisible(editor).get(), snap: editor.user.getIsSnapMode(), snapTargets: readCadSnapSettings(editor),
+    grid: drawingGridVisible(editor).get(), snap: editor.user.getIsSnapMode(), snapTargets: readCadSnapSettings(editor),
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
+  const selectionSummary = useMemo(() => summarizeDrawingSelection(state.selectedShapes, getDefaultColorTheme({ isDarkMode: false }) as any), [state.selectedShapes]);
   const [notice, setNotice] = useState('');
   const guides = useValue('Guidelines toolbar state', () => ({ ...readDrawingGuides(editor), valid: drawingGuidesAreValid(editor) }), [editor]);
   const guideNotice = useValue('Guideline editing message', () => drawingGuideNotice(editor).get(), [editor]);
@@ -1513,12 +1536,6 @@ export function DrawingChrome() {
     id: tool, label: toolLabel(tool), icon: tool, active: toolActive(tool),
     enabled: toolEnabled(tool), run: () => chooseTool(tool),
   })), words) : [];
-  const selectionSummary = summarizeDrawingSelection(state.selectedShapes, getDefaultColorTheme({ isDarkMode: false }) as any);
-  const cursorText = cursor ? (() => {
-    const point = settings ? canvasPointToCad(cursor, settings) : cursor;
-    const digits = settings ? Math.min(3, settings.precision) : 0;
-    return `${point.x.toFixed(digits)}, ${point.y.toFixed(digits)}${settings ? ` ${settings.unit}` : ''}`;
-  })() : '';
   const shapeName = (type: string | null) => type ? words.shapes[type] ?? words.shapes.curve : words.shapes.curve;
   const selectionText = !selectionSummary.count ? words.ui.noSelection
     : selectionSummary.count === 1 ? `${shapeName(selectionSummary.type)}${cadSelection && settings ? ` · ${Number(cadSelection.w?.toFixed(settings.precision) ?? 0)} × ${Number(cadSelection.h?.toFixed(settings.precision) ?? 0)} ${settings.unit}` : ''}`
@@ -1617,7 +1634,8 @@ export function DrawingChrome() {
     </>)}
     {portal('properties', <>
       {textProperties ? <span className="drawing-property-caption">{label(nextText ? 'nextText' : 'selectedText')}{selectedText && selectedText.length > 1 ? ` · ${selectedText.length}` : ''}</span>
-        : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool === 'cad-line' ? 'line' : controls.tool)}</span>}<span className="drawing-divider" />
+        : <span className="drawing-tool-name" title={controls.tool === 'select' ? label(nodeEditing ? 'nodeMarquee' : 'pickMarquee') : undefined}>
+          {toolLabel(nodeEditing ? 'nodes' : controls.tool === 'cad-line' ? 'line' : controls.tool)}</span>}<span className="drawing-divider" />
       {selectedText ? <SelectedTextProperties key={state.selected.join('|')} shapes={selectedText} disabled={!controls.canEditSelection}
         onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} onFonts={focusFonts} />
       : nextText ? <fieldset className="drawing-context-properties" disabled={!controls.canStyle} aria-label={label('nextText')} data-testid="drawing-next-text-properties">
@@ -1772,7 +1790,7 @@ export function DrawingChrome() {
     {portal('status', <>
       {multiplePages && pages.length > 1 && <DrawingPageNavigator pages={pages} active={editor.getCurrentPageId()}
         onSelect={id => { if (!switchDrawingPage(editor, id)) setNotice(label('changedFailed')); else setNotice(''); }} />}
-      <span className="drawing-status-cursor" title={words.ui.cursor} aria-label={words.ui.cursor} data-testid="drawing-status-cursor">{cursorText || '—'}</span>
+      <DrawingStatusCursor settings={settings} label={words.ui.cursor} />
       <span className="drawing-status-text" role="status" title={statusText}>{statusText}</span>
       <span key={selectionText} className="drawing-status-object" data-testid="drawing-status-object" title={selectionText}>{selectionText}</span>
       {paintSwatch(selectionSummary.fill, 'fill')}{paintSwatch(selectionSummary.outline, 'outline')}
@@ -1780,14 +1798,12 @@ export function DrawingChrome() {
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>
       <button type="button" className="drawing-snap-options-shortcut" onClick={() => setPanel('snap')} aria-pressed={panel === 'snap'} data-testid="drawing-status-snap-options">{snapLabel('open')}</button>
-      <div className="drawing-zoom" aria-label={label('zoom')}>
+      <div className="drawing-zoom" aria-label={label('zoom')} title={label('zoomWheel')}>
         <ToolButton label={label('zoomOut')} onClick={() => command('zoom-out')}>−</ToolButton>
-        <select aria-label={label('zoom')} value="current" onChange={event => { if (event.target.value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (event.target.value === 'fit') command('fit'); else if (event.target.value === 'selection') command('fit-selection'); else { editor.setCamera({ ...editor.getCamera(), z: Number(event.target.value) }); } }}>
-          <option value="current" disabled>{Math.round(state.zoom * 100)}%</option>
-          {[0.25, 0.5, 1, 2, 4].map(value => <option key={value} value={value}>{value * 100}%</option>)}
+        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else { editor.setCamera({ ...editor.getCamera(), z: Number(value) }); } }}>
           {pageBounds && <option value="page">{label('pageFit')}</option>}
           <option value="fit" disabled={!controls.hasShapes}>{actionLabel('fit')}</option><option value="selection" disabled={!controls.canFitSelection}>{actionLabel('fit-selection')}</option>
-        </select>
+        </DrawingZoomOptions>
         <ToolButton label={label('zoomIn')} onClick={() => command('zoom-in')}>+</ToolButton>
       </div>
     </>)}

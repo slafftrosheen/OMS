@@ -3,7 +3,7 @@ import type { CadContour } from './cad-curves';
 import type { CadBezierShape } from './shapes/CadBezierShape';
 
 export interface CadNodeSelection { shapeId: string; contourIndex: number; nodeIndex: number }
-interface NodeSet { shapeId: string; geometry: string; nodes: CadNodeSelection[] }
+interface NodeSet { shapeId: string; geometry: CadContour[]; nodes: CadNodeSelection[] }
 function selectionAtom() { return atom<NodeSet | null>('CAD selected nodes', null); }
 const selections = new WeakMap<Editor, ReturnType<typeof selectionAtom>>();
 function editingAtom() { return atom('CAD node editing', false); }
@@ -28,7 +28,7 @@ export function getSelectedCadNodes(editor: Editor): CadNodeSelection[] {
   if (shape?.type !== 'cad-bezier') return [];
   const saved = selection(editor).get();
   if (!saved) return [{ shapeId: shape.id, contourIndex: 0, nodeIndex: 0 }];
-  if (saved.shapeId !== shape.id || saved.geometry !== JSON.stringify(shape.props.contours)) return [];
+  if (saved.shapeId !== shape.id || saved.geometry !== shape.props.contours) return [];
   return saved.nodes;
 }
 /** Legacy inspector always has a valid node, independent of the batch set. */
@@ -42,7 +42,7 @@ export function setSelectedCadNodes(editor: Editor, nodes: ReadonlyArray<{contou
   if (shape?.type !== 'cad-bezier' || nodes.length > 4096 ||
       nodes.some(n => !Number.isInteger(n.contourIndex) || !Number.isInteger(n.nodeIndex) || !shape.props.contours[n.contourIndex]?.nodes[n.nodeIndex])) return false;
   const unique = new Map(nodes.map(n => [n.contourIndex + ':' + n.nodeIndex, { shapeId: shape.id, contourIndex: n.contourIndex, nodeIndex: n.nodeIndex }]));
-  selection(editor).set({shapeId:shape.id,geometry:JSON.stringify(shape.props.contours),nodes:[...unique.values()]});
+  selection(editor).set({shapeId:shape.id,geometry:shape.props.contours,nodes:[...unique.values()]});
   return true;
 }
 export function selectCadNode(editor: Editor, contourIndex: number, nodeIndex: number): boolean {
@@ -63,8 +63,8 @@ export function toggleCadNode(editor: Editor, contourIndex: number, nodeIndex: n
  * only when it still describes the exact current document before that update. */
 export function retainCadNodesAfterHandleDrag(editor: Editor, contours: CadContour[]): void {
   const shape=editor.getOnlySelectedShape() as CadBezierShape|undefined, saved=selection(editor).get();
-  if(shape?.type!=='cad-bezier'||saved?.shapeId!==shape.id||saved.geometry!==JSON.stringify(shape.props.contours))return;
-  selection(editor).set({...saved,geometry:JSON.stringify(contours)});
+  if(shape?.type!=='cad-bezier'||saved?.shapeId!==shape.id||saved.geometry!==shape.props.contours)return;
+  selection(editor).set({...saved,geometry:contours});
 }
 
 /** Observe native handle presses without taking focus or interrupting dragging. */

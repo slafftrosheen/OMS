@@ -7,6 +7,7 @@ import { transformAppearance } from "../cad-appearance";
 import { vectorPaint, paintMetadata } from "../cad-vector";
 import type { VectorPaint } from "../cad-paint";
 import { cadFreehandPreview } from "../cad-freehand-state";
+import { CAD_MAX_COORDINATE } from '../cad-limits';
 import {
   ShapeUtil,
   SVGContainer,
@@ -42,6 +43,26 @@ export type CadBezierShape = TLBaseShape<
     fillRule: "evenodd" | "nonzero";
   }
 >;
+
+/** The editor's compound-geometry hover path tests every child without a
+ * bounds check. Keep distant Béziers out of that hot path before tessellation. */
+export function installCadBezierHoverBounds(editor: Editor): () => void {
+  const getShapeAtPoint = editor.getShapeAtPoint;
+  const withBounds: typeof getShapeAtPoint = (point, options) => {
+    if (!options?.renderingOnly) return getShapeAtPoint.call(editor, point, options);
+    return getShapeAtPoint.call(editor, point, { ...options, filter: shape => {
+      if (options.filter && !options.filter(shape)) return false;
+      if (shape.type !== 'cad-bezier') return true;
+      const paint = shape.meta.omsVectorPaint as { strokeWidth?: number } | undefined;
+      const outline = typeof paint?.strokeWidth === 'number' && Number.isFinite(paint.strokeWidth) ? paint.strokeWidth / 2 : 1;
+      const bounds = editor.getShapePageBounds(shape);
+      return !bounds || bounds.containsPoint(point, (options.margin ?? 0) + Math.max(0, outline));
+    } });
+  };
+  editor.getShapeAtPoint = withBounds;
+  return () => { if (editor.getShapeAtPoint === withBounds) editor.getShapeAtPoint = getShapeAtPoint; };
+}
+
 function CadBezierArtwork({ editor, shape, artwork }: { editor: Editor; shape: CadBezierShape; artwork: React.ReactNode }) {
   const preview = useValue('Freehand source artwork', () => {
     const preview = cadFreehandPreview(editor).get();
@@ -73,6 +94,17 @@ const contours = T.arrayOf(
     throw new Error("Invalid CAD curves");
 });
 type CurveClip = { points: Array<Array<{ x: number; y: number }>>; fillRule: string };
+/** Keep interactive tessellation bounded even for large, intricate imports.
+ * Exact bounds and the displayed/exported Béziers still use the source nodes. */
+function flattenForPicking(contours: CadContour[]) {
+  const maxTolerance = 4 * CAD_MAX_COORDINATE;
+  for (let tolerance = .25; ; tolerance = Math.min(maxTolerance, tolerance * 8)) {
+    try { return flattenContours(contours, tolerance, 60000); }
+    catch (error) {
+      if (!(error instanceof Error) || error.message !== 'limit' || tolerance === maxTolerance) throw error;
+    }
+  }
+}
 function inCurveClips(point: Vec, clips: CurveClip[]) {
   return clips.every((c) => {
     let winding = 0;
@@ -87,25 +119,26 @@ function inCurveClips(point: Vec, clips: CurveClip[]) {
   });
 }
 function curveClips(paint: VectorPaint): CurveClip[] {
-  return (paint.clips ?? []).map(c => ({ points: flattenContours(c.contours, .25, 200000), fillRule: c.fillRule }));
+  return (paint.clips ?? []).map(c => ({ points: flattenForPicking(c.contours), fillRule: c.fillRule }));
 }
 type StrokePick = { radius: number; visible: boolean; inClips: (point: Vec) => boolean };
-function strokePick(paint: VectorPaint, opacity: number, clips?: CurveClip[]): StrokePick | null {
+function strokePick(paint: VectorPaint, opacity: number, loadClips = () => curveClips(paint)): StrokePick | null {
   if (paint.fill !== 'none' || paint.gradient || paint.raster) return null;
   // Dashes are a visual style. Pick the continuous path so thin or dashed
   // production outlines remain selectable anywhere near their geometry.
-  const masks = clips ?? curveClips(paint);
+  let masks: CurveClip[] | undefined;
   let x = NaN, y = NaN, included = false;
   return { radius: paint.strokeWidth / 2, visible: paint.stroke !== 'none' && paint.strokeWidth > 0 && paint.strokeOpacity > 0 && opacity > 0,
     inClips(point) {
       // Native Group2d picking asks every contour about the same point. Reuse
       // one mask test instead of repeating a compound clip for every branch.
-      if (point.x !== x || point.y !== y) { x = point.x; y = point.y; included = inCurveClips(point, masks); }
+      if (point.x !== x || point.y !== y) { x = point.x; y = point.y; included = inCurveClips(point, masks ??= loadClips()); }
       return included;
     } };
 }
 class StrokePolyline extends Polyline2d {
-  constructor(points: Vec[], private strokeHit: () => StrokePick | null) { super({ points }); }
+  constructor(private loadPoints: () => Vec[], private strokeHit: () => StrokePick | null) { super({ points: [] }); }
+  override getVertices() { return this.points = this.loadPoints(); }
   override distanceToPoint(point: Vec, hitInside = false) {
     const stroke = this.strokeHit();
     // Editor.getShapeAtPoint tests Group2d children directly and skips a
@@ -125,8 +158,8 @@ class CurveGeometry extends Group2d {
     children: Polyline2d[],
     private fillRule: "evenodd" | "nonzero",
     private filled: boolean,
-    private clips: CurveClip[] = [],
-    private strokeHit: () => StrokePick | null = () => null,
+    private loadClips: () => CurveClip[],
+    private strokeHit: () => StrokePick | null,
   ) {
     super({ children });
     this.isFilled = filled;
@@ -156,7 +189,7 @@ class CurveGeometry extends Group2d {
       : winding !== 0;
   }
   private inClips(point: Vec) {
-    return inCurveClips(point, this.clips);
+    return inCurveClips(point, this.loadClips());
   }
   override hitTestPoint(point: Vec, margin = 0, hitInside = false) {
     if (this.strokeHit()) return super.hitTestPoint(point, margin, false);
@@ -210,9 +243,12 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
     };
   }
   override getGeometry(shape: CadBezierShape) {
-    const bounds = curveBounds(shape.props.contours);
-    const paint = vectorPaint(shape.meta, shape.props.color), clips = curveClips(paint);
-    let meta = shape.meta, opacity = shape.opacity, stroke = strokePick(paint, opacity, clips);
+    const shapeContours = shape.props.contours;
+    const bounds = curveBounds(shapeContours);
+    const paint = vectorPaint(shape.meta, shape.props.color);
+    let clips: CurveClip[] | undefined;
+    const loadClips = () => clips ??= curveClips(paint);
+    let meta = shape.meta, opacity = shape.opacity, stroke = strokePick(paint, opacity, loadClips);
     const strokeHit = () => {
       // The installed Editor's geometry cache compares props, not metadata or
       // opacity. Outline edits must change picking without changing saved nodes.
@@ -223,29 +259,17 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
       }
       return stroke;
     };
-    // Use a subpixel approximation first. Tolerating error proportional to
-    // the artwork size makes full-sheet curves miss the pointer at working zoom.
-    let points: ReturnType<typeof flattenContours>;
-    try {
-      points = flattenContours(shape.props.contours, 0.25, 200000);
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== 'limit') throw error;
-      points = flattenContours(shape.props.contours, Math.max(0.25, bounds.w / 500, bounds.h / 500), 200000);
-    }
+    // Culling, fitting and selection bounds do not need a polyline per curve.
+    let points: ReturnType<typeof flattenContours> | undefined;
     return new CurveGeometry(
       bounds,
-      points.map(
-        (p, i) =>
-          new StrokePolyline(
-            (shape.props.contours[i].closed ? [...p, p[0]] : p).map(
-              (q) => new Vec(q.x, q.y),
-            ),
-            strokeHit,
-          ),
-      ),
+      shapeContours.map((contour, i) => new StrokePolyline(() => {
+        const vertices = (points ??= flattenForPicking(shapeContours))[i];
+        return (contour.closed ? [...vertices, vertices[0]] : vertices).map(point => new Vec(point.x, point.y));
+      }, strokeHit)),
       shape.props.fillRule,
       paint.fill !== "none" || !!paint.raster || !!paint.gradient,
-      clips,
+      loadClips,
       strokeHit,
     );
   }

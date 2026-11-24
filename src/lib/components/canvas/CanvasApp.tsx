@@ -27,6 +27,8 @@ import { installDrawingRotationPivot } from './drawing-rotation-pivot';
 import { cancelDrawingRotationPointer } from './drawing-pick-rotation';
 import { installDrawingPickGuideSnapping } from './drawing-pick-guide-snap';
 import { installDrawingPickClickToggle } from './drawing-pick-click-toggle';
+import { DRAWING_CAMERA_OPTIONS, installDrawingWheel } from './drawing-camera';
+import { installDrawingPickMarquee } from './drawing-marquee';
 import { installDrawingPenInput } from './drawing-pen-input';
 import { CadFreehandTool, cancelCadFreehand } from './CadFreehandTool';
 import { CadFreehandOverlay } from './CadFreehandOverlay';
@@ -34,7 +36,7 @@ import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvid
 import {orderPocketAtPoint,syncCreationFileDocuments} from './order-file-documents';
 import { routeCanvasCadImport } from './drawing-ui-requests';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
-import { CadBezierShapeUtil } from './shapes/CadBezierShape';
+import { CadBezierShapeUtil, installCadBezierHoverBounds } from './shapes/CadBezierShape';
 import { CadBezierTool } from './CadBezierTool';
 import { CadLineTool, CadPolylineTool } from './CadPolylineTool';
 import { installCadTransforms } from './cad-transforms';
@@ -210,8 +212,9 @@ export function CanvasApp({
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
         const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
+        const stopWheel = installDrawingWheel(editor), stopPickMarquee = installDrawingPickMarquee(editor), stopCurveHover = installCadBezierHoverBounds(editor);
         const stopLayers = installProductionLayers(editor), stopSnapTargets = installDrawingSnapTargets(editor);
-        cleanupCadTransformsRef.current = () => { stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        cleanupCadTransformsRef.current = () => { stopCurveHover(); stopWheel(); stopPickMarquee(); stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
             const page = editor.getCurrentPage();
@@ -364,6 +367,7 @@ export function CanvasApp({
                 <Tldraw
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
+                    cameraOptions={DRAWING_CAMERA_OPTIONS}
                     shapeUtils={customShapeUtils}
                     tools={[CadLineTool, CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
                     onMount={handleMount}

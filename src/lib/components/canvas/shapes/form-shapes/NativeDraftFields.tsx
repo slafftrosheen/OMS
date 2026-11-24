@@ -20,6 +20,6 @@ export function NativeDraftFields({shape,editor,section}:{shape:any;editor:Edito
   }}});return ()=>{void unmount(component);};
  },[editor,section]);
  return <ScaledCanvasForm shape={shape} editor={editor}>
-  <div ref={host} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()} style={{padding:16}}/>
+  <div ref={host} data-drawing-native-wheel onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()} style={{padding:16}}/>
  </ScaledCanvasForm>;
 }

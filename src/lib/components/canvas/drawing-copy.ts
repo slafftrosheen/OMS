@@ -85,6 +85,9 @@ const copy = {
     small: 'Small', medium: 'Medium', large: 'Large', extraLarge: 'Extra large',
     orderNote: 'Note', orderWarning: 'Warning', orderExplain: 'Explanation',
     showPanel: 'Show properties', closePanel: 'Close panel', zoom: 'Zoom',
+    zoomWheel: 'Wheel to zoom at the pointer. Shift + wheel pans horizontally.',
+    pickMarquee: 'Drag left to right to enclose objects, or right to left to select touched objects. Hold Shift to add.',
+    nodeMarquee: 'Drag left to right to select nodes, or right to left to select whole closed objects. Hold Shift to add.',
     lockedParent: 'Unlock the parent object first.', changedFailed: 'This edit could not be applied.',
     rulers: 'Canvas rulers in pixels', keyboard: 'F6 rectangle · F7 ellipse · F8 text · F4 fit · Ctrl+D duplicate',
   },
@@ -171,6 +174,9 @@ const copy = {
     showPanel: 'Показать свойства', closePanel: 'Закрыть панель', zoom: 'Масштаб',
     lockedParent: 'Сначала разблокируйте родительский объект.', changedFailed: 'Не удалось применить изменение.',
     rulers: 'Линейки холста в пикселях', keyboard: 'F6 прямоугольник · F7 эллипс · F8 текст · F4 вписать · Ctrl+D копия',
+    zoomWheel: 'Колесо меняет масштаб у курсора. Shift + колесо прокручивает по горизонтали.',
+    pickMarquee: 'Слева направо выделяются объекты внутри рамки, справа налево — все, которых она касается. Shift добавляет к выделению.',
+    nodeMarquee: 'Слева направо выделяются узлы, справа налево — целые замкнутые объекты. Shift добавляет к выделению.',
   },
   lv: {
     searchObjects: "Meklēt objektus",
@@ -255,6 +261,9 @@ const copy = {
     showPanel: 'Rādīt īpašības', closePanel: 'Aizvērt paneli', zoom: 'Mērogs',
     lockedParent: 'Vispirms atbloķējiet vecākobjektu.', changedFailed: 'Izmaiņu neizdevās piemērot.',
     rulers: 'Audekla lineāli pikseļos', keyboard: 'F6 taisnstūris · F7 elipse · F8 teksts · F4 ietilpināt · Ctrl+D kopija',
+    zoomWheel: 'Ritenītis maina mērogu pie kursora. Shift + ritenītis pārvieto skatu horizontāli.',
+    pickMarquee: 'Velkot pa labi, atlasa rāmī ietvertos objektus. Velkot pa kreisi, atlasa skartos objektus. Ar Shift papildina atlasi.',
+    nodeMarquee: 'Velkot pa labi, atlasa mezglus. Velkot pa kreisi, atlasa veselus slēgtus objektus. Ar Shift papildina atlasi.',
   }
 };
 export type DrawingLabel = keyof typeof copy.en;

@@ -1,23 +1,21 @@
-import { atom, react, type Editor } from '@tldraw/tldraw';
-import { getSelectedCadNodes, isCadNodeEditing, setSelectedCadNodes } from './cad-node-selection';
+import { react, type Editor } from '@tldraw/tldraw';
+import { getSelectedCadNodes, isCadNodeEditing, setCadNodeEditing, setSelectedCadNodes } from './cad-node-selection';
 import { claimDrawingPointerGesture, suppressDrawingKeyRelease } from './drawing-pointer-gesture';
-import type { CadPoint } from './cad-settings';
+import { drawingMarquee, marqueeBetween, marqueeObjects, type DrawingMarquee } from './drawing-marquee';
 import type { CadBezierShape } from './shapes/CadBezierShape';
 
-type MarqueeBox = { x: number; y: number; w: number; h: number };
-function marqueeAtom() { return atom<MarqueeBox | null>('CAD node marquee', null); }
-const marquees = new WeakMap<Editor, ReturnType<typeof marqueeAtom>>();
-export function cadNodeMarquee(editor: Editor) {
-  let value = marquees.get(editor);
-  if (!value) { value = marqueeAtom(); marquees.set(editor, value); }
-  return value;
-}
-
-function boxBetween(a: CadPoint, b: CadPoint): MarqueeBox {
-  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
-}
-
-function applyMarquee(editor: Editor, shape: CadBezierShape, rect: MarqueeBox, add: boolean) {
+function applyMarquee(editor: Editor, shape: CadBezierShape, rect: DrawingMarquee, add: boolean) {
+  if (rect.mode === 'crossing') {
+    const ids = marqueeObjects(editor, rect, true);
+    if (!ids.length) {
+      if (!add) setSelectedCadNodes(editor, []);
+      return;
+    }
+    setSelectedCadNodes(editor, []);
+    setCadNodeEditing(editor, false);
+    editor.run(() => editor.setSelectedShapes(add ? [...new Set([...editor.getSelectedShapeIds(), ...ids])] : ids), { history: 'ignore' });
+    return;
+  }
   const selected = add ? [...getSelectedCadNodes(editor)] : [];
   const keys = new Set(selected.map(node => `${node.contourIndex}:${node.nodeIndex}`));
   const transform = editor.getShapePageTransform(shape);
@@ -35,7 +33,7 @@ function applyMarquee(editor: Editor, shape: CadBezierShape, rect: MarqueeBox, a
 export function installCadNodeMarquee(editor: Editor): () => void {
   const container = editor.getContainer(), doc = container.ownerDocument, win = doc.defaultView;
   if (!win) return () => {};
-  const preview = cadNodeMarquee(editor);
+  const preview = drawingMarquee(editor);
   let cancelActive: (() => void) | undefined;
   const consume = (event: Event) => { event.preventDefault(); event.stopImmediatePropagation(); };
   const down = (event: PointerEvent) => {
@@ -69,10 +67,10 @@ export function installCadNodeMarquee(editor: Editor): () => void {
       editor.getInstanceState().isReadonly === readOnly;
     const rect = (next: PointerEvent) =>
       Math.hypot(next.clientX - screen.x, next.clientY - screen.y) >= 4
-        ? boxBetween(origin, editor.screenToPage({
+        ? marqueeBetween(origin, editor.screenToPage({
           x: Math.min(viewport.maxX, Math.max(viewport.minX, next.clientX)),
           y: Math.min(viewport.maxY, Math.max(viewport.minY, next.clientY))
-        })) : null;
+        }), true) : null;
     const cancel = () => {
       if (cancelActive !== cancel) return;
       cancelActive = undefined;
