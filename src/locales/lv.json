@@ -3670,6 +3670,10 @@
   },
   "profiles": {
     "materials": {
+      "addElement": "Pievienot elementu",
+      "elementName": "Elementa nosaukums",
+      "elementNumber": "Elements {number}",
+      "removeElement": "Noņemt {name}",
       "addFace": "Pievienot priekšpuses materiālu",
       "removeFace": "Noņemt priekšpuses materiālu {number}",
       "faceNumber": "Priekšpuses materiāls {number}",

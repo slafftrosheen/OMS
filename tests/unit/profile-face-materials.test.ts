@@ -94,17 +94,21 @@ describe('native profile multiple FACE materials', () => {
     }).sections.CNC_FREZER).toEqual({ face: 'ACRYLIC_XT', faceThickness: '3' });
   });
 
-  it('round-trips material rows and unrelated profile data through the actual order save contract', () => {
+  it('round-trips named material and station elements through the order save contract', () => {
     const configuration = {
       CNC_FREZER: {
         face: 'Clear acrylic', faceThickness: '3', laser: true,
         faceMaterials: [
           { id: 'a', value: 'Clear acrylic', thickness: '3', category: 'ACRYLIC_GS', thicknessOptions: [3, 5] },
-          { id: 'b', value: 'Custom inset', thickness: '2.5mm', hex: '#cc5500' }
+          { id: 'b', name: 'Small letters', value: 'Custom inset', thickness: '2.5mm', hex: '#cc5500' }
         ],
         back: 'Aluminium', backThickness: '2mm'
       },
       BENDER: { sides: 'Aluminium', depth: 100 },
+      FRONT: { elementName: 'Main letters', face: true, faceFilm: 'WHITE_FILM', elements: [
+        { id: 'film-1', name: 'Blue letters', values: { face: true, faceFilm: 'BLUE_FILM', facePrint: true } },
+        { id: 'film-2', name: 'Red letters', values: { face: true, faceFilm: 'RED_FILM', facePrint: false } }
+      ] },
       historicOption: { preserve: true }
     };
     const payload = orderFields.parse({ profiles: [{ quantity: 2, configuration }] });

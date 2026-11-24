@@ -3670,6 +3670,10 @@
   },
   "profiles": {
     "materials": {
+      "addElement": "Добавить элемент",
+      "elementName": "Название элемента",
+      "elementNumber": "Элемент {number}",
+      "removeElement": "Удалить {name}",
       "addFace": "Добавить материал лицевой части",
       "removeFace": "Удалить материал лицевой части {number}",
       "faceNumber": "Материал лицевой части {number}",

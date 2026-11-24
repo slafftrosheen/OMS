@@ -4,6 +4,7 @@
  */
 import {readFaceMaterials} from '$lib/profiles/face-materials';
 import {isProfilePrintMaterial} from '$lib/profiles/material-roles';
+import {readProfileStationElements} from '$lib/profiles/station-elements';
 type RecordValue=Record<string,unknown>;
 const record=(value:unknown):RecordValue=>
   value!==null&&typeof value==='object'&&!Array.isArray(value)
@@ -65,63 +66,82 @@ function inactiveChoice(section:ProductionSection,key:string,values:RecordValue)
  }
  return false;
 }
+type NativeStationFields = Record<string,string|number|boolean>;
+type NativeElementSummary = {name:string|null; fields:NativeStationFields};
 export type NativeProfileSummary={
  profileName:string|null;
  signType:string|null;
- sections:Partial<Record<ProductionSection,Record<string,string|number|boolean>>>;
+ sections:Partial<Record<ProductionSection,NativeStationFields>>;
+ elements?:Partial<Record<ProductionSection,NativeElementSummary[]>>;
 };
+
+function summarizeStation(section:ProductionSection,rawSection:RecordValue):NativeStationFields {
+ const keys:readonly string[]=properties[section];
+ const values:Record<string,string|number|boolean>={};
+ for(const key of keys){
+   // An explicit row list is authoritative. Do not revive stale scalar FACE
+   // selections after a row was removed or the list was cleared.
+   if(section==='CNC_FREZER' && Array.isArray(rawSection.faceMaterials) &&
+      (key==='face'||key==='faceThickness'))continue;
+   if(inactiveChoice(section,key,rawSection))continue;
+   const value=scalar(rawSection[key]);
+   if(value!==undefined)values[key]=value;
+ }
+ if(section==='CNC_FREZER' && Array.isArray(rawSection.faceMaterials)){
+   const selected=readFaceMaterials(rawSection).filter(row=>text(row.value));
+   selected.forEach((row,index)=>{
+     // Scalar pairs also render correctly in the existing station packet.
+     const key=selected.length===1?'face':`faceMaterial${index+1}`;
+     values[key]=text(row.value)!;
+     const name=text(row.name,120);
+     if(name)values[key+'Name']=name;
+     const thickness=text(row.thickness);
+     if(thickness)values[key+'Thickness']=thickness;
+   });
+ }
+ if(section==='CNC_FREZER'){
+   const printedFace=readFaceMaterials(rawSection).some(row=>text(row.value)&&
+     (isProfilePrintMaterial(row.category)||row.process==='3D_PRINT'));
+   const printedBack=!!text(rawSection.back)&&
+     (isProfilePrintMaterial(rawSection.backCategory)||rawSection.backProcess==='3D_PRINT');
+   if(printedFace||printedBack){
+     values.print3d=true;
+     values.print3dParts=[printedFace?'FACE':'',printedBack?'BACK':''].filter(Boolean).join(', ');
+   }
+ }
+ // Color choices are structured objects, not free text for hallucinated RALs.
+ if(section==='PAINTING'){
+   for(const part of ['face','sides','back','frame']){
+     if(rawSection[part]!==true)continue;
+     const color=record(rawSection[part+'Color']);
+     for(const colorKey of ['system','code']){
+       const value=text(color[colorKey],60);
+       if(value)values[part+'Color'+colorKey]=value;
+     }
+   }
+ }
+ return values;
+}
+
 export function summarizeNativeProfileConfiguration(raw:unknown):NativeProfileSummary{
  const source=record(raw);
  const sections:NativeProfileSummary['sections']={};
- for(const [section,keys] of Object.entries(properties) as
-    [ProductionSection,readonly string[]][]){
+ const elements:NonNullable<NativeProfileSummary['elements']>={};
+ for(const section of Object.keys(properties) as ProductionSection[]){
    const rawSection=record(source[section]);
-   const values:Record<string,string|number|boolean>={};
-   for(const key of keys){
-     // An explicit row list is authoritative. Do not revive stale scalar FACE
-     // selections after a row was removed or the list was cleared.
-     if(section==='CNC_FREZER' && Array.isArray(rawSection.faceMaterials) &&
-        (key==='face'||key==='faceThickness'))continue;
-     if(inactiveChoice(section,key,rawSection))continue;
-     const value=scalar(rawSection[key]);
-     if(value!==undefined)values[key]=value;
-   }
-   if(section==='CNC_FREZER' && Array.isArray(rawSection.faceMaterials)){
-     const selected=readFaceMaterials(rawSection).filter(row=>text(row.value));
-     selected.forEach((row,index)=>{
-       // Scalar pairs also render correctly in the existing station packet.
-       const key=selected.length===1?'face':`faceMaterial${index+1}`;
-       values[key]=text(row.value)!;
-       const thickness=text(row.thickness);
-       if(thickness)values[key+'Thickness']=thickness;
-     });
-   }
-   if(section==='CNC_FREZER'){
-     const printedFace=readFaceMaterials(rawSection).some(row=>text(row.value)&&
-       (isProfilePrintMaterial(row.category)||row.process==='3D_PRINT'));
-     const printedBack=!!text(rawSection.back)&&
-       (isProfilePrintMaterial(rawSection.backCategory)||rawSection.backProcess==='3D_PRINT');
-     if(printedFace||printedBack){
-       values.print3d=true;
-       values.print3dParts=[printedFace?'FACE':'',printedBack?'BACK':''].filter(Boolean).join(', ');
-     }
-   }
-   // Color choices are structured objects, not free text for hallucinated RALs.
-   if(section==='PAINTING'){
-     for(const part of ['face','sides','back','frame']){
-       if(rawSection[part]!==true)continue;
-       const color=record(rawSection[part+'Color']);
-       for(const colorKey of ['system','code']){
-         const value=text(color[colorKey],60);
-         if(value)values[part+'Color'+colorKey]=value;
-       }
-     }
-   }
+   const values=summarizeStation(section,rawSection);
+   const primaryName=text(rawSection.elementName,120);
+   if(primaryName)values.elementName=primaryName;
    if(Object.keys(values).length)sections[section]=values;
+   const extra=readProfileStationElements(rawSection).map(element=>({
+     name:text(element.name,120)??null, fields:summarizeStation(section,element.values)
+   }));
+   if(extra.length)elements[section]=extra;
  }
  return {
    profileName:text(source.profileName,120)??null,
    signType:text(source.signType,40)??null,
-   sections
+   sections,
+   ...(Object.keys(elements).length?{elements}:{})
  };
 }

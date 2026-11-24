@@ -2,6 +2,7 @@
 import { jsPDF } from 'jspdf';
 import type { ProfileConfiguration } from '$lib/profiles/types';
 import { readFaceMaterials, withFaceMaterials, type FaceMaterialSelection } from '$lib/profiles/face-materials';
+import { summarizeNativeProfileConfiguration, type NativeProfileSummary } from '$lib/order/native-profile-context';
 
 export interface PDFGenerationOptions {
   poNumber: string;
@@ -99,7 +100,8 @@ export async function generateProfilePDF(options: PDFGenerationOptions): Promise
     Object.entries(fields as Record<string, any>).forEach(([fieldKey, fieldValue]) => {
       // Row details get a complete, paginated schedule below. Picker metadata
       // must never appear as [object Object] or opaque option arrays in print.
-      if (fieldKey === 'faceMaterials' || /^(face|back|sides)(Category|ThicknessOptions)$/.test(fieldKey)) return;
+      if (fieldKey === 'faceMaterials' || fieldKey === 'elements' ||
+          /^(face|back|sides)(Category|ThicknessOptions)$/.test(fieldKey)) return;
       if (fieldValue && fieldY < sectionY + sectionHeight - 5) {
         // Draw colored box for visual fields
         if (fieldKey.includes('material') || fieldKey.includes('color')) {
@@ -159,7 +161,11 @@ export async function generateProfilePDF(options: PDFGenerationOptions): Promise
 
   const faceMaterials = readFaceMaterials(options.configuration.CNC_FREZER)
     .filter(row => row.value.trim());
-  if (faceMaterials.length > 1) appendFaceMaterialSchedule(pdf, faceMaterials, options);
+  if (faceMaterials.length > 1 || faceMaterials.some(row => row.name?.trim())) {
+    appendFaceMaterialSchedule(pdf, faceMaterials, options);
+  }
+  const extra = summarizeNativeProfileConfiguration(options.configuration).elements;
+  if (extra) appendStationElementSchedule(pdf, extra);
 
   return pdf.output('blob');
 }
@@ -169,7 +175,7 @@ function appendFaceMaterialSchedule(pdf: jsPDF, rows: FaceMaterialSelection[], o
   const margin = 20;
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const materialX = 38;
+  const materialX = 74;
   const thicknessX = pageWidth - 54;
   const lineHeight = 5;
   let y = 0;
@@ -189,7 +195,7 @@ function appendFaceMaterialSchedule(pdf: jsPDF, rows: FaceMaterialSelection[], o
     pdf.text(heading, margin, 28);
     y = 31 + heading.length * lineHeight;
     pdf.setFont('helvetica', 'bold');
-    pdf.text('#', margin, y);
+    pdf.text('Element', margin, y);
     pdf.text('Material', materialX, y);
     pdf.text('Thickness', thicknessX, y);
     pdf.setDrawColor(180, 180, 180);
@@ -202,12 +208,14 @@ function appendFaceMaterialSchedule(pdf: jsPDF, rows: FaceMaterialSelection[], o
   rows.forEach((row, index) => {
     const materialLines: string[] = pdf.splitTextToSize(row.value, thicknessX - materialX - 8);
     const thicknessLines: string[] = pdf.splitTextToSize(row.thickness || '-', pageWidth - thicknessX - margin);
-    const lineCount = Math.max(materialLines.length, thicknessLines.length);
+    const nameLines: string[] = pdf.splitTextToSize(row.name?.trim() || String(index + 1), materialX - margin - 8);
+    const lineCount = Math.max(materialLines.length, thicknessLines.length, nameLines.length);
     let offset = 0;
     while (offset < lineCount) {
       if (y + lineHeight > pageHeight - margin) startPage();
       const count = Math.min(lineCount - offset, Math.max(1, Math.floor((pageHeight - margin - y) / lineHeight)));
-      pdf.text(String(index + 1), margin, y);
+      const nameChunk = nameLines.slice(offset, offset + count);
+      if (nameChunk.length) pdf.text(nameChunk, margin, y);
       const materialChunk = materialLines.slice(offset, offset + count);
       const thicknessChunk = thicknessLines.slice(offset, offset + count);
       if (materialChunk.length) pdf.text(materialChunk, materialX, y);
@@ -216,6 +224,40 @@ function appendFaceMaterialSchedule(pdf: jsPDF, rows: FaceMaterialSelection[], o
       y += count * lineHeight + 4;
     }
   });
+}
+
+function appendStationElementSchedule(pdf: jsPDF, elements: NonNullable<NativeProfileSummary['elements']>) {
+  const margin = 20, lineHeight = 5;
+  const width = pdf.internal.pageSize.getWidth() - margin * 2;
+  const bottom = pdf.internal.pageSize.getHeight() - margin;
+  let y = bottom;
+  function write(text: string, font: 'bold' | 'normal') {
+    pdf.setFont('helvetica', font);
+    pdf.setFontSize(10);
+    for (const line of pdf.splitTextToSize(text, width) as string[]) {
+      if (y + lineHeight > bottom) {
+        pdf.addPage();
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(15);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Production elements', margin, margin);
+        y = margin + 12;
+        pdf.setFont('helvetica', font);
+        pdf.setFontSize(10);
+      }
+      pdf.text(line, margin, y);
+      y += lineHeight;
+    }
+  }
+  for (const [station, rows] of Object.entries(elements)) {
+    rows.forEach((row, index) => {
+      write(`${station.replace('_', ' ')} / ${row.name ?? `Element ${index + 2}`}`, 'bold');
+      for (const [field, value] of Object.entries(row.fields)) {
+        if (value !== false) write(`${field.replace(/([A-Z])/g, ' $1')}  ${value === true ? 'Yes' : value}`, 'normal');
+      }
+      y += lineHeight;
+    });
+  }
 }
 
 function getFieldBoxColor(fieldKey: string, value: any): [number, number, number] {

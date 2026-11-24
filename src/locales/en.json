@@ -3670,6 +3670,10 @@
   },
   "profiles": {
     "materials": {
+      "addElement": "Add element",
+      "elementName": "Element name",
+      "elementNumber": "Element {number}",
+      "removeElement": "Remove {name}",
       "addFace": "Add FACE material",
       "removeFace": "Remove FACE material {number}",
       "faceNumber": "FACE material {number}",

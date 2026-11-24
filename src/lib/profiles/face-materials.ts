@@ -5,6 +5,7 @@ import { isProfilePrintMaterial } from './material-roles';
 /** Stored in the existing native profile configuration JSON. */
 export interface FaceMaterialSelection {
   id: string;
+  name?: string;
   value: string;
   thickness?: string;
   hex?: string;
@@ -46,6 +47,7 @@ export function readFaceMaterials(section: unknown): FaceMaterialSelection[] {
         usedIds.add(id);
         return {
           ...entry, id, value: string(entry.value),
+          name: typeof entry.name === 'string' ? entry.name : undefined,
           thickness: string(entry.thickness), hex: string(entry.hex),
           shortName: string(entry.shortName), category: string(entry.category),
           thicknessOptions: storedThicknesses(entry.thicknessOptions)
@@ -98,7 +100,7 @@ export function assignLegacyPrintMaterial<T extends Record<string, unknown>>(
   };
   const rows = readFaceMaterials(section);
   const empty = rows.findIndex(row => !row.value.trim());
-  const assigned = { ...legacy, id: empty >= 0 ? rows[empty].id : nextFaceMaterialId(rows) };
+  const assigned = empty >= 0 ? { ...rows[empty], ...legacy, id: rows[empty].id } : { ...legacy, id: nextFaceMaterialId(rows) };
   const nextRows = empty >= 0 ? rows.map((row, index) => index === empty ? assigned : row) : [...rows, assigned];
   return withFaceMaterials({ ...section, print3d: false }, nextRows);
 }
