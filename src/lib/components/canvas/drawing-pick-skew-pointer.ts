@@ -69,7 +69,7 @@ export function startDrawingSkewPointer(editor: Editor, edge: DrawingSkewEdge, e
   const context = (next: Event) => { kill(next); cancel(); };
   const visibility = () => { if (doc.visibilityState === 'hidden') cancel(); };
   const focus = (next: FocusEvent) => { if (editable(next.target)) cancel(); };
-  const wheel = (next: WheelEvent) => { kill(next); cancel(); };
+  const wheel = () => { cancel(); };
   const key = (next: KeyboardEvent) => {
     if (editable(next.target)) { cancel(); return; }
     if (['Shift', 'Control', 'Alt', 'Meta'].includes(next.key)) {

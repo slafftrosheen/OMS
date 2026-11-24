@@ -412,7 +412,8 @@ describe('native node marquee', () => {
     const { editor, create, contour } = h;
     const { Box } = h.tl;
     const { getSelectedCadNodes, setCadNodeEditing } = await import('../../src/lib/components/canvas/cad-node-selection');
-    const { cadNodeMarquee, installCadNodeMarquee } = await import('../../src/lib/components/canvas/cad-node-marquee');
+    const { installCadNodeMarquee } = await import('../../src/lib/components/canvas/cad-node-marquee');
+    const { drawingMarquee } = await import('../../src/lib/components/canvas/drawing-marquee');
     const shape = create('cad-bezier', { contours: [contour(Array.from({ length: 300 }, (_, i) => [i * 2, 0]))] },
       { x: 90, y: 165, rotation: .35 }, {});
     editor.select(shape.id);
@@ -435,12 +436,12 @@ describe('native node marquee', () => {
       return event;
     };
     try {
-      run({ editor, shape, x, canvas, pointer, setCadNodeEditing, preview: () => cadNodeMarquee(editor).get(),
+      run({ editor, shape, x, canvas, pointer, setCadNodeEditing, preview: () => drawingMarquee(editor).get(),
         selected: () => getSelectedCadNodes(editor).map(node => node.nodeIndex) });
     } finally { stop(); canvas.remove(); }
   }
 
-  it('selects unsampled anchors of a rotated dense curve, adds in reverse with Shift and leaves history alone', async () => harness(async h => {
+  it('selects unsampled anchors of a rotated dense curve, adds with Shift and leaves history alone', async () => harness(async h => {
     await withMarquee(h, ({ editor, shape, x, pointer, preview, selected }: any) => {
       const before = h.snapshot();
       const handles = editor.getShapeHandles(shape).length;
@@ -452,8 +453,8 @@ describe('native node marquee', () => {
       pointer('pointerup', x(70) + .5, 260, false, document.body);
       assert.equal(preview(), null);
       assert.deepEqual(selected(), Array.from({ length: 61 }, (_, i) => i + 10));
-      pointer('pointerdown', x(92) + .5, 260, true);
-      pointer('pointerup', x(90) - .5, 120, true);
+      pointer('pointerdown', x(90) - .5, 260, true);
+      pointer('pointerup', x(92) + .5, 120, true);
       assert.deepEqual(selected().slice(-3), [90, 91, 92]);
       assert.equal(selected().length, 64);
       pointer('pointerdown', 650, 120);
@@ -469,7 +470,7 @@ describe('native node marquee', () => {
     const React = await import('react'), { createRoot } = await import('react-dom/client');
     const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
     const { CadNodeSelectionOverlay } = await import('../../src/lib/components/canvas/CadNodeSelectionOverlay');
-    const { cadNodeMarquee } = await import('../../src/lib/components/canvas/cad-node-marquee');
+    const { drawingMarquee } = await import('../../src/lib/components/canvas/drawing-marquee');
     const { setCadNodeEditing } = await import('../../src/lib/components/canvas/cad-node-selection');
     const shape = create('cad-bezier', { contours: [contour([[0, 0], [150, 150]])] }, {}, {});
     editor.select(shape.id);
@@ -480,16 +481,142 @@ describe('native node marquee', () => {
       await React.act(async () => root.render(<EditorContext.Provider value={editor}>
         <CadNodeSelectionOverlay />
       </EditorContext.Provider>));
-      await React.act(async () => cadNodeMarquee(editor).set({ x: 40, y: 50, w: 120, h: 90 }));
+      await React.act(async () => drawingMarquee(editor).set({ x: 40, y: 50, w: 120, h: 90, mode: 'crossing' }));
       const rect = query();
       assert.equal(rect?.getAttribute('x'), '40');
       assert.equal(rect?.getAttribute('y'), '50');
       assert.equal(rect?.getAttribute('width'), '120');
       assert.equal(rect?.getAttribute('height'), '90');
-      await React.act(async () => cadNodeMarquee(editor).set(null));
+      assert.equal(rect?.getAttribute('data-mode'), 'crossing');
+      assert.ok(rect?.hasAttribute('stroke-dasharray'));
+      await React.act(async () => drawingMarquee(editor).set(null));
       assert.equal(query(), null);
     } finally { await React.act(async () => root.unmount()); }
   }));
+
+  it('crosses a closed outline and selects the whole object without selecting nearby open parts or a hollow interior', async () => harness(async h => {
+    const { isCadNodeEditing } = await import('../../src/lib/components/canvas/cad-node-selection');
+    await withMarquee(h, ({ editor, shape, pointer, preview }: any) => {
+      const closed = h.create('cad-bezier', { contours: [h.rectangle(0, 0, 100, 80)] }, { x: 200, y: 300 }, {});
+      const open = h.create('cad-bezier', { contours: [h.contour([[0, 0], [100, 0]])] }, { x: 200, y: 330 }, {});
+      const drag = (x1: number, y1: number, x2: number, y2: number) => {
+        const start = editor.pageToScreen({ x: x1, y: y1 }), end = editor.pageToScreen({ x: x2, y: y2 });
+        pointer('pointerdown', start.x, start.y);
+        pointer('pointermove', end.x, end.y);
+        assert.equal(preview()?.mode, 'crossing');
+        pointer('pointerup', end.x, end.y);
+      };
+      drag(260, 320, 240, 340);
+      assert.equal(editor.getOnlySelectedShape()?.id, shape.id);
+      assert.equal(isCadNodeEditing(editor), true);
+      drag(220, 320, 180, 340);
+      assert.deepEqual(editor.getSelectedShapeIds(), [closed.id]);
+      assert.ok(!editor.getSelectedShapeIds().includes(open.id));
+      assert.equal(isCadNodeEditing(editor), false);
+    });
+  }));
+
+describe('large-vector navigation and object marquee', () => {
+  it('fits an oversize imported vector, then zooms about the pointer even with the import form focused', async () => harness(async h => {
+    const { editor, tl, cad, create, snapshot, rectangle } = h;
+    const { DRAWING_CAMERA_OPTIONS, installDrawingWheel } = await import('../../src/lib/components/canvas/drawing-camera');
+    const { prepareVectorImport, VECTOR_DEFAULT_PAINT } = await import('../../src/lib/components/canvas/cad-vector');
+    const { applyCadPlan } = await import('../../src/lib/components/canvas/cad-plans');
+    editor.setCameraOptions(DRAWING_CAMERA_OPTIONS);
+    editor.updateViewportScreenBounds(new tl.Box(60, 35, 800, 600));
+    const contours = [rectangle(0, 0, 250000, 80000)];
+    const plan = prepareVectorImport(editor, cad.DEFAULT_CAD_SETTINGS, {
+      width: 250000, height: 80000, paths: [{ contours, fillRule: 'evenodd', paint: VECTOR_DEFAULT_PAINT }], warnings: [],
+    }, 250000 * cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS), { x: 0, y: 0 }, 'Large import');
+    assert.equal(applyCadPlan(editor, plan), true);
+    editor.zoomToSelection();
+    const shape = editor.getOnlySelectedShape(), fitted = editor.getZoomLevel();
+    assert.ok(fitted < .01);
+    assert.ok(editor.getViewportPageBounds().contains(editor.getShapePageBounds(shape)));
+    const before = snapshot();
+    const canvas = document.createElement('div'), input = document.createElement('input');
+    canvas.className = 'tl-canvas';
+    canvas.append(input); editor.getContainer().append(canvas);
+    const stop = installDrawingWheel(editor);
+    const point = { x: 360, y: 300 };
+    const wheel = (target: HTMLElement, deltaY: number, shiftKey = false) => {
+      const event = new window.WheelEvent('wheel', { ...point, clientX: point.x, clientY: point.y, deltaY, shiftKey, bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const frame = () => new Promise(resolve => window.requestAnimationFrame(resolve));
+    try {
+      input.focus();
+      editor.updateInstanceState({ isFocused: false });
+      const anchor = editor.screenToPage(point);
+      assert.equal(wheel(canvas, 100), true);
+      assert.equal(wheel(canvas, 100), true);
+      await frame();
+      assert.ok(editor.getZoomLevel() < fitted);
+      near(editor.screenToPage(point).x, anchor.x); near(editor.screenToPage(point).y, anchor.y);
+      const zoom = editor.getZoomLevel();
+      assert.equal(wheel(input, -100), false);
+      await frame(); assert.equal(editor.getZoomLevel(), zoom);
+      assert.equal(wheel(canvas, -100), true);
+      await frame(); assert.ok(editor.getZoomLevel() > zoom);
+      const camera = editor.getCamera();
+      assert.equal(wheel(canvas, 100, true), true);
+      await frame();
+      assert.equal(editor.getZoomLevel(), camera.z);
+      assert.ok(editor.getCamera().x < camera.x);
+      assert.deepEqual(snapshot(), before);
+    } finally { stop(); canvas.remove(); }
+  }));
+
+  it('uses bounded, lazy hit geometry for a physically large path with thousands of curves', async () => harness(async h => {
+    const { editor, create, curves } = h;
+    const nodes = Array.from({ length: 1400 }, (_, x) => ({ ...curves.nodeAt({ x: 130 * x, y: x % 2 * 2 }), inY: -990000, outY: 990000 }));
+    const shape = create('cad-bezier', { contours: [{ closed: false, nodes }] }, { x: 0, y: 0 }, {});
+    const geometry = editor.getShapeGeometry(shape);
+    assert.ok(geometry.bounds.h > 100000);
+    assert.equal(geometry.children[0].points.length, 0);
+    const { installCadBezierHoverBounds } = await import('../../src/lib/components/canvas/shapes/CadBezierShape');
+    const stop = installCadBezierHoverBounds(editor);
+    try {
+      editor.centerOnPoint({ x: 0, y: 0 });
+      assert.equal(editor.getShapeAtPoint({ x: -100, y: 0 }, { renderingOnly: true, margin: 4 }), undefined);
+      assert.equal(geometry.children[0].points.length, 0);
+      assert.equal(editor.getShapeAtPoint({ x: 0, y: 0 }, { renderingOnly: true, margin: 4 })?.id, shape.id);
+      assert.ok(geometry.children[0].vertices.length >= nodes.length && geometry.children[0].vertices.length <= 60000);
+    } finally { stop(); }
+  }));
+
+  it('runs direction-aware Pick through native pointer dispatch and keeps a group intact', async () => harness(async h => {
+    const { editor, tl, rectangle, create } = h;
+    const { drawingMarquee, installDrawingPickMarquee } = await import('../../src/lib/components/canvas/drawing-marquee');
+    const a = create('cad-bezier', { contours: [rectangle(0, 0, 100, 100)] }, { x: 160, y: 160 }, {});
+    const b = create('cad-bezier', { contours: [rectangle(0, 0, 30, 30)] }, { x: 340, y: 160 }, {});
+    editor.groupShapes([a.id, b.id]);
+    const group = editor.getOnlySelectedShape();
+    editor.selectNone();
+    const stop = installDrawingPickMarquee(editor);
+    const pointer = (name: string, x: number, y: number) => editor.dispatch({ type: 'pointer', target: 'canvas', name,
+      point: new tl.Vec(x, y), pointerId: 1, button: 0, shiftKey: false, altKey: false, ctrlKey: false, isPen: false });
+    const frame = () => new Promise(resolve => window.requestAnimationFrame(resolve));
+    async function drag(x1: number, x2: number, mode: string) {
+      pointer('pointer_down', x1, 125);
+      pointer('pointer_move', x2, 280);
+      await frame();
+      assert.equal(drawingMarquee(editor).get()?.mode, mode);
+      pointer('pointer_up', x2, 280);
+      assert.equal(drawingMarquee(editor).get(), null);
+      assert.equal(editor.isIn('select.idle'), true);
+    }
+    try {
+      await drag(120, 190, 'window');
+      assert.deepEqual(editor.getSelectedShapeIds(), []);
+      await drag(190, 120, 'crossing');
+      assert.deepEqual(editor.getSelectedShapeIds(), [group.id]);
+      await drag(120, 400, 'window');
+      assert.deepEqual(editor.getSelectedShapeIds(), [group.id]);
+    } finally { stop(); }
+  }));
+});
 
   it('cancels on Escape, camera changes and lost capture and leaves native handle events alone', async () => harness(async h => {
     await withMarquee(h, ({ editor, x, canvas, pointer, preview, selected, setCadNodeEditing }: any) => {

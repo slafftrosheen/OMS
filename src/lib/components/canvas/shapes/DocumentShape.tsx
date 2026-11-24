@@ -63,7 +63,7 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
 
         const renderBody = () => {
             if (url && isDxfFile(title,mime)) {
-                return <div style={{flex:1,minHeight:0,display:'flex',flexDirection:'column'}} onPointerDown={stop} onKeyDown={stop} onWheel={stop}>
+                return <div data-drawing-native-wheel style={{flex:1,minHeight:0,display:'flex',flexDirection:'column'}} onPointerDown={stop} onKeyDown={stop} onWheel={stop}>
                     <DxfDocumentPreview url={url} title={title}/>
                     <a href={url} download={title} onClick={stop} style={{...linkStyle,padding:10}}>{tn('download')} {title}</a>
                 </div>;

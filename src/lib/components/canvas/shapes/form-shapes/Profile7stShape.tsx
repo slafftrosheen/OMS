@@ -27,7 +27,7 @@ function NativeProfile({shape,editor}:{shape:Profile7stShape;editor:Editor}){
  return <ScaledCanvasForm shape={shape} editor={editor}>
   <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',fontWeight:600}}>#{shape.props.profileIndex+1} · {String(shape.props.data.profileName||'Production profile')}
    <label style={{float:'right'}}>Qty <input aria-label="Profile quantity" type="number" min={1} max={1000} value={shape.props.quantity??1} disabled={!editable} style={{width:70}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} onChange={e=>{if(editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape.id))return;const quantity=Number(e.target.value);if(!Number.isInteger(quantity)||quantity<1||quantity>1000)return;editor.updateShape({id:shape.id,type:shape.type,props:{quantity}});getOrderBridge(editor)?.onProfileQuantityChange?.(shape.props.orderId,shape.props.profileIndex,quantity);}}/></label></div>
-  <div ref={host} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()} style={{padding:16}}/>
+  <div ref={host} data-drawing-native-wheel onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()} style={{padding:16}}/>
  </ScaledCanvasForm>;
 }
 export class Profile7stShapeUtil extends BaseBoxShapeUtil<Profile7stShape>{

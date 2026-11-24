@@ -68,6 +68,64 @@ async function finishSelection(field: Locator) {
   await expect(field.locator('.select-trigger')).toHaveCount(0);
 }
 
+test('named production elements use the existing selectors and survive reload and read only', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Load configured materials' }).click();
+  const cnc = page.locator('[data-station="CNC"]');
+  await cnc.getByRole('button', { name: 'Add FACE material', exact: true }).click();
+  await cnc.getByRole('textbox', { name: 'FACE material 3 · Element name' }).fill('Small letters');
+  const addedFace = cnc.locator('.face-material-entry').nth(2);
+  await addedFace.locator('.select-trigger').click();
+  await addedFace.getByRole('button', { name: /Aluminum composite/ }).click();
+  await addedFace.getByRole('button', { name: /Aluminum composite white/ }).click();
+  await addedFace.locator('.thickness-select').selectOption('4mm');
+  await finishSelection(addedFace);
+
+  for (const [station, name] of [
+    ['CNC', 'Secondary CNC parts'], ['EDGE', 'Deep returns'], ['FRONT', 'Blue letters'],
+    ['PAINT', 'Red accent'], ['ASSEMBLY', 'Remote supply'],
+  ]) {
+    const section = page.locator(`[data-station="${station}"]`);
+    await section.getByRole('button', { name: /Add element$/ }).click();
+    const element = section.locator('[data-profile-element]').last();
+    await element.getByRole('textbox', { name: /Element 2 · Element name$/ }).fill(name);
+    await expect(element).toHaveAttribute('aria-label', name);
+  }
+
+  const film = page.getByRole('group', { name: 'Blue letters', exact: true });
+  const faceFilm = film.locator('.inline-field').first();
+  await faceFilm.locator('.select-trigger').click();
+  await faceFilm.getByRole('button', { name: /Oracal/i }).first().click();
+  await faceFilm.getByRole('button', { name: /Middle Blue/ }).click();
+  await film.getByRole('checkbox', { name: /Print on film/ }).check();
+  await film.getByRole('textbox', { name: 'FRONT · Notes', exact: true }).fill('Print with white underlay');
+  const front = page.locator('[data-station="FRONT"]');
+  await expect(front.getByRole('button', { name: 'Show FRONT notes' })).toBeVisible();
+  await front.getByRole('button', { name: /Add element$/ }).click();
+  await front.locator('[data-profile-element]').last().getByRole('textbox', { name: /Element 3 · Element name$/ }).fill('Red letters');
+  const saved = await savedConfiguration(page);
+  expect(saved.CNC_FREZER.faceMaterials[2]).toMatchObject({ name: 'Small letters', thickness: '4mm' });
+  expect(saved.FRONT.elements[0]).toMatchObject({
+    name: 'Blue letters', values: { face: true, faceFilm: 'ORACAL® 8500 Middle Blue', facePrint: true, notes: 'Print with white underlay' },
+  });
+  expect(saved.FRONT.facePrint).toBe(false);
+  expect(saved.FRONT.elements[1]).toMatchObject({ name: 'Red letters', values: { facePrint: false } });
+
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(film.locator('[data-material-badge]')).toContainText('8500/005');
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(film.getByText('Blue letters', { exact: true })).toBeVisible();
+  await expect(film.getByText('Print with white underlay', { exact: true })).toBeVisible();
+  await expect(cnc.getByText('Small letters', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Add element$/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await film.getByRole('button', { name: 'Remove Blue letters', exact: true }).click();
+  await expect(film).toHaveCount(0);
+  const updated = await savedConfiguration(page);
+  expect(updated.FRONT.elements.map((element: { name: string }) => element.name)).toEqual(['Red letters']);
+  expect(updated.CNC_FREZER.faceMaterials[2].name).toBe('Small letters');
+});
+
 test('material editors collapse automatically when thickness selection finishes', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Load configured materials' }).click();

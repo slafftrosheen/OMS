@@ -132,7 +132,7 @@ function start(editor: Editor, kind: 'pivot' | 'rotate', event: PointerEvent, ta
   };
   const pointerCancel = (next: PointerEvent) => { if (next.pointerId === pointerId) { consume(next); cancel(); } };
   const lostCapture = (next: Event) => { if ((next as PointerEvent).pointerId === pointerId) cancel(); };
-  const wheel = (next: WheelEvent) => { consume(next); cancel(); };
+  const wheel = () => { cancel(); };
   const focus = (next: FocusEvent) => { if (editable(next.target)) cancel(); };
   const visibility = () => { if (target.ownerDocument.visibilityState === 'hidden') cancel(); };
   const keys = (next: KeyboardEvent) => {

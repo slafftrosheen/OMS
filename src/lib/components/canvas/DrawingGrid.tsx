@@ -24,24 +24,27 @@ export function DrawingGrid({ x, y, z, size }: TLGridProps) {
   const editor = useEditor();
   const steps = editor.options.gridSteps;
   const last = steps.length - 1;
+  // At CAD overview zooms, subpixel SVG tiles are both illegible and expensive.
+  const visible = steps.map(({ min, mid, step }, i) => ({ step, spacing: step * size * z, opacity: fade(z, min, mid), major: i === last }))
+    .filter(({ spacing, opacity }) => Number.isFinite(spacing) && spacing >= 4 && opacity > 0);
+  if (!visible.length) return null;
   return (
     <svg className="tl-grid rf-grid" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
-        {steps.map(({ min, mid, step }, i) => {
-          const s = step * size * z;
+        {visible.map(({ step, spacing: s, opacity, major }) => {
           const xo = 0.5 + x * z;
           const yo = 0.5 + y * z;
           const gx = xo > 0 ? xo % s : s + (xo % s);
           const gy = yo > 0 ? yo % s : s + (yo % s);
           return (
-            <pattern key={i} id={`${id}_${step}`} width={s} height={s} patternUnits="userSpaceOnUse">
-              <path d={`M ${gx} 0 V ${s} M 0 ${gy} H ${s}`} className={i === last ? 'rf-grid-major' : 'rf-grid-minor'}
-                opacity={fade(z, min, mid)} shapeRendering="crispEdges" />
+            <pattern key={step} id={`${id}_${step}`} width={s} height={s} patternUnits="userSpaceOnUse">
+              <path d={`M ${gx} 0 V ${s} M 0 ${gy} H ${s}`} className={major ? 'rf-grid-major' : 'rf-grid-minor'}
+                opacity={opacity} shapeRendering="crispEdges" />
             </pattern>
           );
         })}
       </defs>
-      {steps.map(({ step }, i) => <rect key={i} width="100%" height="100%" fill={`url(#${id}_${step})`} />)}
+      {visible.map(({ step }) => <rect key={step} width="100%" height="100%" fill={`url(#${id}_${step})`} />)}
     </svg>
   );
 }

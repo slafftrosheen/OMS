@@ -5,8 +5,10 @@ import { isDrawingSkewMode, setDrawingSkewMode } from './drawing-pick-skew';
 import { readSkewSelection } from './drawing-skew';
 
 interface SelectionState { ids: TLShapeId[]; focused: TLShapeId | null }
+type DocumentStamp = { page: ReturnType<Editor['getCurrentPage']>; shapes: ReturnType<Editor['getCurrentPageShapesSorted']> };
+type DocumentRecords = ReturnType<Editor['store']['getStoreSnapshot']>['store'];
 interface Snapshot {
-  document: string;
+  document: DocumentStamp;
   viewport: string;
   selection: SelectionState;
   mode: boolean;
@@ -24,7 +26,7 @@ interface Press {
   released: boolean;
   nativeDown?: TLPointerEventInfo;
   nativeTime?: number;
-  releaseDocument?: string;
+  releaseDocument?: DocumentRecords;
   historyMark?: string;
   previous: Pending | null;
 }
@@ -40,8 +42,13 @@ const sameSelection = (a: SelectionState, b: SelectionState) => a.focused === b.
 const selectionState = (editor: Editor): SelectionState => ({
   ids: [...editor.getSelectedShapeIds()], focused: editor.getCurrentPageState().focusedGroupId,
 });
-function documentStamp(editor: Editor): string {
-  return JSON.stringify([editor.getCurrentPage(), editor.getCurrentPageShapesSorted()]);
+function documentStamp(editor: Editor): DocumentStamp {
+  return { page: editor.getCurrentPage(), shapes: editor.getCurrentPageShapesSorted() };
+}
+function sameDocumentRecords(before: DocumentRecords | undefined, after: DocumentRecords): boolean {
+  if (!before) return false;
+  const ids = Object.keys(before) as Array<keyof DocumentRecords>;
+  return ids.length === Object.keys(after).length && ids.every(id => before[id] === after[id]);
 }
 function viewportStamp(editor: Editor): string {
   const camera = editor.getCamera(), bounds = editor.getViewportScreenBounds();
@@ -76,7 +83,7 @@ export function installDrawingPickClickToggle(editor: Editor): () => void {
   const fresh = (before: Snapshot, checkSelection = true) =>
     !disposed && !editor.getInstanceState().isReadonly && !editor.getIsMenuOpen() && !isCadNodeEditing(editor) &&
     !isDrawingPointerGestureActive(editor) && before.mode === isDrawingSkewMode(editor) &&
-    before.document === documentStamp(editor) && before.viewport === viewportStamp(editor) &&
+    before.document.page === editor.getCurrentPage() && before.document.shapes === editor.getCurrentPageShapesSorted() && before.viewport === viewportStamp(editor) &&
     (!checkSelection || sameSelection(before.selection, selectionState(editor)));
   const targetAllowed = (target: EventTarget | null): target is Element => target instanceof Element &&
     container.contains(target) && !!target.closest('.tl-canvas') && !target.closest(ignored);
@@ -112,7 +119,7 @@ export function installDrawingPickClickToggle(editor: Editor): () => void {
     // otherwise leave a no-op Undo entry even after the original selection is
     // restored. A full document check below prevents rolling back any artwork,
     // asset, page or collaborator edit performed by another release handler.
-    press.releaseDocument = JSON.stringify(editor.store.getStoreSnapshot('document'));
+    press.releaseDocument = editor.store.getStoreSnapshot('document').store;
     press.historyMark = `oms-pick-click-${++markSequence}`;
     editor.mark(press.historyMark);
   };
@@ -162,7 +169,7 @@ export function installDrawingPickClickToggle(editor: Editor): () => void {
     } else if (info.name === 'pointer_up') {
       const current = press;
       if (!current.nativeDown || !current.released || !current.historyMark || modified(info) || !editor.isIn('select.idle') || !fresh(current.before, false) ||
-          current.releaseDocument !== JSON.stringify(editor.store.getStoreSnapshot('document'))) { reset(); return; }
+          !sameDocumentRecords(current.releaseDocument, editor.store.getStoreSnapshot('document').store)) { reset(); return; }
       const nativeSelection = selectionState(editor);
       press = null;
       editor.bailToMark(current.historyMark);

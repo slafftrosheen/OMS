@@ -60,7 +60,7 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
   const stop=(event:React.SyntheticEvent)=>event.stopPropagation();
   return <HTMLContainer style={{...(shape?{left:12,top:12,width:Math.max(120,shape.props.w-24)}:{position:'relative',width:'100%',marginBottom:8}),height:'auto',pointerEvents:'all',background:'var(--bg-1)',color:'var(--ink-primary,var(--text))',border:'1px solid var(--border)',borderRadius:6,overflow:'visible'}}>
     <section ref={list} data-testid={`production-pocket-${pocket}`} aria-label={`${copy.pocket}: ${copy[pocket]}`}
-      onPointerDown={stop} onKeyDown={stop} onWheel={stop} onDoubleClick={stop} style={{padding:10,fontSize:13}}>
+      data-drawing-native-wheel onPointerDown={stop} onKeyDown={stop} onWheel={stop} onDoubleClick={stop} style={{padding:10,fontSize:13}}>
       <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}>
         <strong>{copy[pocket]} · {files.length}</strong>
         <button type="button" disabled={state.readonly} onClick={()=>input.current?.click()}>{copy.add}</button>
