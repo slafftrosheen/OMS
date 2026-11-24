@@ -7,7 +7,7 @@ import { cadSelectedShapes, shapeCadContours } from './cad-editing';
 import { assertCadMergeContext, cadReferencePaintWarnings, sourceCurveResult } from './cad-source-result';
 import { makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
 import { offsetOpenPolyline } from './cad-open-offset';
-import { prepareMidline } from './cad-midline';
+import { prepareMidline, type MidlineMatching, type MidlinePairing } from './cad-midline';
 import type { CadArcShape } from './shapes/CadShapes';
 
 export interface CadShapingOptions {
@@ -17,6 +17,8 @@ export interface CadShapingOptions {
   join: 'round' | 'miter' | 'square';
   keepSources: boolean;
   targetId?: string;
+  midlinePairing?: MidlinePairing;
+  midlineMatching?: MidlineMatching;
 }
 const SCALE = 10000;
 
@@ -73,11 +75,12 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
   if (options.operation === 'midline') {
     if (shapes.length !== 2 || sourceCurves.some(curves => curves.length !== 1))
       throw new CadOperationError('midline-pair');
-    const { contour, sampled } = prepareMidline(sourceCurves[0][0], sourceCurves[1][0], tolerance / factor);
+    const { contour, sampled, fitted } = prepareMidline(sourceCurves[0][0], sourceCurves[1][0], tolerance / factor,
+      { pairing: options.midlinePairing, matching: options.midlineMatching });
     return makeCadPlan(editor, settings, [contour], {
       sourceIds: ids, removeIds, name: 'CAD midline',
       shapes: [sourceCurveResult(editor, reference, [contour], 'nonzero')],
-      warnings: [...(sampled ? ['midline-sampled'] : []), ...cadReferencePaintWarnings(editor, shapes, reference)]
+      warnings: [...(sampled ? [fitted ? 'midline-fitted' : 'midline-sampled'] : []), ...cadReferencePaintWarnings(editor, shapes, reference)]
     });
   }
   if (options.operation === 'offset' && hasOpen) {

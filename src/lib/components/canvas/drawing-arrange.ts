@@ -1,5 +1,6 @@
 import { Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { getCadShapePageBounds } from './cad-bounds';
+import { CAD_PROJECTION_LIMIT, getCadShapePageProjection, type CadProjectionRange } from './cad-projected-bounds';
 import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
 import { validCadPoint, canvasLengthToUnit, unitLengthToCanvas, type CadSettings, type CadPoint } from './cad-settings';
 import { drawingTransaction } from './drawing-commands';
@@ -7,7 +8,7 @@ import { drawingPageBounds } from './drawing-pages';
 
 export type ArrangeOptions =
   | { kind: 'align'; axis: 'x' | 'y'; alignment: 'start' | 'center' | 'end'; reference: 'selection' | 'last' | 'page' | TLShapeId | { position: number; together?: boolean }; together?: boolean }
-  | { kind: 'align-guide'; point: CadPoint; normal: CadPoint; together?: boolean }
+  | { kind: 'align-guide'; point: CadPoint; normal: CadPoint; alignment?: 'start' | 'center' | 'end'; together?: boolean }
   | { kind: 'distribute'; axis: 'x' | 'y'; mode: 'centers' | 'gaps' }
   | { kind: 'space'; axis: 'x' | 'y'; gap: number; anchor: 'start' | 'end' | TLShapeId };
 interface Item { id: TLShapeId; bounds: Box; leaves: Array<{ id: TLShapeId; bounds: Box; rotation: number }> }
@@ -75,9 +76,33 @@ function selection(editor: Editor, minimum = 2): Item[] {
 }
 const position = (b: Box, axis: 'x' | 'y', alignment: 'start' | 'center' | 'end') =>
   b[axis] + (axis === 'x' ? b.w : b.h) * (alignment === 'center' ? 0.5 : alignment === 'end' ? 1 : 0);
+const commonProjection = (ranges: CadProjectionRange[]): CadProjectionRange => ({
+  min: Math.min(...ranges.map(range => range.min)), max: Math.max(...ranges.map(range => range.max)),
+});
+function guideProjections(editor: Editor, items: Item[], unit: CadPoint) {
+  const budget = { remaining: CAD_PROJECTION_LIMIT }, ranges = new Map<TLShapeId, CadProjectionRange>();
+  for (const item of items) {
+    let min = Infinity, max = -Infinity;
+    for (const leaf of item.leaves) {
+      const shape = editor.getShape(leaf.id), range = shape && getCadShapePageProjection(editor, shape, unit, budget);
+      if (!range) throw new CadOperationError('arrangeGuideGeometry');
+      min = Math.min(min, range.min); max = Math.max(max, range.max);
+    }
+    ranges.set(item.id, { min, max });
+  }
+  return ranges;
+}
+function guideAxisBounds(editor: Editor, items: Item[]) {
+  const x = guideProjections(editor, items, { x: 1, y: 0 }), y = guideProjections(editor, items, { x: 0, y: 1 });
+  return new Map(items.map(item => {
+    const horizontal = x.get(item.id)!, vertical = y.get(item.id)!;
+    return [item.id, new Box(horizontal.min, vertical.min, horizontal.max - horizontal.min, vertical.max - vertical.min)];
+  }));
+}
 
-/** Layout uses page-axis geometry bounds, excluding outline thickness. Sorting
- * ties by stable shape ID keeps coincident items independent of selection order. */
+/** Axis layout uses page-axis bounds. Angled edges use exact geometry support
+ * perpendicular to the guide. Both exclude outline thickness. Sorting ties by
+ * stable shape ID keeps coincident items independent of selection order. */
 export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): ArrangePlan {
   if (!options || !['align', 'align-guide', 'distribute', 'space'].includes(options.kind) ||
       options.kind !== 'align-guide' && !['x', 'y'].includes(options.axis)) throw new CadOperationError('arrangeFailed');
@@ -88,14 +113,26 @@ export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): Arr
   let gap: number | undefined;
   if (options.kind === 'align-guide') {
     const { point, normal } = options;
+    const alignment = options.alignment ?? 'center';
+    if (!['start', 'center', 'end'].includes(alignment)) throw new CadOperationError('arrangeFailed');
     const length = normal && Math.hypot(normal.x, normal.y);
     if (!point || !validCadPoint(point) || !Number.isFinite(length) || length < EPSILON ||
         options.together !== undefined && typeof options.together !== 'boolean') throw new CadOperationError('arrangeBounds');
     const unit = { x: normal.x / length, y: normal.y / length }, common = Box.Common(items.map(item => item.bounds));
-    for (const item of items) {
-      const center = (options.together === false ? item.bounds : common).center;
-      const distance = (point.x - center.x) * unit.x + (point.y - center.y) * unit.y;
-      guideDeltas.set(item.id, { x: distance * unit.x, y: distance * unit.y });
+    if (alignment === 'center') {
+      // Retain the established page-bounds-center behavior for existing plans.
+      for (const item of items) {
+        const center = (options.together === false ? item.bounds : common).center;
+        const distance = (point.x - center.x) * unit.x + (point.y - center.y) * unit.y;
+        guideDeltas.set(item.id, { x: distance * unit.x, y: distance * unit.y });
+      }
+    } else {
+      const ranges = guideProjections(editor, items, unit), range = commonProjection([...ranges.values()]);
+      for (const item of items) {
+        const support = options.together === false ? ranges.get(item.id)! : range;
+        const distance = point.x * unit.x + point.y * unit.y - (alignment === 'start' ? support.min : support.max);
+        guideDeltas.set(item.id, { x: distance * unit.x, y: distance * unit.y });
+      }
     }
   } else if (options.kind === 'align') {
     if (!['start', 'center', 'end'].includes(options.alignment)) throw new CadOperationError('arrangeFailed');
@@ -145,6 +182,10 @@ export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): Arr
       for (let i = anchor - 1; i >= 0; i--) targets.set(sorted[i].id, targets.get(sorted[i+1].id)! - gap - sorted[i].bounds[size]);
     }
   }
+  // Native cubic hit-test bounds can miss a small interior extremum. Exact
+  // edge plans must also stay inside the page-coordinate envelope in X and Y.
+  const edgeBounds = options.kind === 'align-guide' && (options.alignment === 'start' || options.alignment === 'end')
+    ? guideAxisBounds(editor, items) : null;
   const placements = items.map(item => {
     const delta = options.kind === 'align-guide' ? guideDeltas.get(item.id)! : { x: 0, y: 0 };
     if (options.kind !== 'align-guide') delta[axis] = targets.get(item.id)! - item.bounds[axis];
@@ -153,6 +194,9 @@ export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): Arr
     if (!validCadPoint(target) || !validCadPoint(editor.getPointInParentSpace(shape, target)) ||
         !validCadPoint({ x: item.bounds.x + delta.x, y: item.bounds.y + delta.y }) ||
         !validCadPoint({ x: item.bounds.maxX + delta.x, y: item.bounds.maxY + delta.y })) throw new CadOperationError('arrangeBounds');
+    const exact = edgeBounds?.get(item.id);
+    if (exact && (!validCadPoint({ x: exact.x + delta.x, y: exact.y + delta.y }) ||
+        !validCadPoint({ x: exact.maxX + delta.x, y: exact.maxY + delta.y }))) throw new CadOperationError('arrangeBounds');
     return { id: item.id, delta };
   });
   return { revision: cadRevision(editor), selected: [...editor.getSelectedShapeIds()], options: structuredClone(options), gap,
@@ -185,6 +229,17 @@ export function applyArrangePlan(editor: Editor, plan: ArrangePlan): boolean {
               Math.abs(Math.sin((editor.getShapePageTransform(shape!).rotation() - leaf.rotation) / 2)) > 1e-8)
             throw new CadOperationError('arrangeFailed');
         }
+      }
+      const options = fresh.options;
+      if (options.kind === 'align-guide' && (options.alignment === 'start' || options.alignment === 'end')) {
+        if ([...guideAxisBounds(editor, items).values()].some(bounds => !validBounds(bounds)))
+          throw new CadOperationError('arrangeBounds');
+        const length = Math.hypot(options.normal.x, options.normal.y), unit = { x: options.normal.x / length, y: options.normal.y / length };
+        const ranges = [...guideProjections(editor, items, unit).values()];
+        const support = options.together === false ? ranges : [commonProjection(ranges)];
+        const target = options.point.x * unit.x + options.point.y * unit.y;
+        if (support.some(range => Math.abs((options.alignment === 'start' ? range.min : range.max) - target) > 1e-6))
+          throw new CadOperationError('arrangeFailed');
       }
       if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000) throw new CadOperationError('arrangeBounds');
     });

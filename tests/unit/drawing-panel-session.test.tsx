@@ -104,6 +104,81 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('drawing docker continuity', () => {
+  it('reviews midline pairing in the real docker and applies editable curves in one undo', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, get, tick, select, snapshot }: any) => {
+      const React = await import('react');
+      const { CadAdvancedPanel } = await import('../../src/lib/components/canvas/CadAdvancedPanel');
+      const { nodeAt } = await import('../../src/lib/components/canvas/cad-curves');
+      const { buildCadDxf } = await import('../../src/lib/components/canvas/cad-dxf');
+      const settings = { ...cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: 10 };
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: settings } });
+        editor.createShapes([
+          { id: 'shape:midline-a', type: 'cad-bezier', x: 40, y: 50, meta: { name: 'Upper rail' }, props: { contours: [{ closed: false, nodes: [
+            { ...nodeAt({ x: 0, y: 0 }), outX: 20, outY: -50 }, { ...nodeAt({ x: 120, y: 0 }), inX: -20, inY: -50 },
+          ] }] } },
+          { id: 'shape:midline-b', type: 'cad-bezier', x: 40, y: 150, meta: { name: 'Lower rail' }, props: { contours: [{ closed: false, nodes: [
+            { ...nodeAt({ x: 0, y: 0 }), outX: 20, outY: -50 },
+            { ...nodeAt({ x: 60, y: -37.5 }), inX: -20, outX: 20, mode: 'smooth' },
+            { ...nodeAt({ x: 120, y: 0 }), inX: -20, inY: -50 },
+          ] }] } },
+        ]);
+        editor.select('shape:midline-a', 'shape:midline-b'); editor.mark('before-midline');
+        root.render(<EditorContext.Provider value={editor}><CadAdvancedPanel settings={settings} task="edit" focusRequest={{ section: 'midline', sequence: 1 }}/></EditorContext.Provider>);
+      });
+      const before = snapshot(), section = get('drawing-cad-shaping');
+      const prepare = async () => {
+        await act(async () => section.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+        await tick();
+      };
+      assert.equal((get('drawing-midline-pairing') as HTMLSelectElement).value, 'auto');
+      await prepare();
+      assert.equal((get('drawing-cad-apply-plan') as HTMLButtonElement).disabled, false);
+      assert.match(section.textContent, /fitted to editable Bézier curves/);
+      await select(get('drawing-midline-pairing'), 'same');
+      assert.equal((get('drawing-cad-apply-plan') as HTMLButtonElement).disabled, true, 'changed correspondence must invalidate the prior preview');
+      await select(get('drawing-midline-matching'), 'length'); await prepare();
+      await act(async () => (get('drawing-cad-apply-plan') as HTMLButtonElement).click());
+      const result = editor.getOnlySelectedShape();
+      assert.equal(result.type, 'cad-bezier');
+      assert.equal(result.props.contours[0].closed, false);
+      assert.ok(result.props.contours[0].nodes.some((node: any) => Math.hypot(node.inX, node.inY, node.outX, node.outY) > 0));
+      assert.ok(editor.getShape('shape:midline-a') && editor.getShape('shape:midline-b'));
+      const dxf = buildCadDxf(editor, 'selected', settings);
+      assert.equal(dxf.omitted.length, 0); assert.match(dxf.text, /SPLINE/);
+      await act(async () => editor.undo()); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('preserves queued midline options across docker switches and blocks a stale read-only apply', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, get, tick, select, snapshot }: any) => {
+      const React = await import('react');
+      const { CadAdvancedPanel } = await import('../../src/lib/components/canvas/CadAdvancedPanel');
+      const { DrawingPanelSession } = await import('../../src/lib/components/canvas/DrawingPanelSession');
+      await act(async () => {
+        editor.createShapes([
+          { id: 'shape:rail-a', type: 'cad-path', props: { closed: false, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }] } },
+          { id: 'shape:rail-b', type: 'cad-path', y: 100, props: { closed: false, points: [{ x: 20, y: 0 }, { x: 140, y: 20 }] } },
+        ]); editor.select('shape:rail-a', 'shape:rail-b');
+      });
+      const render = async (active: boolean) => {
+        await act(async () => root.render(<EditorContext.Provider value={editor}><DrawingPanelSession active={active}>
+          <CadAdvancedPanel settings={cad.DEFAULT_CAD_SETTINGS} task="edit" focusRequest={{ section: 'midline', sequence: 1 }}/>
+        </DrawingPanelSession></EditorContext.Provider>));
+      };
+      await render(true); await select(get('drawing-midline-pairing'), 'reverse'); await select(get('drawing-midline-matching'), 'length');
+      await render(false); await render(true);
+      assert.equal((get('drawing-midline-pairing') as HTMLSelectElement).value, 'reverse');
+      assert.equal((get('drawing-midline-matching') as HTMLSelectElement).value, 'length');
+      await act(async () => get('drawing-cad-shaping').querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); await tick();
+      const before = snapshot();
+      await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      assert.equal((get('drawing-cad-apply-plan') as HTMLButtonElement).disabled, true);
+      await act(async () => (get('drawing-cad-apply-plan') as HTMLButtonElement).click());
+      assert.deepEqual(snapshot(), before);
+    });
+  });
+
   it('applies an exact millimetre outline preset in an inch-calibrated drawing', async () => {
     await harness(async ({ editor, cad, root, EditorContext, act, get, select }: any) => {
       const React = await import('react');

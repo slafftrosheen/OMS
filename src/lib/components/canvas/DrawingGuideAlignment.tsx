@@ -15,16 +15,21 @@ export function DrawingGuideAlignment({ guide }: { guide: DrawingGuide | null })
   function planFor(current: DrawingGuide, alignment: 'start' | 'center' | 'end' = 'center') {
     if (current.axis !== 'angle') return prepareArrangePlan(editor, { kind: 'align', axis: current.axis, alignment, reference: { position: current.position, together } });
     const { point, normal } = drawingGuideLine(current);
-    return prepareArrangePlan(editor, { kind: 'align-guide', point, normal, together });
+    return prepareArrangePlan(editor, { kind: 'align-guide', point, normal, alignment, together });
   }
   const ready = useValue('Guideline alignment readiness', () => {
-    if (!guide || busy) return false;
-    try { return !!planFor(guide); }
-    catch { return false; }
+    const result = { start: false, center: false, end: false, edgeUnsupported: false };
+    if (!guide || busy) return result;
+    for (const alignment of ['start', 'center', 'end'] as const) {
+      try { result[alignment] = !!planFor(guide, alignment); }
+      catch (error) { if ((error as { code?: string }).code === 'arrangeGuideGeometry') result.edgeUnsupported = true; }
+    }
+    return result;
   }, [editor, guide?.id, guide?.axis, guide?.position, guide?.pivot?.x, guide?.pivot?.y, guide?.angle, together, revision, readonly, busy]);
   if (!guide) return null;
   const alignmentLabels = guide.axis === 'x' ? ['alignLeft', 'alignCenterX', 'alignRight'] as const
-    : ['alignTop', 'alignCenterY', 'alignBottom'] as const;
+    : guide.axis === 'y' ? ['alignTop', 'alignCenterY', 'alignBottom'] as const
+      : ['alignStartGuide', 'alignCenterGuide', 'alignEndGuide'] as const;
   function align(alignment: 'start' | 'center' | 'end') {
     if (drawingGuidesBusy(editor)) { setMessage('busy'); return; }
     const current = readDrawingGuides(editor).guides.find(item => item.id === guide!.id);
@@ -36,16 +41,19 @@ export function DrawingGuideAlignment({ guide }: { guide: DrawingGuide | null })
   }
   return <section className="drawing-guide-alignment" data-testid="drawing-guide-alignment">
     <h3>{t('alignTitle')}</h3>
-    <label className="drawing-cad-check"><input type="checkbox" checked={together} onChange={event => { setTogether(event.target.checked); setMessage(null); }}
+    <label className="drawing-cad-check"><input type="checkbox" checked={together} disabled={readonly || busy} onChange={event => { setTogether(event.target.checked); setMessage(null); }}
       data-testid="drawing-guide-align-together" /><span>{t('keepTogether')}</span></label>
-    <div className={`drawing-guide-align-actions${guide.axis === 'angle' ? ' is-angle' : ''}`}>
-      {(guide.axis === 'angle' ? ['center'] as const : ['start', 'center', 'end'] as const).map((alignment, index) => <button key={alignment} type="button" disabled={!ready}
+    <div className="drawing-guide-align-actions">
+      {(['start', 'center', 'end'] as const).map((alignment, index) => <button key={alignment} type="button" disabled={!ready[alignment]}
+        aria-describedby={guide.axis === 'angle' && alignment !== 'center' && ready.edgeUnsupported ? 'drawing-guide-edge-unavailable' : undefined}
         data-testid={`drawing-guide-align-${alignment}`} onClick={() => align(alignment)}>
-        {t(guide.axis === 'angle' ? 'alignCenterGuide' : alignmentLabels[index])}
+        {t(alignmentLabels[index])}
       </button>)}
     </div>
     <p className="drawing-help">{t(guide.axis === 'angle' ? 'angledAlignmentHelp' : 'alignmentHelp')}</p>
-    {!ready && !busy && <p className="drawing-help">{t('alignFailed')}</p>}
+    {guide.axis === 'angle' && <p className="drawing-help">{t('angledEdgeAlignmentHelp')}</p>}
+    {ready.edgeUnsupported && <p className="drawing-help" id="drawing-guide-edge-unavailable">{t('angledEdgeUnsupported')}</p>}
+    {!ready.start && !ready.center && !ready.end && !busy && <p className="drawing-help">{t('alignFailed')}</p>}
     {message && <p className={`drawing-help${message === 'alignFailed' ? ' is-error' : ''}`} role={message === 'alignFailed' ? 'alert' : 'status'}>{t(message)}</p>}
   </section>;
 }

@@ -8,11 +8,14 @@ import {
   type DrawingGuide, type DrawingGuideGeometry, type DrawingGuideChange, type DrawingGuideErrorCode,
 } from './drawing-guides';
 import { useGuideText } from './guide-copy';
-import { drawingGuidesFromSelection, middleDrawingGuide } from './drawing-guide-construction';
+import { bisectDrawingGuides, drawingGuidesFromSelection, middleDrawingGuide, type DrawingGuideBisectors } from './drawing-guide-construction';
 
 const display = (value: number) => Number.isFinite(value) ? String(Number(value.toPrecision(12))) : '';
 const numeric = (value: string) => value.trim() ? Number(value) : NaN;
 type PoseDraft = { x: string; y: string; angle: string };
+type BisectorChoice = 'first' | 'second' | 'both';
+const chosenBisectors = (result: DrawingGuideBisectors | null, choice: BisectorChoice) =>
+  !result ? [] : choice === 'both' ? result.guides : [result.guides[choice === 'first' ? 0 : 1]];
 const defaultPose = (): PoseDraft => ({ x: '0', y: '0', angle: '45' });
 function poseDraft(pivot: CadPoint, angle: number, settings: CadSettings | null): PoseDraft {
   const point = settings ? canvasPointToCad(pivot, settings) : pivot;
@@ -64,15 +67,20 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
   const guide = state.guides.guides.find(guide => guide.id === state.selected) ?? null;
   const construction = useValue('Guidelines from selected artwork', () => drawingGuidesFromSelection(editor), [editor]);
   const [secondGuideId, setSecondGuideId] = useState('');
-  const parallelGuides = guide ? state.guides.guides.filter(other => other.id !== guide.id && middleDrawingGuide(guide, other)) : [];
-  const secondGuide = parallelGuides.find(other => other.id === secondGuideId) ?? parallelGuides[0];
+  const partnerGuides = guide ? state.guides.guides.filter(other => other.id !== guide.id) : [];
+  const secondGuide = partnerGuides.find(other => other.id === secondGuideId)
+    ?? partnerGuides.find(other => middleDrawingGuide(guide!, other)) ?? partnerGuides[0];
+  const guideMiddle = guide && secondGuide ? middleDrawingGuide(guide, secondGuide) : null;
+  const guideBisectors = guide && secondGuide ? bisectDrawingGuides(guide, secondGuide) : null;
+  const [artworkBisectorChoice, setArtworkBisectorChoice] = useState<BisectorChoice>('both');
+  const [guideBisectorChoice, setGuideBisectorChoice] = useState<BisectorChoice>('both');
   const [axis, setAxis] = useState<DrawingGuideGeometry['axis']>('y'), [addDraft, setAddDraft] = useState('0');
   const [addPose, setAddPose] = useState(defaultPose), [movePose, setMovePose] = useState(defaultPose);
   const addPosition = useRef(guidePositionFromUnit('y', 0, settings)), addInput = useRef<HTMLInputElement>(null), guideList = useRef<HTMLSelectElement>(null);
   const [moveDraft, setMoveDraft] = useState(''), [moveRevision, setMoveRevision] = useState<string | null>(null);
   const [rotateAxisGuide, setRotateAxisGuide] = useState(false);
   const movePosition = useRef<number>(NaN), moveInput = useRef<HTMLInputElement>(null);
-  const [message, setMessage] = useState<DrawingGuideErrorCode | 'done' | 'constructionUnavailable' | null>(null);
+  const [message, setMessage] = useState<DrawingGuideErrorCode | 'done' | 'constructionUnavailable' | 'constructionChanged' | null>(null);
   const stale = moveRevision !== null && moveRevision !== state.revision;
   const readonly = state.readonly || !state.valid || state.busy, geometryDisabled = readonly || state.guides.locked;
   const resetMove = () => {
@@ -115,10 +123,24 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
     if (!geometries.length) { setMessage('constructionUnavailable'); return; }
     apply({ kind: 'add-many', guides: geometries });
   }
-  function betweenGuides() {
+  function constructBisectors() {
+    if (geometryDisabled) return;
+    const current = drawingGuidesFromSelection(editor).bisectors;
+    if (JSON.stringify(current) !== JSON.stringify(construction.bisectors)) { setMessage('constructionChanged'); return; }
+    const geometries = chosenBisectors(current, artworkBisectorChoice);
+    if (!geometries.length) { setMessage('constructionUnavailable'); return; }
+    apply({ kind: 'add-many', guides: geometries });
+  }
+  function betweenGuides(bisectors = false) {
     if (geometryDisabled || !guide || !secondGuide) return;
+    if (selectedDrawingGuide(editor).get() !== guide.id) { setMessage('constructionChanged'); return; }
     const current = readDrawingGuides(editor).guides;
     const first = current.find(item => item.id === guide.id), second = current.find(item => item.id === secondGuide.id);
+    if (bisectors) {
+      const geometries = chosenBisectors(first && second ? bisectDrawingGuides(first, second) : null, guideBisectorChoice);
+      if (!geometries.length) { setMessage('constructionUnavailable'); return; }
+      apply({ kind: 'add-many', guides: geometries }); return;
+    }
     const middle = first && second ? middleDrawingGuide(first, second) : null;
     if (!middle) { setMessage('constructionUnavailable'); return; }
     apply({ kind: 'add', ...middle });
@@ -134,6 +156,29 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
     const point = settings ? canvasPointToCad(item.pivot, settings) : item.pivot;
     return `${t('angled')} · ${display(item.angle)}° · X ${display(point.x)} / Y ${display(point.y)} ${unit}`;
   };
+  function bisectorControls(result: DrawingGuideBisectors | null, choice: BisectorChoice, change: (value: BisectorChoice) => void,
+    create: () => void, prefix: string) {
+    const geometries = chosenBisectors(result, choice);
+    const intersection = result && (settings ? canvasPointToCad(result.intersection, settings) : result.intersection);
+    return <>
+      <p className="drawing-help">{t('bisectorHelp')}</p>
+      {result && intersection ? <>
+        <p className="drawing-help" data-testid={`${prefix}-angles`}>{t('bisectorAngles')}: {result.angles.map(value => `${display(value)}°`).join(' / ')}</p>
+        <p className="drawing-help" data-testid={`${prefix}-intersection`}>{t('intersection')}: X {display(intersection.x)} / Y {display(intersection.y)} {unit}</p>
+        {result.perpendicular && <p className="drawing-help">{t('perpendicularBisectors')}</p>}
+      </> : <p className="drawing-help">{t('bisectorRequired')}</p>}
+      <label><span>{t('bisectorChoice')}</span><select value={choice} disabled={!result} data-testid={`${prefix}-choice`}
+        onChange={event => { change(event.target.value as BisectorChoice); setMessage(null); }}>
+        <option value="first">{t(result?.perpendicular ? 'bisectorA' : 'acuteBisector')}</option>
+        <option value="second">{t(result?.perpendicular ? 'bisectorB' : 'obtuseBisector')}</option>
+        <option value="both">{t('bothBisectors')}</option>
+      </select></label>
+      {result && <p className="drawing-help" data-testid={`${prefix}-directions`}>{t(choice === 'both' ? 'bisectorDirections' : 'orientation')}: {geometries.map(item => `${display(item.angle)}°`).join(' / ')}</p>}
+      {result && choice === 'both' && state.guides.guides.length === MAX_DRAWING_GUIDES - 1 && <p className="drawing-help">{t('bisectorLimit')}</p>}
+      <button type="button" disabled={!geometries.length || state.guides.guides.length + geometries.length > MAX_DRAWING_GUIDES}
+        onClick={create} data-testid={`${prefix}-add`}>{t(choice === 'both' ? 'createBothBisectors' : 'createBisector')}</button>
+    </>;
+  }
   return <section className="drawing-guides" aria-label={t('title')} data-testid="drawing-guides-panel" onKeyDown={event => event.stopPropagation()}>
     <p className="drawing-help">{t('help')}</p>
     {!state.valid && <p className="drawing-help is-error" role="alert">{t('corrupt')}</p>}
@@ -198,6 +243,10 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
           <button type="button" disabled={!construction.gapY} onClick={() => construct('gapY')} data-testid="drawing-guide-gap-y">{t('gapMiddleY')}</button>
         </div>
       </fieldset>
+      <fieldset className="drawing-workbench-fields" disabled={geometryDisabled || state.guides.guides.length >= MAX_DRAWING_GUIDES}>
+        <legend>{t('angleBisectors')}</legend>
+        {bisectorControls(construction.bisectors, artworkBisectorChoice, setArtworkBisectorChoice, constructBisectors, 'drawing-guide-bisector-artwork')}
+      </fieldset>
     </details>
     <p className="drawing-help" aria-live="polite">{t('count').replace('{count}', String(state.guides.guides.length)).replace('{maximum}', String(MAX_DRAWING_GUIDES))}</p>
     {ordered.length ? <label className="drawing-guide-list"><span>{t('guides')}</span>
@@ -247,13 +296,16 @@ export function DrawingGuidesPanel({ settings, focusRequest = 0, renderAlignment
       </fieldset>
       <fieldset className="drawing-workbench-fields" disabled={geometryDisabled || state.guides.guides.length >= MAX_DRAWING_GUIDES}>
         <legend>{t('betweenGuides')}</legend>
-        <label><span>{t('secondGuide')}</span><select value={secondGuide?.id ?? ''} disabled={!parallelGuides.length}
+        <label><span>{t('secondGuide')}</span><select value={secondGuide?.id ?? ''} disabled={!partnerGuides.length}
           data-testid="drawing-guide-middle-second" onChange={event => { setSecondGuideId(event.target.value); setMessage(null); }}>
-          {!parallelGuides.length && <option value="">{t('parallelGuideRequired')}</option>}
-          {parallelGuides.map(item => <option key={item.id} value={item.id}>{description(item)}</option>)}
+          {!partnerGuides.length && <option value="">{t('partnerGuideRequired')}</option>}
+          {partnerGuides.map(item => <option key={item.id} value={item.id}>{description(item)}</option>)}
         </select></label>
-        <button type="button" disabled={!secondGuide} data-testid="drawing-guide-middle-guides" onClick={betweenGuides}>{t('createMiddleGuide')}</button>
-        <p className="drawing-help">{t('middleGuideHelp')}</p>
+        {guideMiddle ? <>
+          <button type="button" data-testid="drawing-guide-middle-guides" onClick={() => betweenGuides()}>{t('createMiddleGuide')}</button>
+          <p className="drawing-help">{t('middleGuideHelp')}</p>
+        </> : guideBisectors ? bisectorControls(guideBisectors, guideBisectorChoice, setGuideBisectorChoice, () => betweenGuides(true), 'drawing-guide-bisector-guides')
+          : <p className="drawing-help">{t(secondGuide ? 'guidePairUnavailable' : 'partnerGuideRequired')}</p>}
       </fieldset>
     </section>}
     {renderAlignment?.(guide)}

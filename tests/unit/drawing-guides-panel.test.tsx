@@ -83,6 +83,117 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('Guidelines docker with a real React and tldraw editor', () => {
+  it('shows physical angle-bisector readouts and creates both from selected native lines in one undo step', async () => {
+    await harness(async ({ editor, guides, settings, container, get, click, act, tick }) => {
+      const points = { a: { id: 'a', index: 'a1', x: 0, y: 0 }, b: { id: 'b', index: 'a2', x: 100, y: 0 } };
+      await act(async () => {
+        editor.createShapes([
+          { id: 'shape:a', type: 'line', x: 120, y: 170, props: { spline: 'line', points } },
+          { id: 'shape:b', type: 'line', x: 120, y: 170, rotation: -Math.PI / 3, props: { spline: 'line', points } },
+        ]);
+        editor.select('shape:a', 'shape:b');
+        (container.querySelector('.drawing-guide-construction') as HTMLDetailsElement).open = true;
+      }); await tick();
+      const originals = structuredClone(editor.getSelectedShapes());
+      assert.equal(get('drawing-guide-bisector-artwork-add').matches(':disabled'), false);
+      assert.equal(get('drawing-guide-bisector-artwork-angles').textContent, 'Angles between sources: 60° / 120°');
+      assert.equal(get('drawing-guide-bisector-artwork-directions').textContent, 'Bisector directions: 30° / 120°');
+      assert.equal(get('drawing-guide-bisector-artwork-intersection').textContent, 'Intersection: X 5.29166666667 / Y 7.9375 mm');
+      assert.match(container.textContent ?? '', /extended as infinite straight lines/);
+      await act(async () => settings.writeCadSettings(editor, { ...settings.readCadSettings(editor), unit: 'in' })); await tick();
+      assert.equal(get('drawing-guide-bisector-artwork-intersection').textContent, 'Intersection: X 0.208333333333 / Y 0.3125 in');
+      await click('drawing-guide-bisector-artwork-add');
+      const added = guides.readDrawingGuides(editor).guides;
+      assert.equal(added.length, 2);
+      assert.deepEqual(added.map((guide: any) => Number(guide.angle.toFixed(8))), [30, 120]);
+      for (const guide of added) {
+        assert.ok(Math.abs(guide.pivot.x - 120) < 1e-8); assert.ok(Math.abs(guide.pivot.y - 170) < 1e-8);
+      }
+      assert.deepEqual(editor.getSelectedShapes(), originals);
+      await act(async () => editor.undo()); await tick();
+      assert.equal(guides.readDrawingGuides(editor).guides.length, 0);
+      assert.deepEqual(editor.getSelectedShapeIds(), ['shape:a', 'shape:b']);
+      await act(async () => editor.redo()); await tick();
+      assert.equal(guides.readDrawingGuides(editor).guides.length, 2);
+      assert.deepEqual(editor.getSelectedShapes(), originals);
+    });
+  });
+
+  it('labels right-angle guide solutions A/B, reads hidden locked sources and honors editing guards', async () => {
+    await harness(async ({ editor, guides, container, locale, get, click, select, change, act, tick }) => {
+      await change({ kind: 'add-many', guides: [
+        { id: 'guide:x', axis: 'x', position: 200 }, { id: 'guide:y', axis: 'y', position: 100 },
+      ] });
+      await change({ kind: 'guide-visible', id: 'guide:x', visible: false });
+      await change({ kind: 'guide-locked', id: 'guide:x', locked: true });
+      await change({ kind: 'guide-locked', id: 'guide:y', locked: true });
+      const originals = structuredClone(guides.readDrawingGuides(editor).guides);
+      assert.equal(get('drawing-guide-bisector-guides-angles').textContent, 'Angles between sources: 90° / 90°');
+      const choices = () => Array.from((get('drawing-guide-bisector-guides-choice') as HTMLSelectElement).options).map(option => option.textContent);
+      assert.deepEqual(choices(), ['Bisector A', 'Bisector B', 'Both bisectors']);
+      assert.equal(get('drawing-guide-bisector-guides-add').matches(':disabled'), false);
+      await act(async () => locale.set('ru')); await tick(); assert.deepEqual(choices(), ['Биссектриса A', 'Биссектриса B', 'Обе биссектрисы']);
+      await act(async () => locale.set('lv')); await tick(); assert.deepEqual(choices(), ['Bisektrise A', 'Bisektrise B', 'Abas bisektrises']);
+      await act(async () => locale.set('en')); await tick();
+      await select('drawing-guide-bisector-guides-choice', 'second');
+      assert.equal(get('drawing-guide-bisector-guides-directions').textContent, 'Direction: 135°');
+      await click('drawing-guide-bisector-guides-add');
+      const added = guides.readDrawingGuides(editor).guides;
+      assert.equal(added.length, 3); assert.equal(added[2].angle, 135);
+      assert.deepEqual(added.slice(0, 2), originals);
+      await act(async () => editor.undo()); await tick();
+      assert.deepEqual(guides.readDrawingGuides(editor).guides, originals);
+      await select('drawing-guides-list', 'guide:y');
+      await change({ kind: 'settings', locked: true });
+      assert.equal(get('drawing-guide-bisector-guides-add').matches(':disabled'), true);
+      await click('drawing-guide-bisector-guides-add'); assert.equal(guides.readDrawingGuides(editor).guides.length, 2);
+      await change({ kind: 'settings', locked: false });
+      await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      assert.equal(get('drawing-guide-bisector-guides-add').matches(':disabled'), true);
+      assert.equal(get('drawing-guide-bisector-artwork-add').matches(':disabled'), true);
+      assert.match(container.textContent ?? '', /read-only/);
+    });
+  });
+
+  it('keeps a single bisector available when only one guide slot remains', async () => {
+    await harness(async ({ editor, guides, container, get, click, select, change }) => {
+      await change({ kind: 'add-many', guides: [
+        { id: 'guide:horizontal', axis: 'y', position: 200 }, { id: 'guide:vertical', axis: 'x', position: 100 },
+        ...Array.from({ length: 253 }, (_, index) => ({ id: `guide:extra${index}`, axis: 'y', position: index })),
+      ] });
+      await select('drawing-guides-list', 'guide:horizontal');
+      await select('drawing-guide-middle-second', 'guide:vertical');
+      assert.equal(get('drawing-guide-bisector-guides-add').matches(':disabled'), true);
+      assert.match(container.textContent ?? '', /room for one more guideline/);
+      await select('drawing-guide-bisector-guides-choice', 'first');
+      assert.equal(get('drawing-guide-bisector-guides-add').matches(':disabled'), false);
+      await click('drawing-guide-bisector-guides-add');
+      const added = guides.readDrawingGuides(editor).guides;
+      assert.equal(added.length, 256); assert.equal(added.at(-1).angle, 45);
+    });
+  });
+
+  it('rejects artwork geometry changed before the displayed bisector construction can commit', async () => {
+    await harness(async ({ editor, guides, container, get, act, tick }) => {
+      const points = { a: { id: 'a', index: 'a1', x: 0, y: 0 }, b: { id: 'b', index: 'a2', x: 100, y: 0 } };
+      await act(async () => {
+        editor.createShapes([
+          { id: 'shape:a', type: 'line', props: { spline: 'line', points } },
+          { id: 'shape:b', type: 'line', rotation: -Math.PI / 3, props: { spline: 'line', points } },
+        ]);
+        editor.select('shape:a', 'shape:b');
+      }); await tick();
+      await act(async () => {
+        const add = get('drawing-guide-bisector-artwork-add');
+        editor.updateShape({ id: 'shape:b', type: 'line', rotation: -Math.PI / 4 });
+        add.click();
+      }); await tick();
+      assert.equal(guides.readDrawingGuides(editor).guides.length, 0);
+      assert.match(container.querySelector('[role="alert"]')?.textContent ?? '', /source geometry changed/);
+      assert.equal(get('drawing-guide-bisector-artwork-angles').textContent, 'Angles between sources: 45° / 135°');
+    });
+  });
+
   it('creates selection-center pairs in one undo step and the exact middle between parallel guides', async () => {
     await harness(async ({ editor, guides, container, get, click, select, change, act, tick }) => {
       await act(async () => {

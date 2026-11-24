@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { createTLStore, defaultShapeUtils, HistoryManager, PageRecordType, type TLShape, type TLShapeId } from '@tldraw/tldraw';
+import { createTLStore, defaultShapeUtils, HistoryManager, LineShapeUtil, PageRecordType, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { fixture } from '../helpers/cad-editor';
 import { applyArrangePlan, prepareArrangePlan, type ArrangeOptions } from '../../src/lib/components/canvas/drawing-arrange';
 import { applyDrawingGuideChange, prepareDrawingGuideChange, readDrawingGuides,
@@ -8,6 +8,7 @@ import { applyDrawingGuideChange, prepareDrawingGuideChange, readDrawingGuides,
 import { CAD_MAX_COORDINATE, DEFAULT_CAD_SETTINGS, type CadSettings } from '../../src/lib/components/canvas/cad-settings';
 import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
 import { CadEllipseShapeUtil } from '../../src/lib/components/canvas/shapes/CadShapes';
+import { getCadShapePageProjection } from '../../src/lib/components/canvas/cad-projected-bounds';
 
 const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-6, `${actual} != ${expected}`);
 const errorCode = (expected: string) => (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === expected;
@@ -169,6 +170,129 @@ describe('Alignment to a guideline coordinate', () => {
       near(guidePositionToUnit('x', shape(f).x + 10, settings), x);
       near(guidePositionToUnit('y', shape(f).y + 10, settings), y);
     }
+  });
+});
+
+describe('Exact start and end support on angled guidelines', () => {
+  it('checks true page-axis extrema near the coordinate limit, including native cubic overshoot', () => {
+    const f = fixture(); f.utils.line = new LineShapeUtil(f.editor);
+    f.editor.createShape({ id: 'shape:native-limit', type: 'line', props: { spline: 'cubic', dash: 'solid', points: Object.fromEntries(
+      [[0, 0], [80, 100], [150, -20], [160, -80]].map(([x, y], i) => [`a${i + 1}`, { id: `a${i + 1}`, index: `a${i + 1}`, x, y }])) } });
+    f.editor.setSelectedShapes(['shape:native-limit']);
+    const source = f.editor.getShape('shape:native-limit'), normal = { x: .6, y: .8 };
+    const actual = getCadShapePageProjection(f.editor, source, { x: 0, y: 1 })!, sampled = f.editor.getShapePageBounds(source);
+    assert.ok(actual.max - sampled.maxY > 1e-6, 'fixture must expose the native sampled-bound gap');
+    const support = getCadShapePageProjection(f.editor, source, normal)!;
+    const options = (dy: number): ArrangeOptions => {
+      const target = support.min + dy / normal.y;
+      return { kind: 'align-guide', normal, point: { x: target * normal.x, y: target * normal.y }, alignment: 'start' };
+    };
+    const before = artwork(f), outside = CAD_MAX_COORDINATE - (actual.max + sampled.maxY) / 2;
+    assert.throws(() => prepareArrangePlan(f.editor, options(outside)), errorCode('arrangeBounds'));
+    assert.deepEqual(artwork(f), before);
+    const safe = prepareArrangePlan(f.editor, options(CAD_MAX_COORDINATE - actual.max - .0001));
+    assert.equal(applyArrangePlan(f.editor, safe), true);
+    near(getCadShapePageProjection(f.editor, f.editor.getShape(source.id), { x: 0, y: 1 })!.max, CAD_MAX_COORDINATE - .0001);
+  });
+
+  const normal = { x: .6, y: .8 }, point = { x: 50, y: 80 }, target = 94;
+  const projected = (f: Fixture, id = 'a') => getCadShapePageProjection(f.editor, shape(f, id), normal)!;
+
+  for (const alignment of ['start', 'end'] as const) it(`touches a slanted guide with the ellipse's exact ${alignment} edge`, () => {
+    const f = setup(), before = structuredClone(shape(f));
+    const plan = prepareArrangePlan(f.editor, { kind: 'align-guide', alignment, point, normal });
+    assert.equal(applyArrangePlan(f.editor, plan), true);
+    // Original center projects to 32; the support radius is sqrt(52), not
+    // the AABB support radius of 10. This catches rotated-AABB shortcuts.
+    const distance = target - 32 + (alignment === 'start' ? 1 : -1) * Math.sqrt(52);
+    near(shape(f).x, before.x + distance * .6); near(shape(f).y, before.y + distance * .8);
+    near(projected(f)[alignment === 'start' ? 'min' : 'max'], target);
+    assert.deepEqual(shape(f).props, before.props); assert.equal(shape(f).rotation, before.rotation);
+    assert.deepEqual(shape(f).meta, before.meta);
+  });
+
+  it('combines exact leaf supports for nested groups and preserves spacing when moving together', () => {
+    const f = setup(true);
+    f.editor.createShape({ id: 'shape:outer', type: 'group', x: 200, y: 100, rotation: Math.PI / 3 });
+    f.editor.createShape({ id: 'shape:inner', type: 'group', parentId: 'shape:outer', x: 30, y: 40, rotation: Math.PI / 7 });
+    f.editor.updateShape({ id: 'shape:a', parentId: 'shape:inner' });
+    f.editor.updateShape({ id: 'shape:b', parentId: 'shape:inner' });
+    f.editor.createShape({ id: 'shape:c', type: 'cad-path', x: 500, y: 200,
+      props: { closed: true, points: [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 10, y: 40 }] } });
+    f.editor.setSelectedShapes(['shape:inner', 'shape:a', 'shape:c']);
+    const leafBefore = structuredClone([shape(f), shape(f, 'b')]);
+    const origins = ['a', 'b', 'c'].map(id => f.editor.getShapePageTransform(`shape:${id}`).point());
+    const plan = prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'end', point, normal, together: true });
+    assert.equal(plan.placements.length, 2, 'a selected descendant is moved only through its selected root');
+    assert.equal(applyArrangePlan(f.editor, plan), true);
+    near(Math.max(...['a', 'b', 'c'].map(id => projected(f, id).max)), target);
+    const deltas = ['a', 'b', 'c'].map((id, i) => {
+      const after = f.editor.getShapePageTransform(`shape:${id}`).point();
+      return { x: after.x - origins[i].x, y: after.y - origins[i].y };
+    });
+    for (const delta of deltas) { near(delta.x, deltas[0].x); near(delta.y, deltas[0].y); }
+    assert.deepEqual([shape(f), shape(f, 'b')], leafBefore, 'child coordinates and shape content stay unchanged');
+  });
+
+  it('aligns separate exact edges in one native undo step and keeps a repeated no-op out of history', () => {
+    const f = setup(true), native = withNativeHistory(f), before = artwork(f);
+    try {
+      const options: ArrangeOptions = { kind: 'align-guide', alignment: 'start', point, normal, together: false };
+      assert.equal(applyArrangePlan(f.editor, prepareArrangePlan(f.editor, options)), true);
+      near(projected(f).min, target); near(projected(f, 'b').min, target);
+      const after = artwork(f), undoCount = native.history.getNumUndos();
+      const noOp = prepareArrangePlan(f.editor, options); assert.equal(noOp.moved, 0);
+      assert.equal(applyArrangePlan(f.editor, noOp), true); assert.equal(native.history.getNumUndos(), undoCount);
+      native.history.undo(); assert.deepEqual(artwork(f), before);
+      native.history.redo(); assert.deepEqual(artwork(f), after);
+    } finally { native.dispose(); }
+  });
+
+  it('swaps start and end when the guide direction reverses and normalizes the distance', () => {
+    const f = setup();
+    const start = prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'start', point, normal });
+    const reverseEnd = prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'end', point, normal: { x: -6, y: -8 } });
+    near(start.placements[0].delta.x, reverseEnd.placements[0].delta.x);
+    near(start.placements[0].delta.y, reverseEnd.placements[0].delta.y);
+    for (const invalid of [{ x: 0, y: 0 }, { x: Infinity, y: 1 }, { x: NaN, y: 1 }])
+      assert.throws(() => prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'start', point, normal: invalid }), errorCode('arrangeBounds'));
+    assert.throws(() => prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'near' as any, point, normal }), errorCode('arrangeFailed'));
+  });
+
+  it('refuses a mixed exact/sampled selection without weakening existing center alignment or protections', () => {
+    const f = setup(true);
+    f.editor.updateShape({ id: 'shape:b', type: 'draw' });
+    const before = artwork(f);
+    for (const alignment of ['start', 'end'] as const)
+      assert.throws(() => prepareArrangePlan(f.editor, { kind: 'align-guide', alignment, point, normal }), errorCode('arrangeGuideGeometry'));
+    assert.deepEqual(artwork(f), before); assert.equal(f.marks.length, 0);
+    assert.ok(prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'center', point, normal }));
+    f.editor.updateShape({ id: 'shape:a', isLocked: true });
+    assert.throws(() => prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'end', point, normal }), errorCode('arrangeProtected'));
+  });
+
+  it('enforces an aggregate projection budget across every leaf of a selected group', () => {
+    const f = fixture(), nodes = Array.from({ length: 4096 }, (_, i) => nodeAt({ x: i, y: i % 2 }));
+    f.editor.createShape({ id: 'shape:group', type: 'group' });
+    for (let i = 0; i < 5; i++) f.editor.createShape({ id: `shape:curve${i}`, type: 'cad-bezier', parentId: 'shape:group',
+      props: { contours: [{ closed: false, nodes }] } });
+    f.editor.setSelectedShapes(['shape:group']);
+    assert.throws(() => prepareArrangePlan(f.editor, { kind: 'align-guide', alignment: 'start', point, normal }), errorCode('arrangeGuideGeometry'));
+    assert.equal(f.marks.length, 0);
+  });
+
+  it('rolls back a native update that changes oblique support while retaining the same page AABB', () => {
+    const f = fixture();
+    f.editor.createShape({ id: 'shape:triangle', type: 'cad-path', props: { closed: true,
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }] } });
+    f.editor.setSelectedShapes(['shape:triangle']);
+    const before = artwork(f), plan = prepareArrangePlan(f.editor,
+      { kind: 'align-guide', alignment: 'end', point, normal: { x: .6, y: -.8 } });
+    const update = f.editor.updateShapes;
+    f.editor.updateShapes = (patches: any[]) => update(patches.map(patch => ({ ...patch,
+      props: { points: [{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 100, y: 100 }] },
+    })));
+    assert.equal(applyArrangePlan(f.editor, plan), false); assert.deepEqual(artwork(f), before); assert.equal(f.marks.length, 0);
   });
 });
 

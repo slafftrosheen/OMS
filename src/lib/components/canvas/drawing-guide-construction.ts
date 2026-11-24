@@ -6,6 +6,7 @@ import { validCadPoint, type CadPoint } from './cad-settings';
 import { drawingGuideLine, type DrawingGuideGeometry } from './drawing-guides';
 
 const EPSILON = 1e-7;
+const PARALLEL_EPSILON = 1e-12;
 const MAX_CONSTRUCTION_SHAPES = 500;
 const ARTWORK_TYPES = new Set(['group', 'geo', 'draw', 'highlight', 'line', 'text', 'image', 'cad-path', 'cad-bezier', 'cad-ellipse', 'cad-arc']);
 
@@ -13,13 +14,62 @@ const ARTWORK_TYPES = new Set(['group', 'geo', 'draw', 'highlight', 'line', 'tex
  * they are deliberately not interpreted as a unique "middle" guideline. */
 export function middleDrawingGuide(a: DrawingGuideGeometry, b: DrawingGuideGeometry): DrawingGuideGeometry | null {
   const first = drawingGuideLine(a), second = drawingGuideLine(b);
-  if (Math.abs(first.along.x * second.along.y - first.along.y * second.along.x) > EPSILON) return null;
+  if (Math.abs(first.along.x * second.along.y - first.along.y * second.along.x) > PARALLEL_EPSILON) return null;
   const separation = (second.point.x - first.point.x) * first.normal.x + (second.point.y - first.point.y) * first.normal.y;
   if (!Number.isFinite(separation) || Math.abs(separation) <= EPSILON) return null;
   if (a.axis !== 'angle' && a.axis === b.axis) return { axis: a.axis, position: (a.position + b.position!) / 2 };
   const pivot = { x: (first.point.x + second.point.x) / 2, y: (first.point.y + second.point.y) / 2 };
   if (!validCadPoint(pivot)) return null;
   return { axis: 'angle', pivot, angle: a.axis === 'angle' ? a.angle : a.axis === 'x' ? 270 : 0 };
+}
+
+type AngledGuide = Extract<DrawingGuideGeometry, { axis: 'angle' }>;
+export interface DrawingGuideBisectors {
+  intersection: CadPoint;
+  /** Sector angles, acute first. A perpendicular pair has two equal sectors. */
+  angles: [number, number];
+  perpendicular: boolean;
+  /** Acute then obtuse; for equal sectors, A then B in ascending heading order. */
+  guides: [AngledGuide, AngledGuide];
+}
+
+const lineHeading = (angle: number) => ((angle % 180) + 180) % 180;
+function unorientedGuideLine(guide: DrawingGuideGeometry) {
+  const angle = guide.axis === 'x' ? 90 : guide.axis === 'y' ? 0 : guide.angle;
+  if (!Number.isFinite(angle) || Math.abs(angle) > 36000) return null;
+  const point = drawingGuideLine(guide).point;
+  if (!validCadPoint(point)) return null;
+  const heading = lineHeading(angle);
+  const along = heading === 0 ? { x: 1, y: 0 } : heading === 90 ? { x: 0, y: -1 }
+    : drawingGuideLine({ axis: 'angle', pivot: point, angle: heading }).along;
+  return { point, along, heading };
+}
+
+/** The two exact bisectors of infinite supporting lines. Canonical headings
+ * keep the acute/obtuse choice independent of path direction and source order.
+ * Almost parallel lines are rejected rather than amplifying floating-point
+ * error into an unreliable, potentially distant intersection. */
+export function bisectDrawingGuides(a: DrawingGuideGeometry, b: DrawingGuideGeometry): DrawingGuideBisectors | null {
+  const firstLine = unorientedGuideLine(a), secondLine = unorientedGuideLine(b);
+  if (!firstLine || !secondLine) return null;
+  const [first, second] = [firstLine, secondLine].sort((a, b) => a.heading - b.heading);
+  const determinant = first.along.x * second.along.y - first.along.y * second.along.x;
+  if (Math.abs(determinant) <= EPSILON) return null;
+  const dx = second.point.x - first.point.x, dy = second.point.y - first.point.y;
+  const distance = (dx * second.along.y - dy * second.along.x) / determinant;
+  const intersection = { x: first.point.x + distance * first.along.x, y: first.point.y + distance * first.along.y };
+  if (!validCadPoint(intersection)) return null;
+  const difference = second.heading - first.heading;
+  const perpendicular = Math.abs(first.along.x * second.along.x + first.along.y * second.along.y) <= PARALLEL_EPSILON;
+  const acute = perpendicular ? 90 : Math.min(difference, 180 - difference);
+  const midpoint = (first.heading + second.heading) / 2;
+  const headings = [lineHeading(midpoint), lineHeading(midpoint + 90)];
+  if (perpendicular) headings.sort((a, b) => a - b);
+  else if (difference > 90) headings.reverse();
+  return {
+    intersection, angles: [acute, 180 - acute], perpendicular,
+    guides: headings.map(angle => ({ axis: 'angle', pivot: { ...intersection }, angle })) as [AngledGuide, AngledGuide],
+  };
 }
 
 function straightShapeGuide(editor: Editor, shape: TLShape): DrawingGuideGeometry | null {
@@ -47,12 +97,13 @@ export interface DrawingGuideConstruction {
   gapX: DrawingGuideGeometry | null;
   gapY: DrawingGuideGeometry | null;
   parallel: DrawingGuideGeometry | null;
+  bisectors: DrawingGuideBisectors | null;
 }
 
 /** Construction reads exact page-space bounds; selected groups count as one
  * object. Creating guides never changes the source artwork or its selection. */
 export function drawingGuidesFromSelection(editor: Editor): DrawingGuideConstruction {
-  const empty: DrawingGuideConstruction = { centers: [], gapX: null, gapY: null, parallel: null };
+  const empty: DrawingGuideConstruction = { centers: [], gapX: null, gapY: null, parallel: null, bisectors: null };
   try {
     const roots = arrangementRoots(editor);
     if (!roots.length || roots.length > MAX_CONSTRUCTION_SHAPES) return empty;
@@ -85,7 +136,10 @@ export function drawingGuidesFromSelection(editor: Editor): DrawingGuideConstruc
       }
       const first = straightShapeGuide(editor, editor.getShape(roots[0])!);
       const second = straightShapeGuide(editor, editor.getShape(roots[1])!);
-      if (first && second) result.parallel = middleDrawingGuide(first, second);
+      if (first && second) {
+        result.parallel = middleDrawingGuide(first, second);
+        result.bisectors = bisectDrawingGuides(first, second);
+      }
     }
     return result;
   } catch { return empty; }

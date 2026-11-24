@@ -4,6 +4,7 @@ import { getCadShapePageBounds } from './cad-bounds';
 import { cadRevision, CadOperationError } from './cad-plans';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { MAX_REPEAT_SHAPES } from './drawing-operations';
+import { canWriteCadSnapSettings } from './cad-snap-settings';
 
 const TYPES = new Set(['group', 'geo', 'draw', 'highlight', 'line', 'text', 'image', 'cad-path', 'cad-bezier', 'cad-ellipse', 'cad-arc', 'cad-dimension']);
 const TAU = Math.PI * 2;
@@ -62,6 +63,7 @@ function geometry(editor: Editor, shapes: TLShape[]) {
 }
 
 export function prepareRadialPlan(editor: Editor, options: RadialOptions, expected = [...editor.getSelectedShapeIds()]): RadialPlan {
+  if (!editor.getInstanceState().isReadonly && !canWriteCadSnapSettings(editor)) throw new CadOperationError('radialBusy');
   const { center, angle, copies, rotateCopies } = options;
   if (!center || !validCadPoint(center) || !Number.isFinite(angle) || Math.abs(angle) < 1e-8 || Math.abs(angle) >= 360 ||
     !Number.isInteger(copies) || copies < 0 || copies > 200 || typeof rotateCopies !== 'boolean' ||
@@ -87,7 +89,9 @@ export function prepareRadialPlan(editor: Editor, options: RadialOptions, expect
 /** Apply only the reviewed document/selection. Native duplication retains groups and assets. */
 export function applyRadialPlan(editor: Editor, plan: RadialPlan): boolean {
   try {
-    if (plan.revision !== cadRevision(editor)) return false;
+    // Completing a draft here would entangle this operation with its rollback
+    // mark. Keep numeric rotation independent from an unfinished canvas gesture.
+    if (!canWriteCadSnapSettings(editor) || plan.revision !== cadRevision(editor)) return false;
     editor.complete(); editor.setCurrentTool('select');
     if (plan.revision !== cadRevision(editor)) return false;
     const fresh = prepareRadialPlan(editor, plan.options, plan.selected);

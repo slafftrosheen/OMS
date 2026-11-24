@@ -54,7 +54,7 @@ function warningLabel(code: string): CadAdvancedLabel {
   if (code === 'import-fit-spline-reconstructed') return 'importFitSplineReconstructed';
   if (code === 'knife-dash') return 'knifeDash';
   if (code === 'knife-shared-edge') return 'knifeSharedEdge';
-  return ({ 'join-arc-approximation': 'joinApproximation', 'reference-appearance': 'referenceAppearance', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'midline-sampled': 'midlineSampled', 'curves-retained': 'curvesRetained', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
+  return ({ 'join-arc-approximation': 'joinApproximation', 'reference-appearance': 'referenceAppearance', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'midline-sampled': 'midlineSampled', 'midline-fitted': 'midlineFitted', 'curves-retained': 'curvesRetained', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="drawing-cad-field"><span>{label}</span>{children}</label>;
@@ -535,23 +535,34 @@ function Shaping({ settings, revision, disabled, focus, sequence, requestedOpera
   const [operation, setOperation] = useState<CadShapingOptions['operation']>(requestedOperation ?? 'weld');
   const [tolerance, setTolerance] = useState('0.02'); const [values, setValues] = useUnitDraft(settings, { offset: '1' });
   const [join, setJoin] = useState<'round' | 'miter' | 'square'>('round'); const [keepSources, setKeepSources] = useState(true); const [targetId, setTargetId] = useState('');
+  const [midlinePairing, setMidlinePairing] = useState<NonNullable<CadShapingOptions['midlinePairing']>>('auto');
+  const [midlineMatching, setMidlineMatching] = useState<NonNullable<CadShapingOptions['midlineMatching']>>('auto');
   const [review, setReview] = useState<Review | null>(null); const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false);
   useEffect(() => { if (requestedOperation) { setOperation(requestedOperation); setMessage(''); } }, [requestedOperation, sequence]);
-  const inputKey = JSON.stringify([operation, tolerance, values.offset, join, keepSources, targetId, settings]);
+  const inputKey = JSON.stringify([operation, tolerance, values.offset, join, keepSources, targetId, midlinePairing, midlineMatching, settings]);
   const valid = Number.isFinite(number(tolerance)) && number(tolerance) >= 0.001 && number(tolerance) <= 1 && (operation === 'midline' ? selected.length === 2 : selected.length >= (operation === 'offset' ? 1 : 2)) &&
     (operation !== 'offset' || Number.isFinite(number(values.offset)) && number(values.offset) !== 0 && Math.abs(number(values.offset)) <= 1_000_000) && (operation !== 'trim' || selected.some(shape => shape.id === targetId));
   return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-shaping">
     <summary>{label('shaping')}</summary>
-    <p className="drawing-help">{label('selectionHelp')}</p>
+    <p className="drawing-help">{label(operation === 'midline' ? 'midlineHelp' : 'selectionHelp')}</p>
     <form onSubmit={event => {
       event.preventDefault(); if (!settings || !valid || disabled || !canChange(editor)) return;
       setMessage(''); setReview(null);
-      try { setReview({ plan: prepareCadShaping(editor, settings, { operation, toleranceMm: number(tolerance), offset: number(values.offset), join, keepSources, targetId: operation === 'trim' ? targetId : undefined }), inputKey }); }
+      try { setReview({ plan: prepareCadShaping(editor, settings, { operation, toleranceMm: number(tolerance), offset: number(values.offset), join, keepSources, targetId: operation === 'trim' ? targetId : undefined, midlinePairing, midlineMatching }), inputKey }); }
       catch (error) { setFailed(true); setMessage(errorLabel(error)); }
     }}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings}>
         <Field label={label('operation')}><select value={operation} onChange={event => { setOperation(event.target.value as typeof operation); setMessage(''); }}>{(['weld', 'trim', 'intersect', 'offset', 'midline'] as const).map(value => <option key={value} value={value}>{label(value)}</option>)}</select></Field>
-        {operation === 'midline' && <p className="drawing-help">{label('midlineHelp')}</p>}
+        {operation === 'midline' && <>
+          {selected.length === 2 && <p className="drawing-help">{label('midlineSources').replace(/\{(first|second)\}/g, (_match, key) => selected[key === 'first' ? 0 : 1].name)}</p>}
+          <Field label={label('midlinePairing')}><select value={midlinePairing} data-testid="drawing-midline-pairing" onChange={event => { setMidlinePairing(event.target.value as typeof midlinePairing); setMessage(''); }}>
+            <option value="auto">{label('midlinePairAuto')}</option><option value="same">{label('midlinePairSame')}</option><option value="reverse">{label('midlinePairReverse')}</option>
+          </select></Field>
+          <Field label={label('midlineMatching')}><select value={midlineMatching} data-testid="drawing-midline-matching" onChange={event => { setMidlineMatching(event.target.value as typeof midlineMatching); setMessage(''); }}>
+            <option value="auto">{label('midlineMatchAuto')}</option><option value="length">{label('midlineMatchLength')}</option>
+          </select></Field>
+          <p className="drawing-help">{label('midlineMatchingHelp')}</p>
+        </>}
         {operation === 'trim' && <><Field label={label('target')}><select value={targetId} required onChange={event => setTargetId(event.target.value)}><option value="">{label('chooseTarget')}</option>{selected.map((shape, index) => <option key={shape.id} value={shape.id}>{index + 1}. {shape.name}</option>)}</select></Field><p className="drawing-help">{label('targetHelp')}</p></>}
         {operation === 'offset' && <>
           <Field label={`${label('distance')} (${settings?.unit ?? 'mm'})`}><input type="number" required step="any" value={values.offset} aria-invalid={!Number.isFinite(number(values.offset)) || number(values.offset) === 0} onChange={event => setValues(current => ({ ...current, offset: event.target.value }))} /></Field>
@@ -563,7 +574,7 @@ function Shaping({ settings, revision, disabled, focus, sequence, requestedOpera
         <button type="submit" disabled={!valid}>{label('preview')}</button>
       </fieldset>
     </form>
-    <p className="drawing-help">{label('shapingHelp')}</p>
+    {operation !== 'midline' && <p className="drawing-help">{label('shapingHelp')}</p>}
     {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings} onApplied={success => { setFailed(!success); setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }} />}
     <Message value={message} error={failed} />
   </details>;

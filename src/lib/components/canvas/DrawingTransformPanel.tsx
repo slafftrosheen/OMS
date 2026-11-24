@@ -5,14 +5,15 @@ import {canvasLengthToUnit,unitLengthToCanvas,canvasPointToCad,cadPointToCanvas,
 import {TRANSFORM_ANCHORS,transformAnchorPoint,getTransformSelectionBounds,prepareTransformPlan,applyTransformPlan,type TransformAnchor,type TransformOptions,type TransformPlan} from './drawing-transform';
 import {enTransform,useTransformText} from './transform-copy';
 import {DrawingSkewPanel} from './DrawingSkewPanel';
+import {RadialArrange} from './RadialArrange';
 
-type Draft={kind:'position'|'scale'|'skew';relative:boolean;size:'percent'|'dimensions';anchor:TransformAnchor;proportional:boolean;x:string;y:string;copies:string};
+type Draft={kind:'position'|'scale'|'skew'|'rotation';relative:boolean;size:'percent'|'dimensions';anchor:TransformAnchor;proportional:boolean;x:string;y:string;copies:string};
 const preferences=new WeakMap<Editor,{draft:Draft;settings:CadSettings|null}>();
 const number=(value:string)=>value.trim()?Number(value):NaN;
 const display=(value:number,settings:CadSettings|null)=>String(settings?canvasLengthToUnit(value,settings):value);
 const length=(value:string,settings:CadSettings|null)=>settings?unitLengthToCanvas(number(value),settings):number(value);
 function convertDraft(draft:Draft,previous:CadSettings|null,next:CadSettings|null):Draft {
-  if(draft.kind==='skew')return draft;
+  if(draft.kind==='skew'||draft.kind==='rotation')return draft;
   if(draft.kind==='scale'&&draft.size==='percent')return draft;
   if(draft.kind==='position'&&!draft.relative){
     const point={x:number(draft.x),y:number(draft.y)};
@@ -41,7 +42,7 @@ export function DrawingTransformPanel({settings,focusRequest=0}:{settings:CadSet
   },[bounds?.w,bounds?.h]);
   const update=(patch:Partial<Draft>)=>{setDraft(current=>({...current,...patch}));setMessage(undefined);};
   const resetCoordinates=(next:Draft)=>{
-    if(next.kind==='skew')return next;
+    if(next.kind==='skew'||next.kind==='rotation')return next;
     if(next.kind==='position'){
       const point=bounds?transformAnchorPoint(bounds,next.anchor):{x:0,y:0};
       const displayed=settings?canvasPointToCad(point,settings):point;
@@ -71,8 +72,9 @@ export function DrawingTransformPanel({settings,focusRequest=0}:{settings:CadSet
     try{setReview({plan:prepareTransformPlan(editor,options),key});}
     catch(error){const code=error instanceof CadOperationError?error.code:'';setMessage({key:Object.hasOwn(enTransform,code)?code as keyof typeof enTransform:'failed'});}
   };
-  const modeSelector=<label><span>{t('title')}</span><select value={draft.kind} data-testid="drawing-transform-mode" onChange={event=>changeMode({kind:event.target.value as Draft['kind']})}><option value="position">{t('position')}</option><option value="scale">{t('scale')}</option><option value="skew">{t('skew')}</option></select></label>;
+  const modeSelector=<label><span>{t('title')}</span><select value={draft.kind} data-testid="drawing-transform-mode" onChange={event=>changeMode({kind:event.target.value as Draft['kind']})}><option value="position">{t('position')}</option><option value="scale">{t('scale')}</option><option value="rotation">{t('rotation')}</option><option value="skew">{t('skew')}</option></select></label>;
   if(draft.kind==='skew')return <section className="drawing-transform" data-testid="drawing-transform"><div className="drawing-workbench-fields">{modeSelector}</div><DrawingSkewPanel settings={settings} focusRequest={focusRequest}/></section>;
+  if(draft.kind==='rotation')return <section className="drawing-transform" data-testid="drawing-transform"><div className="drawing-workbench-fields">{modeSelector}</div><RadialArrange settings={settings} embedded focusRequest={focusRequest}/></section>;
   return <section className="drawing-transform" data-testid="drawing-transform">
     <div className="drawing-workbench-fields">{modeSelector}</div>
     <p className="drawing-help">{t('help')}</p>

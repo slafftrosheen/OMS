@@ -38,11 +38,42 @@ Select the source artwork, then open **Guidelines → Guides from artwork**.
 | **Between two parallel lines** | An infinite guideline at equal perpendicular distance from two selected straight parallel paths, including angled paths. |
 | **Middle of horizontal gap** | A vertical guideline halfway between the facing X bounds of two selected objects. |
 | **Middle of vertical gap** | A horizontal guideline halfway between the facing Y bounds of two selected objects. |
-| **Middle of parallel guidelines** | Choose an existing guideline and a parallel **Second guideline**, then use **Add middle guideline**. Both originals remain in place. |
+| **Between two guidelines → Add middle guideline** | Choose an existing guideline and a parallel **Second guideline**. Both originals remain in place. |
 
 The gap commands use the gap between object bounds, rather than averaging the two object centers. Different-sized objects therefore produce the expected middle of the free space. When bounds overlap on that axis, there is no outside gap and that construction is unavailable.
 
-These constructions create guides; they do not modify the source artwork. The parallel-line action accepts straight open paths. It does not infer a centerline between arbitrary curves, a medial axis inside a filled object, or an angle bisector between nonparallel lines. Coincident guidelines do not provide a distinct middle guide. Bounds-based constructions exclude outline thickness and do not promise the shortest distance between irregular silhouettes.
+These constructions create guides; they do not modify the source artwork. The parallel-line action accepts straight open paths. Coincident guidelines do not provide a distinct middle guide. Bounds-based constructions exclude outline thickness and do not promise the shortest distance between irregular silhouettes. Intersecting straight sources now have the separate angle-bisector construction below. For an editable middle curve between open paths, use **Effects → Centreline…**.
+
+## Construct exact angle-bisector guides
+
+Select two straight open paths and open **Guidelines → Guides from artwork → Angle bisectors**. Alternatively, select an existing guideline and choose a **Second guideline** under **Between two guidelines**. Parallel guide pairs offer the middle-guide action; intersecting pairs offer the bisector controls.
+
+The docker shows **Angles between sources**, the **Intersection** in document units, and the direction of the chosen result. Choose **Acute-angle bisector**, **Obtuse-angle bisector**, or **Both bisectors**, then use **Add bisector** or **Add both bisectors**. For a 90° crossing, both angles are equal, so the choices are **Bisector A** and **Bisector B**; their directions identify the two solutions. Reversing a source path or swapping the sources preserves the acute/obtuse choices.
+
+Both sources are treated as infinite straight lines. Their intersection may lie beyond the original path endpoints. Each resulting guide passes through that intersection and halves one of the two angles; directions are measured counterclockwise from positive X. The construction accepts genuinely straight paths, including collinear Bézier controls, and rejects bowed curves, coincident or almost parallel lines, and intersections outside the drawing coordinate limits.
+
+The source artwork and guides stay unchanged. **Add both bisectors** creates the pair in one undo step, and either result remains an editable guideline. Hidden or individually locked guides can be construction references; the global guideline-editing lock still prevents creation. Both results require two available guide slots. If only one slot remains, choose a single bisector or delete an unused guide. A source change before creation requires reviewing the updated construction and trying again.
+
+## Create an editable centreline between curves
+
+Select two open paths, then choose **Effects → Centreline…**. The shaping panel opens with **Operation → Midline** and identifies the **First path** and **Second path**. The result is editable CAD artwork, so it can be node-edited and exported.
+
+**Endpoint pairing** determines which ends correspond:
+
+- **Closest endpoints (automatic)** chooses the direction with the smaller total endpoint-pair distance.
+- **Keep source directions** pairs the two starts and the two ends as stored.
+- **Reverse second path** pairs the first path's start with the second path's end. The source object itself is not reversed.
+
+**Path matching** determines how points between those ends correspond:
+
+- **Match nodes when counts agree** averages corresponding anchors and Bézier controls when both paths have the same node count. Otherwise it uses relative distance along each path.
+- **Distance along each path** always pairs points at the same fraction of each path's length. Use this when node spacing or subdivision differs, including paths with equal node counts but uneven spacing.
+
+Distance matching samples the paths and averages the paired points. For curved inputs, OMS attempts to fit the resulting middle path to editable Bézier curves using the chosen tolerance, retaining paired endpoints and source corner stations. This allows paths with different node counts to produce a smooth editable result. Fit work, coordinates and node counts have finite limits. If fitting cannot complete within those limits, a valid sampled result can retain straight segments; the review explicitly reports whether it fitted Béziers or retained sampled segments. Invalid or oversized constructions are rejected.
+
+Set **Tolerance (mm)**, choose whether to **Keep source objects**, then use **Prepare preview** and **Apply result**. Keeping sources is enabled initially. Changes to the source paths or construction options require a fresh preview before applying.
+
+The centreline averages corresponding points. It is not a true medial axis and does not guarantee equal shortest distances to arbitrary source curves at every point. Check the chosen endpoint pairing and matching method against the intended geometry.
 
 ## Align artwork
 
@@ -58,7 +89,7 @@ With the drawing focused and Pick idle:
 
 Choose **Page edges and centre** to align one or more objects to the physical sheet. Configure a physical size in **Page setup** first. **Keep relative positions** moves the selection together; turn it off to align each selected object separately.
 
-For guide alignment, select a guideline and use **Align artwork to this guideline** in its docker. Horizontal and vertical guides offer edge and center alignment. Angled guides offer **Center on guideline**: the selection's bounds center moves perpendicularly onto the line, without rotating the artwork. Here too, **Keep relative positions** determines whether the selection moves together or each object is centered independently.
+For guide alignment, select a guideline and use **Align artwork to this guideline** in its docker. Horizontal and vertical guides offer edge and center alignment. Angled guides offer **Start edge**, **Center on guideline**, and **End edge**. Edge actions place the actual minimum or maximum geometry extent perpendicular to the guideline on the line; they solve Bézier extrema and use analytic ellipse/arc support instead of rotating a bounding box. Start/end follow the guideline angle, so turning it 180° swaps the sides. Center retains the existing page-bounds-center behavior. Every action translates without rotating artwork. **Keep relative positions** moves the selection as one motif; turn it off to align each selected root separately. Nested groups remain intact. Edges exclude outline thickness and sketch styling; text, images and native shape labels use their layout boxes. Native freehand/highlight strokes, native hearts/clouds, dimensions, ambiguous legacy arcs, and invalid or oversized geometry disable the edge actions while eligible artwork can still use center alignment. Editable CAD heart/leaf clipart consists of Bézier curves and supports exact edges. Projection work is bounded across all selected leaves, and a failed placement rolls back as one operation.
 
 Alignment operates on editable artwork geometry bounds. Locked objects, order forms, unsupported frame children, clipped artwork and bound objects can prevent an operation. Equal-gap distribution and equal-center distribution remain separate options: equal centers can overlap differently sized objects.
 
@@ -80,6 +111,25 @@ Press **+**, including the numeric keypad **+**, for an overlapping copy. **Step
 
 Copy commands reject locked selections, invalid coordinates and drawing-capacity overflow. Saving defaults is unavailable during an unfinished drawing or drag.
 
+## Rotate artwork and make circular copies
+
+Open **Object → Transformations → Position, scale and rotate…**, then choose **Rotation / copies** in **Transformations**. This uses the same **Rotate / circular copies** controls as **Effects → Radial repeat…**; both entry points share the current settings.
+
+Choose **Rotate selection** to move the existing artwork, or **Circular copies** to retain the original and create additional copies. Positive angles turn counterclockwise. The selected objects and groups move together as one motif.
+
+Choose the **Rotation centre**:
+
+| Choice | Pivot used |
+| --- | --- |
+| **Pick rotation centre** | The current Pick pivot, including a pivot dragged outside the selection. Changing the selection resets that pivot to the selection centre. |
+| **Selection reference point** | One of nine reference points on the selection's page-axis geometry bounds. Outlines are excluded. |
+| **Drawing origin** | The document's coordinate origin. |
+| **Custom X/Y** | Explicit **Centre X** and **Centre Y** in the current document units, or pixels without configured units. These rotation-centre fields use positive Y upward, including in pixel mode. |
+
+For **Circular copies**, enter **1–200 Additional copies** and choose **Evenly around a full circle** or **Fixed angle step**. Full-circle spacing includes the original exactly once: five additional copies produce six positions, 60° apart. Fixed-step copies must span less than a full turn. **Rotate copies with the pattern** rotates each copy around the pivot; turn it off to preserve each copy's orientation while its position travels around the circle. Upright copies need a pivot away from the motif centre to occupy distinct positions.
+
+Use **Review placement** to inspect the bounds preview and generated-object count, then **Apply placement**. One Undo restores the whole operation. **Discard preview** clears the review without changing artwork. The preview shows selection bounds, so inspect actual path overlaps after applying. A changed drawing, selection, pivot or setting makes the review stale and requires another review. Locked artwork, read-only drawings, unfinished drawing gestures and invalid or oversized placements block the operation.
+
 ## Use the expanded clipart library
 
 Open **Production clipart** in the existing docker. The library contains **35 templates**:
@@ -100,6 +150,8 @@ The inserted items are editable CAD geometry. Curves retain Bézier handles; hol
 
 ## Validation and remaining checks
 
-The focused regression run passed **245 of 245 tests** across 15 suites. It covers guide geometry and gestures, middle-guide construction, alignment, duplication, clipart insertion, vector round trips, panel continuity, and command wiring. The tests use the pinned native editor, its history manager, and React/DOM harnesses where interaction is involved. `tsc --noEmit --pretty false --incremental false` also completed without errors.
+The **prior guide/snapping/clipart batch** passed **245 of 245 tests** across 15 focused suites. That run covered guide geometry and gestures, middle-guide construction, alignment, duplication, clipart insertion, vector round trips, panel continuity, and command wiring. The tests use the pinned native editor, its history manager, and React/DOM harnesses where interaction is involved. That batch's `tsc --noEmit --pretty false --incremental false` also completed without errors.
 
-The rendered browser check was blocked before launch by a Chromium sandbox socket restriction. Actual browser appearance, scrolling, overlapping hit areas and hardware-pointer feel therefore still require a live application check. A production build and live deployment were not verified in this batch.
+The current angle-bisector, rotation, angled-edge-alignment and centreline continuation passed **270 of 270 tests across 15 focused test files**. Coverage includes exact curve/conic support, true native-cubic X/Y limits, bisector geometry and atomic creation, live pivot/reference changes, draft-history protection, correspondence controls, fitted Bézier/SPLINE output, source preservation, native undo/redo, localization, and stale/read-only states. `tsc --noEmit --pretty false --incremental false` completed without errors.
+
+The earlier rendered browser check was blocked before launch by a Chromium sandbox socket restriction. Actual browser appearance, scrolling, overlapping hit areas and hardware-pointer feel therefore still require a live application check. A production build and live deployment have not been verified for this continuation.
