@@ -1,6 +1,9 @@
 import { createShapeId, type Editor, type TLShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { newCadOutlineMeta } from './drawing-outline-defaults';
+import { dimensionCreationStyle, dimensionAngularOffset, readDimensionDefaults } from './cad-dimension-defaults';
+import { dimensionCreationInsideLimits, dimensionCreationMatches } from './cad-dimension-creation';
+import { canWriteCadSnapSettings } from './cad-snap-settings';
 import { captureToolkitControls } from './toolkit-controls';
 import { getCadSelectionPageBounds } from './cad-bounds';
 import { CAD_DIMENSION_SOURCE_LIMIT, dimensionSources, getDimensionEndpoints, makeDimensionLink, radialDimensionKind, resolveDimensionLink,
@@ -210,7 +213,7 @@ export function nudgeCadSelection(editor: Editor, dx: number, dy: number, settin
 
 /** Attach to the selected drawing objects and retain initial endpoints for a broken-reference indicator. */
 export function createCadDimension(editor: Editor, settings: CadSettings, kind: CadDimensionKind, linked = true): boolean {
-  if (!validateCadSettings(settings) || !permitted(editor) || editor.getCurrentPageShapeIds().size >= editor.options.maxShapesPerPage) return false;
+  if (!validateCadSettings(settings) || !permitted(editor) || !canWriteCadSnapSettings(editor) || editor.getCurrentPageShapeIds().size >= editor.options.maxShapesPerPage) return false;
   const pageId = editor.getCurrentPageId();
   const sources = dimensionSources(editor, [...editor.getSelectedShapeIds()]);
   if (!sources.length || linked && sources.length > CAD_DIMENSION_SOURCE_LIMIT) return false;
@@ -219,12 +222,23 @@ export function createCadDimension(editor: Editor, settings: CadSettings, kind: 
   if (!points) return false;
   const { start, end, angleSweep } = points;
   const radialKind = radialDimensionKind(kind);
+  const style = dimensionCreationStyle(editor);
+  if (!style) return false;
+  const offset = angleSweep === undefined ? style.offset
+    : dimensionAngularOffset(Math.hypot(end.x - start.x, end.y - start.y), style, readDimensionDefaults(editor).mode);
+  if (offset === null) return false;
+  const geometry = { type: 'cad-dimension' as const, x: start.x, y: start.y,
+    props: { ...style, endX: end.x - start.x, endY: end.y - start.y, offset, color: 'blue' as const,
+      ...(linked ? { link } : radialKind ? { radialKind } : {}), ...(angleSweep === undefined ? {} : { angleSweep }) } };
+  if (!dimensionCreationInsideLimits(editor, { ...geometry, props: { ...geometry.props, radialKind } })) return false;
+  const requested = { id: createShapeId(), parentId: pageId, ...geometry };
   return drawingTransaction(editor, () => {
-    const id = createShapeId();
-    editor.createShape({ id, type: 'cad-dimension', parentId: pageId, x: start.x, y: start.y,
-      props: { endX: end.x - start.x, endY: end.y - start.y, offset: 24, ...(linked ? { link } : radialKind ? { radialKind } : {}), ...(angleSweep === undefined ? {} : { angleSweep }) } });
-    if (!editor.getShape(id)) throw new Error('Dimension was not created');
-    editor.setSelectedShapes([id]);
+    if (!permitted(editor) || !canWriteCadSnapSettings(editor) || editor.getCurrentPageId() !== pageId)
+      throw new Error('Dimension creation is no longer available');
+    editor.createShape(requested);
+    if (!dimensionCreationMatches(editor, requested) || JSON.stringify(resolveDimensionLink(editor, link, pageId)) !== JSON.stringify(points))
+      throw new Error('Dimension creation was refused or changed');
+    editor.setSelectedShapes([requested.id]);
   });
 }
 

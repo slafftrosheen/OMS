@@ -12,6 +12,7 @@ import { CAD_DIMENSION_KINDS, CAD_DIMENSION_SOURCE_LIMIT, CAD_RADIAL_DIMENSION_K
   type CadDimensionLink, type CadRadialDimensionKind } from '../cad-dimension-links';
 import { CAD_MAX_COORDINATE, CAD_MAX_POINTS, readCadSettings, validCadPoint, type CadPoint } from '../cad-settings';
 import { CAD_DIMENSION_MARKERS, dimensionMeasurementText, type CadDimensionMarker } from '../cad-dimension-settings';
+import { CAD_DIMENSION_BASE_TEXT_HEIGHT } from '../cad-dimension-defaults';
 
 const bounded = T.number.check(n => { if (!Number.isFinite(n) || Math.abs(n) > CAD_MAX_COORDINATE) throw new Error('CAD coordinate out of bounds'); });
 const positive = bounded.check(n => { if (n <= 0) throw new Error('Positive CAD size required'); });
@@ -30,7 +31,8 @@ function color(editor: Editor, value: TLDefaultColorStyle) { return getDefaultCo
  * bounds centre. Use a rectangular transform envelope while retaining child
  * geometry for hit testing; physical measurements use cad-bounds, never this envelope. */
 class CadTransformGeometry extends Group2d {
-  constructor(options: { children: Array<Polyline2d | Polygon2d> }, private inClips: (point: Vec) => boolean = () => true) { super(options); }
+  constructor(options: { children: Array<Polyline2d | Polygon2d> }, private inClips: (point: Vec) => boolean = () => true,
+    private boundsMargin = 0) { super(options); }
   override hitTestPoint(point: Vec, margin = 0, hitInside = false) {
     return this.inClips(point) && super.hitTestPoint(point, margin, hitInside);
   }
@@ -38,7 +40,7 @@ class CadTransformGeometry extends Group2d {
     const distance = super.distanceToPoint(point, hitInside);
     return this.inClips(point) ? distance : Math.abs(distance);
   }
-  override getVertices() { return Box.Common(this.children.map(child => child.bounds)).corners; }
+  override getVertices() { return Box.Common(this.children.map(child => child.bounds)).expandBy(this.boundsMargin).corners; }
 }
 
 class CadEllipseGeometry extends Ellipse2d {
@@ -246,16 +248,20 @@ export function dimensionLayout(editor: Editor, shape: CadDimensionShape) {
       ...markerAt(a, { x: dx / divisor, y: dy / divisor }, length), ...markerAt(b, { x: -dx / divisor, y: -dy / divisor }, length)],
   };
 }
-function DimensionSvg({ shape, editor }: { shape: CadDimensionShape; editor: Editor }) {
+function DimensionSvg({ shape, editor, exporting = false }: { shape: CadDimensionShape; editor: Editor; exporting?: boolean }) {
   const { label } = useCadText();
   const settings = useValue('CAD measurement settings', () => readCadSettings(editor), [editor]);
   const { length, lines, midpoint, status, radialKind, angleSweep } = useValue('CAD dimension geometry', () => dimensionLayout(editor, shape), [editor, shape]);
   const broken = status === 'broken';
   const ink = broken ? 'var(--status-warning, #b45309)' : color(editor, shape.props.color);
   const value = broken ? label('dimensionBroken') : dimensionMeasurementText(shape, settings, length, radialKind, angleSweep);
-  return <g data-dimension-state={status} data-radial-dimension={radialKind ?? undefined} data-angular-dimension={angleSweep ? 'true' : undefined} fill="none" stroke={ink} strokeWidth={1}>
-    {lines.map((points, i) => <path key={i} d={pathData(points, false)} strokeDasharray={broken ? '4 3' : undefined} />)}
-    <text x={midpoint.x} y={midpoint.y - 6 * shape.props.decorationScale} textAnchor="middle" stroke="none" fill={ink} fontSize={14 * shape.props.decorationScale} fontFamily="sans-serif">{value}</text>
+  const zoom = useValue('CAD dimension line visibility', () => exporting ? 1 : editor.getZoomLevel(), [editor, exporting]);
+  // Export follows saved annotation proportions. Only the live canvas applies
+  // a screen-pixel floor so overview dimensions do not lose their lines.
+  const strokeWidth = exporting ? shape.props.decorationScale : Math.max(shape.props.decorationScale, Number.isFinite(zoom) && zoom > 0 ? 1 / zoom : 1);
+  return <g data-dimension-state={status} data-radial-dimension={radialKind ?? undefined} data-angular-dimension={angleSweep ? 'true' : undefined} fill="none" stroke={ink} strokeWidth={strokeWidth} strokeLinejoin="round">
+    {lines.map((points, i) => <path key={i} d={pathData(points, false)} strokeDasharray={broken ? `${4 * strokeWidth} ${3 * strokeWidth}` : undefined} />)}
+    <text x={midpoint.x} y={midpoint.y - 6 * shape.props.decorationScale} textAnchor="middle" stroke="none" fill={ink} fontSize={CAD_DIMENSION_BASE_TEXT_HEIGHT * shape.props.decorationScale} fontFamily="sans-serif">{value}</text>
   </g>;
 }
 export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
@@ -283,7 +289,7 @@ export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   } });
   override getGeometry(shape: CadDimensionShape) {
     const layout = dimensionLayout(this.editor, shape);
-    const fontSize = 14 * shape.props.decorationScale;
+    const fontSize = CAD_DIMENSION_BASE_TEXT_HEIGHT * shape.props.decorationScale;
     // Include the annotation in hit/export bounds; a large label must not be
     // clipped to the endpoints or arc when exporting a selected dimension.
     const text = layout.status === 'broken' ? 'Dimension reference missing' : dimensionMeasurementText(shape, readCadSettings(this.editor), layout.length, layout.radialKind, layout.angleSweep);
@@ -291,12 +297,14 @@ export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
       fontWeight: 'normal', fontStyle: 'normal', padding: '0px', maxWidth: null });
     const width = (measured?.w > 0 ? measured.w : text.length * fontSize * 0.65) + fontSize * 0.2;
     const labelBounds = new Box(layout.midpoint.x - width / 2, layout.midpoint.y - 6 * shape.props.decorationScale - fontSize, width, fontSize * 1.3);
+    // The stored round-joined stroke belongs to export/selection bounds. Keep
+    // child hit geometry unchanged instead of adding an invisible filled box.
     return new CadTransformGeometry({ children: [...layout.lines.map(points => new Polyline2d({ points: vectors(points) })),
-      new Polygon2d({ points: labelBounds.corners, isFilled: true })] });
+      new Polygon2d({ points: labelBounds.corners, isFilled: true })] }, undefined, shape.props.decorationScale / 2);
   }
   override component(shape: CadDimensionShape) { return <SVGContainer><DimensionSvg shape={shape} editor={this.editor} /></SVGContainer>; }
   override indicator(shape: CadDimensionShape) { return <path d={dimensionLayout(this.editor, shape).lines.map(p => pathData(p, false)).join(' ')} />; }
-  override toSvg(shape: CadDimensionShape) { return <DimensionSvg shape={shape} editor={this.editor} />; }
+  override toSvg(shape: CadDimensionShape) { return <DimensionSvg shape={shape} editor={this.editor} exporting />; }
   override getHandles(shape: CadDimensionShape): TLHandle[] {
     const { start, end, length, midpoint, status, angleSweep } = dimensionLayout(this.editor, shape);
     if (status === 'broken') return [];

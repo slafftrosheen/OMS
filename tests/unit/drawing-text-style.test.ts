@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import type { TLShapeId } from '@tldraw/tldraw';
 import { fixture } from '../helpers/cad-editor';
 import { applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch } from '../../src/lib/components/canvas/drawing-text-style';
-import { textPointSize } from '../../src/lib/components/canvas/workbench-operations';
+import { editDrawingText, textPointSize } from '../../src/lib/components/canvas/workbench-operations';
+import { DEFAULT_CAD_SETTINGS, cadMmPerPixel, readCadSettings } from '../../src/lib/components/canvas/cad-settings';
 
 const ids = ['shape:one', 'shape:two'] as TLShapeId[];
 function textFixture() {
@@ -19,6 +20,33 @@ function textFixture() {
 const snapshot = (f: ReturnType<typeof fixture>) => structuredClone([...f.shapes.values()]);
 
 describe('contextual text formatting', () => {
+  it('uses physical points at every CAD calibration and preserves fixed paragraph width', () => {
+    for (const scale of [.1, 1, 10, 1000]) {
+      const f = textFixture(), settings = { ...DEFAULT_CAD_SETTINGS, scale };
+      f.editor.updatePage({ meta: { omsCad: settings } });
+      for (const id of ids) f.editor.updateShape({ id, type: 'text', props: { size: 'm', scale: 1 / scale, w: 400 } });
+      const before = snapshot(f);
+      assert.equal(applySelectedDrawingTextStyle(f.editor, ids, { pointSize: 36 }), true);
+      ids.forEach((id, i) => {
+        const shape = f.editor.getShape(id);
+        assert.ok(Math.abs(textPointSize(shape, settings) - 36) < 1e-8);
+        assert.ok(Math.abs(24 * shape.props.scale * cadMmPerPixel(settings) - 12.7) < 1e-8, '36 points has a 12.7 mm em');
+        if (!shape.props.autoSize) assert.ok(Math.abs(shape.props.w * shape.props.scale - before[i].props.w * before[i].props.scale) < 1e-8);
+      });
+    }
+  });
+  it('changes calibrated text content without reinterpreting or rounding its scale', () => {
+    const f = textFixture();
+    f.editor.updatePage({ meta: { omsCad: { ...DEFAULT_CAD_SETTINGS, scale: 1000 } } });
+    f.editor.setSelectedShapes([ids[0]]);
+    const before = structuredClone(f.editor.getShape(ids[0]));
+    assert.ok(textPointSize(before, readCadSettings(f.editor)) > 3000);
+    assert.equal(editDrawingText(f.editor, ids[0], { text: 'Still editable', font: 'sans', textAlign: 'start', autoSize: true }), true);
+    assert.equal(f.editor.getShape(ids[0]).props.scale, before.props.scale);
+    assert.equal(f.editor.getShape(ids[0]).props.text, 'Still editable');
+    assert.equal(editDrawingText(f.editor, ids[0], { text: 'Exact', font: 'sans', textAlign: 'start', autoSize: true, pointSize: 72 }), true);
+    assert.ok(Math.abs(textPointSize(f.editor.getShape(ids[0]), readCadSettings(f.editor)) - 72) < 1e-8);
+  });
   it('shows equal point sizes consistently across native bases without rounding stored scale', () => {
     const f = textFixture();
     f.editor.updateShape({ id: ids[1], type: 'text', props: { size: 'm' } });

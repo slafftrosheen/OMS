@@ -5,7 +5,7 @@ import {useDrawingText} from './drawing-copy';
 import {NextTextProperties, SelectedTextStyleFields} from './DrawingTextControls';
 import {DrawingFontManager} from './DrawingFonts';
 import {drawingFontValue} from './drawing-fonts';
-import {editDrawingText,scaleCanvasForm,textPointSize} from './workbench-operations';
+import {editDrawingText,scaleCanvasForm} from './workbench-operations';
 import {FORM_WIDTHS,canvasFormScalePercent} from './shapes/form-shapes/form-layout';
 import {canvasLengthToUnit,readCadSettings,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {captureToolkitControls} from './toolkit-controls';
@@ -31,11 +31,20 @@ const displayArrangeGap=(distance:number,settings:CadSettings|null)=>String(sett
 export function TextPanel({onOutlines,onLettering,fontFocusRequest=0}:{onOutlines:()=>void;onLettering:()=>void;fontFocusRequest?:number}){
  const editor=useEditor(),t=useWorkbenchText();
  const readonly=useValue('lettering permission',()=>editor.getInstanceState().isReadonly,[editor]);
- const shape=useValue('editable text',()=>{const s=editor.getOnlySelectedShape();return editor.getCurrentToolId()==='select'&&s?.type==='text'?s as TLTextShape:null;},[editor]);
- const disabled=useValue('text permission',()=>!shape||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape),[editor,shape]);
+ const selection=useValue('editable text',()=>{
+  const selected=editor.getSelectedShapes();
+  return {selected:selected.length,texts:editor.getCurrentToolId()==='select'&&selected.every(shape=>shape.type==='text')?selected as TLTextShape[]:[]};
+ },[editor]);
+ const {texts}=selection,shape=texts.length===1?texts[0]:null;
+ const disabled=useValue('text permission',()=>!texts.length||editor.getInstanceState().isReadonly||texts.some(shape=>editor.isShapeOrAncestorLocked(shape)),[editor,texts]);
  const lettering=<button type="button" className="drawing-lettering-button" disabled={readonly} onClick={onLettering}>{t('newLettering')}</button>;
  return <>
-  {shape?<TextObjectEditor key={shape.id} shape={shape} disabled={disabled} onOutlines={onOutlines}/>:<>
+  {shape?<TextObjectEditor key={shape.id} shape={shape} disabled={disabled} onOutlines={onOutlines}/>:texts.length>1?<>
+   <fieldset className="drawing-workbench-fields" disabled={disabled}>
+    <SelectedTextStyleFields shapes={texts} disabled={disabled} compact={false} prefix="drawing-text-docker"/>
+    <p className="drawing-help">{t('multipleTextHint')}</p>
+   </fieldset>
+  </>:selection.selected?<p className="drawing-help">{t('textHint')}</p>:<>
    <p className="drawing-help">{t('nextTextHint')}</p>
    <NextTextProperties compact={false} disabled={readonly}/>
    <button type="button" className="drawing-lettering-button" data-testid="drawing-create-text" disabled={readonly} onClick={()=>{editor.complete();editor.setCurrentTool('text');editor.focus();}}>{t('createText')}</button>
@@ -55,7 +64,7 @@ function TextObjectEditor({shape,disabled,onOutlines}:{shape:TLTextShape;disable
   if(disabled)return false;
   const current=editor.getShape<TLTextShape>(shape.id);
   if(!current||current.type!=='text')return false;
-  const success=editDrawingText(editor,shape.id,{text,font:drawingFontValue(current),textAlign:current.props.textAlign,autoSize:current.props.autoSize,pointSize:textPointSize(current)});
+  const success=editDrawingText(editor,shape.id,{text,font:drawingFontValue(current),textAlign:current.props.textAlign,autoSize:current.props.autoSize});
   setFailed(!success);return success;
  };
  return <fieldset className="drawing-workbench-fields" disabled={disabled}>

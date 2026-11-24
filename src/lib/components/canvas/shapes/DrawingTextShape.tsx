@@ -6,7 +6,7 @@ import { curvePathData } from '../cad-curves';
 import {useDrawingFontText} from '../font-copy';
 import { TEXT_PIXELS } from '../workbench-operations';
 import { drawingTextBaseline, drawingTextLineHeight, getDrawingTextSpacing, hasDrawingTextSpacing, withDrawingTextSpacing } from '../drawing-text-spacing';
-import { isDrawingTextFormatting } from '../drawing-text-formatting';
+import { canKeepDrawingTextBounds, drawingTextPageBounds, isDrawingTextFormatting, reportDrawingTextBounds } from '../drawing-text-formatting';
 
 /** Native text records and tools remain compatible. Uploaded faces override only
  * text measurement/rendering; no mutation of tldraw's global four-font registry. */
@@ -74,18 +74,22 @@ export class DrawingTextShapeUtil extends TextShapeUtil {
       || getShapeDrawingFontId(prev) !== getShapeDrawingFontId(next) || beforeSpacing.letterSpacing !== afterSpacing.letterSpacing || beforeSpacing.lineHeight !== afterSpacing.lineHeight;
     const pointSizeChanged = p.scale !== n.scale && isDrawingTextFormatting(this.editor);
     if (!layoutChanged && !pointSizeChanged) return next !== incoming ? next : undefined;
+    const checked = (candidate: TLTextShape): TLTextShape => {
+      if (canKeepDrawingTextBounds(drawingTextPageBounds(this.editor, candidate), drawingTextPageBounds(this.editor, prev))) return candidate;
+      reportDrawingTextBounds(this.editor); return prev;
+    };
     if (!n.autoSize) {
       // Native 2.4 stores scaled auto widths in `w`. Freeze the measured width
       // when switching modes instead of treating that stale value as local px.
       const w = p.autoSize && n.w === p.w ? this.getMinDimensions(prev).width * p.scale / n.scale : n.w;
       // Geometry caches key on props identity. A metadata-only font or spacing
       // edit must invalidate fixed-width text geometry as well.
-      return { ...next, props: { ...n, w } };
+      return checked({ ...next, props: { ...n, w } });
     }
     const a = this.getMinDimensions(prev), b = this.getMinDimensions(next);
     const dw = b.width * n.scale - a.width * p.scale, dh = b.height * n.scale - a.height * p.scale;
     const delta = new Vec(n.textAlign === 'end' ? dw : n.textAlign === 'middle' ? dw / 2 : 0, textChanged ? 0 : dh / 2).rot(next.rotation);
-    return { ...next, x: next.x - delta.x, y: next.y - delta.y, props: { ...n, w: b.width } };
+    return checked({ ...next, x: next.x - delta.x, y: next.y - delta.y, props: { ...n, w: b.width } });
   };
 }
 

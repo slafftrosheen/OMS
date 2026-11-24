@@ -41,6 +41,7 @@ async function harness(run: (h: any) => Promise<void>) {
   const spacing = await import('../../src/lib/components/canvas/drawing-text-spacing');
   const fonts = await import('../../src/lib/components/canvas/drawing-fonts');
   const operations = await import('../../src/lib/components/canvas/workbench-operations');
+  const cad = await import('../../src/lib/components/canvas/cad-settings');
   const { installDrawingTextUtil } = await import('../../src/lib/components/canvas/shapes/DrawingTextShape');
   const { locale, t } = await import('svelte-i18n'); locale.set('en'); const stopText = t.subscribe(() => {});
   const host = document.createElement('div'); host.tabIndex = 0; document.body.append(host);
@@ -98,7 +99,7 @@ async function harness(run: (h: any) => Promise<void>) {
   };
   try {
     await act(async () => root.render(<EditorContext.Provider value={editor}><Scene /></EditorContext.Provider>)); await tick();
-    await run({ editor, host, get, input, key, focus, blur, click, choose, select, add, snapshot, pointer, act, tick, tl, textStyle, defaults, spacing, fonts, operations, outlines: () => outlines, locale });
+    await run({ editor, host, get, input, key, focus, blur, click, choose, select, add, snapshot, pointer, act, tick, tl, textStyle, defaults, spacing, fonts, operations, cad, outlines: () => outlines, locale });
   } finally {
     await act(async () => root.unmount()); stopDefaults(); stopFonts(); stopText(); editor.dispose(); host.remove();
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
@@ -256,6 +257,264 @@ describe('Text controls with a real editor', () => {
       await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
       assert.equal(get('drawing-next-text-point-size').matches(':disabled'), true);
       assert.equal(defaults.setNextDrawingTextStyle(editor, { pointSize: 100 }), false); assert.equal(fonts.setNextDrawingFont(editor, 'sans'), false);
+    });
+  });
+
+  it('creates a dragged paragraph at the drawn width regardless of calibrated text size', async () => {
+    await harness(async ({ editor, defaults, operations, pointer, cad, act, tick }) => {
+      for (const scale of [.1, 1, 10, 1000]) {
+        await act(async () => {
+          editor.complete(); editor.selectNone();
+          editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale } } });
+          defaults.setNextDrawingTextStyle(editor, { pointSize: 36 });
+          editor.setCurrentTool('text');
+        }); await tick();
+        await pointer('pointer_down', 100, 300); await pointer('pointer_move', 700, 300); await pointer('pointer_up', 700, 300);
+        const paragraph = editor.getOnlySelectedShape();
+        assert.equal(paragraph.type, 'text'); assert.equal(paragraph.props.autoSize, false);
+        near(operations.textPointSize(paragraph, cad.readCadSettings(editor)), 36);
+        near(editor.getShapeGeometry(paragraph).bounds.w, 600);
+      }
+    });
+  });
+
+  it('keeps reverse paragraph drags exact when zoomed and retains native cancellation and undo', async () => {
+    await harness(async ({ editor, defaults, pointer, cad, act, tick }) => {
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: 10 } } });
+        defaults.setNextDrawingTextStyle(editor, { pointSize: 72 });
+        editor.setCamera({ x: 0, y: 0, z: 2 }); editor.setCurrentTool('text');
+      }); await tick();
+      await pointer('pointer_down', 500, 300); await pointer('pointer_move', 100, 300); await pointer('pointer_up', 100, 300);
+      const shape = editor.getOnlySelectedShape();
+      near(editor.getShapeGeometry(shape).bounds.w, 200);
+      near(editor.getShapePageBounds(shape).minX, 50);
+      await act(async () => { editor.updateShape({ id: shape.id, type: 'text', props: { text: 'Paragraph' } }); editor.complete(); }); await tick();
+      const saved = structuredClone(editor.getShape(shape.id));
+      await act(async () => editor.undo()); await tick(); assert.equal(editor.getShape(shape.id), undefined);
+      await act(async () => editor.redo()); await tick(); assert.deepEqual(editor.getShape(shape.id), saved);
+      await act(async () => { editor.selectNone(); editor.setCurrentTool('text'); }); await tick();
+      await pointer('pointer_down', 200, 450); await pointer('pointer_move', 700, 450);
+      const draft = editor.getOnlySelectedShape(); assert.notEqual(draft.id, saved.id);
+      await act(async () => editor.cancel()); await tick();
+      assert.equal(editor.getShape(draft.id), undefined); assert.deepEqual(editor.getShape(saved.id), saved);
+    });
+  });
+
+  it('keeps calibrated exact type anchored and gives its changes a single undo step', async () => {
+    await harness(async ({ editor, add, select, operations, textStyle, cad, act, tick }) => {
+      for (const scale of [.1, 1, 10, 1000]) {
+        await act(async () => editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale } } })); await tick();
+        const id = await add(`physical-${scale}`, { scale: 1 / scale, textAlign: 'end' }, { rotation: .7 }); await select(id);
+        const before = structuredClone(editor.getShape(id));
+        const anchor = () => { const shape = editor.getShape(id), bounds = editor.getShapeGeometry(shape).bounds; return editor.getShapePageTransform(shape).applyToPoint({ x: bounds.w, y: bounds.h / 2 }); };
+        const initial = anchor();
+        await act(async () => assert.equal(textStyle.applySelectedDrawingTextStyle(editor, [id], { pointSize: 36 }), true)); await tick();
+        near(operations.textPointSize(editor.getShape(id), cad.readCadSettings(editor)), 36);
+        near(anchor().x, initial.x); near(anchor().y, initial.y);
+        await act(async () => editor.undo()); await tick(); assert.deepEqual(editor.getShape(id), before);
+        await act(async () => editor.redo()); await tick();
+        near(operations.textPointSize(editor.getShape(id), cad.readCadSettings(editor)), 36);
+      }
+    });
+  });
+
+  it('refreshes physical point sizes without resizing artwork and rejects a stale calibration blur', async () => {
+    await harness(async ({ editor, add, select, input, focus, blur, key, get, cad, operations, act, tick }) => {
+      const id = await add('calibration'); await select(id);
+      const before = structuredClone(editor.getShape(id));
+      await focus('drawing-text-point-size'); await input('drawing-text-point-size', '36');
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: 10 } } });
+        get('drawing-text-point-size').blur();
+      }); await tick();
+      assert.deepEqual(editor.getShape(id), before);
+      assert.equal((get('drawing-text-point-size') as HTMLInputElement).value, '180');
+      assert.equal((get('drawing-text-docker-point-size') as HTMLInputElement).value, '180');
+      await input('drawing-text-docker-point-size', '72'); await key('drawing-text-docker-point-size', 'Enter');
+      near(operations.textPointSize(editor.getShape(id), cad.readCadSettings(editor)), 72);
+      await act(async () => editor.undo()); await tick(); assert.deepEqual(editor.getShape(id), before);
+
+      // A mixed selection remains visually blank after recalibration. Its
+      // pending value must still be discarded, including a blur before render.
+      const other = await add('mixed-calibration', { scale: 2 }); await select(id, other);
+      await focus('drawing-text-point-size'); await input('drawing-text-point-size', '144');
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: .1 } } });
+        get('drawing-text-point-size').blur();
+      }); await tick();
+      near(editor.getShape(id).props.scale, 1); near(editor.getShape(other).props.scale, 2);
+      assert.equal((get('drawing-text-point-size') as HTMLInputElement).value, '');
+      await blur('drawing-text-point-size');
+    });
+  });
+
+  it('keeps next text preferences physical across pages and leaves imported text untouched', async () => {
+    await harness(async ({ editor, defaults, cad, operations, pointer, act, tick, tl, input, focus, get }) => {
+      await act(async () => defaults.setNextDrawingTextStyle(editor, { pointSize: 72 })); await tick();
+      for (const scale of [.1, 1, 10, 1000]) {
+        await act(async () => {
+          editor.complete(); editor.selectNone();
+          editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale } } });
+          editor.setCurrentTool('text');
+        }); await tick();
+        near(defaults.getNextDrawingTextStyle(editor).pointSize, 72);
+        await pointer('pointer_down', 200, 150); await pointer('pointer_up', 200, 150);
+        near(operations.textPointSize(editor.getOnlySelectedShape(), cad.readCadSettings(editor)), 72);
+      }
+      await act(async () => { editor.complete(); editor.selectNone(); }); await tick();
+      await focus('drawing-next-text-point-size'); await input('drawing-next-text-point-size', '48');
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: 2 } } });
+        get('drawing-next-text-point-size').blur();
+      }); await tick();
+      near(defaults.getNextDrawingTextStyle(editor).pointSize, 72);
+      const imported = tl.createShapeId('physical-import');
+      await act(async () => editor.createShape({ id: imported, type: 'text', props: { text: 'Import', size: 'm', scale: 3 } })); await tick();
+      near(editor.getShape(imported).props.scale, 3);
+      await act(async () => editor.setStyleForNextShapes(tl.DefaultSizeStyle, 'xl')); await tick();
+      near(defaults.getNextDrawingTextStyle(editor).pointSize, 33);
+    });
+  });
+
+  it('applies mixed typography to a text multi-selection from the docker and keeps next defaults separate', async () => {
+    await harness(async ({ editor, add, select, input, key, get, host, choose, defaults, fonts, cad, operations, act, tick, tl, snapshot }) => {
+      await act(async () => editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: 10 } } })); await tick();
+      const a = await add('multi-a', { scale: .1 }), b = await add('multi-b', { scale: .2, font: 'serif' }); await select(a, b);
+      const nextStyle = defaults.getNextDrawingTextStyle(editor), nextFont = fonts.getNextDrawingFont(editor);
+      assert.equal((get('drawing-text-docker-point-size') as HTMLInputElement).value, '');
+      assert.equal(host.querySelector('[data-testid="drawing-text-docker-content"]'), null);
+      assert.equal(host.querySelector('[data-testid="drawing-next-text-docker-properties"]'), null);
+      await input('drawing-text-docker-point-size', '72'); await key('drawing-text-docker-point-size', 'Enter');
+      near(operations.textPointSize(editor.getShape(a), cad.readCadSettings(editor)), 72);
+      near(operations.textPointSize(editor.getShape(b), cad.readCadSettings(editor)), 72);
+      await act(async () => editor.undo()); await tick(); near(editor.getShape(a).props.scale, .1); near(editor.getShape(b).props.scale, .2);
+      await choose('drawing-text-docker-font', 'mono');
+      assert.equal(editor.getShape(a).props.font, 'mono'); assert.equal(editor.getShape(b).props.font, 'mono');
+      assert.deepEqual(defaults.getNextDrawingTextStyle(editor), nextStyle); assert.equal(fonts.getNextDrawingFont(editor), nextFont);
+      await act(async () => editor.updateShape({ id: b, type: 'text', isLocked: true })); await tick();
+      assert.equal(get('drawing-text-docker-point-size').matches(':disabled'), true);
+      const before = snapshot(); await input('drawing-text-docker-point-size', '144'); await key('drawing-text-docker-point-size', 'Enter');
+      assert.equal(snapshot(), before);
+      const rectangle = tl.createShapeId('mixed-rectangle');
+      await act(async () => editor.createShape({ id: rectangle, type: 'geo' })); await tick(); await select(a, rectangle);
+      assert.equal(host.querySelector('[data-testid="drawing-text-docker-point-size"]'), null);
+      assert.equal(host.querySelector('[data-testid="drawing-next-text-docker-properties"]'), null);
+    });
+  });
+
+  it('rolls back physical type overflow and content growth through rotated parents', async () => {
+    await harness(async ({ editor, add, select, cad, operations, textStyle, act, tick, snapshot, tl }) => {
+      await act(async () => editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: .001 } } })); await tick();
+      const id = await add('large-type', { text: 'A', textAlign: 'start' }); await select(id);
+      const before = snapshot();
+      await act(async () => assert.equal(textStyle.applySelectedDrawingTextStyle(editor, [id], { pointSize: 3000 }), false)); await tick();
+      assert.equal(snapshot(), before);
+      await act(async () => assert.equal(operations.editDrawingText(editor, id, { text: 'A', font: 'sans', textAlign: 'start', autoSize: true, pointSize: 3000 }), false)); await tick();
+      assert.equal(snapshot(), before);
+
+      const group = tl.createShapeId('edge-parent');
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: cad.DEFAULT_CAD_SETTINGS } });
+        editor.run(() => {
+          editor.createShape({ id: group, type: 'frame', props: { w: 16, h: 32 } });
+          editor.updateShape({ id, type: 'text', parentId: group, x: 0, y: 0 });
+          editor.updateShape({ id: group, type: 'frame', x: 999980, y: 100, rotation: Math.PI / 4 });
+        });
+      }); await tick();
+      const original = structuredClone(editor.getShape(id)), edgeBefore = snapshot();
+      assert.equal(original.parentId, group); assert.ok(editor.getShape(group));
+      assert.ok(editor.getShapePageBounds(id).maxX < 1_000_000);
+      await act(async () => assert.equal(textStyle.applySelectedDrawingTextStyle(editor, [id], { pointSize: 72 }), false)); await tick();
+      assert.equal(snapshot(), edgeBefore);
+      await act(async () => assert.equal(operations.editDrawingText(editor, id, { text: 'A'.repeat(100), font: 'sans', textAlign: 'start', autoSize: true }), false)); await tick();
+      assert.equal(snapshot(), edgeBefore);
+      // Native inline typing uses the same candidate geometry guard.
+      await act(async () => editor.updateShape({ id, type: 'text', props: { text: 'A'.repeat(100) } })); await tick();
+      assert.deepEqual(editor.getShape(id), original);
+    });
+  });
+
+  it('allows repair of oversized saved text without increasing its previous extents', async () => {
+    await harness(async ({ editor, add, select, operations, act, tick, snapshot }) => {
+      const id = await add('old-oversized', { text: 'AAAA', scale: 200000, textAlign: 'start' }); await select(id);
+      assert.ok(editor.getShapePageBounds(id).maxX > 1_000_000);
+      const before = snapshot();
+      await act(async () => assert.equal(operations.editDrawingText(editor, id, { text: 'AAAAAA', font: 'sans', textAlign: 'start', autoSize: true }), false)); await tick();
+      assert.equal(snapshot(), before);
+      await act(async () => assert.equal(operations.editDrawingText(editor, id, { text: 'A', font: 'sans', textAlign: 'start', autoSize: true }), true)); await tick();
+      assert.equal(editor.getShape(id).props.text, 'A'); near(editor.getShape(id).props.scale, 200000);
+      await act(async () => editor.undo()); await tick(); assert.equal(snapshot(), before);
+      await act(async () => editor.redo()); await tick(); assert.equal(editor.getShape(id).props.text, 'A');
+    });
+  });
+
+  it('rejects impossible next sizes and later native creation after recalibration without fallback or data loss', async () => {
+    await harness(async ({ editor, add, defaults, pointer, cad, host, act, tick, snapshot }) => {
+      const existing = await add('retained', { text: 'Keep me' });
+      await act(async () => {
+        editor.selectNone();
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: .001 } } });
+      }); await tick();
+      const messages: string[] = [];
+      host.addEventListener('oms:canvas-upload', (event: any) => messages.push(event.detail.message));
+      const initialDefaults = defaults.getNextDrawingTextStyle(editor), before = snapshot();
+      await act(async () => assert.equal(defaults.setNextDrawingTextStyle(editor, { pointSize: 3000 }), false)); await tick();
+      assert.deepEqual(defaults.getNextDrawingTextStyle(editor), initialDefaults); assert.equal(snapshot(), before);
+      assert.match(messages.at(-1)!, /canvas limits/);
+
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: cad.DEFAULT_CAD_SETTINGS } });
+        assert.equal(defaults.setNextDrawingTextStyle(editor, { pointSize: 3000 }), true);
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale: .001 } } });
+        editor.setCurrentTool('text');
+      }); await tick();
+      const changedScale = snapshot();
+      await pointer('pointer_down', 200, 150); await pointer('pointer_up', 200, 150);
+      assert.equal(snapshot(), changedScale); assert.equal(editor.isIn('text.idle'), true);
+      near(defaults.getNextDrawingTextStyle(editor).pointSize, 3000);
+      await pointer('pointer_down', 100, 300); await pointer('pointer_move', 700, 300); await pointer('pointer_up', 700, 300);
+      assert.equal(snapshot(), changedScale); assert.equal(editor.isIn('text.idle'), true);
+      assert.equal(editor.getShape(existing).props.text, 'Keep me');
+    });
+  });
+
+  it('rejects edge placement, unsafe paragraph completion and refused native creation while keeping one-step creation undo', async () => {
+    await harness(async ({ editor, add, defaults, pointer, cad, act, tick, snapshot }) => {
+      const existing = await add('keep-before-failure', { text: 'Retained' });
+      await act(async () => {
+        editor.selectNone(); editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: cad.DEFAULT_CAD_SETTINGS } });
+        defaults.setNextDrawingTextStyle(editor, { pointSize: 72, textAlign: 'end' });
+        editor.setCamera({ x: 1000099, y: 0, z: 1 }); editor.setCurrentTool('text');
+      }); await tick();
+      const before = snapshot();
+      // The initial blank extends rightward from -999999; native right
+      // alignment moves it left. Validate the final position, not the seed.
+      await pointer('pointer_down', 100, 200); await pointer('pointer_up', 100, 200);
+      assert.equal(snapshot(), before); assert.equal(editor.isIn('text.idle'), true);
+
+      await act(async () => {
+        defaults.setNextDrawingTextStyle(editor, { pointSize: 72, textAlign: 'start' });
+        editor.setCamera({ x: -998900, y: 0, z: 1 }); editor.setCurrentTool('text');
+      }); await tick();
+      await pointer('pointer_down', 100, 200); await pointer('pointer_move', 2000, 200); await pointer('pointer_up', 2000, 200);
+      assert.equal(snapshot(), before); assert.equal(editor.isIn('text.idle'), true);
+
+      await act(async () => { editor.setCamera({ x: 0, y: 0, z: 1 }); editor.setCurrentTool('text'); }); await tick();
+      const create = editor.createShape;
+      editor.createShape = () => editor;
+      try { await pointer('pointer_down', 100, 150); await pointer('pointer_up', 100, 150); }
+      finally { editor.createShape = create; }
+      assert.equal(snapshot(), before); assert.equal(editor.isIn('text.idle'), true);
+      assert.equal(editor.getShape(existing).props.text, 'Retained');
+
+      await pointer('pointer_down', 100, 150); await pointer('pointer_up', 100, 150);
+      const created = editor.getOnlySelectedShape(); assert.equal(created.type, 'text');
+      await act(async () => { editor.updateShape({ id: created.id, type: 'text', props: { text: 'Created and typed' } }); editor.complete(); }); await tick();
+      const final = structuredClone(editor.getShape(created.id));
+      await act(async () => editor.undo()); await tick();
+      assert.equal(editor.getShape(created.id), undefined); assert.equal(editor.getShape(existing).props.text, 'Retained');
+      await act(async () => editor.redo()); await tick(); assert.deepEqual(editor.getShape(created.id), final);
     });
   });
 });

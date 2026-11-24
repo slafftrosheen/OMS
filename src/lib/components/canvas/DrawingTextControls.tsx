@@ -8,7 +8,8 @@ import { applySelectedDrawingFont, drawingFontValue, getNextDrawingFont, setNext
 import { applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch } from './drawing-text-style';
 import { getDrawingTextSpacing } from './drawing-text-spacing';
 import { getNextDrawingTextStyle, setNextDrawingTextStyle } from './drawing-text-defaults';
-import { TEXT_PIXELS, textPointSize } from './workbench-operations';
+import { drawingTextCalibrationKey, drawingTextScaleForPointSize, textPointSize } from './drawing-text-size';
+import { readCadSettings } from './cad-settings';
 import { canKeepDrawingTextWidth, drawingTextFixedWidthAtScale } from './drawing-text-formatting';
 
 const numericFields = {
@@ -23,21 +24,23 @@ export function TextNumericStyleField({ field, selected, value, disabled, next =
 }) {
   const editor = useEditor(), { label, tr } = useDrawingText(), t = useWorkbenchText();
   const config = numericFields[field], errorId = useId();
+  const calibration = useValue('text input calibration', () => drawingTextCalibrationKey(editor), [editor]);
   const displayed = value === undefined ? '' : String(drawingTextPointSizeDisplay(value));
   const selectionKey = selected.join('|');
   const [draft, setDraft] = useState(displayed);
   const [error, setError] = useState<'invalid' | 'changedFailed' | 'textSizeFixedWidth' | null>(null);
   const dirty = useRef(false);
-  useEffect(() => { setDraft(displayed); setError(null); dirty.current = false; }, [displayed, field, selectionKey, next, disabled]);
+  const draftCalibration = useRef(calibration);
+  useEffect(() => { setDraft(displayed); setError(null); dirty.current = false; draftCalibration.current = calibration; }, [displayed, field, selectionKey, next, disabled, calibration]);
   const reset = () => { dirty.current = false; setDraft(displayed); setError(null); };
   const commit = () => {
     if (!dirty.current) return true;
-    if (disabled) { reset(); return false; }
+    if (disabled || draftCalibration.current !== drawingTextCalibrationKey(editor)) { reset(); return false; }
     const number = draft.trim() ? Number(draft) : NaN;
     if (!Number.isFinite(number) || number < config.min || number > config.max) { setError('invalid'); return false; }
     if (field === 'pointSize' && !next && selected.some(id => {
       const shape = editor.getShape<TLTextShape>(id);
-      return shape?.type === 'text' && !shape.props.autoSize && !canKeepDrawingTextWidth(drawingTextFixedWidthAtScale(editor, shape, number / (TEXT_PIXELS[shape.props.size] * .75)));
+      return shape?.type === 'text' && !shape.props.autoSize && !canKeepDrawingTextWidth(drawingTextFixedWidthAtScale(editor, shape, drawingTextScaleForPointSize(shape.props.size, number, readCadSettings(editor))));
     })) { setError('textSizeFixedWidth'); return false; }
     const patch = { [field]: field === 'lineHeight' ? number / 100 : number };
     const applied = next ? setNextDrawingTextStyle(editor, patch) : applySelectedDrawingTextStyle(editor, selected, patch);
@@ -50,7 +53,7 @@ export function TextNumericStyleField({ field, selected, value, disabled, next =
       <input type="number" aria-label={t(config.label)} min={config.min} max={config.max} step="any" value={draft}
         placeholder={value === undefined ? tr('toolkit.toolbar.styleFields.mixed') : undefined} disabled={disabled}
         aria-invalid={!!error} aria-describedby={error ? errorId : undefined} data-testid={`${prefix}-${config.suffix}`}
-        onChange={event => { dirty.current = true; setDraft(event.target.value); setError(null); }} onBlur={commit}
+        onChange={event => { dirty.current = true; draftCalibration.current = calibration; setDraft(event.target.value); setError(null); }} onBlur={commit}
         onKeyDown={event => {
           event.stopPropagation();
           if (event.key === 'Enter') { event.preventDefault(); if (commit()) event.currentTarget.blur(); }
@@ -68,6 +71,7 @@ export function SelectedTextStyleFields({ shapes, disabled, onFonts, compact = t
   shapes: TLTextShape[]; disabled: boolean; onFonts?: () => void; compact?: boolean; prefix?: string;
 }) {
   const editor = useEditor(), { label, tr } = useDrawingText(), t = useWorkbenchText(), fontLabel = useDrawingFontText();
+  const settings = useValue('selected text calibration', () => readCadSettings(editor), [editor]);
   const [failed, setFailed] = useState(false), [fontFailed, setFontFailed] = useState(false);
   const selected = shapes.map(shape => shape.id), selectionKey = selected.join('|');
   useEffect(() => { setFailed(false); setFontFailed(false); }, [selectionKey, disabled]);
@@ -76,7 +80,7 @@ export function SelectedTextStyleFields({ shapes, disabled, onFonts, compact = t
     const value = read(shapes[0]); return shapes.every(shape => read(shape) === value) ? value : undefined;
   };
   const font = shared(drawingFontValue), align = shared(shape => shape.props.textAlign), autoWidth = shared(shape => shape.props.autoSize);
-  const points = shared(shape => drawingTextPointSizeDisplay(textPointSize(shape)));
+  const points = shared(shape => drawingTextPointSizeDisplay(textPointSize(shape, settings)));
   const letterSpacing = shared(shape => drawingTextPointSizeDisplay(getDrawingTextSpacing(shape).letterSpacing));
   const lineSpacing = shared(shape => drawingTextPointSizeDisplay(getDrawingTextSpacing(shape).lineHeight * 100));
   const mixed = tr('toolkit.toolbar.styleFields.mixed');

@@ -43,8 +43,26 @@ New physical templates record their layout scale as `omsOrderLayoutScale`. Unmar
 
 Template creation and form resizing respect the existing coordinate and shape limits. An extreme calibration that cannot fit a 6000 mm template inside those limits is refused rather than silently shrinking it or changing the document calibration.
 
+## Dimensions and text at the full-layout scale
+
+Dimensions created from a selection now use the same annotation defaults as the two-point and three-point angle tools. The initial **Match current view** mode creates a 14-screen-pixel label, with proportionate markers and offset, and saves that size in drawing coordinates. This makes a new dimension readable when viewing a 6000 mm form. Later zoom changes do not resize the saved annotation.
+
+Open **Dimensions → New dimensions on this page** to save either that view-based behavior or a **Physical size**. Physical mode starts with a 3.5 mm text height and an 8 mm offset. Enter lengths in the document's displayed unit; the preference stores physical millimeters so a later unit or calibration change does not reinterpret the requested dimensions. Precision, unit suffix visibility and endpoint markers are saved with these page defaults too. Existing dimensions keep their own settings.
+
+A selected dimension also exposes its physical text height alongside annotation percentage. **Fit annotation to view** stages a new label and marker size and scales the offset with it; an angle scales its arc radius. **Apply dimension settings** commits the staged result. Reload or Escape cancels the draft. If the dimension, its sources, page or calibration changes, reload before applying.
+
+Dimension lines retain a one-screen-pixel minimum on the live canvas. SVG export uses their stored proportions independently of camera zoom. In physical mode, a 3.5 mm label has a 0.25 mm line. These are measurement annotations; the separate hairline default still governs newly drawn CAD outlines.
+
+Text point-size controls now account for the document calibration. Setting **72 pt** produces a **25.4 mm em** at any supported drawing scale; changing units alone does not change that size. This is the font's typographic em, not its visible capital-letter height. Recalibrating existing text keeps its stored geometry and updates the displayed physical point size. New text follows the requested physical point-size default.
+
+Text creation, typing and formatting check the complete transformed bounds. A requested size or placement that exceeds the canvas limits is refused with a message; a multi-object formatting change rolls back as a whole. Existing oversized text may retain or reduce its previous extents, allowing repairs without expanding the invalid region. New-text preferences that cannot fit anywhere in the canvas are refused before creating a label.
+
+The Text docker applies shared typography controls to an all-text multi-selection. A mixed selection with non-text objects is identified instead of silently showing future-text controls. Dragged paragraph boxes use the actual drag width even when the chosen point size or document scale makes the native text scale large or small. The text engine's minimum paragraph width of 16 local text pixels still applies; a narrower drag cannot produce a smaller box at that font size.
+
 ## Verification scope
 
 Regression coverage includes physical dimensions at multiple units and calibrations, preserved saved layouts, added profiles, form scale input and undo, scaled file placement and frame growth, snapshot pocket changes, grid density, and calibration initialization. The shared snapping and measurement suites check that their coordinate semantics remain intact. Rendered browser behavior and a live deployment require separate verification; server-rendered markup and editor interaction tests do not establish browser layout accuracy.
 
-The implementation passed **144 tests across 13 files**, the TypeScript check including application TSX and the changed React test fixtures, and the production build. The independent review's form, card, and automatic-height boundary findings were fixed and rechecked. Native editor tests cover document defaults, destination ordering, partial-write rollback, and preservation of undo/redo during background layout. Controlled ResizeObserver coverage includes all three form types at document scales 1, 1000, and 10000.
+The initial 6000 mm layout implementation passed **144 tests across 13 files**, the TypeScript check including application TSX and the changed React test fixtures, and the production build. The independent review's form, card, and automatic-height boundary findings were fixed and rechecked. Native editor tests cover document defaults, destination ordering, partial-write rollback, and preservation of undo/redo during background layout. Controlled ResizeObserver coverage includes all three form types at document scales 1, 1000, and 10000.
+
+The subsequent dimension/text scale expansion passed **248 tests across 16 files**, the expanded TypeScript check and the production build. Actual native SVG export verifies 72 pt as a 25.4 mm em at document scales 0.1, 1, 10 and 1000, and verifies physical dimension text and camera-independent strokes. An independent reviewer reproduced and rechecked the extreme-scale text overflow correction, including refused native creation preserving earlier artwork and history. These tests use deterministic text metrics; actual browser font wrapping, UI layout and a live deployment remain unverified.

@@ -37,7 +37,7 @@ describe('CAD drawing and text workbench',()=>{
   assert.equal(twoPointGeometry('circle',{x:0,y:0},{x:0,y:0}),null);
   assert.equal(twoPointGeometry('circle',{x:0,y:0},{x:1e9,y:0}),null);
   const d=twoPointGeometry('dimension',{x:10,y:20},{x:13,y:24},2)!;
-  assert.deepEqual(d.props,{endX:3,endY:4,offset:15,decorationScale:.5});
+  assert.deepEqual(d.props,{endX:3,endY:4,offset:15,decorationScale:.5,precision:null,showUnit:true,marker:'auto'});
  });
  it('previews a circle, cancels it on Escape and completes a snapped two-point dimension',()=>{
   const f=fixture();let tool=new CadCircleTool(f.editor,undefined as any);tool.onEnter();

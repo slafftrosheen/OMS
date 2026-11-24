@@ -34,21 +34,21 @@ async function harness(run: (h: any) => void | Promise<void>) {
   const outline = await import('../../src/lib/components/canvas/drawing-outline');
   const measurements = await import('../../src/lib/components/canvas/cad-measurements');
   const { CadBezierShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadBezierShape');
-  const { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadShapes');
+  const { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadShapes');
   const { planDrawingExport } = await import('../../src/lib/components/canvas/drawing-operations');
   const host = document.createElement('div'); document.body.append(host);
-  const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil, CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil];
+  const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil, CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil];
   const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
     bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools], getContainer: () => host, initialState: 'select' });
   editor.updateViewportScreenBounds(new tl.Box(0, 0, 800, 600));
-  editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: cad.DEFAULT_CAD_SETTINGS } });
+  editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS } } });
   const contour = (points: number[][], closed = false) => ({ closed, nodes: points.map(([x, y]) => curves.nodeAt({ x, y })) });
   const rectangle = (x: number, y: number, w: number, h: number) => contour([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], true);
   const paint = { ...vector.VECTOR_DEFAULT_PAINT, fill: 'none', stroke: '#000000', strokeOpacity: .8, strokeWidth: 40, lineCap: 'round', lineJoin: 'round', dash: [] };
   const create = (contours = [contour([[0, 0], [100, 0]])], appearance = {}, placement = {}) => {
     assert.ok(vector.validVectorPaint({ ...paint, ...appearance }), 'fixture paint must exercise its intended appearance');
     const id = tl.createShapeId(); editor.createShape({ id, type: 'cad-bezier', x: 100, y: 100, opacity: 1, ...placement,
-      props: { contours, fillRule: 'evenodd' }, meta: { omsVectorPaint: { ...paint, ...appearance } } });
+      props: { contours, fillRule: 'evenodd' }, meta: { omsVectorPaint: JSON.parse(JSON.stringify({ ...paint, ...appearance })) } });
     return editor.getShape(id);
   };
   const pagePoint = (shape: any, point: number[]) => editor.getShapePageTransform(shape).applyToPoint({ x: point[0], y: point[1] });
@@ -220,7 +220,7 @@ describe('paint-aware CAD artwork export bounds', () => {
 
 /** JSDOM supplies only the DOM. Decode, render and encode through the independent
  * native canvas implementation so the installed public PNG exporter is exercised. */
-async function nativeRasterApis(h: any, run: (png: Uint8Array) => Promise<void>) {
+async function nativeRasterApis(h: any, run: (png: Uint8Array<ArrayBuffer>) => Promise<void>) {
   const { createCanvas, loadImage } = createRequire(`${process.cwd()}/package.json`)('@napi-rs/canvas');
   const sharp = createRequire(`${process.cwd()}/package.json`)('sharp');
   const realFetch = globalThis.fetch, oldReader = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
@@ -499,6 +499,79 @@ describe('portable artwork export through native SVG and PNG APIs', () => {
     h.editor.updatePage({ id: h.editor.getCurrentPageId(), meta: {} });
     const legacy = await exportDrawingArtwork(h.editor, 'svg', exportOptions, new AbortController().signal);
     assert.equal(legacy.physical, undefined); assert.equal(new DOMParser().parseFromString(await legacy.blob.text(), 'image/svg+xml').documentElement.getAttribute('width'), '100');
+  }));
+
+  it('exports the same physical text em from an exact point-size edit at four document scales', async () => harness(async h => {
+    const { prepareDrawingArtworkSvg } = await import('../../src/lib/components/canvas/drawing-artwork-export');
+    const { applySelectedDrawingTextStyle } = await import('../../src/lib/components/canvas/drawing-text-style');
+    const { installDrawingTextUtil } = await import('../../src/lib/components/canvas/shapes/DrawingTextShape');
+    const { svgTransform, svgViewport } = await import('../../src/lib/components/canvas/cad-svg-coordinates');
+    const { multiplyMatrix } = await import('../../src/lib/components/canvas/cad-appearance');
+    Object.defineProperty(document, 'fonts', { configurable: true, value: new Set() });
+    // Deterministic layout supplies spans; the real native SVG exporter still
+    // owns font-size, nested transforms and physical viewport serialization.
+    h.editor.textMeasure.measureText = (text: string, options: any) => ({ x: 0, y: 0,
+      w: options.maxWidth ?? Math.max(1, text.length) * options.fontSize / 2,
+      h: options.fontSize * options.lineHeight, scrollWidth: text.length * options.fontSize / 2 });
+    h.editor.textMeasure.measureTextSpans = (text: string, options: any) => [{ text, box: {
+      x: 0, y: 0, w: text.length * options.fontSize / 2, h: options.fontSize * options.lineHeight } }];
+    installDrawingTextUtil(h.editor);
+    for (const [scale, unit] of [[.1, 'mm'], [1, 'in'], [10, 'cm'], [1000, 'm']] as const) {
+      h.editor.updatePage({ id: h.editor.getCurrentPageId(), meta: { omsCad: { ...h.cad.DEFAULT_CAD_SETTINGS, scale, unit } } });
+      const id = h.tl.createShapeId();
+      h.editor.createShape({ id, type: 'text', x: 100, y: 100, props: { text: '72 pt', font: 'sans', size: 'm', autoSize: true } });
+      h.editor.select(id);
+      assert.equal(applySelectedDrawingTextStyle(h.editor, [id], { pointSize: 72 }), true);
+      const before = h.snapshot();
+      const output = await prepareDrawingArtworkSvg(h.editor, 'svg', exportOptions, new AbortController().signal);
+      const root = new DOMParser().parseFromString(output.svg, 'image/svg+xml').documentElement;
+      const texts = [...root.querySelectorAll('text')];
+      assert.ok(texts.length, 'the exported file contains the live text');
+      for (const text of texts) {
+        let transform = svgTransform(text.getAttribute('transform'));
+        for (let parent = text.parentElement; parent && parent !== root; parent = parent.parentElement)
+          transform = multiplyMatrix(svgTransform(parent.getAttribute('transform')), transform);
+        transform = multiplyMatrix(svgViewport(root).matrix, transform);
+        const emMm = Number(text.getAttribute('font-size')) * Math.hypot(transform[2], transform[3]) * 25.4 / 96;
+        near(emMm, 25.4); // 72 physical points = one inch, independent of calibration.
+      }
+      assert.deepEqual(h.snapshot(), before, 'export does not rewrite the text or page calibration');
+      h.editor.deleteShapes([id]);
+    }
+  }));
+
+  it('exports exact physical dimension lettering and stable line widths independently of the camera', async () => harness(async h => {
+    const { prepareDrawingArtworkSvg } = await import('../../src/lib/components/canvas/drawing-artwork-export');
+    const { createCadDimension } = await import('../../src/lib/components/canvas/cad-geometry');
+    const defaults = await import('../../src/lib/components/canvas/cad-dimension-defaults');
+    const { DRAWING_CAMERA_OPTIONS } = await import('../../src/lib/components/canvas/drawing-camera');
+    const settings = { ...h.cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: 10 };
+    h.editor.updatePage({ id: h.editor.getCurrentPageId(), meta: { omsCad: settings } });
+    h.editor.setCameraOptions(DRAWING_CAMERA_OPTIONS);
+    assert.equal(defaults.writeDimensionDefaults(h.editor, defaults.dimensionDefaultsRevision(h.editor), {
+      ...defaults.DEFAULT_CAD_DIMENSION_DEFAULTS, mode: 'physical', textHeightMm: 3.5, offsetMm: 8,
+    }), true);
+    const source = h.create([h.rectangle(0, 0, 100, 50)]);
+    h.editor.select(source.id);
+    assert.equal(createCadDimension(h.editor, settings, 'horizontal'), true);
+    const before = h.snapshot();
+    const appearance: string[] = [];
+    for (const zoom of [.025, 1, 4]) {
+      h.editor.setCamera({ x: 0, y: 0, z: zoom });
+      const output = await prepareDrawingArtworkSvg(h.editor, 'svg', exportOptions, new AbortController().signal);
+      const root = new DOMParser().parseFromString(output.svg, 'image/svg+xml').documentElement;
+      const dimension = root.querySelector('[data-dimension-state]');
+      const text = dimension?.querySelector('text');
+      assert.ok(dimension && text, 'the native exporter retains the dimension annotation');
+      const viewWidth = Number(root.getAttribute('viewBox')!.split(/\s+/)[2]);
+      const mmPerUnit = parseFloat(root.getAttribute('width')!) / viewWidth;
+      near(Number(text.getAttribute('font-size')) * mmPerUnit, 3.5);
+      assert.equal(dimension.querySelector('[vector-effect="non-scaling-stroke"]'), null,
+        'the exported line must not depend on the viewing viewport');
+      appearance.push(dimension.outerHTML);
+      assert.deepEqual(h.snapshot(), before);
+    }
+    assert.equal(appearance[0], appearance[1]); assert.equal(appearance[1], appearance[2]);
   }));
 
   it('rejects missing, mismatched and corrupt originals instead of returning a successful export', async () => harness(async h => nativeRasterApis(h, async png => {

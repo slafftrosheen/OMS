@@ -1,9 +1,10 @@
 import {getShapeDrawingFontId} from './drawing-fonts';
 import type { Editor, TLShapeId, TLTextShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
-import { TEXT_PIXELS } from './workbench-operations';
+import { drawingTextScaleForPointSize } from './drawing-text-size';
+import { readCadSettings } from './cad-settings';
 import { drawingTextSpacingMeta, getDrawingTextSpacing, validDrawingTextSpacing, type DrawingTextSpacing } from './drawing-text-spacing';
-import { canFormatDrawingText, canKeepDrawingTextWidth, drawingTextFixedWidthAtScale, MIN_DRAWING_TEXT_LAYOUT_WIDTH, withDrawingTextFormatting } from './drawing-text-formatting';
+import { canFormatDrawingText, canKeepDrawingTextBounds, canKeepDrawingTextWidth, drawingTextFixedWidthAtScale, drawingTextPageBounds, MIN_DRAWING_TEXT_LAYOUT_WIDTH, reportDrawingTextBounds, withDrawingTextFormatting } from './drawing-text-formatting';
 
 export type DrawingTextStylePatch = Partial<{
   font: TLTextShape['props']['font'];
@@ -38,6 +39,7 @@ export function applySelectedDrawingTextStyle(
   if (!selected.length || expected.size !== expectedIds.length || selected.length !== expected.size || selected.some(id => !expected.has(id))) return false;
 
   const updates: Array<{ id: TLShapeId; type: 'text'; props: Partial<TLTextShape['props']>; meta?: TLTextShape['meta'] }> = [];
+  const settings = readCadSettings(editor);
   for (const id of selected) {
     const shape = editor.getShape(id);
     if (!shape || shape.type !== 'text' || editor.isShapeOrAncestorLocked(shape)) return false;
@@ -47,7 +49,7 @@ export function applySelectedDrawingTextStyle(
     if ('textAlign' in patch && patch.textAlign !== text.props.textAlign) props.textAlign = patch.textAlign;
     if ('autoSize' in patch && patch.autoSize !== text.props.autoSize) props.autoSize = patch.autoSize;
     if ('pointSize' in patch) {
-      const scale = patch.pointSize! / (TEXT_PIXELS[text.props.size] * 0.75);
+      const scale = drawingTextScaleForPointSize(text.props.size, patch.pointSize!, settings);
       if (!Number.isFinite(scale) || scale <= 0) return false;
       if (scale !== text.props.scale) props.scale = scale;
     }
@@ -67,6 +69,7 @@ export function applySelectedDrawingTextStyle(
     if (Object.keys(props).length || meta) updates.push({ id, type: 'text', props, ...(meta ? { meta } : {}) });
   }
   if (!updates.length) return true;
+  const previousBounds = new Map(updates.map(update => [update.id, drawingTextPageBounds(editor, editor.getShape<TLTextShape>(update.id)!)]));
   return drawingTransaction(editor, () => {
     withDrawingTextFormatting(editor, () => editor.updateShapes(updates));
     for (const update of updates) {
@@ -74,6 +77,9 @@ export function applySelectedDrawingTextStyle(
       if (!current || Object.entries(update.props).some(([key, value]) => current.props[key as keyof TLTextShape['props']] !== value)
         || (update.meta && JSON.stringify(current.meta) !== JSON.stringify(update.meta))) {
         throw new Error('Text formatting was not applied');
+      }
+      if (!canKeepDrawingTextBounds(drawingTextPageBounds(editor, current), previousBounds.get(update.id))) {
+        reportDrawingTextBounds(editor); throw new Error('Text exceeds canvas limits');
       }
     }
   });
