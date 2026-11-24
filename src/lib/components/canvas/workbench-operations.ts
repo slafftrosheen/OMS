@@ -1,8 +1,9 @@
 import {drawingFontPatch} from './drawing-fonts';
-import type {Editor,TLTextShape} from '@tldraw/tldraw';
+import {Box,type Editor,type TLTextShape,type TLShape} from '@tldraw/tldraw';
 import {drawingTransaction} from './drawing-commands';
 import {prepareArrangePlan,applyArrangePlan} from './drawing-arrange';
-import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
+import {FORM_WIDTHS,defaultCanvasFormSize} from './shapes/form-shapes/form-layout';
+import {CAD_MAX_COORDINATE,readCadSettings,validCadPoint} from './cad-settings';
 import {drawingTextSpacingMeta,validDrawingTextSpacing,type DrawingTextSpacing} from './drawing-text-spacing';
 import {canFormatDrawingText,canKeepDrawingTextWidth,drawingTextFixedWidthAtScale,MIN_DRAWING_TEXT_LAYOUT_WIDTH,withDrawingTextFormatting} from './drawing-text-formatting';
 export const TEXT_PIXELS={s:18,m:24,l:36,xl:44};
@@ -36,6 +37,20 @@ export function spaceDrawingSelection(editor:Editor,axis:'x'|'y',gap:number){
 }
 export function scaleCanvasForm(editor:Editor,id:string,percent:number){
  const shape=editor.getShape(id as any);if(!shape||!FORM_WIDTHS[shape.type]||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape)||!Number.isFinite(percent)||percent<10||percent>400)return false;
- const props=shape.props as {w:number;h:number},w=FORM_WIDTHS[shape.type]*percent/100;
- return drawingTransaction(editor,()=>editor.updateShape({id:shape.id,type:shape.type,props:{w,h:props.h*w/props.w}}));
+ const settings=readCadSettings(editor),baseline=settings?defaultCanvasFormSize(shape.type,settings)!.w:FORM_WIDTHS[shape.type];
+ const props=shape.props as {w:number;h:number},w=baseline*percent/100,h=props.h*w/props.w;
+ if(![props.w,props.h,w,h].every(value=>Number.isFinite(value)&&value>0)||Math.max(w,h)>CAD_MAX_COORDINATE||!formInsidePageLimits(editor,shape,w,h))return false;
+ if(w===props.w&&h===props.h)return true;
+ return drawingTransaction(editor,()=>{
+  editor.updateShape({id:shape.id,type:shape.type,props:{w,h}});
+  const applied=editor.getShape(shape.id),size=applied?.props as {w?:number;h?:number}|undefined;
+  if(!applied||size?.w!==w||size?.h!==h||applied.x!==shape.x||applied.y!==shape.y||applied.rotation!==shape.rotation||applied.parentId!==shape.parentId||!formInsidePageLimits(editor,applied,w,h))throw new Error('Form scale was not applied');
+ });
+}
+
+function formInsidePageLimits(editor:Editor,shape:TLShape,w:number,h:number):boolean{
+ try{
+  const transform=editor.getShapePageTransform(shape);
+  return new Box(0,0,w,h).corners.every(point=>validCadPoint(transform.applyToPoint(point)));
+ }catch{return false;}
 }

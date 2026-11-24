@@ -1,4 +1,4 @@
-import React,{useEffect,useId,useState,type ReactNode} from 'react';
+import React,{useEffect,useId,useRef,useState,type ReactNode} from 'react';
 import {useEditor,useValue,type Editor,type TLShapeId,type TLTextShape} from '@tldraw/tldraw';
 import {useWorkbenchText} from './workbench-copy';
 import {useDrawingText} from './drawing-copy';
@@ -6,7 +6,7 @@ import {NextTextProperties, SelectedTextStyleFields} from './DrawingTextControls
 import {DrawingFontManager} from './DrawingFonts';
 import {drawingFontValue} from './drawing-fonts';
 import {editDrawingText,scaleCanvasForm,textPointSize} from './workbench-operations';
-import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
+import {FORM_WIDTHS,canvasFormScalePercent} from './shapes/form-shapes/form-layout';
 import {canvasLengthToUnit,readCadSettings,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {captureToolkitControls} from './toolkit-controls';
 import {getCadSelectionPageBounds} from './cad-bounds';
@@ -223,9 +223,16 @@ export function MeasurePanel({settings,onTool,onDocument}:{settings:CadSettings|
 export function FormScaleControl(){
  const editor=useEditor(),t=useWorkbenchText();
  const shape=useValue('form scale',()=>{const s=editor.getOnlySelectedShape();return s&&FORM_WIDTHS[s.type]?s:null;},[editor]);
+ const settings=useValue('form scale document units',()=>readCadSettings(editor),[editor]);
  const disabled=useValue('form scale permission',()=>!shape||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape),[editor,shape]);
- const value=shape?(shape.props as {w:number}).w/FORM_WIDTHS[shape.type]*100:100;
- const [draft,setDraft]=useState(String(value));useEffect(()=>setDraft(String(Number(value.toFixed(2)))),[shape?.id,value]);
+ const value=shape?canvasFormScalePercent(shape.type,(shape.props as {w:number}).w,settings)??100:100;
+ const [draft,setDraft]=useState(String(value)),dirty=useRef(false),skipBlur=useRef(false);
+ useEffect(()=>{dirty.current=false;setDraft(String(Number(value.toFixed(2))));},[shape?.id,value,settings?.scale]);
  if(!shape)return null;
- return <section className="drawing-form-scale"><label>{t('scaleForm')}<input type="number" min={10} max={400} value={draft} disabled={disabled} onChange={e=>setDraft(e.target.value)} onBlur={()=>{if(!scaleCanvasForm(editor,shape.id,Number(draft)))setDraft(String(value));}} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}/></label><p className="drawing-help">{t('formHint')}</p></section>;
+ return <section className="drawing-form-scale"><label>{t('scaleForm')}<input type="number" min={10} max={400} value={draft} disabled={disabled} onChange={e=>{dirty.current=true;skipBlur.current=false;setDraft(e.target.value);}} onBlur={()=>{
+  if(skipBlur.current){skipBlur.current=false;return;}
+  if(!dirty.current)return;
+  dirty.current=false;
+  if(!scaleCanvasForm(editor,shape.id,Number(draft)))setDraft(String(Number(value.toFixed(2))));
+ }} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();if(e.key==='Escape'){e.preventDefault();skipBlur.current=true;dirty.current=false;setDraft(String(Number(value.toFixed(2))));e.currentTarget.blur();}}}/></label><p className="drawing-help">{t('formHint')}</p></section>;
 }

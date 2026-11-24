@@ -90,6 +90,7 @@ const copy = {
     pickMarquee: 'Drag left to right to enclose objects, or right to left to select touched objects. Hold Shift to add.',
     nodeMarquee: 'Drag left to right to select nodes, or right to left to select whole closed objects. Hold Shift to add.',
     lockedParent: 'Unlock the parent object first.', changedFailed: 'This edit could not be applied.',
+    templateFailed: 'Could not create the starter layout. Check the document scale and available canvas space.',
     rulers: 'Canvas rulers in pixels', keyboard: 'F6 rectangle · F7 ellipse · F8 text · F4 fit · Ctrl+D duplicate',
   },
   ru: {
@@ -175,6 +176,7 @@ const copy = {
     orderNote: 'Заметка', orderWarning: 'Предупреждение', orderExplain: 'Пояснение',
     showPanel: 'Показать свойства', closePanel: 'Закрыть панель', zoom: 'Масштаб',
     lockedParent: 'Сначала разблокируйте родительский объект.', changedFailed: 'Не удалось применить изменение.',
+    templateFailed: 'Не удалось создать начальный макет. Проверьте масштаб документа и свободное место на холсте.',
     rulers: 'Линейки холста в пикселях', keyboard: 'F6 прямоугольник · F7 эллипс · F8 текст · F4 вписать · Ctrl+D копия',
     zoomWheel: 'Колесо меняет масштаб у курсора. Shift + колесо прокручивает по горизонтали.',
     pickMarquee: 'Слева направо выделяются объекты внутри рамки, справа налево — все, которых она касается. Shift добавляет к выделению.',
@@ -263,6 +265,7 @@ const copy = {
     orderNote: 'Piezīme', orderWarning: 'Brīdinājums', orderExplain: 'Paskaidrojums',
     showPanel: 'Rādīt īpašības', closePanel: 'Aizvērt paneli', zoom: 'Mērogs',
     lockedParent: 'Vispirms atbloķējiet vecākobjektu.', changedFailed: 'Izmaiņu neizdevās piemērot.',
+    templateFailed: 'Neizdevās izveidot sākotnējo izkārtojumu. Pārbaudiet dokumenta mērogu un pieejamo vietu uz audekla.',
     rulers: 'Audekla lineāli pikseļos', keyboard: 'F6 taisnstūris · F7 elipse · F8 teksts · F4 ietilpināt · Ctrl+D kopija',
     zoomWheel: 'Ritenītis maina mērogu pie kursora. Shift + ritenītis pārvieto skatu horizontāli.',
     pickMarquee: 'Velkot pa labi, atlasa rāmī ietvertos objektus. Velkot pa kreisi, atlasa skartos objektus. Ar Shift papildina atlasi.',

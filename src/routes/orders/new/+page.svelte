@@ -501,8 +501,14 @@
     creationSnapshot=snapshot;
   }
   function changeFilePocket(id:string,pocket:ProductionFilePocket){
+    if(creationSnapshot){
+      const next=updateCreationCanvasPockets(creationSnapshot,{[id]:pocket},{requireAll:true});
+      if(!next){error=workspaceCopy.pocketMoveFailed;return false;}
+      creationSnapshot=next;
+    }
     uploadedFiles=uploadedFiles.map(entry=>entry.uploadId===id?{...entry,pocket}:entry);
-    if(creationSnapshot)creationSnapshot=updateCreationCanvasPockets(creationSnapshot,{[id]:pocket});
+    if(error===workspaceCopy.pocketMoveFailed)error='';
+    return true;
   }
   async function toggleCanvas(){
     if (saving || switchingView) return;
@@ -540,13 +546,15 @@
     const pocket=frame ? frameFilePocket(frame)! : 'visuals';
     const entries=await addFiles(files,pocket);
     if(editor!==creationEditor)return;
+    const unplaced:string[]=[];
     entries.forEach((entry,index)=>{
       entry.pocket=pocket;
       if(!editor.getCurrentPageShapesSorted().some((shape:any)=>shape.type==='document'&&shape.props.fileId===entry.uploadId))
-        addOrderFileDocument(editor,{id:entry.uploadId,url:entry.url,originalName:entry.file.name,mimeType:entry.file.type},
-          {x:position.x+index*28,y:position.y+index*28},pocket);
+        if(!addOrderFileDocument(editor,{id:entry.uploadId,url:entry.url,originalName:entry.file.name,mimeType:entry.file.type},
+          {x:position.x+index*28,y:position.y+index*28},pocket))unplaced.push(entry.file.name);
     });
     uploadedFiles=[...uploadedFiles];
+    if(unplaced.length)throw new Error(`${unplaced.join(', ')}: ${fileCopy.placementFailed}`);
   }
   async function persistCreationCanvas(orderId:string){
     if(!creationEditor&&!creationSnapshot)return;
@@ -1252,7 +1260,7 @@
                   </div>
                   <div class="file-list-actions">
                     <select aria-label={`${fileCopy.pocket}: ${fileItem.file.name}`} value={fileItem.pocket}
-                      onchange={event=>changeFilePocket(fileItem.uploadId,event.currentTarget.value as ProductionFilePocket)}
+                      onchange={event=>{if(!changeFilePocket(fileItem.uploadId,event.currentTarget.value as ProductionFilePocket))event.currentTarget.value=fileItem.pocket;}}
                       disabled={saving||preparingFiles||!!removingFileId||uploadedFileKeys.has(fileItem.uploadId)} onclick={event=>event.stopPropagation()}>
                       {#each PRODUCTION_FILE_POCKETS as pocket}<option value={pocket}>{fileCopy[pocket]}</option>{/each}
                     </select>

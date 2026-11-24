@@ -5,6 +5,8 @@ import {mount,unmount} from 'svelte';
 import {writable} from 'svelte/store';
 import CanvasProfileForm from './CanvasProfileForm.svelte';
 import {getOrderBridge} from '../../state-bridge';
+import {readCadSettings} from '../../cad-settings';
+import {defaultCanvasFormSize} from './form-layout';
 export type Profile7stData=Record<string,any>;
 export type Profile7stShapeProps={w:number;h:number;orderId:string;profileIndex:number;quantity:number;data:Profile7stData};
 export type Profile7stShape=TLBaseShape<'profile-7st',Profile7stShapeProps>;
@@ -33,7 +35,7 @@ function NativeProfile({shape,editor}:{shape:Profile7stShape;editor:Editor}){
 export class Profile7stShapeUtil extends BaseBoxShapeUtil<Profile7stShape>{
  static override type='profile-7st' as const;
  override isAspectRatioLocked=()=>true;
- override getDefaultProps():Profile7stShapeProps{return {w:1800,h:900,orderId:'',profileIndex:0,quantity:1,data:{}};}
+ override getDefaultProps():Profile7stShapeProps{return {...defaultCanvasFormSize('profile-7st',readCadSettings(this.editor))!,orderId:'',profileIndex:0,quantity:1,data:{}};}
  override component(shape:Profile7stShape){return <NativeProfile shape={shape} editor={this.editor}/>;}
  override indicator(shape:Profile7stShape){return <rect width={shape.props.w} height={shape.props.h}/>;}
 }

@@ -1,6 +1,8 @@
 import React from 'react';
 import {BaseBoxShapeUtil,type TLBaseShape} from '@tldraw/tldraw';
 import {NativeDraftFields} from './NativeDraftFields';
+import {readCadSettings} from '../../cad-settings';
+import {defaultCanvasFormSize} from './form-layout';
 export type OrderAddressShapeProps = {
     w: number;
     h: number;
@@ -19,7 +21,7 @@ export type OrderAddressShape = TLBaseShape<'order-address', OrderAddressShapePr
 export class OrderAddressShapeUtil extends BaseBoxShapeUtil<OrderAddressShape>{
  static override type='order-address' as const;
  override isAspectRatioLocked=()=>true;
- override getDefaultProps():OrderAddressShapeProps{return {w:880,h:460,orderId:'',clientName:'',deliveryAddress:'',deliveryContact:'',deliveryPhone:'',deliveryEmail:'',shippingMethod:'courier'};}
+ override getDefaultProps():OrderAddressShapeProps{return {...defaultCanvasFormSize('order-address',readCadSettings(this.editor))!,orderId:'',clientName:'',deliveryAddress:'',deliveryContact:'',deliveryPhone:'',deliveryEmail:'',shippingMethod:'courier'};}
  override component(shape:OrderAddressShape){return <NativeDraftFields shape={shape} editor={this.editor} section="delivery"/>;}
  override indicator(shape:OrderAddressShape){return <rect width={shape.props.w} height={shape.props.h}/>;}
 }

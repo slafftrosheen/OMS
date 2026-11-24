@@ -1,15 +1,16 @@
 /**
  * DraftOrderTemplate — auto-spawns canvas shapes when a new draft order is initialized.
  *
- * Spawns:
- *   Phase 5: OrderDetailsShape [x:0, y:0], OrderAddressShape [x:0, y:440],
- *            Profile7stShape [x:0, y:800] — pinned to left rail.
- *   Phase 6: Production-zone frames: Laser (DXF), CNC Routing, Bender, Visuals (PDF/Rasters).
+ * The profile sheet is 6000 mm wide. Every template size and offset uses the
+ * same document conversion; the form's HTML keeps its original design layout.
  */
 
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
-import { createShapeId } from '@tldraw/tldraw';
+import { Box, Mat, createShapeId } from '@tldraw/tldraw';
 import type {CanvasOrderAttachment} from '$lib/order/file-pockets';
+import { CAD_MAX_COORDINATE, readCadSettings, validCadPoint } from '../cad-settings';
+import { drawingTransaction } from '../drawing-commands';
+import { defaultOrderCanvasScale, FORM_WIDTHS, ORDER_CANVAS_SCALE_META_KEY, readOrderCanvasScale } from '../shapes/form-shapes/form-layout';
 
 export interface OrderSeed {
     attachments?: CanvasOrderAttachment[];
@@ -60,7 +61,8 @@ const FRAME_GAP = 40;
  * Programmatically spawns the full order canvas from a seed object.
  * Call this once per order after the tldraw editor is mounted.
  */
-export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): SpawnedShapes {
+export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): SpawnedShapes | null {
+    if (editor.getInstanceState().isReadonly) return null;
     const detailsId = createShapeId();
     const addressId = createShapeId();
     const profileIds: TLShapeId[] = [];
@@ -71,99 +73,116 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
     const visualsFrameId = createShapeId();
 
     const profiles = seed.profiles?.length ? seed.profiles : [{ name: 'Profile 7st', quantity: 1, configuration: {} }];
+    if (editor.getCurrentPageShapeIds().size + profiles.length + 6 > editor.options.maxShapesPerPage) return null;
+    const scale = defaultOrderCanvasScale(readCadSettings(editor));
+    const meta = { [ORDER_CANVAS_SCALE_META_KEY]: scale };
+    const shapes: Parameters<Editor['createShapes']>[0] = [];
 
-    editor.batch(() => {
-        // ── Left rail: form shapes ──────────────────────────────────────────
-        editor.createShape({
-            id: detailsId,
-            type: 'order-details',
-            x: LEFT_X,
-            y: 0,
-            isLocked: false,
-            props: {
-                w: 880,
-                h: 460,
-                orderId: seed.orderId,
-                title: seed.title ?? '',
-                clientName: seed.clientName ?? '',
-                poNumber: seed.poNumber ?? '',
-                deadline: seed.deadline ?? '',
-                loadingDate: seed.loadingDate ?? '',
-                priority: seed.priority ?? 'NORMAL',
-                notes: seed.notes ?? '',
-                status: seed.status ?? 'draft',
-                isRd: seed.isRd??false,rdNotes:seed.rdNotes??'',
-            },
-        });
-
-        editor.createShape({
-            id: addressId,
-            type: 'order-address',
-            x: LEFT_X+920,
-            y: 0,
-            isLocked: false,
-            props: {
-                w: 880,
-                h: 460,
-                orderId: seed.orderId,
-                clientName:seed.clientName??'',
-                deliveryAddress: seed.deliveryAddress ?? '',
-                deliveryContact: seed.deliveryContact ?? '',
-                deliveryPhone: seed.deliveryPhone ?? '',
-                deliveryEmail: seed.deliveryEmail ?? '',
-                shippingMethod: seed.shippingMethod ?? 'courier',
-            },
-        });
-
-        let profileY = 520;
-        profiles.forEach((profile, index) => {
-            const profileId = createShapeId();
-            profileIds.push(profileId);
-
-            editor.createShape({
-                id: profileId,
-                type: 'profile-7st',
-                x: LEFT_X,
-                y: profileY,
-                isLocked: false,
-                props: {
-                    w: 1800,
-                    h: 900,
-                    orderId: seed.orderId,
-                    profileIndex: index,
-                    quantity:profile.quantity??1,
-                    data: JSON.parse(JSON.stringify(profile.configuration??{})),
-                },
-            });
-
-            profileY += 940;
-        });
-
-        // ── Right side: production zone frames ─────────────────────────────
-        const frameLabels = [
-            { id: laserFrameId, pocket: 'laser', label: 'Laser (DXF)', color: '#ff453a', y: 0 },
-            { id: cncFrameId, pocket: 'cnc', label: 'CNC Routing', color: '#ff9500', y: FRAME_H + FRAME_GAP },
-            { id: benderFrameId, pocket: 'bender', label: 'Bender', color: '#34c759', y: (FRAME_H + FRAME_GAP) * 2 },
-            { id: visualsFrameId, pocket: 'visuals', label: 'Visuals (PDF/Rasters)', color: '#007aff', y: (FRAME_H + FRAME_GAP) * 3 },
-        ];
-
-        frameLabels.forEach(({ id, label, y, pocket }) => {
-            editor.createShape({
-                id,
-                type: 'frame',
-                meta: {omsFilePocket:pocket},
-                x: FRAMES_X,
-                y,
-                props: {
-                    w: FRAME_W,
-                    h: FRAME_H,
-                    name: label,
-                },
-            });
-        });
+    // ── Left rail: form shapes ──────────────────────────────────────────
+    shapes.push({
+        id: detailsId,
+        type: 'order-details',
+        x: LEFT_X * scale,
+        y: 0,
+        isLocked: false,
+        meta,
+        props: {
+            w: 880 * scale,
+            h: 460 * scale,
+            orderId: seed.orderId,
+            title: seed.title ?? '',
+            clientName: seed.clientName ?? '',
+            poNumber: seed.poNumber ?? '',
+            deadline: seed.deadline ?? '',
+            loadingDate: seed.loadingDate ?? '',
+            priority: seed.priority ?? 'NORMAL',
+            notes: seed.notes ?? '',
+            status: seed.status ?? 'draft',
+            isRd: seed.isRd??false,rdNotes:seed.rdNotes??'',
+        },
     });
 
-    // Zoom to fit the left rail + first frame
+    shapes.push({
+        id: addressId,
+        type: 'order-address',
+        x: (LEFT_X + 920) * scale,
+        y: 0,
+        isLocked: false,
+        meta,
+        props: {
+            w: 880 * scale,
+            h: 460 * scale,
+            orderId: seed.orderId,
+            clientName:seed.clientName??'',
+            deliveryAddress: seed.deliveryAddress ?? '',
+            deliveryContact: seed.deliveryContact ?? '',
+            deliveryPhone: seed.deliveryPhone ?? '',
+            deliveryEmail: seed.deliveryEmail ?? '',
+            shippingMethod: seed.shippingMethod ?? 'courier',
+        },
+    });
+
+    let profileY = 520;
+    profiles.forEach((profile, index) => {
+        const profileId = createShapeId();
+        profileIds.push(profileId);
+
+        shapes.push({
+            id: profileId,
+            type: 'profile-7st',
+            x: LEFT_X * scale,
+            y: profileY * scale,
+            isLocked: false,
+            meta,
+            props: {
+                w: 1800 * scale,
+                h: 900 * scale,
+                orderId: seed.orderId,
+                profileIndex: index,
+                quantity:profile.quantity??1,
+                data: JSON.parse(JSON.stringify(profile.configuration??{})),
+            },
+        });
+
+        profileY += 940;
+    });
+
+    // ── Right side: production zone frames ─────────────────────────────
+    const frameLabels = [
+        { id: laserFrameId, pocket: 'laser', label: 'Laser (DXF)', color: '#ff453a', y: 0 },
+        { id: cncFrameId, pocket: 'cnc', label: 'CNC Routing', color: '#ff9500', y: FRAME_H + FRAME_GAP },
+        { id: benderFrameId, pocket: 'bender', label: 'Bender', color: '#34c759', y: (FRAME_H + FRAME_GAP) * 2 },
+        { id: visualsFrameId, pocket: 'visuals', label: 'Visuals (PDF/Rasters)', color: '#007aff', y: (FRAME_H + FRAME_GAP) * 3 },
+    ];
+
+    frameLabels.forEach(({ id, label, y, pocket }) => {
+        shapes.push({
+            id,
+            type: 'frame',
+            meta: { ...meta, omsFilePocket: pocket },
+            x: FRAMES_X * scale,
+            y: y * scale,
+            props: {
+                w: FRAME_W * scale,
+                h: FRAME_H * scale,
+                name: label,
+            },
+        });
+    });
+    for (const shape of shapes) shape.parentId = editor.getCurrentPageId();
+    if (editor.getCurrentPageShapeIds().size + shapes.length > editor.options.maxShapesPerPage ||
+        shapes.some(shape => !validTemplateBox(editor, shape))) return null;
+    if (!drawingTransaction(editor, () => {
+        editor.createShapes(shapes);
+        for (const shape of shapes) {
+            const saved = editor.getShape(shape.id!);
+            if (!saved || saved.type !== shape.type || saved.x !== shape.x || saved.y !== shape.y || saved.parentId !== shape.parentId || !validTemplateBox(editor, saved) ||
+                Object.entries(shape.props ?? {}).some(([key, value]) => JSON.stringify((saved.props as any)[key]) !== JSON.stringify(value)) ||
+                Object.entries(shape.meta ?? {}).some(([key, value]) => saved.meta[key] !== value)) throw new Error('Template creation was not applied');
+        }
+    })) return null;
+
+    // Fit the complete physical layout, including all production pockets.
     editor.zoomToFit({ animation: { duration: 400 } });
 
     return {
@@ -179,6 +198,18 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
     };
 }
 
+function validTemplateBox(editor: Editor, shape: { x?: number; y?: number; rotation?: number; parentId?: string; props?: unknown }): boolean {
+    const { w, h } = (shape.props ?? {}) as { w?: number; h?: number };
+    const x = shape.x ?? 0, y = shape.y ?? 0, rotation = shape.rotation ?? 0;
+    if (![x, y, w, h].every(value => Number.isFinite(value) && Math.abs(value!) <= CAD_MAX_COORDINATE) || w! <= 0 || h! <= 0 || !Number.isFinite(rotation)) return false;
+    try {
+        const local = Mat.Identity().translate(x, y).rotate(rotation);
+        const parent = shape.parentId ? editor.getShape(shape.parentId as TLShapeId) : undefined;
+        const transform = parent ? editor.getShapePageTransform(parent).clone().multiply(local) : local;
+        return new Box(0, 0, w!, h!).corners.every(point => validCadPoint(transform.applyToPoint(point)));
+    } catch { return false; }
+}
+
 /**
  * Sync live Svelte store data into existing canvas shapes without re-spawning.
  * Call this when the Svelte store is updated externally.
@@ -189,9 +220,10 @@ export function syncOrderDataToCanvas(
     addressId: TLShapeId | undefined,
     data: Partial<OrderSeed>
 ) {
+    if (editor.getInstanceState().isReadonly) return;
     const sync = (id: TLShapeId | undefined, type: string, fields: Array<keyof OrderSeed>) => {
         const shape = id ? editor.getShape(id) : undefined;
-        if (!shape || shape.type !== type) return;
+        if (!shape || shape.type !== type || editor.isShapeOrAncestorLocked(shape)) return;
         const current = shape.props as Record<string, unknown>;
         if (data.orderId && current.orderId !== data.orderId) return;
         const patch = Object.fromEntries(fields
@@ -208,24 +240,51 @@ export function syncOrderDataToCanvas(
         ]);
         if(data.profiles&&data.orderId){
             const forms=editor.getCurrentPageShapes().filter(shape=>shape.type==='profile-7st'&&(shape.props as any).orderId===data.orderId);
+            const current: Array<any> = [...forms];
+            const additions: Parameters<Editor['createShapes']>[0] = [];
+            let safeAdditions = true;
             data.profiles.forEach((profile,index)=>{
                 if(forms.some(shape=>(shape.props as any).profileIndex===index))return;
-                // Continue the existing sheet layout, including older narrow templates.
-                const current=editor.getCurrentPageShapes().filter(s=>s.type==='profile-7st'&&(s.props as any).orderId===data.orderId);
+                // Continue the saved layout at its actual size; syncing an order
+                // never recalibrates the page or moves/resizes existing artwork.
                 const reference=current[0];
                 const details=editor.getCurrentPageShapes().find(s=>s.type==='order-details'&&(s.props as any).orderId===data.orderId);
-                const w=reference?(reference.props as any).w:details&&(details.props as any).w<600?1000:1800;
-                const y=current.length?Math.max(...current.map(s=>s.y+(s.props as any).h))+40:details?details.y+(details.props as any).h+40:520;
-                editor.createShape({id:createShapeId(),type:'profile-7st',x:reference?.x??LEFT_X,y,props:{w,h:w/2,orderId:data.orderId,profileIndex:index,quantity:profile.quantity??1,data:JSON.parse(JSON.stringify(profile.configuration??{}))}} as any);
+                const scale=reference?(reference.props as any).w/FORM_WIDTHS['profile-7st']:details?(details.props as any).w/FORM_WIDTHS['order-details']:defaultOrderCanvasScale(readCadSettings(editor));
+                const layoutReference=reference??details;
+                const physicalLayout=!layoutReference||layoutReference.meta[ORDER_CANVAS_SCALE_META_KEY]===readOrderCanvasScale(layoutReference);
+                const parentId=reference?.parentId??details?.parentId??editor.getCurrentPageId();
+                const parent=editor.getShape(parentId as TLShapeId);
+                if(parent&&editor.isShapeOrAncestorLocked(parent))return;
+                const siblings=current.filter(shape=>shape.parentId===parentId);
+                const w=FORM_WIDTHS['profile-7st']*scale;
+                const y=siblings.length?Math.max(...siblings.map(s=>s.y+(s.props as any).h))+(physicalLayout?40*scale:40):details?details.y+(details.props as any).h+(physicalLayout?60*scale:40):520*scale;
+                const created={id:createShapeId(),type:'profile-7st',parentId,x:reference?.x??details?.x??LEFT_X*scale,y,
+                    rotation:reference?.rotation??details?.rotation??0,meta:physicalLayout?{[ORDER_CANVAS_SCALE_META_KEY]:scale}:{},
+                    props:{w,h:w/2,orderId:data.orderId,profileIndex:index,quantity:profile.quantity??1,data:JSON.parse(JSON.stringify(profile.configuration??{}))}};
+                if(!validTemplateBox(editor,created))safeAdditions=false;
+                additions.push(created);current.push(created);
             });
+            // All missing profiles share one checked transaction. A refused or
+            // adjusted creation cannot leave a partial stack on a saved order.
+            if(safeAdditions&&additions.length&&editor.getCurrentPageShapeIds().size+additions.length<=editor.options.maxShapesPerPage){
+                drawingTransaction(editor,()=>{
+                    for(const planned of additions)editor.createShape(planned);
+                    for(const planned of additions){
+                        const saved=editor.getShape(planned.id!);
+                        if(!saved||saved.type!==planned.type||saved.x!==planned.x||saved.y!==planned.y||saved.parentId!==planned.parentId||saved.rotation!==planned.rotation||!validTemplateBox(editor,saved)||
+                            Object.entries(planned.props??{}).some(([key,value])=>JSON.stringify((saved.props as any)[key])!==JSON.stringify(value))||
+                            Object.entries(planned.meta??{}).some(([key,value])=>saved.meta[key]!==value))throw new Error('Profile creation was not applied');
+                    }
+                });
+            }
             for(const shape of forms){
+                if(editor.isShapeOrAncestorLocked(shape))continue;
                 const index=(shape.props as any).profileIndex;
                 const profile=data.profiles[index];
                 if(!profile){editor.deleteShape(shape.id);continue;}
-                const legacy=(shape.props as any).quantity===undefined;
                 const configuration=JSON.parse(JSON.stringify(profile.configuration??{}));
                 if(JSON.stringify((shape.props as any).data)!==JSON.stringify(configuration)||(shape.props as any).quantity!==(profile.quantity??1))
-                    editor.updateShape({id:shape.id,type:shape.type,...(legacy?{y:800+1240*index}:{}),props:{data:configuration,quantity:profile.quantity??1,...(legacy?{w:1000,h:1200}:{})}} as any);
+                    editor.updateShape({id:shape.id,type:shape.type,props:{data:configuration,quantity:profile.quantity??1}} as any);
             }
         }
 

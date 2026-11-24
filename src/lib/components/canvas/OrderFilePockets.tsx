@@ -11,6 +11,7 @@ import {uploadOrderCanvasFiles} from './asset-uploader';
 import {getOrderBridge} from './state-bridge';
 import {arrangeProductionPocket} from './production-layout';
 import {documentFilePocket} from './order-file-documents';
+import {readOrderCanvasScale} from '$lib/order/canvas-layout-scale';
 
 type PocketFile = {id:string; originalName:string; mimeType?:string; file_type?:string; url?:string; canvasDxfRelease?:CanvasDxfRelease};
 const Context = createContext<{enabled:boolean;local:boolean;files:PocketFile[];loading:boolean;failed:boolean;refresh:()=>void}>({enabled:false,local:false,files:[],loading:false,failed:false,refresh:()=>{}});
@@ -32,6 +33,7 @@ const subscribe=(notify:()=>void)=>locale.subscribe(()=>notify());
 const snapshot=()=>get(locale);
 function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;pocket:ProductionFilePocket}) {
   const context=useContext(Context),copy=filePreviewCopy(useSyncExternalStore(subscribe,snapshot,snapshot));
+  const layoutScale=readOrderCanvasScale(shape);
   const input=useRef<HTMLInputElement>(null),list=useRef<HTMLElement>(null);
   const state=useValue('production pocket documents',()=>({
     readonly:!shape || editor.getInstanceState().isReadonly || editor.isShapeOrAncestorLocked(shape),
@@ -48,17 +50,14 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
     if(!shape||!list.current||state.readonly)return;
     const resize=()=>{
       const current=editor.getShape(shape.id);if(!current||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(current))return;
-      const height=Math.ceil(list.current?.offsetHeight??152)+12;
-      editor.run(()=>{
-        if(current.meta.omsPocketHeaderHeight!==height)editor.updateShape({id:current.id,type:current.type,meta:{...current.meta,omsPocketHeaderHeight:height}});
-        arrangeProductionPocket(editor,shape.id,height);
-      },{history:'ignore'});
+      const height=(Math.ceil(list.current?.offsetHeight??152)+12)*layoutScale;
+      arrangeProductionPocket(editor,shape.id,height,{history:'ignore'});
     };
     const observer=new ResizeObserver(resize);observer.observe(list.current);resize();return ()=>observer.disconnect();
-  },[editor,shape?.id,shape?.props.w,state.readonly,files.length,layoutKey]);
+  },[editor,shape?.id,shape?.props.w,layoutScale,state.readonly,files.length,layoutKey]);
   if(!context.enabled)return null;
   const stop=(event:React.SyntheticEvent)=>event.stopPropagation();
-  return <HTMLContainer style={{...(shape?{left:12,top:12,width:Math.max(120,shape.props.w-24)}:{position:'relative',width:'100%',marginBottom:8}),height:'auto',pointerEvents:'all',background:'var(--bg-1)',color:'var(--ink-primary,var(--text))',border:'1px solid var(--border)',borderRadius:6,overflow:'visible'}}>
+  return <HTMLContainer style={{...(shape?{left:12*layoutScale,top:12*layoutScale,width:Math.max(120,shape.props.w/layoutScale-24),transform:`scale(${layoutScale})`,transformOrigin:'top left'}:{position:'relative',width:'100%',marginBottom:8}),height:'auto',pointerEvents:'all',background:'var(--bg-1)',color:'var(--ink-primary,var(--text))',border:'1px solid var(--border)',borderRadius:6,overflow:'visible'}}>
     <section ref={list} data-testid={`production-pocket-${pocket}`} aria-label={`${copy.pocket}: ${copy[pocket]}`}
       data-drawing-native-wheel onPointerDown={stop} onKeyDown={stop} onWheel={stop} onDoubleClick={stop} style={{padding:10,fontSize:13}}>
       <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}>
@@ -68,7 +67,7 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
           const selected=Array.from(event.target.files??[]);event.target.value='';
           const id=getOrderBridge(editor)?.orderId;
           if(shape && !state.readonly && typeof id==='string'){
-            const point=editor.getShapePageTransform(shape).applyToPoint({x:24,y:180});
+            const point=editor.getShapePageTransform(shape).applyToPoint({x:24*layoutScale,y:180*layoutScale});
             void uploadOrderCanvasFiles(editor,selected,id,point,undefined,pocket);
           }
         }}/>

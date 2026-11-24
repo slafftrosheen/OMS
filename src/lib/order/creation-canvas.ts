@@ -1,4 +1,34 @@
 import {frameFilePocket,PRODUCTION_FILE_POCKETS,type ProductionFilePocket} from './file-pockets';
+import {ORDER_CANVAS_SCALE_META_KEY,readOrderCanvasScale} from './canvas-layout-scale';
+import {CAD_MAX_COORDINATE} from '../components/canvas/cad-limits';
+
+/** Snapshot edits run before the lazy canvas editor is loaded. Use only stored
+ * affine transforms here; a missing/cyclic shape parent cannot be guessed. */
+function snapshotAncestors(store:Record<string,any>,shape:any):any[]|null{
+ const result:any[]=[],seen=new Set<string>();let current=shape;
+ while(current){
+  if(current.isLocked||seen.has(current.id)||result.length>128)return null;
+  seen.add(current.id);result.push(current);
+  const parent=current.parentId;
+  if(!parent||String(parent).startsWith('page:'))return result;
+  current=store[parent];if(!current)return null;
+  if(current.typeName==='page')return result;
+ }
+ return result;
+}
+function snapshotBoxInsideLimits(store:Record<string,any>,shape:any):boolean{
+ const {w,h}=shape.props??{};
+ if(![w,h].every(value=>Number.isFinite(value)&&value>0&&value<=CAD_MAX_COORDINATE))return false;
+ const chain=snapshotAncestors(store,shape);if(!chain)return false;
+ let corners=[{x:0,y:0},{x:w,y:0},{x:w,y:h},{x:0,y:h}];
+ for(const record of chain){
+  const x=record.x??0,y=record.y??0,rotation=record.rotation??0;
+  if(![x,y,rotation].every(Number.isFinite)||Math.abs(x)>CAD_MAX_COORDINATE||Math.abs(y)>CAD_MAX_COORDINATE)return false;
+  const c=Math.cos(rotation),s=Math.sin(rotation);
+  corners=corners.map(p=>({x:x+p.x*c-p.y*s,y:y+p.x*s+p.y*c}));
+ }
+ return corners.every(point=>[point.x,point.y].every(value=>Number.isFinite(value)&&Math.abs(value)<=CAD_MAX_COORDINATE));
+}
 /** The active canvas owns placement; Form changes patch only the chosen file. */
 export function creationCanvasFilePockets(snapshot:any):Record<string,ProductionFilePocket>{
  const store=snapshot?.document?.store??snapshot?.store??{},pockets:Record<string,ProductionFilePocket>={};
@@ -12,19 +42,38 @@ export function creationCanvasFilePockets(snapshot:any):Record<string,Production
  }
  return pockets;
 }
-export function updateCreationCanvasPockets(snapshot:unknown,pockets:Record<string,ProductionFilePocket>){
+export function updateCreationCanvasPockets(snapshot:unknown,pockets:Record<string,ProductionFilePocket>,options:{requireAll?:boolean}={}){
  const copy=JSON.parse(JSON.stringify(snapshot)),store=copy?.document?.store??copy?.store??{};
+ let refused=false;
  const frames=new Map<ProductionFilePocket,any>();
  for(const record of Object.values(store)){
   const frame=record as any,pocket=frame&&frameFilePocket(frame);if(pocket)frames.set(pocket,frame);
  }
- for(const record of Object.values(store)){
+ for(const [key,record] of Object.entries(store)){
   const doc=record as any,pocket=pockets[doc?.props?.fileId];
   if(doc?.type!=='document'||!pocket)continue;
-  doc.meta={...doc.meta,omsFilePocket:pocket};const frame=frames.get(pocket);
-  if(frame&&doc.parentId!==frame.id){doc.parentId=frame.id;doc.x=24;doc.y=180;}
+  const source=snapshotAncestors(store,doc),frame=frames.get(pocket),target=frame?snapshotAncestors(store,frame):null;
+  if(!source||frame&&!target){refused=true;continue;}
+  const next={...doc,meta:{...doc.meta,omsFilePocket:pocket}};
+  if(frame&&doc.parentId!==frame.id){
+   // A document normally has no children. Refuse moving a container with real
+   // artwork instead of silently shifting geometry this snapshot path cannot measure.
+   if(Object.values(store).some((child:any)=>child?.parentId===doc.id)){refused=true;continue;}
+   const scale=readOrderCanvasScale(frame);
+   if(next.meta.omsAutoArrange===true){
+    const ratio=scale/readOrderCanvasScale(doc);
+    // Only generated attachment viewers follow a new pocket's scale. A hand-sized
+    // viewer keeps its physical size when the Form tab changes its destination.
+    next.props={...doc.props,w:doc.props.w*ratio,h:doc.props.h*ratio};
+    next.meta={...next.meta,[ORDER_CANVAS_SCALE_META_KEY]:scale};
+   }
+   next.parentId=frame.id;next.x=24*scale;next.y=180*scale;
+   next.rotation=source.reduce((sum,shape)=>sum+(shape.rotation??0),0)-target!.reduce((sum,shape)=>sum+(shape.rotation??0),0);
+   if(!snapshotBoxInsideLimits(store,next)){refused=true;continue;}
+  }
+  store[key]=next;
  }
- return copy;
+ return options.requireAll&&refused?null:copy;
 }
 /** Remove queued files that were deleted and replace local references after upload. */
 export function prepareCreationCanvas(snapshot:unknown,localOrderId:string,orderId:string,fileLinks:Record<string,string>,removedIds:Set<string>,base=''){

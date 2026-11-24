@@ -5,6 +5,7 @@ import {DxfDocumentPreview} from './DxfDocumentPreview';
 import {isDxfFile} from '$lib/order/dxf-preview';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { canvasLinkDescriptor, normalizeCanvasMediaUrl, safeCanvasDocumentUrl } from '../toolkit-media-url';
+import { readOrderCanvasScale } from '$lib/order/canvas-layout-scale';
 
 export type DocumentShape = TLBaseShape<'document', {
     w: number;
@@ -56,6 +57,9 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
     override component(shape: DocumentShape) {
         const tn = useToolkitText();
         const { w, h, title, content, status, url, kind, mime } = shape.props;
+        // File cards share the order template's physical scale. Their controls
+        // and preview render at the original layout size, then scale together.
+        const layoutScale = readOrderCanvasScale(shape);
         const stop = (e: React.SyntheticEvent) => e.stopPropagation();
         const edit = (props: Partial<DocumentShape['props']>) =>
             this.editor.updateShape<DocumentShape>({ id: shape.id, type: 'document', props });
@@ -97,7 +101,7 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                 );
             }
             if (kind === 'pdf' && url) {
-                return <PdfPreview url={url} page={shape.props.pdfPage || 1} width={w}
+                return <PdfPreview url={url} page={shape.props.pdfPage || 1} width={w / layoutScale}
                     onPageChange={page => edit({ pdfPage: page })} />;
             }
             if (kind === 'file' && url) {
@@ -128,8 +132,9 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
             <HTMLContainer
                 id={shape.id}
                 style={{
-                    width: w,
-                    height: h,
+                    width: w / layoutScale,
+                    height: h / layoutScale,
+                    ...(layoutScale === 1 ? {} : { transform: `scale(${layoutScale})`, transformOrigin: 'top left' }),
                     display: 'flex',
                     flexDirection: 'column',
                     background: 'var(--bg-0, #fff)',
@@ -189,7 +194,7 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
     }
 
     override indicator(shape: DocumentShape) {
-        return <rect width={shape.props.w} height={shape.props.h} rx={8} />;
+        return <rect width={shape.props.w} height={shape.props.h} rx={8 * readOrderCanvasScale(shape)} />;
     }
 }
 

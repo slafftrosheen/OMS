@@ -3,7 +3,8 @@ import { captureCanvasDocument } from './canvas-document';
 import { applyCanvasSurface, watchCanvasSurface } from './canvas-surface';
 import { DrawingGridBackground } from './DrawingGrid';
 import { installDrawingSnapTargets } from './cad-snap-settings';
-import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
+import { initializeDrawingDocument } from './drawing-document-defaults';
+import { useDrawingText } from './drawing-copy';
 import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
 import {installDrawingFonts} from './drawing-fonts';
@@ -157,6 +158,7 @@ export function CanvasApp({
     onToolkitControlsChange,
     toolkitReadOnly = false,
 }: CanvasAppProps) {
+    const { label } = useDrawingText();
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
     const seedRef = useRef<OrderSeed | null>(orderSeed ?? null);
@@ -220,11 +222,8 @@ export function CanvasApp({
         const stopLayers = installProductionLayers(editor), stopSnapTargets = installDrawingSnapTargets(editor);
         cleanupCadTransformsRef.current = () => { stopCurveHover(); stopWheel(); stopPickMarquee(); stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopTextDefaults(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
-        if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
-            const page = editor.getCurrentPage();
-            editor.run(() => editor.updatePage({ id: page.id, meta: { ...page.meta, [CAD_META_KEY]: { ...DEFAULT_CAD_SETTINGS } } }), { history: 'ignore' });
-        }
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
+        initializeDrawingDocument(editor);
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks
         setOrderBridge(editor, {toolkitBoardId, onStoreCanvasFile, orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
@@ -336,7 +335,10 @@ export function CanvasApp({
             spawnFrameRef.current = requestAnimationFrame(() => {
                 spawnFrameRef.current = null;
                 spawnedRef.current = spawnDraftOrderTemplate(editor, seedRef.current ?? seed);
-                syncSeed(editor,seedRef.current ?? seed);
+                if (spawnedRef.current) syncSeed(editor,seedRef.current ?? seed);
+                else if (!editor.getInstanceState().isReadonly) editor.getContainer().dispatchEvent(new CustomEvent('oms:canvas-upload', {
+                    detail: { message: label('templateFailed'), busy: false },
+                }));
             });
         } else if (seed) {
             syncSeed(editor, seed);

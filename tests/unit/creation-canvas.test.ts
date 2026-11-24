@@ -1,11 +1,12 @@
 import {describe,it,expect} from 'vitest';
 import {prepareCreationCanvas,creationCanvasFilePockets,updateCreationCanvasPockets} from '../../src/lib/order/creation-canvas';
+import {ORDER_CANVAS_SCALE_META_KEY} from '../../src/lib/order/canvas-layout-scale';
 describe('new draft canvas persistence',()=>{
  it('reconciles a pocket chosen in Form after capturing and hiding the canvas',()=>{
   const snapshot={document:{store:{
    'shape:visuals':{id:'shape:visuals',type:'frame',props:{name:'Visuals (PDF/Rasters)'},meta:{omsFilePocket:'visuals'}},
    'shape:cnc':{id:'shape:cnc',type:'frame',props:{name:'CNC Routing'},meta:{omsFilePocket:'cnc'}},
-   'shape:file':{id:'shape:file',type:'document',parentId:'shape:visuals',x:50,y:190,props:{fileId:'queued',url:'blob:preview'},meta:{omsFilePocket:'visuals'}}
+   'shape:file':{id:'shape:file',type:'document',parentId:'shape:visuals',x:50,y:190,props:{w:360,h:280,fileId:'queued',url:'blob:preview'},meta:{omsFilePocket:'visuals'}}
   }}};
   const changed=updateCreationCanvasPockets(snapshot,{queued:'cnc'});
   const saved=prepareCreationCanvas(changed,'local','saved',{queued:'stored'},new Set());
@@ -13,6 +14,69 @@ describe('new draft canvas persistence',()=>{
   expect(saved.document.store['shape:file'].meta.omsFilePocket).toBe('cnc');
   expect(saved.document.store['shape:file'].props.fileId).toBe('stored');
   expect(snapshot.document.store['shape:file'].parentId).toBe('shape:visuals');
+ });
+ it('keeps hidden-canvas generated viewers proportional when Form changes their destination',()=>{
+  const scale=6000/(1800*25.4/96);
+  const snapshot={document:{store:{
+   'shape:visuals':{id:'shape:visuals',type:'frame',props:{name:'Visuals (PDF/Rasters)'},meta:{omsFilePocket:'visuals'}},
+   'shape:cnc':{id:'shape:cnc',type:'frame',props:{name:'CNC Routing'},meta:{omsFilePocket:'cnc',[ORDER_CANVAS_SCALE_META_KEY]:scale}},
+   'shape:file':{id:'shape:file',type:'document',parentId:'shape:visuals',x:50,y:190,props:{w:360,h:280,fileId:'queued',url:'blob:preview'},meta:{omsFilePocket:'visuals',omsAutoArrange:true,retained:'keep'}}
+  }}};
+  const changed=updateCreationCanvasPockets(snapshot,{queued:'cnc'}),doc=changed.document.store['shape:file'];
+  expect(doc.parentId).toBe('shape:cnc');expect(doc.x).toBe(24*scale);expect(doc.y).toBe(180*scale);
+  expect(doc.props.w).toBe(360*scale);expect(doc.props.h).toBe(280*scale);expect(doc.meta[ORDER_CANVAS_SCALE_META_KEY]).toBe(scale);
+  expect(doc.meta.retained).toBe('keep');expect(snapshot.document.store['shape:file'].props.w).toBe(360);
+  const returned=updateCreationCanvasPockets(changed,{queued:'visuals'}).document.store['shape:file'];
+  expect(Math.abs(returned.props.w-360)<1e-8).toBe(true);expect(Math.abs(returned.props.h-280)<1e-8).toBe(true);
+  expect(returned.x).toBe(24);expect(returned.y).toBe(180);expect(returned.meta[ORDER_CANVAS_SCALE_META_KEY]).toBe(1);
+ });
+ it('preserves manually sized viewer dimensions and an unchanged destination position',()=>{
+  const snapshot={store:{
+   'shape:cnc':{id:'shape:cnc',type:'frame',props:{name:'CNC Routing'},meta:{omsFilePocket:'cnc',[ORDER_CANVAS_SCALE_META_KEY]:12}},
+   'shape:manual':{id:'shape:manual',type:'document',parentId:'page:one',x:91,y:217,props:{w:420,h:360,fileId:'manual'},meta:{omsFilePocket:'visuals',[ORDER_CANVAS_SCALE_META_KEY]:2}},
+   'shape:kept':{id:'shape:kept',type:'document',parentId:'shape:cnc',x:555,y:777,props:{w:450,h:300,fileId:'kept'},meta:{omsFilePocket:'cnc',omsAutoArrange:true,[ORDER_CANVAS_SCALE_META_KEY]:3}}
+  }};
+  const changed=updateCreationCanvasPockets(snapshot,{manual:'cnc',kept:'cnc'});
+  expect(changed.store['shape:manual'].props).toEqual(snapshot.store['shape:manual'].props);
+  expect(changed.store['shape:manual'].meta[ORDER_CANVAS_SCALE_META_KEY]).toBe(2);
+  expect(changed.store['shape:manual'].x).toBe(24*12);
+  expect(changed.store['shape:kept']).toEqual(snapshot.store['shape:kept']);
+ });
+ it('refuses unsafe scaled and parent-transformed snapshot moves without changing their assignment',()=>{
+  for(const problem of ['large-scale','near-edge','rotated-parent','children']){
+   const snapshot:any={document:{store:{
+    'shape:source':{id:'shape:source',type:'frame',x:0,y:0,rotation:0,props:{w:800,h:500},meta:{omsFilePocket:'visuals'}},
+    'shape:target':{id:'shape:target',type:'frame',x:problem==='near-edge'?999000:0,y:0,rotation:0,props:{w:800,h:500},meta:{omsFilePocket:'cnc',[ORDER_CANVAS_SCALE_META_KEY]:problem==='large-scale'?12598.425196850393:12.598425196850393}},
+    'shape:file':{id:'shape:file',type:'document',parentId:'shape:source',x:50,y:190,rotation:0,props:{w:360,h:280,fileId:'queued'},meta:{omsFilePocket:'visuals',omsAutoArrange:true}}
+   }}};
+   const store=snapshot.document.store;
+   if(problem==='rotated-parent'){
+    store['shape:parent']={id:'shape:parent',type:'group',x:0,y:999000,rotation:Math.PI/2,parentId:'page:one'};
+    store['shape:target'].parentId='shape:parent';
+   }
+   if(problem==='children')store['shape:cut']={id:'shape:cut',type:'cad-ellipse',parentId:'shape:file',x:0,y:0,props:{w:100,h:100}};
+   const changed=updateCreationCanvasPockets(snapshot,{queued:'cnc'});
+   expect(changed).toEqual(snapshot);
+   expect(updateCreationCanvasPockets(snapshot,{queued:'cnc'},{requireAll:true})).toBe(null);
+  }
+ });
+ it('preserves locked viewers and every locked source or destination ancestor',()=>{
+  for(const locked of ['shape:file','shape:source','shape:source-parent','shape:target','shape:target-parent']){
+   const snapshot:any={store:{
+    'shape:source-parent':{id:'shape:source-parent',type:'group',parentId:'page:one',x:0,y:0,rotation:0},
+    'shape:target-parent':{id:'shape:target-parent',type:'group',parentId:'page:one',x:0,y:0,rotation:0},
+    'shape:source':{id:'shape:source',type:'frame',parentId:'shape:source-parent',x:0,y:0,rotation:0,props:{w:800,h:500},meta:{omsFilePocket:'visuals'}},
+    'shape:target':{id:'shape:target',type:'frame',parentId:'shape:target-parent',x:0,y:0,rotation:0,props:{w:800,h:500},meta:{omsFilePocket:'cnc',[ORDER_CANVAS_SCALE_META_KEY]:12}},
+    'shape:file':{id:'shape:file',type:'document',parentId:'shape:source',x:50,y:190,rotation:0,props:{w:360,h:280,fileId:'queued'},meta:{omsFilePocket:'visuals',omsAutoArrange:true}}
+   }};
+   snapshot.store[locked].isLocked=true;
+   expect(updateCreationCanvasPockets(snapshot,{queued:'cnc'})).toEqual(snapshot);
+   expect(updateCreationCanvasPockets(snapshot,{queued:'cnc'},{requireAll:true})).toBe(null);
+  }
+ });
+ it('allows Form assignment before a queued attachment has a canvas viewer',()=>{
+  const snapshot={document:{store:{'page:one':{id:'page:one',typeName:'page',meta:{}}}}};
+  expect(updateCreationCanvasPockets(snapshot,{queued:'cnc'},{requireAll:true})).toEqual(snapshot);
  });
  it('keeps the latest canvas move and exact position when persisting file references',()=>{
   const snapshot={document:{store:{

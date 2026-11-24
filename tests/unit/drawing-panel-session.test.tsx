@@ -45,7 +45,15 @@ async function harness(run: (h: any) => Promise<void>) {
   // derived-store cache while mounting its React-only children in isolation.
   const stopText = t.subscribe(() => {});
   const host = document.createElement('div'); document.body.append(host);
-  const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil, CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil];
+  // Exercise the actual scale control and native store without mounting the
+  // Svelte form contents, whose browser layout is covered separately.
+  class TestProfileShapeUtil extends tl.BaseBoxShapeUtil<any> {
+    static override type = 'profile-7st' as const;
+    override getDefaultProps() { return { w: 1800, h: 900 }; }
+    override component() { return null; }
+    override indicator() { return null; }
+  }
+  const shapeUtils = [...tl.defaultShapeUtils, CadBezierShapeUtil, CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil, TestProfileShapeUtil];
   const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
     bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools], getContainer: () => host, initialState: 'select' });
   editor.updateViewportScreenBounds(new tl.Box(0, 0, 800, 600));
@@ -104,6 +112,40 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('drawing docker continuity', () => {
+  it('scales a calibrated form from its physical default and cancels an unfinished percentage without a blur write', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, host, tick, input }: any) => {
+      const React = await import('react');
+      const { FormScaleControl } = await import('../../src/lib/components/canvas/WorkbenchPanels');
+      const { defaultCanvasFormSize } = await import('../../src/lib/components/canvas/shapes/form-shapes/form-layout');
+      const id = 'shape:physical-form', size = defaultCanvasFormSize('profile-7st', cad.DEFAULT_CAD_SETTINGS)!;
+      await act(async () => {
+        editor.createShape({ id, type: 'profile-7st', props: size }); editor.select(id);
+        root.render(<EditorContext.Provider value={editor}><FormScaleControl/></EditorContext.Provider>);
+      });
+      const field = host.querySelector('.drawing-form-scale input') as HTMLInputElement;
+      assert.ok(field); assert.equal(field.value, '100');
+      const focus = async () => { await act(async () => field.focus()); };
+      const key = async (value: string) => { await act(async () => field.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }))); await tick(); };
+      await focus(); await input(field, '50'); await key('Enter');
+      assert.ok(Math.abs(editor.getShape(id).props.w * cad.cadMmPerPixel(cad.DEFAULT_CAD_SETTINGS) - 3000) < 1e-8);
+      assert.equal(field.value, '50');
+      const before = JSON.stringify(editor.getShape(id));
+      await focus(); await input(field, '175'); await key('Escape');
+      assert.equal(field.value, '50'); assert.equal(JSON.stringify(editor.getShape(id)), before);
+      await focus(); await act(async () => field.blur()); await tick();
+      assert.equal(JSON.stringify(editor.getShape(id)), before, 'unchanged focus/blur preserves exact geometry');
+      await focus(); await input(field, '500'); await key('Enter');
+      assert.equal(field.value, '50'); assert.equal(JSON.stringify(editor.getShape(id)), before);
+      // Legacy saved geometry may be smaller than the control's 10% creation
+      // range; merely inspecting it must never round or enlarge the record.
+      await act(async () => editor.updateShape({ id, type: 'profile-7st', props: { w: 1800, h: 900 } })); await tick();
+      const legacy = JSON.stringify(editor.getShape(id));
+      assert.ok(Number(field.value) < 10);
+      await focus(); await act(async () => field.blur()); await tick();
+      assert.equal(JSON.stringify(editor.getShape(id)), legacy);
+    });
+  });
+
   it('edits real dimension offset, precision and markers in drawing units with one undo', async () => {
     await harness(async ({ editor, cad, root, EditorContext, act, get, tick, select, input, snapshot, sourceId }: any) => {
       const React = await import('react');

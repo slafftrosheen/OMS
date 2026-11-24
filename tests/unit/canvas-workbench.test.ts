@@ -113,6 +113,24 @@ describe('production file destinations',()=>{
   const result=await saveProductionExport(f.editor,new File(['drawing'],'part.dxf',{type:'application/dxf'}),'cnc');assert.equal(result.queued,true);assert.equal(category,'cnc');
   const card=f.editor.getCurrentPageShapesSorted().find((s:any)=>s.type==='document');assert.equal(card.parentId,'shape:cnc');assert.equal(card.props.fileId,'queued');
  });
+ it('keeps a successful attachment upload and reports when its physical canvas card cannot be placed',async()=>{
+  const f=fixture(),container=new EventTarget(),messages:Array<{message:string;busy:boolean}>=[];
+  f.editor.getContainer=()=>container;
+  f.editor.updatePage({meta:{omsCad:DEFAULT_CAD_SETTINGS}});
+  container.addEventListener('oms:canvas-upload',event=>messages.push((event as CustomEvent).detail));
+  let uploaded=0;
+  setOrderBridge(f.editor,{orderId:'order-123',onAssetUploaded:()=>{uploaded++;}});
+  const original=globalThis.fetch;
+  try{
+   globalThis.fetch=async()=>Response.json({file:{id:'stored-file'}},{status:201});
+   await uploadOrderCanvasFiles(f.editor,[new File(['drawing'],'edge.pdf',{type:'application/pdf'})],'order-123',{x:999000,y:0});
+   assert.equal(uploaded,1);assert.equal(f.shapes.size,0);
+   assert.equal(messages.at(-1)?.busy,false);
+   assert.ok(messages.at(-1)?.message.includes('edge.pdf'));
+   assert.ok(messages.at(-1)?.message.includes('canvas card could not be placed'));
+   assert.equal(messages.at(-1)?.message.includes('Save Draft to keep their canvas placement'),false);
+  }finally{globalThis.fetch=original;}
+ });
  it('retains a stored attachment but skips canvas placement when permissions change during upload',async()=>{
   const f=pocket();setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async()=>{},onStoreCanvasFile:async()=>{f.state.isReadonly=true;return {id:'queued',url:'blob:queued'};}});
   const result=await saveProductionExport(f.editor,new File(['x'],'part.dxf',{type:'application/dxf'}),'cnc');assert.equal(f.shapes.size,2);
@@ -126,7 +144,10 @@ describe('production file destinations',()=>{
    return {id:'queued',url:'blob:queued'};
   }});
   const originalUpdate=f.editor.updateShape;
-  f.editor.updateShape=(patch:any)=>{if(patch.type==='document')throw new Error('layout failed');return originalUpdate(patch);};
+  // A new card is created directly at its validated final position. Force a
+  // dependent frame growth so the failure still occurs after card creation.
+  f.editor.updateShape({id:'shape:cnc',meta:{...f.editor.getShape('shape:cnc').meta,omsPocketHeaderHeight:400}});
+  f.editor.updateShape=(patch:any)=>{if(patch.type==='frame')throw new Error('layout failed');return originalUpdate(patch);};
   const first=await saveProductionExport(f.editor,file,'cnc');
   assert.equal(first.placed,false);
   assert.equal(f.shapes.size,2);

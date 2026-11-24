@@ -5,6 +5,9 @@ import {announceOrderFilesChanged} from '$lib/order/order-files-client';
 import {base} from '$app/paths';
 import {addOrderFileDocument,orderPocketAtPoint} from './order-file-documents';
 import {frameFilePocket,type ProductionFilePocket} from '$lib/order/file-pockets';
+import {filePreviewCopy} from '$lib/order/file-preview-copy';
+import {locale} from 'svelte-i18n';
+import {get} from 'svelte/store';
 export interface UploadedAsset{id:string;url:string;fileName:string;mime:string;kind:'image'|'pdf'|'file'}
 const pending=new WeakSet<Editor>();
 const lifetimes=new WeakMap<Editor,AbortController>();
@@ -39,8 +42,9 @@ export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:
     const f=result.file,mime=f.mimeType||f.mime_type||file.type;
     const kind=mime==='application/pdf'?'pdf':mime.startsWith('image/')?'image':'file';
     const url=`${base}/api/files/${encodeURIComponent(f.id)}/download`;
-    addOrderFileDocument(editor,{id:f.id,url,originalName:file.name,mimeType:mime},{x:position.x+index*28,y:position.y+index*28},frame ? frameFilePocket(frame)! : undefined);
+    const placed=addOrderFileDocument(editor,{id:f.id,url,originalName:file.name,mimeType:mime},{x:position.x+index*28,y:position.y+index*28},frame ? frameFilePocket(frame)! : undefined);
     getOrderBridge(editor)?.onAssetUploaded?.(orderId,{url,fileName:file.name,kind});completed++;
+    if(!placed)failures.push(`${file.name}: ${filePreviewCopy(get(locale)).placementFailed}`);
    }catch(err){if(!signal?.aborted)failures.push(`${file.name}: ${err instanceof Error?err.message:'Upload failed'}`);}
   }
  }finally{pending.delete(editor);if(!signal?.aborted)report(failures.length?failures.join(' · '):`${completed} file(s) attached. Save Draft to keep their canvas placement.`,false);}
