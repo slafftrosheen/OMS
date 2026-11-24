@@ -1,9 +1,13 @@
+import { drawingFileKind } from '$lib/components/canvas/drawing-file-types';
+import { MAX_ORDER_FILE_BYTES } from '$lib/order/file-limits';
+
+export { MAX_ORDER_FILE_BYTES } from '$lib/order/file-limits';
+
 /** Order files are private Supabase Storage objects, never public URLs.
  * Request-scoped Supabase client supplies the authenticated user's RLS JWT.
  * The canonical parent is draft_orders.id both before and after confirmation.
  */
 export const ORDER_FILE_BUCKET = 'files';
-export const MAX_ORDER_FILE_BYTES = 25 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MIME: Record<string,string> = {
  pdf:'application/pdf', eps:'application/postscript', svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
@@ -20,10 +24,7 @@ export function normalizeOrderFile(file: Pick<File,'name'|'type'|'size'>) {
   const declared=file.type.toLowerCase();
   if (!expected || !file.name.trim()) throw new Error('Unsupported file type');
   if (declared && declared !== 'application/octet-stream' && declared !== expected &&
-      // Many CAD browsers report one of these for DXF/CDR.
-      !(ext === 'dxf' && ['application/x-dxf','image/vnd.dxf'].includes(declared)) &&
-      !(ext === 'cdr' && ['application/coreldraw','application/x-coreldraw',
-        'application/vnd.corel-draw'].includes(declared))) {
+      drawingFileKind({ name: '', type: declared }) !== ext) {
     throw new Error('File extension does not match its MIME type');
   }
   if (file.size < 1 || file.size > MAX_ORDER_FILE_BYTES) throw new Error('File must be 1 byte–25 MiB');

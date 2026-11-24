@@ -7,6 +7,7 @@ import { polylineSession } from './cad-polyline-draft';
 /** Click-based drafting: no freehand smoothing and no hidden coordinate quantization. */
 export class CadPolylineTool extends StateNode {
   static override id = 'cad-polyline';
+  protected readonly pointLimit: number = CAD_MAX_POINTS;
   private points: CadPoint[] = [];
   private shapeId: TLShapeId | null = null;
   private mark: string | null = null;
@@ -63,13 +64,13 @@ export class CadPolylineTool extends StateNode {
       if (!this.editor.getShape(this.shapeId)) { this.cancel(); return false; }
     }
     this.points.push(point); this.render();
-    if (this.points.length >= CAD_MAX_POINTS) this.finish(false);
+    if (this.points.length >= this.pointLimit) this.finish(false);
     return true;
   }
   override onPointerMove = () => {
     if (this.editor.getInstanceState().isReadonly) { this.cancel(); return; }
     const point = this.pointer();
-    if (validCadPoint(point) && this.points.length < CAD_MAX_POINTS) this.render(point);
+    if (validCadPoint(point) && this.points.length < this.pointLimit) this.render(point);
   };
   override onKeyDown: TLEventHandlers['onKeyDown'] = info => {
     if (this.editor.getInstanceState().isReadonly) { this.cancel(); return; }
@@ -111,4 +112,9 @@ export class CadPolylineTool extends StateNode {
     if (mark) this.editor.bailToMark(mark);
     if (select) this.editor.setCurrentTool('select');
   }
+}
+
+export class CadLineTool extends CadPolylineTool {
+  static override id = 'cad-line';
+  protected override readonly pointLimit = 2;
 }

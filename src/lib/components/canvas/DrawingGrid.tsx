@@ -1,12 +1,20 @@
 /**
  * DrawingGrid — Reclame Fabriek OMS · Round 3
  * Drafting-paper grid: hairline minor lines, stronger major lines, no dots.
- * Same zoom steps and fade as tldraw's default grid, so snapping is unchanged;
- * only the drawing of the grid differs. Colours come from --rf-grid-minor / --rf-grid-major,
- * which fabriek-canvas.css sets per surface (paper / night blueprint).
+ * Uses tldraw's zoom steps and fade. Visibility is independent of snapping.
  */
 import { useId } from 'react';
-import { useEditor, type TLGridProps } from '@tldraw/tldraw';
+import { useEditor, useValue, type TLGridProps } from '@tldraw/tldraw';
+
+import { drawingGridVisible } from './drawing-grid-state';
+
+export function DrawingGridBackground() {
+  const editor = useEditor();
+  const visible = useValue('Drawing grid visibility', () => drawingGridVisible(editor).get(), [editor]);
+  const camera = useValue('Drawing grid camera', () => editor.getCamera(), [editor]);
+  const size = useValue('Drawing grid spacing', () => editor.getDocumentSettings().gridSize, [editor]);
+  return <div className="tl-background">{visible && <DrawingGrid {...camera} size={size} />}</div>;
+}
 
 const fade = (z: number, min: number, mid: number) =>
   z >= mid ? 1 : z <= min ? 0 : (z - min) / (mid - min);

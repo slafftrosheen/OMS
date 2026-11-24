@@ -1,3 +1,4 @@
+import { drawingGridVisible } from './drawing-grid-state';
 import { isProductionLayerProtected } from './cad-production-layers';
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
 import { applyToolkitToolbarAction, captureToolkitControls } from './toolkit-controls';
@@ -24,7 +25,8 @@ export function applyDrawingCommand(editor: Editor, command: string): boolean {
   if (command === 'zoom-in') { editor.zoomIn(); return true; }
   if (command === 'zoom-out') { editor.zoomOut(); return true; }
   if (command === 'grid') {
-    editor.updateInstanceState({ isGridMode: !editor.getInstanceState().isGridMode });
+    const visible = drawingGridVisible(editor);
+    visible.set(!visible.get());
     return true;
   }
   if (command === 'snap') {

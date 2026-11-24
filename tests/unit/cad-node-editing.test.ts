@@ -5,8 +5,8 @@ import { Box } from '@tldraw/tldraw';
 import { fixture } from '../helpers/cad-editor';
 import { nodeAt, cubicAt, cubicPoints, type CadContour } from '../../src/lib/components/canvas/cad-curves';
 import { DEFAULT_CAD_SETTINGS as settings } from '../../src/lib/components/canvas/cad-settings';
-import { getCadCurveSelection, setCadStraightSegment, splitCadCurveSegment } from '../../src/lib/components/canvas/cad-editing';
-import { getSelectedCadNode, getSelectedCadNodes, selectCadNode, inspectCadNodeEvent, installCadNodeSelection, setCadNodeEditing, isCadNodeEditing } from '../../src/lib/components/canvas/cad-node-selection';
+import { deleteCadCurveNodes, getCadCurveSelection, nudgeCadCurveNodes, setCadStraightSegment, splitCadCurveSegment } from '../../src/lib/components/canvas/cad-editing';
+import { getSelectedCadNode, getSelectedCadNodes, selectAllCadNodes, selectCadNode, setSelectedCadNodes, inspectCadNodeEvent, installCadNodeSelection, setCadNodeEditing, isCadNodeEditing } from '../../src/lib/components/canvas/cad-node-selection';
 import { buildCadDxf } from '../../src/lib/components/canvas/cad-dxf';
 
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
@@ -16,6 +16,44 @@ function setup(contours: CadContour[] = [{ closed: false, nodes: [{ x: 0, y: 0 }
   f.editor.setSelectedShapes(['shape:curve']);
   return f;
 }
+
+describe('Shape tool node keyboard edits', () => {
+  it('nudges selected nodes in page axes through rotations and preserves handles and selection', () => {
+    const f = setup();
+    f.editor.updateShape({ id: 'shape:curve', x: 80, y: 90, rotation: Math.PI / 2 });
+    f.only().props.contours[0].nodes[0].outX = 12;
+    const nodes = [{ contourIndex: 0, nodeIndex: 0 }, { contourIndex: 0, nodeIndex: 2 }];
+    assert.equal(setSelectedCadNodes(f.editor, nodes), true);
+    const original = structuredClone(f.only());
+    assert.equal(nudgeCadCurveNodes(f.editor, 12, -4), true);
+    const result = f.only();
+    assert.deepEqual([result.x, result.y], [original.x, original.y]);
+    assert.deepEqual(result.props.contours[0].nodes[1], original.props.contours[0].nodes[1]);
+    for (const index of [0, 2]) {
+      const node = result.props.contours[0].nodes[index], before = original.props.contours[0].nodes[index];
+      near(node.x, before.x - 4); near(node.y, before.y - 12);
+      assert.equal(node.outX, before.outX);
+    }
+    assert.equal(getSelectedCadNodes(f.editor).length, 2);
+    f.editor.bailToMark(f.marks[0].id);
+    assert.deepEqual(f.only(), original);
+  });
+
+  it('deletes a node set as one edit and rejects removals that invalidate any contour', () => {
+    const contour = { closed: false, nodes: [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 100, y: 40 }].map(nodeAt) };
+    const f = setup([contour, { ...contour, nodes: contour.nodes.map(node => ({ ...node, y: node.y + 120 })) }]);
+    const before = structuredClone(f.only());
+    assert.equal(selectAllCadNodes(f.editor), true);
+    assert.equal(deleteCadCurveNodes(f.editor, getSelectedCadNodes(f.editor)), false);
+    assert.deepEqual(f.only(), before);
+    assert.equal(f.marks.length, 0);
+    const set = [{ contourIndex: 0, nodeIndex: 1 }, { contourIndex: 1, nodeIndex: 1 }];
+    assert.equal(deleteCadCurveNodes(f.editor, set), true);
+    assert.deepEqual(f.only().props.contours.map((item: CadContour) => item.nodes.length), [2, 2]);
+    f.editor.bailToMark(f.marks[0].id);
+    assert.deepEqual(f.only(), before);
+  });
+});
 
 describe('precise outgoing segment edits', () => {
   it('sets length and direction in document units through nested rotations and keeps adjoining relative controls', () => {

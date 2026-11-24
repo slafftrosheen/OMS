@@ -48,6 +48,12 @@ export function setSelectedCadNodes(editor: Editor, nodes: ReadonlyArray<{contou
 export function selectCadNode(editor: Editor, contourIndex: number, nodeIndex: number): boolean {
   return setSelectedCadNodes(editor,[{contourIndex,nodeIndex}]);
 }
+export function selectAllCadNodes(editor: Editor): boolean {
+  const shape = editor.getOnlySelectedShape() as CadBezierShape | undefined;
+  return shape?.type === 'cad-bezier' && setSelectedCadNodes(editor,
+    shape.props.contours.flatMap((contour, contourIndex) => contour.nodes.map((_, nodeIndex) => ({ contourIndex, nodeIndex }))));
+}
+
 export function toggleCadNode(editor: Editor, contourIndex: number, nodeIndex: number): boolean {
   const nodes=getSelectedCadNodes(editor), exists=nodes.some(n=>n.contourIndex===contourIndex&&n.nodeIndex===nodeIndex);
   return setSelectedCadNodes(editor,exists?nodes.filter(n=>n.contourIndex!==contourIndex||n.nodeIndex!==nodeIndex):[...nodes,{contourIndex,nodeIndex}]);

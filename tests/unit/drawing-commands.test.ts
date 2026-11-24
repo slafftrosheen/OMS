@@ -2,6 +2,7 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import type { TLShapeId } from '@tldraw/tldraw';
 import { applyDrawingCommand, toggleDrawingObjectLock, transformDrawingSelection } from '../../src/lib/components/canvas/drawing-commands';
+import { drawingGridVisible } from '../../src/lib/components/canvas/drawing-grid-state';
 
 function fixture() {
   const shape = { id: 'shape:one' as TLShapeId, type: 'geo', x: 10, y: 20, rotation: 0, isLocked: false, parentId: 'page:one', props: { w: 100, h: 80 } };
@@ -40,7 +41,8 @@ describe('Shared drawing commands', () => {
     assert.equal(toggleDrawingObjectLock(f.editor, f.shape.id), false);
     assert.equal(applyDrawingCommand(f.editor, 'zoom-in'), true);
     assert.equal(applyDrawingCommand(f.editor, 'grid'), true);
-    assert.equal(f.state.isGridMode, true);
+    assert.equal(drawingGridVisible(f.editor).get(), true);
+    assert.equal(f.state.isGridMode, false);
     assert.deepEqual(f.calls, [['zoom-in']]);
   });
   it('applies page coordinates in the parent coordinate system and preserves the other axis', () => {

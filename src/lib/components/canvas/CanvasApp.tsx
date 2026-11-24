@@ -1,7 +1,8 @@
 import { installProductionLayers } from './cad-production-layers';
 import { captureCanvasDocument } from './canvas-document';
 import { applyCanvasSurface, watchCanvasSurface } from './canvas-surface';
-import { DrawingGrid } from './DrawingGrid';
+import { DrawingGridBackground } from './DrawingGrid';
+import { installDrawingSnapTargets } from './cad-snap-settings';
 import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
 import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
@@ -35,12 +36,12 @@ import { routeCanvasCadImport } from './drawing-ui-requests';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
 import { CadBezierShapeUtil } from './shapes/CadBezierShape';
 import { CadBezierTool } from './CadBezierTool';
-import { CadPolylineTool } from './CadPolylineTool';
+import { CadLineTool, CadPolylineTool } from './CadPolylineTool';
 import { installCadTransforms } from './cad-transforms';
 import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
-import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor } from '@tldraw/tldraw';
+import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor, type TLUiOverrides } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import './drawing-pick-skew.css';
 import './drawing-guides.css';
@@ -100,7 +101,13 @@ const drawingUi = {
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: DrawingContextMenu,
     DebugPanel: null, DebugMenu: null, PageMenu: null,
-    Grid: DrawingGrid,
+    Background: DrawingGridBackground, Grid: null,
+};
+
+const drawingUiOverrides: TLUiOverrides = {
+    // OMS owns the toolbox shortcuts. Suppress the hidden toolbox's aliases
+    // so E, R, T and other alignment keys cannot start a native drawing tool.
+    tools: (_editor, tools) => Object.fromEntries(Object.entries(tools).map(([id, tool]) => [id, { ...tool, kbd: undefined }])),
 };
 
 export interface CanvasAppProps {
@@ -203,8 +210,8 @@ export function CanvasApp({
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
         const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
-        const stopLayers = installProductionLayers(editor);
-        cleanupCadTransformsRef.current = () => { stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        const stopLayers = installProductionLayers(editor), stopSnapTargets = installDrawingSnapTargets(editor);
+        cleanupCadTransformsRef.current = () => { stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
             const page = editor.getCurrentPage();
@@ -261,8 +268,9 @@ export function CanvasApp({
             // Route paste as well as drag/drop through private persistent
             // uploads, instead of tldraw's ephemeral data-URL asset store.
             editor.registerExternalContentHandler('files', async ({ files, point }) => {
-                if (routeCanvasCadImport(editor, files, point)) return;
-                callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
+                if (editor.getInstanceState().isReadonly) return;
+                const attachments = hideUI ? files : routeCanvasCadImport(editor, files, point);
+                if (attachments.length) callbacksRef.current.onToolkitFilesDrop?.(attachments, point ?? editor.getViewportPageBounds().center);
             });
             editor.registerExternalContentHandler('url', async ({ url, point }) => {
                 callbacksRef.current.onToolkitLinkDrop?.(url, point);
@@ -270,12 +278,12 @@ export function CanvasApp({
         }
 
         const routeOrderDrawing = (files: File[], position: { x: number; y: number }) =>
-            !orderPocketAtPoint(editor, position) && routeCanvasCadImport(editor, files, position);
+            hideUI || orderPocketAtPoint(editor, position) ? files : routeCanvasCadImport(editor, files, position);
         if (!toolkitBoardId) editor.registerExternalContentHandler('files', async ({ files, point }) => {
             const position = point ?? editor.getViewportPageBounds().center;
-            if (routeOrderDrawing(files, position)) return;
+            const attachments = routeOrderDrawing(files, position);
             const id = seedRef.current?.orderId;
-            if (id) await uploadOrderCanvasFiles(editor, files, id, position);
+            if (id && attachments.length) await uploadOrderCanvasFiles(editor, attachments, id, position);
         });
 
         // Separate order-document uploads from Toolkit shared-board imports.
@@ -284,18 +292,22 @@ export function CanvasApp({
             if (toolkitBoardId && onToolkitFilesDrop) {
                 const container = containerRef.current;
                 const onDragOver = (event: DragEvent) => {
-                    if (event.dataTransfer?.types?.includes('Files')) event.preventDefault();
+                    if (event.dataTransfer?.types?.includes('Files')) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = editor.getInstanceState().isReadonly ? 'none' : 'copy';
+                    }
                 };
                 const onDrop = (event: DragEvent) => {
                     if (!event.dataTransfer?.files?.length) return;
                     event.preventDefault();
                     event.stopPropagation();
+                    if (editor.getInstanceState().isReadonly) return;
                     const files = Array.from(event.dataTransfer.files);
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.
                     const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
-                    if (routeCanvasCadImport(editor, files, position)) return;
-                    callbacksRef.current.onToolkitFilesDrop?.(files, position);
+                    const attachments = hideUI ? files : routeCanvasCadImport(editor, files, position);
+                    if (attachments.length) callbacksRef.current.onToolkitFilesDrop?.(attachments, position);
                 };
                 container.addEventListener('dragover', onDragOver, true);
                 container.addEventListener('drop', onDrop, true);
@@ -353,10 +365,11 @@ export function CanvasApp({
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
-                    tools={[CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
+                    tools={[CadLineTool, CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}
+                    overrides={drawingUiOverrides}
                 >{!hideUI && <DrawingChrome />}</Tldraw>
                 </OrderFilePocketsProvider>
                 </DrawingWorkspace>

@@ -98,6 +98,7 @@
   interface FileWithPreview {
     uploadId: string;
     release?: CanvasDxfRelease;
+    generatedExport?: boolean;
     file: File;
     preview?: string;
     pdfDataUrl?: string;
@@ -524,7 +525,7 @@
     const existing = release && uploadedFiles.find(entry => entry.release?.reviewId === release.reviewId &&
       entry.pocket === pocket && entry.file.name === file.name);
     if (existing) return { id: existing.uploadId, url: existing.url };
-    const entries=await addFiles([file],pocket,release),entry=entries[0];if(!entry)throw new Error('asset-upload');
+    const entries=await addFiles([file],pocket,{ release, generatedExport: true }),entry=entries[0];if(!entry)throw new Error('asset-upload');
     return {id:entry.uploadId,url:entry.url};
   }
   async function addCanvasFiles(files:File[],position:{x:number;y:number},targetPocket?:ProductionFilePocket){
@@ -732,7 +733,8 @@
     input.value = '';
   }
 
-  async function addFiles(newFiles: File[],pocket:ProductionFilePocket='visuals', release?: CanvasDxfRelease) {
+  async function addFiles(newFiles: File[],pocket:ProductionFilePocket='visuals',
+    exportDetails?: Pick<FileWithPreview, 'release' | 'generatedExport'>) {
     if (saving || preparingFiles || removingFileId || successMessage) return [];
     const added:FileWithPreview[]=[];
     preparingFiles = true;
@@ -740,7 +742,7 @@
       for (const file of newFiles) {
         const type = getFileType(file);
         const url=URL.createObjectURL(file);localUrls.push(url);
-        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket, ...(release ? { release } : {}) };
+        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket, ...exportDetails };
         if (type === 'image') {
           fileWithPreview.preview = await createImagePreview(file);
         } else if (type === 'pdf') {
@@ -917,6 +919,7 @@
         formData.append('order_id', String(orderId));
         formData.append('file_type', fileItem.pocket);
         if (fileItem.release) formData.append('canvas_dxf_release', JSON.stringify(fileItem.release));
+        else if (fileItem.generatedExport) formData.append('canvas_export_request_id', fileKey);
 
         try {
           const uploadResponse = await fetch(`${base}/api/files/upload`, { method: 'POST', body: formData });

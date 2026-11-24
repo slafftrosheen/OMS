@@ -27,3 +27,7 @@ export function beforeNavigate(callback) {
 export function afterNavigate(callback) {
   // No-op in tests
 }
+
+export function onNavigate(callback) {
+  // Standalone fixtures do not perform SvelteKit navigation.
+}

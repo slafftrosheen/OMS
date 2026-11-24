@@ -12,7 +12,7 @@ import {
   selectDrawingGuide, validateDrawingGuides, type DrawingGuide, type DrawingGuideChange,
 } from '../../src/lib/components/canvas/drawing-guides';
 
-const guide = (id = 'guide:one', axis: 'x' | 'y' = 'x', position = 100): DrawingGuide => ({ id, axis, position, visible: true, locked: false });
+const guide = (id = 'guide:one', axis: 'x' | 'y' = 'x', position = 100): Extract<DrawingGuide, { axis: 'x' | 'y' }> => ({ id, axis, position, visible: true, locked: false });
 const state = (...guides: DrawingGuide[]) => ({ version: 1 as const, visible: true, locked: false, guides });
 const put = (editor: any, value: unknown) => editor.updatePage({ meta: { ...editor.getCurrentPage().meta, [DRAWING_GUIDES_META_KEY]: value } });
 const change = (editor: any, operation: DrawingGuideChange) => applyDrawingGuideChange(editor, prepareDrawingGuideChange(editor, operation));
@@ -20,6 +20,23 @@ const error = (code: string) => (value: unknown) => value instanceof DrawingGuid
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
 
 describe('per-page document guideline data', () => {
+  it('persists an angled pivot separately from the angle and snaps to projections and crossings', () => {
+    const f = fixture();
+    const pivot = { x: 100, y: 100 };
+    assert.equal(change(f.editor, { kind: 'add', id: 'guide:angle', axis: 'angle', pivot, angle: 405 }), true);
+    const original = readDrawingGuides(f.editor);
+    assert.deepEqual(original.guides[0], { id: 'guide:angle', axis: 'angle', pivot, angle: 45, visible: true, locked: false });
+    const projected = nearestDrawingGuidePoint(original, { x: 105, y: 99 }, 5)!;
+    close(projected.x, 103); close(projected.y, 97);
+    assert.deepEqual(nearestDrawingGuidePoint(state(...original.guides, guide('guide:x')), { x: 102, y: 101 }, 5), pivot);
+    const revision = drawingGuidesRevision(f.editor);
+    assert.equal(change(f.editor, { kind: 'pose', id: 'guide:angle', pivot, angle: -90 }), true);
+    assert.equal(readDrawingGuides(f.editor).guides[0].angle, 270);
+    assert.deepEqual(readDrawingGuides(f.editor).guides[0].pivot, pivot);
+    assert.throws(() => prepareDrawingGuideChange(f.editor, { kind: 'pose', id: 'guide:angle', pivot, angle: 30 }, revision), error('stale'));
+    assert.throws(() => prepareDrawingGuideChange(f.editor, { kind: 'pose', id: 'guide:angle', pivot: { x: Infinity, y: 0 }, angle: 1 }), error('invalid'));
+  });
+
   it('reads an empty older drawing without a migration and returns independent data', () => {
     const f = fixture(), before = structuredClone(f.editor.getCurrentPage());
     assert.equal(drawingGuidesAreValid(f.editor), true);

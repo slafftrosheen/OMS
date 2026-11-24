@@ -2,6 +2,7 @@ import { cadPaintHasFill, cadPaintHasStroke, cadShapePaint } from './cad-shape-a
 import {
   multiplyMatrix,
   transformAppearance,
+  type VectorGradient,
   type VectorMatrix,
 } from "./cad-appearance";
 import type { VectorPaint } from "./cad-paint";
@@ -55,13 +56,60 @@ function pdfSheetFrame({ widthMm, heightMm, bleedMm }: PdfSheet) {
   return { x: -bleed, y: -bleed, w, h };
 }
 
-const num = (n: number) => {
+const formatNumber = (n: number, digits: number) => {
   if (!Number.isFinite(n) || Math.abs(n) > 1e8) throw new Error("geometry");
-  const decimal = n.toFixed(7).replace(/\.?0+$/, "");
+  const decimal = n.toFixed(digits).replace(/\.?0+$/, "");
   return decimal === "-0" ? "0" : decimal;
 };
+const num = (n: number) => formatNumber(n, 7);
 const rgb = (hex: string) =>
   [1, 3, 5].map((i) => num(parseInt(hex.slice(i, i + 2), 16) / 255)).join(" ");
+
+function gradientShading(g: VectorGradient) {
+  const radial = g.type === "radial";
+  const deltaRadius = g.r1 - g.r0;
+  const parameter = (n: number) => formatNumber(n, 10);
+  const stops: VectorGradient["stops"] = [];
+  for (const stop of g.stops) {
+    const previous = stops.at(-1);
+    const rounded = Number(parameter(stop.offset));
+    // A PostScript consumer can store shading bounds as single precision.
+    const offset = Math.fround(rounded) === 1 ? 1 : rounded;
+    const sharesBound = previous && Math.fround(offset) === Math.fround(previous.offset);
+    stops.push({ ...stop, offset: sharesBound ? previous.offset : offset });
+  }
+  // Preserve the pad colours when there is a discontinuity at either end.
+  // A radial start can extend inwards only until the radius reaches zero.
+  const first = stops[0], last = stops.at(-1)!;
+  const startJump = first.color !== stops.findLast(stop => stop.offset === 0)!.color;
+  const endJump = last.color !== stops.find(stop => stop.offset === 1)!.color;
+  const inward = radial ? Math.min(1, g.r0 / deltaRadius) : 1;
+  const low = startJump ? Number(parameter(-inward)) : 0;
+  const high = endJump ? 2 : 1;
+  const domain = `[${parameter(low)} ${parameter(high)}]`;
+  if (low < 0) stops.unshift({ ...first, offset: low });
+  if (high > 1) stops.push({ ...last, offset: high });
+
+  // Stitch only spans of positive length. At a shared stop position the
+  // incoming span ends with the first colour and the outgoing uses the last.
+  const functions: string[] = [], bounds: string[] = [];
+  for (let i = 1; i < stops.length; i++) {
+    const a = stops[i - 1], b = stops[i];
+    if (a.offset === b.offset) continue;
+    if (functions.length) bounds.push(parameter(a.offset));
+    functions.push(`<< /FunctionType 2 /Domain [0 1] /C0 [${rgb(a.color)}] /C1 [${rgb(b.color)}] /N 1 >>`);
+  }
+  const fn = functions.length === 1 ? functions[0]
+    : `<< /FunctionType 3 /Domain ${domain} /Functions [${functions.join(" ")}] /Bounds [${bounds.join(" ")}] /Encode [${functions.map(() => "0 1").join(" ")}] >>`;
+  const at = (t: number) => {
+    const point = t === 0 ? [...g.start] : t === 1 ? [...g.end]
+      : g.start.map((start, i) => start + (g.end[i] - start) * t);
+    if (radial) point.push(t === 0 ? g.r0 : t === 1 ? g.r1 : Math.max(0, g.r0 + deltaRadius * t));
+    return point;
+  };
+  return `<< /ShadingType ${radial ? 3 : 2} /ColorSpace /DeviceRGB /Coords [${[...at(low), ...at(high)].map(num).join(" ")}] /Domain ${domain} /Function ${fn} /Extend [true true] >>`;
+}
+
 function paintedPathBounds(path: VectorPath) {
   const { paint, contours } = path;
   const stroke = cadPaintHasStroke(paint);
@@ -136,13 +184,17 @@ export function serializeVectorDocument(
       lines.push(
         `${num(c.nodes[0].x)} ${num(c.nodes[0].y)} ${pdf ? "m" : "moveto"}`,
       );
-      for (const seg of contourSegments(c))
+      for (const [start, first, second, end] of contourSegments(c)) {
+        if (start.x === first.x && start.y === first.y && second.x === end.x && second.y === end.y) {
+          lines.push(`${num(end.x)} ${num(end.y)} ${pdf ? "l" : "lineto"}`);
+          continue;
+        }
         lines.push(
-          `${seg
-            .slice(1)
+          `${[first, second, end]
             .map((q) => `${num(q.x)} ${num(q.y)}`)
             .join(" ")} ${pdf ? "c" : "curveto"}`,
         );
+      }
       if (c.closed) lines.push(pdf ? "h" : "closepath");
     }
     return lines.join("\n");
@@ -190,25 +242,7 @@ export function serializeVectorDocument(
     if (fill && (p.gradient || p.raster)) {
       body.push(pdf ? "q" : "gsave", clip(path.contours, path.fillRule));
       if (p.gradient) {
-        const g = p.gradient,
-          funcs = g.stops
-            .slice(0, -1)
-            .map(
-              (s, j) =>
-                `<< /FunctionType 2 /Domain [0 1] /C0 [${rgb(s.color)}] /C1 [${rgb(g.stops[j + 1].color)}] /N 1 >>`,
-            );
-        const fn =
-          funcs.length === 1
-            ? funcs[0]
-            : `<< /FunctionType 3 /Domain [0 1] /Functions [${funcs.join(" ")}] /Bounds [${g.stops
-                .slice(1, -1)
-                .map((s) => num(s.offset))
-                .join(" ")}] /Encode [${funcs.map(() => "0 1").join(" ")}] >>`;
-        const coords =
-          g.type === "linear"
-            ? [...g.start, ...g.end]
-            : [...g.start, g.r0, ...g.end, g.r1];
-        const shading = `<< /ShadingType ${g.type === "linear" ? 2 : 3} /ColorSpace /DeviceRGB /Coords [${coords.map(num).join(" ")}] /Function ${fn} /Extend [true true] >>`;
+        const g = p.gradient, shading = gradientShading(g);
         if (g.bounds) {
           const [x, y, r, b] = g.bounds,
             m = g.matrix;

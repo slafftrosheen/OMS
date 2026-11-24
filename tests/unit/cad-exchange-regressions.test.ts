@@ -180,29 +180,29 @@ describe('CAD interchange regressions', () => {
     ]);
   });
 
-  it('routes one DXF, EPS or CDR into the matching review without accepting other files or readonly drops', () => {
+  it('retains drawing selection order and placement while leaving dropped PDFs to attachments', () => {
     const container = new EventTarget();
     const state = { isReadonly: false };
     const editor = { getContainer: () => container, getInstanceState: () => state } as any;
     const received: unknown[] = [];
     container.addEventListener(DRAWING_UI_REQUEST, event => received.push((event as CustomEvent).detail));
     const dxf = new File(['DXF'], 'line.DXF'), eps = new File(['EPS'], 'art.Eps');
-    const cdr = new File(['CDR'], 'drawing.CDR');
-    assert.equal(routeCanvasCadImport(editor, [dxf]), true);
-    assert.equal(routeCanvasCadImport(editor, [eps]), true);
+    const cdr = new File(['CDR'], 'drawing.CDR'), pdf = new File(['PDF'], 'page.pdf');
+    assert.deepEqual(routeCanvasCadImport(editor, [dxf]), []);
+    assert.deepEqual(routeCanvasCadImport(editor, [eps]), []);
     const point = { x: -125, y: 90 };
-    assert.equal(routeCanvasCadImport(editor, [cdr], point), true);
+    assert.deepEqual(routeCanvasCadImport(editor, [cdr, pdf, eps, dxf], point), [pdf]);
     point.x = 0;
-    assert.equal(routeCanvasCadImport(editor, [dxf, eps]), false);
-    assert.equal(routeCanvasCadImport(editor, [new File(['PDF'], 'page.pdf')]), false);
+    assert.deepEqual(routeCanvasCadImport(editor, [pdf]), [pdf]);
     state.isReadonly = true;
-    assert.equal(routeCanvasCadImport(editor, [dxf]), false);
+    assert.deepEqual(routeCanvasCadImport(editor, [dxf]), []);
     assert.ok(received.every(isDrawingUiRequest));
     assert.deepEqual(received, [
-      { kind: 'cad', action: 'importDxf', file: dxf },
-      { kind: 'cad', action: 'importVector', file: eps },
-      { kind: 'cad', action: 'importVector', file: cdr, dropPoint: { x: -125, y: 90 } },
+      { kind: 'import', action: 'reviewFiles', files: [dxf] },
+      { kind: 'import', action: 'reviewFiles', files: [eps] },
+      { kind: 'import', action: 'reviewFiles', files: [cdr, eps, dxf], dropPoint: { x: -125, y: 90 } },
     ]);
-    assert.equal(isDrawingUiRequest({ kind: 'cad', action: 'importVector', file: cdr, dropPoint: { x: Infinity, y: 0 } }), false);
+    assert.equal(isDrawingUiRequest({ kind: 'import', action: 'reviewFiles', files: [cdr], dropPoint: { x: Infinity, y: 0 } }), false);
+    assert.equal(isDrawingUiRequest({ kind: 'import', action: 'reviewFiles', files: [null] }), false);
   });
 });

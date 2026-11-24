@@ -1,6 +1,7 @@
 import { getIndicesBetween, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectName } from './drawing-operations';
 import { drawingTransaction } from './drawing-commands';
+import { productionLayerId } from './cad-production-layers';
 
 export interface DrawingObjectRow {
   shape: TLShape;
@@ -115,7 +116,11 @@ export function canReorderDrawingObjects(editor: Editor): boolean {
   return [...editor.getShapeAndDescendantIds(shapes.map(shape => shape.id))].every(id => page.has(id) && !!editor.getShape(id) && !editor.isShapeOrAncestorLocked(id));
 }
 
-export type DrawingObjectOrderOperation = { kind: 'reverse' } | { kind: 'relative'; target: TLShapeId; side: 'front' | 'behind' };
+type OrderSide = 'front' | 'behind';
+export type DrawingObjectOrderOperation =
+  | { kind: 'reverse' }
+  | { kind: 'relative'; target: TLShapeId; side: OrderSide }
+  | { kind: 'layer-edge'; side: OrderSide };
 export interface DrawingObjectOrderPlan { signature: string; operation: DrawingObjectOrderOperation; }
 export interface DrawingObjectStack {
   signature: string;
@@ -139,19 +144,35 @@ export function captureDrawingObjectStack(editor: Editor): DrawingObjectStack | 
   return { signature, selected, siblings };
 }
 
+/** An unassigned shape shares the default layer. Keep the move in one parent
+ * and use the outermost unselected sibling on the selection's layer. */
+function layerEdgeTarget(stack: DrawingObjectStack, side: OrderSide): TLShapeId | undefined {
+  const selected = new Set(stack.selected);
+  const sources = stack.siblings.filter(shape => selected.has(shape.id));
+  const layer = productionLayerId(sources[0]);
+  if (sources.some(shape => productionLayerId(shape) !== layer)) return;
+  const candidates = stack.siblings.filter(shape => !selected.has(shape.id) && productionLayerId(shape) === layer);
+  const target = side === 'front' ? candidates.at(-1) : candidates[0];
+  if (!target || sources.every(shape => side === 'front' ? shape.index > target.index : shape.index < target.index)) return;
+  return target.id;
+}
+
 export function prepareDrawingObjectOrder(editor: Editor, operation: DrawingObjectOrderOperation): DrawingObjectOrderPlan | null {
   const stack = captureDrawingObjectStack(editor);
-  if (!stack || !operation || !['relative', 'reverse'].includes(operation.kind)) return null;
+  if (!stack || !operation || !['relative', 'reverse', 'layer-edge'].includes(operation.kind)) return null;
   if (operation.kind === 'reverse' && stack.selected.length < 2) return null;
-  if (operation.kind === 'relative' && (!['front', 'behind'].includes(operation.side) || stack.selected.includes(operation.target) || !stack.siblings.some(shape => shape.id === operation.target))) return null;
-  return { signature: stack.signature, operation: { ...operation } };
+  if (operation.kind !== 'reverse' && !['front', 'behind'].includes(operation.side)) return null;
+  if (operation.kind === 'relative' && (stack.selected.includes(operation.target) || !stack.siblings.some(shape => shape.id === operation.target))) return null;
+  if (operation.kind === 'layer-edge' && !layerEdgeTarget(stack, operation.side)) return null;
+  const signature = operation.kind === 'layer-edge' ? JSON.stringify([stack.signature, stack.siblings.map(productionLayerId)]) : stack.signature;
+  return { signature, operation: { ...operation } };
 }
 
 /** Relative placement keeps the selection's internal order. Reverse swaps the
  * selected slots only, leaving every unselected sibling's index unchanged. */
 export function applyDrawingObjectOrder(editor: Editor, plan: DrawingObjectOrderPlan): boolean {
   try {
-    if (!plan || captureDrawingObjectStack(editor)?.signature !== plan.signature) return false;
+    if (!plan || prepareDrawingObjectOrder(editor, plan.operation)?.signature !== plan.signature) return false;
     editor.complete(); editor.setCurrentTool('select');
     const current = prepareDrawingObjectOrder(editor, plan.operation);
     if (!current || current.signature !== plan.signature) return false;
@@ -168,8 +189,10 @@ export function applyDrawingObjectOrder(editor: Editor, plan: DrawingObjectOrder
       expected = stack.siblings.map(shape => selected.has(shape.id) ? reversed[i++] : shape.id);
     } else {
       const operation = plan.operation;
+      const target = operation.kind === 'layer-edge' ? layerEdgeTarget(stack, operation.side) : operation.target;
+      if (!target) return false;
       const others = stack.siblings.filter(shape => !selected.has(shape.id));
-      const targetPosition = others.findIndex(shape => shape.id === operation.target);
+      const targetPosition = others.findIndex(shape => shape.id === target);
       const insertion = targetPosition + (operation.side === 'front' ? 1 : 0);
       expected = [...others.slice(0, insertion), ...sources, ...others.slice(insertion)].map(shape => shape.id);
       // An already adjacent selection needs no new history entry or indices.

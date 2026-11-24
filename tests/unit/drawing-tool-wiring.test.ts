@@ -7,7 +7,8 @@ import {
   drawingOwnCommandForKeys, drawingReadOnlyTools, drawingToolForKeys, drawingToolIds, drawingToolKeys, drawingToolTargets,
   formatDrawingKeys,
 } from '../../src/lib/components/canvas/drawing-command-map';
-import { DRAWING_REVIEW_FILE_TYPES, routeCanvasCadImport } from '../../src/lib/components/canvas/drawing-ui-requests';
+import { isDrawingUiRequest, routeCanvasCadImport } from '../../src/lib/components/canvas/drawing-ui-requests';
+import { drawingFileKind, DRAWING_FILE_ACCEPT, DXF_FILE_ACCEPT, VECTOR_FILE_ACCEPT } from '../../src/lib/components/canvas/drawing-file-types';
 
 const readCanvas = (file: string) => readFileSync(`src/lib/components/canvas/${file}`, 'utf8');
 
@@ -28,7 +29,8 @@ describe('drawing workspace tool wiring', () => {
     const declared = new Map([...sources.matchAll(/class (\w+) extends \w+\s*\{\s*static override id\s*=\s*'([^']+)'/g)]
       .map(([, name, id]) => [name, id]));
     const custom = Object.values(drawingToolTargets)
-      .flatMap(target => target.kind === 'editor' && target.tool.startsWith('cad-') ? [target.tool] : []);
+      .flatMap(target => target.kind === 'editor'
+        ? [target.tool, ...('calibratedTool' in target ? [target.calibratedTool] : [])].filter(tool => tool.startsWith('cad-')) : []);
     assert.deepEqual(registered.map(name => declared.get(name)).sort(), custom.sort());
   });
 
@@ -55,6 +57,10 @@ describe('drawing workspace tool wiring', () => {
     assert.equal(formatDrawingKeys('+', true), '+');
   });
 
+  it('routes the context menu layer and curve commands through shared drawing actions', () => {
+    for (const action of ['frontLayer', 'backLayer', 'convert']) assert.ok(isDrawingUiRequest({ kind: 'command', action }));
+  });
+
   it('keeps view tools on read-only drawings and starts backwards at the last object', () => {
     assert.deepEqual([...drawingReadOnlyTools].sort(), ['cad-measure-tools', 'clipart', 'hand', 'nodes', 'paint', 'select', 'zoom']);
     assert.equal(drawingCycleIndex(4, -1, -1), 3);
@@ -64,19 +70,48 @@ describe('drawing workspace tool wiring', () => {
     assert.equal(drawingCycleIndex(0, -1, 1), -1);
   });
 
-  it('routes each accepted drawing format to its review, preserving the placement point', () => {
+  it('queues each accepted drawing format for review, preserving the placement point', () => {
     const container = new EventTarget();
     const received: unknown[] = [];
     container.addEventListener('oms:drawing-ui-request', event => received.push((event as CustomEvent).detail));
     const editor = { getContainer: () => container, getInstanceState: () => ({ isReadonly: false }) } as unknown as Editor;
     const point = { x: 50, y: 75 };
-    const actions = { '.dxf': 'importDxf', '.cdr': 'importVector', '.eps': 'importVector', '.svg': 'importVector' };
-    assert.deepEqual(DRAWING_REVIEW_FILE_TYPES.split(',').sort(), Object.keys(actions).sort());
-    for (const [extension, action] of Object.entries(actions)) {
+    const fileTypes = ['.cdr', '.dxf', '.eps', '.pdf', '.svg'];
+    const extensions = (accept: string) => accept.split(',').filter(value => value.startsWith('.')).sort();
+    assert.deepEqual(extensions(DRAWING_FILE_ACCEPT), fileTypes);
+    assert.deepEqual(extensions(VECTOR_FILE_ACCEPT), ['.cdr', '.eps', '.pdf', '.svg']);
+    assert.deepEqual(extensions(DXF_FILE_ACCEPT), ['.dxf']);
+    for (const extension of fileTypes) {
       const file = new File(['sample'], `artwork${extension.toUpperCase()}`);
-      assert.ok(routeCanvasCadImport(editor, [file], point));
-      assert.deepEqual(received.pop(), { kind: 'cad', action, file, dropPoint: point });
+      assert.deepEqual(routeCanvasCadImport(editor, [file], undefined, true), []);
+      assert.deepEqual(received.pop(), { kind: 'import', action: 'reviewFiles', files: [file] });
+      if (extension === '.pdf') {
+        assert.deepEqual(routeCanvasCadImport(editor, [file], point), [file], 'a dropped PDF remains an attachment');
+        continue;
+      }
+      assert.deepEqual(routeCanvasCadImport(editor, [file], point), []);
+      assert.deepEqual(received.pop(), { kind: 'import', action: 'reviewFiles', files: [file], dropPoint: point });
     }
-    assert.equal(routeCanvasCadImport(editor, [new File(['photo'], 'photo.png')], point), false);
+    const png = new File(['photo'], 'photo.png');
+    assert.deepEqual(routeCanvasCadImport(editor, [png], point), [png]);
+  });
+
+  it('separates editable drawings and attachments without losing either', () => {
+    const container = new EventTarget();
+    let notice: unknown, isReadonly = false;
+    container.addEventListener('oms:drawing-ui-request', event => { notice = (event as CustomEvent).detail; });
+    const editor = { getContainer: () => container, getInstanceState: () => ({ isReadonly }) } as unknown as Editor;
+    const dxf = new File(['sample'], 'artwork', { type: 'application/x-dxf' });
+    const png = new File(['photo'], 'photo.png', { type: 'image/png' });
+    assert.equal(drawingFileKind(dxf), 'dxf');
+    assert.equal(drawingFileKind(new File(['sample'], 'artwork.pdf', { type: 'image/svg+xml' })), 'pdf');
+    assert.deepEqual(routeCanvasCadImport(editor, [dxf, png], { x: 0, y: 0 }, true), [png]);
+    assert.deepEqual(notice, { kind: 'import', action: 'reviewFiles', files: [dxf], dropPoint: { x: 0, y: 0 } });
+    assert.ok(isDrawingUiRequest(notice));
+    assert.deepEqual(routeCanvasCadImport(editor, [png, png]), [png, png]);
+    isReadonly = true;
+    notice = undefined;
+    assert.deepEqual(routeCanvasCadImport(editor, [dxf], undefined, true), []);
+    assert.equal(notice, undefined);
   });
 });

@@ -23,6 +23,7 @@ import { buildCadDxf, CadDxfError, type DxfExportScope } from './cad-dxf';
 import { DxfReviewPreview } from './DxfReviewPreview';
 import { CutEstimatePanel } from './CutEstimatePanel';
 import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
+import type { DrawingImportQueue } from './drawing-ui-requests';
 import { preflightRevision, type PreflightDxfScope } from './drawing-preflight';
 import { usePreflightText } from './preflight-copy';
 
@@ -47,8 +48,8 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 }
 
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
-export function CadPanel({ settings, focusRequest, multiplePages = false }: {
-  settings: CadSettings | null; focusRequest?: CadFocusRequest; multiplePages?: boolean;
+export function CadPanel({ settings, focusRequest, multiplePages = false, importQueue }: {
+  settings: CadSettings | null; focusRequest?: CadFocusRequest; multiplePages?: boolean; importQueue?: DrawingImportQueue;
 }) {
   const editor = useEditor(); const { label } = useCadText();
   const preflightLabel = usePreflightText();
@@ -63,7 +64,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
     const fileFocus = ['files', 'publishPdf', 'importDxf', 'exportDxf', 'importVector'].includes(focusRequest.section);
-    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' || focusRequest.section === 'outlineObject' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
+    setTask(['paint', 'gradientFill', 'outline', 'outlineColor', 'outlineObject'].includes(focusRequest.section) ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : fileFocus ? 'files' : (focusRequest.section === 'document' || focusRequest.section === 'pageSetup') ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const selected = useValue('cad selected measurement', () => settings ? getCadSelection(editor, settings, 'bottom-left') : null, [editor, settings]);
@@ -152,7 +153,7 @@ export function CadPanel({ settings, focusRequest, multiplePages = false }: {
       <PathVertices settings={settings} disabled={!controls.canEditSelection} />
       <ArcFields settings={settings} disabled={!controls.canEditSelection} />
     </div>
-    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} onOpenDxf={scope => {
+    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} importQueue={importQueue} onOpenDxf={scope => {
       setPreflightScope(scope);
       setTask('files');
     }} />
@@ -510,7 +511,7 @@ function DxfExport({ settings, preflightScope, focusSequence }: {
       {stale && !captureStale && <Message text={label('stale')} error />}
       {!report.data.entities && <Message text={label('noEntities')} error />}
       <button type="button" disabled={!canExport} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
-      <ProductionSaveButton extension="dxf" disabled={!canExport} createFile={createFile} release={report.release} />
+      <ProductionSaveButton extension="dxf" source={report} disabled={!canExport} createFile={createFile} release={report.release} />
     </div>}
     <Message text={message ? label(message) : ''} error={message !== 'exported'} />
   </details>;

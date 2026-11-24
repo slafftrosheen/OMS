@@ -5,12 +5,15 @@ import { assertCadEditable } from './cad-plans';
 import { isCadNodeEditing } from './cad-node-selection';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { readCadSnapSettings } from './cad-snap-settings';
-import { drawingGuidesAreValid, drawingGuidesRevision, readDrawingGuides, type DrawingGuide } from './drawing-guides';
+import { drawingGuideLine, drawingGuidesAreValid, drawingGuidesRevision, readDrawingGuides, type DrawingGuide, type DrawingGuideGeometry } from './drawing-guides';
 import { isDrawingPointerGestureActive } from './drawing-pointer-gesture';
+import { drawingPageBounds, readDrawingPageSize } from './drawing-pages';
+import { nearestDrawingPageSnap, type DrawingPageSnap } from './drawing-page-snap';
 
 export type PickGuideAnchor = 'start' | 'center' | 'end';
 export interface DrawingPickGuideSnap {
-  guides: Array<{ id: string; axis: 'x' | 'y'; position: number; anchor: PickGuideAnchor }>;
+  guides: Array<DrawingGuideGeometry & { id: string; anchor: PickGuideAnchor }>;
+  page?: DrawingPageSnap;
   /** One page-space correction shared by every moving selection root. */
   delta: CadPoint;
 }
@@ -38,6 +41,7 @@ interface Gesture {
   pageId: string;
   revision: string;
   guides: DrawingGuide[];
+  sheet: Box | null;
   snapshots: Map<string, Snapshot>;
   created: Set<TLShapeId>;
   invalid: boolean;
@@ -50,6 +54,15 @@ const coordinateOnly = (a: TLShape, b: TLShape) => a.type === b.type && a.parent
   a.rotation === b.rotation && a.opacity === b.opacity && a.isLocked === b.isLocked && a.props === b.props && a.meta === b.meta;
 const validBounds = (b: Box | undefined): b is Box => !!b && b.w >= 0 && b.h >= 0 &&
   validCadPoint({ x: b.x, y: b.y }) && validCadPoint({ x: b.maxX, y: b.maxY });
+const anchors = [
+  [.5, .5, 'center'], [0, 0, 'start'], [1, 0, 'end'], [0, 1, 'start'], [1, 1, 'end'],
+  [.5, 0, 'center'], [.5, 1, 'center'], [0, .5, 'start'], [1, .5, 'end'],
+] as const;
+
+function pickTargetRevision(editor: Editor): string {
+  const target = readCadSnapSettings(editor);
+  return JSON.stringify([drawingGuidesRevision(editor), target.guidelines, target.page, target.page && readDrawingPageSize(editor)]);
+}
 
 function snapshot(editor: Editor): Snapshot | null {
   try {
@@ -87,24 +100,28 @@ function snapshot(editor: Editor): Snapshot | null {
 /** The same public input displacement and optional grid used by native 2.4.6
  * Translating. We only accept records matching this result. Native object
  * nudges, utility-specific translation changes and history restores pass through. */
-function nativeDisplacement(editor: Editor, source: Snapshot): { delta: CadPoint; locked: 'x' | 'y' | null } | null {
+function nativeDisplacement(editor: Editor, source: Snapshot): { delta: CadPoint; raw: CadPoint; locked: 'x' | 'y' | null } | null {
   const inputs = editor.inputs;
   const delta = { x: inputs.currentPagePoint.x - inputs.originPagePoint.x, y: inputs.currentPagePoint.y - inputs.originPagePoint.y };
   if (!validCadPoint(delta)) return null;
   const locked = inputs.shiftKey ? Math.abs(delta.x) < Math.abs(delta.y) ? 'x' : 'y' : null;
   if (locked) delta[locked] = 0;
+  const raw = { ...delta };
   if (editor.getInstanceState().isGridMode && !inputs.ctrlKey) {
     const grid = editor.getDocumentSettings().gridSize;
     if (!Number.isFinite(grid) || grid <= 0) return null;
     delta.x = Math.round((source.average.x + delta.x) / grid) * grid - source.average.x;
     delta.y = Math.round((source.average.y + delta.y) / grid) * grid - source.average.y;
   }
-  return { delta, locked };
+  return { delta, raw, locked };
 }
 
 /** Edges and center of the entire selection use one delta, so multiple roots
  * retain their spacing. Hidden and locked guides have the existing eligibility. */
-function guideCorrection(editor: Editor, source: Snapshot, guides: DrawingGuide[], delta: CadPoint, blocked: ReadonlySet<'x' | 'y'>, tolerance: number): DrawingPickGuideSnap | null {
+function pickSnapCorrection(editor: Editor, source: Snapshot, targets: Pick<Gesture, 'guides' | 'sheet'>,
+  delta: CadPoint, raw: CadPoint, blocked: ReadonlySet<'x' | 'y'>, tolerance: number,
+): DrawingPickGuideSnap | null {
+  const { guides, sheet } = targets;
   const correction: DrawingPickGuideSnap = { guides: [], delta: { x: 0, y: 0 } };
   for (const axis of ['x', 'y'] as const) {
     if (blocked.has(axis)) continue;
@@ -122,7 +139,68 @@ function guideCorrection(editor: Editor, source: Snapshot, guides: DrawingGuide[
     }
     if (match) correction.guides.push(match);
   }
-  if (!correction.guides.length) return null;
+  const canX = !blocked.has('x') && !correction.guides.some(guide => guide.axis === 'x');
+  const canY = !blocked.has('y') && !correction.guides.some(guide => guide.axis === 'y');
+  if (canX || canY) {
+    const base = { x: source.bounds.x + delta.x + correction.delta.x, y: source.bounds.y + delta.y + correction.delta.y };
+    let winner: { guide: DrawingPickGuideSnap['guides'][number]; delta: CadPoint } | undefined;
+    let nearest = tolerance;
+    for (const guide of guides) {
+      if (guide.axis !== 'angle') continue;
+      const { point, normal } = drawingGuideLine(guide);
+      const nx = canX ? normal.x : 0, ny = canY ? normal.y : 0, weight = nx * nx + ny * ny;
+      if (weight < 1e-10) continue;
+      for (const [rx, ry, anchor] of anchors) {
+        const x = base.x + rx * source.bounds.w, y = base.y + ry * source.bounds.h;
+        const normalOffset = ((point.x - x) * normal.x + (point.y - y) * normal.y) / weight;
+        const move = { x: nx * normalOffset, y: ny * normalOffset }, distance = Math.hypot(move.x, move.y);
+        if (distance <= nearest && (!winner || distance < nearest - 1e-10)) {
+          nearest = distance;
+          winner = { guide: { id: guide.id, axis: guide.axis, angle: guide.angle, pivot: guide.pivot, anchor }, delta: move };
+        }
+      }
+    }
+    if (winner) {
+      correction.guides.push(winner.guide);
+      correction.delta.x += winner.delta.x; correction.delta.y += winner.delta.y;
+    }
+  }
+  if (sheet && (canX || canY) && !correction.guides.some(guide => guide.axis === 'angle')) {
+    const unavailable = new Set<'x' | 'y'>();
+    if (!canX) unavailable.add('x');
+    if (!canY) unavailable.add('y');
+    const baseX = source.bounds.x + delta.x + correction.delta.x;
+    const baseY = source.bounds.y + delta.y + correction.delta.y;
+    let chosen: { snap: DrawingPageSnap; move: CadPoint; priority: number; distance: number } | null = null;
+    for (const [rx, ry] of anchors) {
+      const point = { x: baseX + rx * source.bounds.w, y: baseY + ry * source.bounds.h };
+      // Search from the unrounded drag on free axes. A large document grid
+      // must not hide a nearby sheet edge or pull the pointer to a distant one.
+      const query = { x: canX ? point.x + raw.x - delta.x : point.x, y: canY ? point.y + raw.y - delta.y : point.y };
+      let snap = nearestDrawingPageSnap(sheet, query, tolerance, unavailable);
+      if (!snap) continue;
+      const distance = Math.hypot(snap.point.x - query.x, snap.point.y - query.y);
+      if (snap.target === 'edge') {
+        const along = snap.axis === 'x' ? 'y' : 'x';
+        const lower = along === 'x' ? sheet.minX : sheet.minY;
+        const upper = along === 'x' ? sheet.maxX : sheet.maxY;
+        if (point[along] < lower || point[along] > upper) continue;
+        // Keep the native displacement along the edge, including grid snap.
+        snap = { ...snap, point: { ...snap.point, [along]: point[along] } };
+      }
+      const move = { x: canX ? snap.point.x - point.x : 0, y: canY ? snap.point.y - point.y : 0 };
+      const priority = snap.target === 'edge' ? 1 : 0;
+      if (!chosen || priority < chosen.priority || priority === chosen.priority && distance < chosen.distance) {
+        chosen = { snap, move, priority, distance };
+      }
+    }
+    if (chosen) {
+      correction.page = chosen.snap;
+      correction.delta.x += chosen.move.x;
+      correction.delta.y += chosen.move.y;
+    }
+  }
+  if (!correction.guides.length && !correction.page) return null;
   const dx = delta.x + correction.delta.x, dy = delta.y + correction.delta.y;
   if (!validCadPoint({ x: source.bounds.x + dx, y: source.bounds.y + dy }) || !validCadPoint({ x: source.bounds.maxX + dx, y: source.bounds.maxY + dy })) return null;
   for (const root of source.roots.values()) {
@@ -159,10 +237,14 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
     if (info.type === 'pointer' && info.name === 'pointer_down' && info.button === 0) {
       clear();
       if (editor.getCurrentToolId() !== 'select' || !['select.pointing_shape', 'select.pointing_selection'].includes(editor.getPath()) ||
-          editor.getInstanceState().isReadonly || isCadNodeEditing(editor) || isDrawingPointerGestureActive(editor) || !drawingGuidesAreValid(editor)) return;
-      const source = snapshot(editor), guides = readDrawingGuides(editor).guides;
-      if (!source || !guides.length) return;
-      gesture = { pageId: editor.getCurrentPageId(), revision: drawingGuidesRevision(editor), guides,
+          editor.getInstanceState().isReadonly || isCadNodeEditing(editor) || isDrawingPointerGestureActive(editor)) return;
+      const options = readCadSnapSettings(editor);
+      const guides = options.guidelines && drawingGuidesAreValid(editor) ? readDrawingGuides(editor).guides : [];
+      const sheet = options.page ? drawingPageBounds(editor) : null;
+      if (!guides.length && !sheet) return;
+      const source = snapshot(editor);
+      if (!source) return;
+      gesture = { pageId: editor.getCurrentPageId(), revision: pickTargetRevision(editor), guides, sheet,
         snapshots: new Map([[selectedKey(editor), source]]), created: new Set(), invalid: false, translated: false, nativeAxes: new Set() };
     }
     if (gesture && editor.isIn('select.translating')) {
@@ -204,7 +286,7 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
     if (!editor.isIn('select.translating')) return next;
     gesture.translated = true;
     if (source !== 'user' || editor.getCurrentToolId() !== 'select' || editor.getInstanceState().isReadonly || isCadNodeEditing(editor) || isDrawingPointerGestureActive(editor)) { indicator.set(null); return next; }
-    if (gesture.pageId !== editor.getCurrentPageId() || gesture.revision !== drawingGuidesRevision(editor)) { invalidate(); return next; }
+    if (gesture.pageId !== editor.getCurrentPageId() || gesture.revision !== pickTargetRevision(editor)) { invalidate(); return next; }
     const key = selectedKey(editor);
     let captured = gesture.snapshots.get(key);
     if (!captured) {
@@ -222,7 +304,7 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
     // while the statechart still says translating. Never snap a rollback.
     if (samePoint(next, root.shape)) { indicator.set(null); return next; }
     const options = readCadSnapSettings(editor);
-    if (!options.guidelines || editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey || editor.inputs.pointerVelocity.len() >= .5) { indicator.set(null); return next; }
+    if (editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey || editor.inputs.pointerVelocity.len() >= .5) { indicator.set(null); return next; }
     const movement = nativeDisplacement(editor, captured), tolerance = options.tolerance / editor.getZoomLevel();
     if (!movement || !Number.isFinite(tolerance) || tolerance <= 0) return next;
     const parent = editor.getShapeParentTransform(next);
@@ -232,8 +314,8 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
     if (blocked.size === 2) { indicator.set(null); return next; }
     const actual = { x: proposed.x - root.point.x, y: proposed.y - root.point.y };
     if ((['x', 'y'] as const).some(axis => !nativeAxes.has(axis) && Math.abs(actual[axis] - movement.delta[axis]) > EPS)) { indicator.set(null); return next; }
-    const cacheKey = JSON.stringify([actual, [...blocked], tolerance]);
-    if (captured.cache?.key !== cacheKey) captured.cache = { key: cacheKey, result: guideCorrection(editor, captured, gesture.guides, actual, blocked, tolerance) };
+    const cacheKey = JSON.stringify([actual, gesture.sheet && movement.raw, [...blocked], tolerance]);
+    if (captured.cache?.key !== cacheKey) captured.cache = { key: cacheKey, result: pickSnapCorrection(editor, captured, gesture, actual, movement.raw, blocked, tolerance) };
     const snap = captured.cache.result;
     indicator.set(snap);
     if (!snap) return next;
@@ -248,9 +330,9 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
     const moving = editor.isIn('select.translating');
     try {
       if (gesture.invalid || !gesture.translated || editor.getCurrentToolId() !== 'select' || editor.getInstanceState().isReadonly ||
-          isCadNodeEditing(editor) || isDrawingPointerGestureActive(editor) || gesture.pageId !== editor.getCurrentPageId() || gesture.revision !== drawingGuidesRevision(editor)) return;
+          isCadNodeEditing(editor) || isDrawingPointerGestureActive(editor) || gesture.pageId !== editor.getCurrentPageId() || gesture.revision !== pickTargetRevision(editor)) return;
       const captured = gesture.snapshots.get(selectedKey(editor)), options = readCadSnapSettings(editor);
-      if (!captured || !options.guidelines || editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey || moving && editor.inputs.pointerVelocity.len() >= .5) { indicator.set(null); return; }
+      if (!captured || editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey || moving && editor.inputs.pointerVelocity.len() >= .5) { indicator.set(null); return; }
       const displacement = nativeDisplacement(editor, captured), tolerance = options.tolerance / editor.getZoomLevel();
       if (!displacement || !Number.isFinite(tolerance) || tolerance <= 0) return;
       const roots = [...captured.roots.values()], current = roots.map(root => editor.getShapePageTransform(root.shape.id)?.point());
@@ -265,7 +347,7 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
       if (blocked.size === 2) { indicator.set(null); return; }
       const native = { ...displacement.delta };
       for (const axis of nativeAxes) native[axis] = actual[axis];
-      const snap = guideCorrection(editor, captured, gesture.guides, native, blocked, tolerance);
+      const snap = pickSnapCorrection(editor, captured, gesture, native, displacement.raw, blocked, tolerance);
       if (!snap) { indicator.set(null); return; }
       const target = { x: native.x + snap.delta.x, y: native.y + snap.delta.y };
       if (samePoint(actual, target)) { indicator.set(snap); return; }
@@ -295,7 +377,7 @@ export function installDrawingPickGuideSnapping(editor: Editor): () => void {
     const path = editor.getPath(), readonly = editor.getInstanceState().isReadonly, pageId = editor.getCurrentPageId();
     if (!gesture) return;
     if (!['select.pointing_shape', 'select.pointing_selection', 'select.translating'].includes(path)) { clear(); return; }
-    if (readonly || pageId !== gesture.pageId || drawingGuidesRevision(editor) !== gesture.revision || isCadNodeEditing(editor)) invalidate();
+    if (readonly || pageId !== gesture.pageId || pickTargetRevision(editor) !== gesture.revision || isCadNodeEditing(editor)) invalidate();
   });
   return () => { editor.off('event', event); editor.off('tick', tick); beforeCreate(); beforeDelete(); beforeBinding(); beforeChange(); stop(); clear(); };
 }

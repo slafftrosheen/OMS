@@ -25,6 +25,23 @@ function radialError(angle: number): number {
   return Math.max(0, Math.hypot(p.x, p.y) - 1) + 32 * Number.EPSILON;
 }
 
+export function circularFilletNodes(p: CadPoint, u: CadPoint, v: CadPoint, radius: number, cut: number, tolerance: number) {
+  const dot = u.x * v.x + u.y * v.y, turn = -u.x * v.y + u.y * v.x, sign = Math.sign(turn);
+  const cx = u.x * cut + u.y * sign * radius, cy = u.y * cut - u.x * sign * radius;
+  const sweep = Math.atan2(turn, -dot), start = Math.atan2(u.y * cut - cy, u.x * cut - cx);
+  let count = Math.ceil(Math.abs(sweep) / (Math.PI / 2));
+  while (radius * radialError(sweep / count) > tolerance) {
+    count *= 2;
+    if (count > 1024) throw new CadOperationError('limit');
+  }
+  const nodes = arcContour(cx, cy, radius, radius, start, sweep, Math.abs(sweep) / count).nodes
+    .map(node => ({ ...node, x: node.x + p.x, y: node.y + p.y }));
+  // Keep tangent points exactly on the two straight edges.
+  Object.assign(nodes[0], { x: p.x + u.x * cut, y: p.y + u.y * cut });
+  Object.assign(nodes.at(-1)!, { x: p.x + v.x * cut, y: p.y + v.y * cut });
+  return nodes;
+}
+
 function pointSegmentDistance(p: CadPoint, a: CadPoint, b: CadPoint): number {
   const dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
   const t = length2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0;
@@ -74,7 +91,7 @@ function requireClearCorner(contours: CadContour[], ci: number, ni: number, regi
 
 /** Replace just one corner between straight adjacent segments. Other anchors,
  * controls, contour ordering and winding remain byte-for-byte unchanged. */
-export function cornerAtNode(contours: CadContour[], ci: number, ni: number, amount: number, kind: CadCornerKind, tolerance: number): NodeCornerGeometry {
+export function cornerAtNode(contours: CadContour[], ci: number, ni: number, amount: number, kind: CadCornerKind, tolerance: number, outgoing = amount): NodeCornerGeometry {
   if (!validContours(contours) || !Number.isInteger(ci) || !Number.isInteger(ni) ||
       !Number.isFinite(amount) || amount <= 0 || amount > CAD_MAX_COORDINATE || !['fillet', 'chamfer'].includes(kind) ||
       !Number.isFinite(tolerance) || tolerance <= 0) throw new CadOperationError('corner-size');
@@ -91,32 +108,20 @@ export function cornerAtNode(contours: CadContour[], ci: number, ni: number, amo
   const dot = Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y)), turn = -u.x * v.y + u.y * v.x;
   if (Math.abs(turn) < 1e-8) throw new CadOperationError('corner-node');
   const angle = Math.acos(dot), cut = kind === 'chamfer' ? amount : amount / Math.tan(angle / 2);
-  if (!Number.isFinite(cut) || cut < 1e-8 || cut >= Math.min(before, after) - 1e-8) throw new CadOperationError('corner-size');
-  const a = nodeAt({ x: p.x + u.x * cut, y: p.y + u.y * cut }), b = nodeAt({ x: p.x + v.x * cut, y: p.y + v.y * cut });
+  const nextCut = kind === 'chamfer' ? outgoing : cut;
+  if (!Number.isFinite(cut) || cut < 1e-8 || cut >= before - 1e-8 ||
+      !Number.isFinite(nextCut) || nextCut < 1e-8 || nextCut >= after - 1e-8) throw new CadOperationError('corner-size');
+  const a = nodeAt({ x: p.x + u.x * cut, y: p.y + u.y * cut }), b = nodeAt({ x: p.x + v.x * nextCut, y: p.y + v.y * nextCut });
   const region = [{ x: p.x, y: p.y }, { x: a.x, y: a.y }, { x: b.x, y: b.y }];
-  requireClearCorner(contours, ci, ni, region, Math.min(tolerance / 5, cut / 1000));
-  let replacement = [a, b];
-  if (kind === 'fillet') {
-    const sign = Math.sign(turn), cx = u.x * cut + u.y * sign * amount, cy = u.y * cut - u.x * sign * amount;
-    const sweep = Math.atan2(turn, -dot), start = Math.atan2(u.y * cut - cy, u.x * cut - cx);
-    let count = Math.ceil(Math.abs(sweep) / (Math.PI / 2));
-    while (amount * radialError(sweep / count) > tolerance) {
-      count *= 2;
-      if (count > 1024) throw new CadOperationError('limit');
-    }
-    replacement = arcContour(cx, cy, amount, amount, start, sweep, Math.abs(sweep) / count).nodes
-      .map(node => ({ ...node, x: node.x + p.x, y: node.y + p.y }));
-    // Anchor tangent points exactly on the requested straight edges.
-    Object.assign(replacement[0], { x: a.x, y: a.y });
-    Object.assign(replacement.at(-1)!, { x: b.x, y: b.y });
-  }
+  requireClearCorner(contours, ci, ni, region, Math.min(tolerance / 5, cut / 1000, nextCut / 1000));
+  const replacement = kind === 'fillet' ? circularFilletNodes(p, u, v, amount, cut, tolerance) : [a, b];
   const result = structuredClone(contours);
   result[ci].nodes.splice(ni, 1, ...replacement);
   if (!validContours(result)) throw new CadOperationError('limit');
   return { contours: result, region };
 }
 
-export function prepareNodeCorner(editor: Editor, settings: CadSettings, amountMm: number, kind: CadCornerKind): CadNodeCornerPlan {
+export function prepareNodeCorner(editor: Editor, settings: CadSettings, amountMm: number, kind: CadCornerKind, outgoingMm = amountMm): CadNodeCornerPlan {
   if (!validateCadSettings(settings)) throw new CadOperationError('geometry');
   const selected = getSelectedCadNode(editor);
   let shapes;
@@ -125,7 +130,7 @@ export function prepareNodeCorner(editor: Editor, settings: CadSettings, amountM
   if (!selected || shapes.length !== 1 || shapes[0].id !== selected.shapeId) throw new CadOperationError('corner-node');
   const shape = shapes[0] as CadBezierShape, factor = cadMmPerPixel(settings);
   if (editor.getBindingsInvolvingShape(shape.id).length) throw new CadOperationError('corner-source');
-  const result = cornerAtNode(shape.props.contours, selected.contourIndex, selected.nodeIndex, amountMm / factor, kind, NODE_FILLET_TOLERANCE_MM / factor);
+  const result = cornerAtNode(shape.props.contours, selected.contourIndex, selected.nodeIndex, amountMm / factor, kind, NODE_FILLET_TOLERANCE_MM / factor, outgoingMm / factor);
   const matrix = editor.getShapePageTransform(shape), page = (p: CadPoint) => matrix.applyToPoint(p);
   const contours = mapContours(result.contours, page);
   const originalContours = mapContours(shape.props.contours, page);

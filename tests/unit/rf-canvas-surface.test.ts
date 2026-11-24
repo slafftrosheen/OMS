@@ -1,34 +1,45 @@
 import { describe, it, expect } from 'vitest';
+import { resolveCanvasSurface, setCanvasSurface, pageIsDark } from '../../src/lib/components/canvas/canvas-surface';
 
-// Minimal DOM stubs (this repo's test runner has no jsdom).
-const store = new Map<string, string>();
-const root = { dataset: {} as Record<string, string | undefined> };
-(globalThis as any).document = { documentElement: root };
-(globalThis as any).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), clear: () => store.clear() };
-(globalThis as any).window = { dispatchEvent: () => true };
-(globalThis as any).CustomEvent = class { constructor(public type: string, public init?: unknown) {} };
-
-const { resolveCanvasSurface, setCanvasSurface, pageIsDark } = await import('../../src/lib/components/canvas/canvas-surface');
-const reset = () => { store.clear(); root.dataset = { theme: 'ByPlace', place: 'office' }; };
+function withCanvasSurface(run: (root: HTMLElement) => void) {
+  const store = new Map<string, string>();
+  const root = { dataset: { theme: 'ByPlace', place: 'office' } } as unknown as HTMLElement;
+  const stubs = {
+    document: { documentElement: root },
+    localStorage: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => store.set(key, value) },
+    window: { dispatchEvent: () => true },
+  };
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  try {
+    for (const [key, value] of Object.entries(stubs)) {
+      previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+      Object.defineProperty(globalThis, key, { configurable: true, value });
+    }
+    run(root);
+  } finally {
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+}
 
 describe('canvas surface', () => {
-  it('defaults to paper in the office and blueprint on the floor / dark themes', () => {
-    reset();
+  it('defaults to paper in the office and blueprint on the floor / dark themes', () => withCanvasSurface(root => {
     expect(resolveCanvasSurface()).toBe('paper');
     root.dataset.place = 'floor';
     expect(resolveCanvasSurface()).toBe('blueprint');
     root.dataset.theme = 'DarkVim'; root.dataset.place = 'office';
-    expect(pageIsDark(root as any)).toBe(true);
+    expect(pageIsDark(root)).toBe(true);
     root.dataset.theme = 'LightVim';
     expect(resolveCanvasSurface()).toBe('paper');
-  });
-  it('remembers the user choice over the place default', () => {
-    reset();
+  }));
+  it('remembers the user choice over the place default', () => withCanvasSurface(root => {
     setCanvasSurface('blueprint');
     expect(resolveCanvasSurface()).toBe('blueprint');
     expect(root.dataset.canvas).toBe('blueprint');
     root.dataset.place = 'floor';
     setCanvasSurface('paper');
     expect(resolveCanvasSurface()).toBe('paper');
-  });
+  }));
 });

@@ -107,6 +107,11 @@ function chordDistance(p: CadPoint, a: CadPoint, b: CadPoint): number {
  * and genuine discontinuities keep their separate contours. */
 function joinClosedSplineChain(contours: CadContour[]): void {
   const same = (a: CadPoint, b: CadPoint) => a.x === b.x && a.y === b.y;
+  // Some exporters put a fully clamped constant span at a corner. It has
+  // no geometry and must not be mistaken for a separate closed loop.
+  const nonempty = contours.filter(({ nodes }) => nodes.some(node =>
+    !same(node, nodes[0]) || node.inX || node.inY || node.outX || node.outY));
+  if (nonempty.length && nonempty.length < contours.length) contours.splice(0, contours.length, ...nonempty);
   if (contours.length < 2 || contours.some(({ nodes }, i) => {
     const end = nodes[nodes.length - 1];
     const next = contours[i + 1];

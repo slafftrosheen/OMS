@@ -7,7 +7,14 @@ import {
   type VectorExportScope,
 } from "./cad-vector-export";
 import { encodePdfRaster } from "./cad-raster";
-/** Resolve original pixels only when exporting; saved documents keep references. */
+import {
+  decodeOriginalDrawingRaster,
+  readOriginalDrawingRaster,
+  DRAWING_EXPORT_TOTAL_ASSET_BYTES,
+  DRAWING_EXPORT_TOTAL_ASSET_PIXELS,
+} from "./drawing-raster-original";
+
+/** Resolve original pixels only when exporting. The saved drawing retains references. */
 export async function prepareVectorExportWithAssets(
   editor: Editor,
   settings: CadSettings,
@@ -15,55 +22,40 @@ export async function prepareVectorExportWithAssets(
   format: "pdf" | "eps",
   signal: AbortSignal,
 ) {
-  const result = prepareVectorExport(editor, settings, scope, format, true),
-    cache = new Map<string, Awaited<ReturnType<typeof encodePdfRaster>>>();
-  let pixels = 0;
-  for (const p of result.paths) {
-    const r = p.paint.raster;
-    if (!r?.external) continue;
+  if (signal.aborted) throw new Error("cancelled");
+  const result = prepareVectorExport(editor, settings, scope, format, true);
+  const check = () => {
     if (signal.aborted) throw new Error("cancelled");
-    let data = cache.get(r.png);
+    if (cadRevision(editor) !== result.revision) throw new Error("stale");
+  };
+  const cache = new Map<string, Awaited<ReturnType<typeof encodePdfRaster>>>();
+  let pixels = 0, bytes = 0;
+  for (const path of result.paths) {
+    const raster = path.paint.raster;
+    if (!raster?.external) continue;
+    check();
+    let data = cache.get(raster.png);
     if (!data) {
-      const response = await fetch(r.png, {
-        signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
-      }).catch(() => {
-        throw new Error(signal.aborted ? "cancelled" : "asset-fetch");
-      });
-      if (
-        !response.ok ||
-        Number(response.headers.get("content-length")) > 25 * 1024 * 1024
-      )
-        throw new Error("asset-fetch");
-      const blob = await response.blob().catch(() => {
-        throw new Error("asset-fetch");
-      });
-      if (blob.size > 25 * 1024 * 1024 || blob.type !== "image/png")
-        throw new Error("asset-fetch");
-      const bitmap = await createImageBitmap(blob).catch(() => {
-        throw new Error("asset-fetch");
-      });
+      pixels += raster.width * raster.height;
+      if (pixels > DRAWING_EXPORT_TOTAL_ASSET_PIXELS) throw new Error("limit");
+      const original = await readOriginalDrawingRaster(raster, signal, DRAWING_EXPORT_TOTAL_ASSET_BYTES - bytes, check);
+      bytes += original.bytes;
+      const bitmap = await decodeOriginalDrawingRaster(original.blob, raster, check);
       try {
-        if (bitmap.width !== r.width || bitmap.height !== r.height)
-          throw new Error("asset-fetch");
-        pixels += bitmap.width * bitmap.height;
-        if (pixels > 64 * 1024 * 1024) throw new Error("limit");
-        data = await encodePdfRaster(
-          { width: bitmap.width, height: bitmap.height, bitmap },
-          { exportOnly: true },
-        );
-        cache.set(r.png, data);
+        data = await encodePdfRaster({ width: bitmap.width, height: bitmap.height, bitmap }, { exportOnly: true });
       } finally {
         bitmap.close();
       }
+      cache.set(raster.png, data);
     }
-    p.paint.raster = { ...data, matrix: r.matrix, ...(r.usage ? {usage:r.usage} : {}), ...(r.repeat ? {repeat:r.repeat} : {}) };
+    if (data.width !== raster.width || data.height !== raster.height ||
+        (format === "eps" && data.alpha)) throw new Error("asset-fetch");
+    path.paint.raster = { ...data, matrix: raster.matrix, ...(raster.usage ? { usage: raster.usage } : {}),
+      ...(raster.repeat ? { repeat: raster.repeat } : {}) };
   }
-  if (signal.aborted) throw new Error("cancelled");
-  if (cadRevision(editor) !== result.revision) throw new Error("stale");
+  check();
   return {
     ...result,
-    text: result.paths.length
-      ? serializeVectorDocument(result.paths, format, result.sheet)
-      : "",
+    text: result.paths.length ? serializeVectorDocument(result.paths, format, result.sheet) : "",
   };
 }

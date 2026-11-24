@@ -7,7 +7,7 @@ import { ArtworkClipPanel } from './ArtworkClipPanel';
 import { useProductionToolsText } from './production-tools-copy';
 import { setCanvasSurface, useCanvasSurface } from './canvas-surface';
 import {cadConstruction} from './cad-construction';
-import { getSelectedCadNodes, isCadNodeEditing, setCadNodeEditing } from './cad-node-selection';
+import { getSelectedCadNodes, isCadNodeEditing, selectAllCadNodes, setCadNodeEditing } from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
 import {RepeatGrid} from './RepeatGrid';
 import {DrawingAppearancePanel} from './DrawingAppearancePanel';
@@ -41,7 +41,8 @@ import {drawingPenDiagnostics} from './drawing-pen-input';
 import {enPen, usePenText} from './pen-copy';
 import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
-import { DRAWING_REVIEW_FILE_TYPES, DRAWING_UI_REQUEST, isDrawingUiRequest } from './drawing-ui-requests';
+import { DRAWING_UI_REQUEST, isDrawingUiRequest, routeCanvasCadImport, type DrawingImportEntry } from './drawing-ui-requests';
+import { DRAWING_FILE_ACCEPT } from './drawing-file-types';
 import {useObjectTreeText} from './object-tree-copy';
 import {captureDrawingObjectStack, prepareDrawingObjectOrder, applyDrawingObjectOrder} from './drawing-object-tree';
 import {RadialArrange} from './RadialArrange';
@@ -57,6 +58,10 @@ import {textPointSize} from './workbench-operations';
 import {applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch} from './drawing-text-style';
 import {getDrawingTextSpacing} from './drawing-text-spacing';
 import {CadSnapPanel} from './CadSnapPanel';
+import { convertSelectionToCurves, deleteCadCurveNodes, getCadCurveConversionIssue, nudgeCadCurveNodes } from './cad-editing';
+import { hasCanvasDraft } from './canvas-document';
+import { drawingGridVisible } from './drawing-grid-state';
+import { canWriteCadSnapSettings, readCadSnapSettings, writeCadSnapSettings } from './cad-snap-settings';
 import {useSnapText} from './snap-copy';
 import {DrawingFontPicker, NextDrawingFontPicker} from './DrawingFonts';
 import {applySelectedDrawingFont, clearSelectedDrawingFontOverrides, drawingFontValue, setNextDrawingFont} from './drawing-fonts';
@@ -69,7 +74,7 @@ import {
   DefaultFillStyle, DefaultFontStyle, DefaultHorizontalAlignStyle, DefaultSizeStyle, DefaultTextAlignStyle,
   DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId,
   getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
-  type EnumStyleProp, type TLDefaultColorStyle, type TLShapeId, type TLTextShape,
+  type TLEventInfo, type EnumStyleProp, type TLDefaultColorStyle, type TLShapeId, type TLTextShape,
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
@@ -85,7 +90,7 @@ import { CadPanel } from './CadPanel';
 import { cadCompoundFeedback, useCadAdvancedText } from './cad-advanced-copy';
 import type { CadFocusRequest } from './CadAdvancedPanel';
 import { useCadText, type CadLabel } from './cad-copy';
-import { canvasLengthToUnit, canvasPointToCad, readCadSettings, type CadSettings } from './cad-settings';
+import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import { useVectorText } from './cad-vector-copy';
 import { DrawingIcon } from './drawing-icons';
@@ -124,8 +129,12 @@ function isEditorCommand(id: DrawingCommandId): id is typeof editorCommands[numb
 }
 const selectionShortcuts: ReadonlySet<DrawingCommandId> = new Set([
   'selectNext', 'selectPrevious', 'centerToPage', 'duplicateInPlace', 'combine', 'breakApart', 'group', 'ungroup',
-  'front', 'back', 'forward', 'backward',
+  'front', 'back', 'frontLayer', 'backLayer', 'forward', 'backward',
 ]);
+const arrowDelta = {
+  ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1],
+} as const;
+const nudgeMultiplier = (event: KeyboardEvent) => event.shiftKey ? 10 : event.ctrlKey || event.metaKey ? 0.1 : 1;
 
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
 type Panel = DrawingDocker | null;
@@ -536,6 +545,7 @@ export function DrawingChrome() {
   const commandRef = useRef<(id: DrawingCommandId, fromKeyboard?: boolean) => boolean>(() => false);
   const [lastCommand, setLastCommand] = useState<DrawingCommandId | null>(null);
   const previousTool = useRef<DrawingToolId | null>(null);
+  const oneShotZoom = useRef<string | null>(null);
   const spaceRef = useRef<{ at: number; moved: boolean } | null>(null);
   const toolRef = useRef<(tool: DrawingToolId, fromKeyboard?: boolean) => void>(() => undefined);
   const [hud, setHud] = useState<{ text: string; keys?: string; serial: number } | null>(null);
@@ -634,6 +644,8 @@ export function DrawingChrome() {
   const [guidesFocusRequest, setGuidesFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
+  const [drawingImports, setDrawingImports] = useState(() => new Map<string, DrawingImportEntry[]>());
+  const nextImport = useRef(0);
   const multiplePages = useContext(CanvasModeContext) === 'toolkit';
   const pages = useValue('drawing page list', () => editor.getPages(), [editor]);
   const pageBounds = useValue('drawing page for export', () => drawingPageBounds(editor), [editor]);
@@ -646,7 +658,7 @@ export function DrawingChrome() {
   const styles = useRelevantStyles();
   const controls = useValue('drawing controls', () => captureToolkitControls(editor, editor.getStyleForNextShape(GeoShapeGeoStyle)), [editor]);
   const state = useValue('drawing display', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(), selectedShapes: editor.getSelectedShapes(),
-    zoom: editor.getZoomLevel(), grid: editor.getInstanceState().isGridMode, snap: editor.user.getIsSnapMode(),
+    zoom: editor.getZoomLevel(), grid: drawingGridVisible(editor).get(), snap: editor.user.getIsSnapMode(), snapTargets: readCadSnapSettings(editor),
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
   const [notice, setNotice] = useState('');
   const guides = useValue('Guidelines toolbar state', () => ({ ...readDrawingGuides(editor), valid: drawingGuidesAreValid(editor) }), [editor]);
@@ -714,6 +726,7 @@ export function DrawingChrome() {
     if (!isDrawingToolId(tool) || !toolEnabled(tool) ||
         (editor.getInstanceState().isReadonly && !drawingReadOnlyTools.has(tool))) return false;
     const route = drawingToolTargets[tool];
+    if (tool === 'zoom') oneShotZoom.current = null;
     setToolGroup(null);
     closeMenus();
     const group = toolGroups.find(group => group.tools.includes(tool));
@@ -723,14 +736,14 @@ export function DrawingChrome() {
     setCadNodeEditing(editor, false);
     if ('panel' in route && route.panel) context?.setPanel(route.panel);
     editor.complete();
-    if (readCadSettings(editor) && (route.kind === 'geometry' || tool === 'line')) {
+    const calibrated = !!readCadSettings(editor);
+    if (calibrated && route.kind === 'geometry') {
       editor.setStyleForNextShapes(DefaultDashStyle, 'solid'); editor.setStyleForNextShapes(DefaultFillStyle, 'none');
-      if (tool === 'line') editor.setStyleForNextShapes(LineShapeSplineStyle, 'line');
     }
     if (route.kind === 'geometry') {
       editor.setStyleForNextShapes(GeoShapeGeoStyle, route.shape);
       editor.setCurrentTool('geo');
-    } else editor.setCurrentTool(route.tool);
+    } else editor.setCurrentTool(calibrated && 'calibratedTool' in route ? route.calibratedTool : route.tool);
     editor.focus();
     return true;
   }
@@ -867,6 +880,13 @@ export function DrawingChrome() {
       setToolGroup(null); closeMenus();
       if (request.kind === 'command') commandRef.current(request.action);
       else if (request.kind === 'cad') focusCad(request.action, request.file, request.dropPoint);
+      else if (request.kind === 'import') {
+        if (editor.getInstanceState().isReadonly) return;
+        const pageId = editor.getCurrentPageId();
+        const incoming = request.files.map(file => ({ sequence: ++nextImport.current, file, dropPoint: request.dropPoint }));
+        setDrawingImports(current => new Map(current).set(pageId, [...(current.get(pageId) ?? []), ...incoming]));
+        focusCad('files');
+      }
       else if (request.kind === 'objects') {
         if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
       }
@@ -936,6 +956,16 @@ export function DrawingChrome() {
       }
       return false;
     };
+    const restoreZoomTool = () => {
+      const previous = oneShotZoom.current;
+      oneShotZoom.current = null;
+      if (previous && editor.isIn('zoom')) editor.setCurrentTool(previous);
+    };
+    const afterZoom = (event: TLEventInfo) => {
+      if (!oneShotZoom.current) return;
+      if (!editor.isIn('zoom')) oneShotZoom.current = null;
+      else if (event.type === 'pointer' && event.name === 'pointer_up' && event.button === 0 && editor.isIn('zoom.idle')) restoreZoomTool();
+    };
     const keys = (event: KeyboardEvent) => {
       if (guardControlKeys(event)) return;
       // Radix handles menu navigation. Arrows here must not nudge the artwork
@@ -949,7 +979,9 @@ export function DrawingChrome() {
       }
       if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
-      if (!(event.target instanceof Element) || isTypingTarget(editor, event.target) || event.isComposing ||
+      const snapPanelShortcut = event.altKey && event.target instanceof Element &&
+        !!event.target.closest('[data-testid="drawing-snap-options"] input[type="checkbox"]');
+      if (!(event.target instanceof Element) || !snapPanelShortcut && isTypingTarget(editor, event.target) || event.isComposing ||
           event.target.closest('[role="dialog"],dialog[open]')) return;
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
@@ -966,6 +998,27 @@ export function DrawingChrome() {
         return;
       }
       const canvasFocus = inDrawing && !event.target.closest('button,a[href],[role="button"],[role="textbox"]');
+      if (canvasFocus && event.key === 'Escape' && oneShotZoom.current && editor.isIn('zoom')) {
+        event.preventDefault(); event.stopPropagation(); restoreZoomTool(); return;
+      }
+      const arrow = arrowDelta[event.key as keyof typeof arrowDelta], cad = readCadSettings(editor);
+      if (canvasFocus && editor.isIn('select.idle') && isCadNodeEditing(editor) && !event.altKey) {
+        const allNodes = shortcutKeys === 'Ctrl+A';
+        const removeNodes = !modifier && !event.shiftKey && ['Delete', 'Backspace'].includes(event.key);
+        if (allNodes || removeNodes || arrow) {
+          event.preventDefault(); event.stopPropagation();
+          if (allNodes && !event.repeat) selectAllCadNodes(editor);
+          else if (!editor.getInstanceState().isReadonly && (arrow || removeNodes && !event.repeat)) {
+            const nodes = getSelectedCadNodes(editor);
+            if (nodes.length) {
+              const step = (cad ? unitLengthToCanvas(cad.nudge, cad) : 1) * nudgeMultiplier(event);
+              const applied = arrow ? nudgeCadCurveNodes(editor, arrow[0] * step, -arrow[1] * step) : deleteCadCurveNodes(editor, nodes);
+              setNotice(applied ? '' : label('changedFailed'));
+            }
+          }
+          return;
+        }
+      }
       const pickIdle = canvasFocus && editor.isIn('select.idle') && !isCadNodeEditing(editor);
       const alignment = alignmentKeys.get(shortcutKeys);
       if (pickIdle && alignment && arrangementRoots(editor).length > 1) {
@@ -980,23 +1033,21 @@ export function DrawingChrome() {
         event.preventDefault(); event.stopPropagation();
         return;
       }
-      const cad = readCadSettings(editor);
-      if (cad && canvasFocus && editor.isIn('select.idle') && editor.getSelectedShapeIds().length &&
-          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey) {
-        const amount = cad.nudge * (event.shiftKey ? 10 : modifier ? 0.1 : 1);
-        const dx = event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0;
-        const dy = event.key === 'ArrowDown' ? -amount : event.key === 'ArrowUp' ? amount : 0;
+      if (cad && pickIdle && editor.getSelectedShapeIds().length && arrow && !event.altKey) {
+        const amount = cad.nudge * nudgeMultiplier(event);
         event.preventDefault(); event.stopPropagation();
-        if (!nudgeCadSelection(editor, dx, dy, cad)) setNotice(cadLabel('failed'));
+        if (!nudgeCadSelection(editor, arrow[0] * amount, arrow[1] * amount, cad)) setNotice(cadLabel('failed'));
         return;
       }
       const ownCommand = drawingOwnCommandForKeys(shortcutKeys);
       if (ownCommand && (!selectionShortcuts.has(ownCommand) || pickIdle)) {
         const cycle = ownCommand === 'selectNext' || ownCommand === 'selectPrevious';
+        const page = ownCommand === 'previousPage' || ownCommand === 'nextPage';
         // Preserve ordinary focus navigation when there are no objects to cycle.
         if (cycle && !commandRef.current(ownCommand, true)) return;
+        if (page && (!canvasFocus || event.repeat || !commandRef.current(ownCommand, true))) return;
         event.preventDefault(); event.stopPropagation();
-        if (!cycle && !event.repeat) commandRef.current(ownCommand, true);
+        if (!cycle && !page && !event.repeat) commandRef.current(ownCommand, true);
         return;
       }
       const ownTool = drawingToolForKeys(shortcutKeys);
@@ -1025,16 +1076,25 @@ export function DrawingChrome() {
       // Let the canvas finish its own space-pan release first, then switch.
       if (tap) requestAnimationFrame(() => commandRef.current('togglePick'));
     };
+    const keyUp = (event: KeyboardEvent) => {
+      if (event.code === 'KeyZ' && editor.isIn('zoom')) {
+        // The native zoom state exits on Z release. OMS offers persistent Z
+        // zoom and the separate F2 one-shot.
+        (event as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
+      }
+      guardControlKeys(event);
+    };
+    editor.on('event', afterZoom);
     root.addEventListener('keydown', spaceDown, true);
     // Key-up can land outside the workspace once the canvas arms panning; the
     // document sees it either way, and `space` is only set by a canvas key-down.
     root.ownerDocument.addEventListener('keyup', spaceUp, true);
     root.addEventListener('pointermove', spaceMove, true);
     root.addEventListener('keydown', keys, true);
-    root.addEventListener('keyup', guardControlKeys, true);
+    root.addEventListener('keyup', keyUp, true);
     window.addEventListener('blur', clearSpace);
     document.addEventListener('pointerdown', outside);
-    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', guardControlKeys, true); window.removeEventListener('blur', clearSpace); document.removeEventListener('pointerdown', outside); };
+    return () => { root.removeEventListener('keydown', spaceDown, true); root.ownerDocument.removeEventListener('keyup', spaceUp, true); root.removeEventListener('pointermove', spaceMove, true); root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', keyUp, true); editor.off('event', afterZoom); window.removeEventListener('blur', clearSpace); document.removeEventListener('pointerdown', outside); };
   }, [context?.root, context?.setPanel, editor, openMenu, toolGroup, cadLabel, advancedLabel, label]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
@@ -1102,10 +1162,26 @@ export function DrawingChrome() {
   }
   async function importFiles(files: File[]) {
     if (!files.length || !onImport || editor.getInstanceState().isReadonly) return;
-    setBusy(true); setNotice('');
-    try { await onImport(files, editor.getViewportPageBounds().center); }
+    setNotice('');
+    const attachments = routeCanvasCadImport(editor, files, undefined, true);
+    if (!attachments.length) return;
+    setBusy(true);
+    try { await onImport(attachments, editor.getViewportPageBounds().center); }
     catch { if (alive.current) setNotice(label('uploadFailed')); }
     finally { if (alive.current) setBusy(false); }
+  }
+  const queuedImports = drawingImports.get(state.page);
+  function finishQueuedImport(sequence: number, imported: boolean) {
+    if (queuedImports?.[0]?.sequence !== sequence) return;
+    setDrawingImports(current => {
+      const entries = current.get(state.page);
+      if (entries?.[0]?.sequence !== sequence) return current;
+      const next = new Map(current);
+      if (entries.length > 1) next.set(state.page, entries.slice(1));
+      else next.delete(state.page);
+      return next;
+    });
+    if (imported) setNotice(vectorLabel('done'));
   }
   function exportFailure(error: unknown) {
     const code = error instanceof Error ? error.message : '';
@@ -1185,6 +1261,7 @@ export function DrawingChrome() {
     if (tool === 'select') return controls.tool === 'select' && !nodeEditing && !skewMode;
     if (tool === 'clipart') return panel === 'clipart';
     if (tool === 'cad-measure-tools') return panel === 'measure';
+    if (tool === 'line' && controls.tool === 'cad-line') return true;
     return controls.tool === tool;
   };
   const fullscreenLabel = productionLabel(context.fullscreen ? 'exitFullscreen' : 'fullscreen');
@@ -1235,17 +1312,41 @@ export function DrawingChrome() {
       case 'findReplace': return make(true, openFindReplace);
       case 'copyProperties': return make(true, openAppearance);
       case 'zoom-in': return make(true, () => command('zoom-in'));
+      case 'zoomArea': return make(true, () => {
+        const previous = editor.root.getCurrent()?.id;
+        if (!previous || previous === 'zoom' || hasCanvasDraft(editor) || editor.inputs.isPointing || editor.inputs.isDragging) return false;
+        oneShotZoom.current = previous;
+        editor.setCurrentTool('zoom');
+        editor.focus();
+      });
       case 'zoom-out': return make(true, () => command('zoom-out'));
       case 'fitPage': return make(!!pageBounds, () => { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); });
       case 'fullscreen': return make(true, toggleFullscreen, context!.fullscreen);
       case 'rulers': return make(true, () => context!.setRulers(!context!.rulers), context!.rulers);
       case 'grid': return make(true, () => command('grid'), state.grid);
-      case 'snap': return make(true, () => command('snap'), state.snap);
+      case 'snap': return make(true, () => command('snap'), !state.snap);
+      case 'snapObjects':
+      case 'snapGrid':
+      case 'snapGuides':
+      case 'snapPage': {
+        const targets = { snapObjects: 'objects', snapGrid: 'grid', snapGuides: 'guidelines', snapPage: 'page' } as const;
+        const target = targets[id];
+        return make(canWriteCadSnapSettings(editor), () => writeCadSnapSettings(editor, { [target]: !readCadSnapSettings(editor)[target] }), state.snapTargets[target]);
+      }
       case 'guidesVisible': return make(guides.valid && !drawingGuidesBusy(editor), toggleGuides, guides.visible);
       case 'snapOptions': return make(true, () => setPanel('snap'));
       case 'surface': return make(true, () => setCanvasSurface(canvasSurface === 'blueprint' ? 'paper' : 'blueprint'), canvasSurface === 'blueprint');
       case 'penSettings': return make(true, () => setPanel('pen'));
       case 'pageSetup': return cad('pageSetup');
+      case 'previousPage':
+      case 'nextPage': {
+        const index = pages.findIndex(page => page.id === editor.getCurrentPageId());
+        const target = index < 0 ? undefined : pages[index + (id === 'previousPage' ? -1 : 1)];
+        return make(!!target, () => {
+          if (!target || !switchDrawingPage(editor, target.id)) return false;
+          editor.focus();
+        });
+      }
       case 'document': return cad('document');
       case 'guidesSetup': return make(true, openGuides);
       case 'measure': return make(true, () => setPanel('measure'));
@@ -1254,6 +1355,14 @@ export function DrawingChrome() {
       case 'combine': return make(controls.canEditSelection && !!settings, () => compound('combine'));
       case 'breakApart': return make(controls.canEditSelection && !!settings, () => compound('breakApart'));
       case 'reverseOrder': return make((captureDrawingObjectStack(editor)?.selected.length ?? 0) >= 2, reverseObjectOrder);
+      case 'frontLayer':
+      case 'backLayer': {
+        const plan = prepareDrawingObjectOrder(editor, { kind: 'layer-edge', side: id === 'frontLayer' ? 'front' : 'behind' });
+        return make(!!plan, () => {
+          if (!plan || !applyDrawingObjectOrder(editor, plan)) return false;
+          editor.focus();
+        });
+      }
       case 'relativeOrder': return make(true, openObjectOrder);
       case 'productionLayers': return make(true, openProductionLayers);
       case 'transform': return make(true, openTransform);
@@ -1263,7 +1372,18 @@ export function DrawingChrome() {
       case 'shaping': return cad('shaping');
       case 'join': return cad('join');
       case 'knife': return cad('knife');
-      case 'convert': return cad('convert');
+      case 'corners': return cad('corners');
+      case 'convert': return make(controls.canEditSelection, () => {
+        const calibration = readCadSettings(editor);
+        if (!calibration || getCadCurveConversionIssue(editor)) {
+          focusCad('convert');
+          return;
+        }
+        const applied = convertSelectionToCurves(editor, calibration);
+        setNotice(advancedLabel(applied ? 'converted' : 'failed'));
+        if (applied) editor.focus();
+        return applied;
+      });
       case 'outlineObject': return cad('outlineObject');
       case 'artworkClip': return make(true, () => openArrange('artworkClip'));
       case 'nodes': return cad('nodes');
@@ -1273,7 +1393,9 @@ export function DrawingChrome() {
       case 'polygonShape': return cad('polygon');
       case 'ellipseSegments': return cad('ellipse');
       case 'paint': return cad('paint');
+      case 'gradientFill': return cad('gradientFill');
       case 'outline': return cad('outline');
+      case 'outlineColor': return cad('outlineColor');
       case 'contour': return cad('offset');
       case 'midline': return cad('midline');
       case 'radial': return make(true, () => openArrange('radial'));
@@ -1351,8 +1473,9 @@ export function DrawingChrome() {
   }
   /** Space tap: jump to Pick, tap again to return to the tool you were using. */
   function togglePick() {
+    const nativeTool = editor.getCurrentToolId();
     const current = isCadNodeEditing(editor) ? 'nodes' : isDrawingSkewMode(editor) ? 'free-transform' :
-      editor.getCurrentToolId() === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : editor.getCurrentToolId();
+      nativeTool === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : nativeTool === 'cad-line' ? 'line' : nativeTool;
     if (current !== 'select') {
       previousTool.current = isDrawingToolId(current) ? current : null;
       if (chooseTool('select')) { flash(toolLabel('select'), 'Space'); return true; }
@@ -1403,7 +1526,8 @@ export function DrawingChrome() {
   const paintSwatch = (paint: DrawingStatusPaint | null, kind: 'fill' | 'outline') => {
     const name = kind === 'fill' ? words.ui.fill : words.ui.outline;
     const value = !paint ? '—' : paint.kind === 'none' ? (kind === 'fill' ? words.ui.noFill : words.ui.noOutline) : paint.kind === 'mixed' ? words.ui.mixed : paint.hex.toUpperCase();
-    const width = kind === 'outline' && paint?.kind === 'colour' && selectionSummary.outlineWidth !== null ? ` · ${Number(selectionSummary.outlineWidth.toFixed(2))}` : '';
+    const width = kind === 'outline' && paint?.kind === 'colour' && selectionSummary.outlineWidth !== null
+      ? ` · ${Number((settings ? canvasLengthToUnit(selectionSummary.outlineWidth, settings) : selectionSummary.outlineWidth).toFixed(settings?.precision ?? 2))} ${settings?.unit ?? 'px'}` : '';
     return <button type="button" className={`drawing-status-paint drawing-status-paint--${kind}`} title={`${name}: ${value}${width}`} aria-label={`${name}: ${value}${width}`}
       disabled={!paint} onClick={() => focusCad(kind === 'fill' ? 'paint' : 'outline')} data-testid={`drawing-status-${kind}`}>
       <span className={`drawing-status-chip${paint?.kind === 'none' ? ' is-none' : paint?.kind === 'mixed' ? ' is-mixed' : ''}`}
@@ -1411,7 +1535,7 @@ export function DrawingChrome() {
       <span className="drawing-status-paint-text">{value}{width}</span>
     </button>;
   };
-  const statusText = freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel('guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`);
+  const statusText = freehandHint ? freehandHint : rotationPreview ? rotationPreview.error ? rotationLabel(rotationPreview.error) : rotationPreview.kind === 'pivot' ? rotationLabel('help') : `${pickSkewLabel('mode')}: ${Number(rotationPreview.angle.toFixed(2))}°` : skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : pickGuideSnap ? snapLabel(pickGuideSnap.page ? 'page' : 'guidelines') : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.tool === 'cad-freehand' ? penLabel('drawHelp') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`);
 
   return <>
     {portal('commands', <>
@@ -1439,7 +1563,7 @@ export function DrawingChrome() {
           {exportPlans && <p className="drawing-help" role="status">{exportPlans.svg.ok === false ? label(exportPlans.svg.error) : exportPlans.png.ok === false ? label(exportPlans.png.error) : `${label('exportOmitted')}: ${exportPlans.svg.value.omitted}`}</p>}
           <p>{label('exportHint')}</p>
           <p>{label('exportScaleHint')}</p></div>,
-          saveToOrder: order ? <div className="drawing-export-save">{order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
+          saveToOrder: order ? <div className="drawing-export-save">{order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} source={JSON.stringify(exportOptions)} disabled={busy||!!exportPlans&&!exportPlans[saveFormat].ok} errorMessage={exportFailure} onStatus={setNotice} createFile={async(signal)=>{
             const output=await exportDrawingArtwork(editor,saveFormat,exportOptions,signal);
             if(output.reduced)throw new Error('exportReduced');
             return output.blob;
@@ -1462,6 +1586,7 @@ export function DrawingChrome() {
     </>)}
     {portal('standard', <>
       <ToolButton icon="import" testId="drawing-import" label={`${label('import')} (${formatDrawingKeys('Ctrl+I')})`} disabled={!commandState('import').enabled} onClick={() => commandRef.current('import')} />
+      {!!queuedImports?.length && <ToolButton icon="files" testId="drawing-import-queue-open" label={label('reviewQueuedDrawings')} onClick={() => focusCad('files')} />}
       <ToolButton icon="export" testId="drawing-export" label={`${words.ui.standardExport} (${formatDrawingKeys('Ctrl+E')})`} onClick={() => commandRef.current('export')} />
       <span className="drawing-divider" />
       <ToolButton icon="undo" testId="drawing-undo" label={`${actionLabel('undo')} (Ctrl+Z)`} disabled={!commandState('undo').enabled} onClick={() => commandRef.current('undo')} />
@@ -1474,7 +1599,7 @@ export function DrawingChrome() {
       <ToolButton icon="fit" testId="drawing-fit" label={`${actionLabel('fit')} (F4)`} disabled={!actionEnabled('fit')} onClick={() => command('fit')} />
       <ToolButton icon="fit-selection" testId="drawing-fit-selection" label={`${actionLabel('fit-selection')} (Shift+F2)`} disabled={!actionEnabled('fit-selection')} onClick={() => command('fit-selection')} />
       <span className="drawing-divider" />
-      <ToolButton icon="snap" testId="drawing-standard-snap" label={`${words.commands.snap} (${formatDrawingKeys('Alt+Y')})`} active={state.snap} onClick={() => command('snap')} />
+      <ToolButton icon="snap" testId="drawing-standard-snap" label={`${words.commands.snap} (${formatDrawingKeys(drawingCommands.snap.keys)})`} active={!state.snap} onClick={() => command('snap')} />
       <ToolButton icon="rulers" testId="drawing-standard-rulers" label={words.commands.rulers} active={context.rulers} onClick={() => context.setRulers(!context.rulers)} />
       <span className="drawing-divider" />
       <ToolButton icon="files" testId="drawing-files" label={vectorLabel('files')} onClick={() => focusCad('files')} />
@@ -1484,15 +1609,15 @@ export function DrawingChrome() {
         <Icon name="command-search" /><span>{words.ui.quickAccessPlaceholder}</span><kbd>{formatDrawingKeys('Ctrl+/')}</kbd>
       </button>
       <input ref={input} type="file" hidden multiple accept={[
-        DRAWING_REVIEW_FILE_TYPES,
-        order ? '.pdf,.png,.jpg,.jpeg,.webp,.gif' :
-          'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a',
+        DRAWING_FILE_ACCEPT,
+        order ? '.png,.jpg,.jpeg,.webp,.gif' :
+          'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.mp3,.wav,.ogg,.m4a',
       ].join(',')}
         onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
     </>)}
     {portal('properties', <>
       {textProperties ? <span className="drawing-property-caption">{label(nextText ? 'nextText' : 'selectedText')}{selectedText && selectedText.length > 1 ? ` · ${selectedText.length}` : ''}</span>
-        : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span>}<span className="drawing-divider" />
+        : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool === 'cad-line' ? 'line' : controls.tool)}</span>}<span className="drawing-divider" />
       {selectedText ? <SelectedTextProperties key={state.selected.join('|')} shapes={selectedText} disabled={!controls.canEditSelection}
         onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} onFonts={focusFonts} />
       : nextText ? <fieldset className="drawing-context-properties" disabled={!controls.canStyle} aria-label={label('nextText')} data-testid="drawing-next-text-properties">
@@ -1500,7 +1625,7 @@ export function DrawingChrome() {
         {['size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
       </fieldset>
       : controls.tool === 'cad-freehand' ? <><DrawingFreehandControls compact /><ToolButton icon="pen" label={penLabel('title')} onClick={() => setPanel('pen')} testId="drawing-property-pen" /></>
-      : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/>
+      : controls.tool === 'cad-polyline' || controls.tool === 'cad-line' ? <CadPointEntry key={controls.tool} settings={settings} singleSegment={controls.tool === 'cad-line'}/>
       : nodeEditing ? <div className="drawing-property-actions" data-testid="drawing-node-properties">
         {nodeCount === null ? <span className="drawing-unit">{nodeArrangeLabel('none')}</span> : <>
           <span className="drawing-unit" data-testid="drawing-node-selection-count">{nodeArrangeLabel('selection')} · {nodeCount}</span>
@@ -1562,7 +1687,7 @@ export function DrawingChrome() {
         {mode === 'guides' ? <DrawingGuidesPanel settings={settings} focusRequest={guidesFocusRequest} onDocument={() => focusCad('document')}
           renderAlignment={guide => <DrawingGuideAlignment key={guide?.id ?? 'none'} guide={guide}/>}/>
         : mode === 'pen' ? panel === 'pen' && <DrawingPenPanel onFreehand={() => chooseTool('cad-freehand')} />
-        : mode === 'snap' ? <CadSnapPanel settings={settings}/> : mode === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : mode === 'measure' ? <>
+        : mode === 'snap' ? <CadSnapPanel settings={settings} onPageSetup={() => focusCad('pageSetup')}/> : mode === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : mode === 'measure' ? <>
           <MeasurePanel settings={settings} onTool={chooseTool} onDocument={() => focusCad('document')} />
           <CadStraightEdgeTools settings={settings} />
         </> : mode === 'clipart' ? <CadProductionClipart settings={settings} onSetup={() => focusCad('document')} /> : mode === 'arrange' ? <>
@@ -1579,7 +1704,8 @@ export function DrawingChrome() {
           {arrangeTask === 'mirror' && panel === 'arrange' && <MirrorCopyPanel settings={settings} onSetup={() => focusCad('document')} />}
           {arrangeTask === 'artworkClip' && panel === 'arrange' && <ArtworkClipPanel />}
           <div hidden={arrangeTask !== 'nest'}>{arrangeTask === 'nest' && <NestPanel settings={settings} disabled={!controls.canEditSelection} onSetup={() => focusCad('document')}/>}</div>
-        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages} /> : mode === 'objects' ? <>
+        </> : mode === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} multiplePages={multiplePages}
+          importQueue={queuedImports?.length ? { entries: queuedImports, finish: finishQueuedImport } : undefined} /> : mode === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
           <DrawingObjectsPanel focusRequest={objectOrderFocusRequest} layerFocusRequest={layerFocusRequest}/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>

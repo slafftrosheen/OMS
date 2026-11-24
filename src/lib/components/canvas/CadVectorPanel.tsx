@@ -1,10 +1,10 @@
-import { vectorUploadPayload } from "./cad-vector-file";
-import { base } from '$app/paths';
+import { readVectorDrawingFile } from "./cad-vector-import-client";
+import { drawingFileKind, VECTOR_FILE_ACCEPT } from "./drawing-file-types";
 import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fill';
 import {useSolidFillText} from './solid-fill-copy';
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
 import {ProductionSaveButton} from './ProductionSaveButton';
-import { storeCanvasImage } from "./cad-asset-store";
+import { createVectorImportImages } from "./cad-vector-import-images";
 import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
 import { VectorArtwork } from "./VectorArtwork";
 import React, { useEffect, useRef, useState } from "react";
@@ -28,6 +28,7 @@ import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
 import { useVectorText, vectorError } from "./cad-vector-copy";
 import { MaterialTexturePanel } from './MaterialTexturePanel';
 import { GradientFillPanel } from './GradientFillPanel';
+import type { QueuedImportControls } from './drawing-ui-requests';
 
 type Props = {
   settings: CadSettings | null;
@@ -36,6 +37,7 @@ type Props = {
   focusSequence?: number;
 };
 type Review = { plan: CadPlan; key: string; original?: string; originalContours?: CadPlan['contours']; previewBounds?: ReturnType<typeof curveBounds> };
+type VectorImportImages = ReturnType<typeof createVectorImportImages>;
 function Field({
   label,
   children,
@@ -56,7 +58,9 @@ function useWork() {
   const controller = useRef<AbortController>();
   useEffect(
     () => () => {
-      controller.current?.abort();
+      const previous = controller.current;
+      controller.current = undefined;
+      previous?.abort();
     },
     [],
   );
@@ -64,20 +68,31 @@ function useWork() {
     busy,
     message,
     setMessage,
-    cancel: () => controller.current?.abort(),
-    run: async (action: (signal: AbortSignal) => Promise<void>) => {
+    cancel: () => {
+      const previous = controller.current;
+      if (!previous) return;
+      controller.current = undefined;
+      previous.abort();
+      setBusy(false);
+      setMessage('cancelled');
+    },
+    run: async <T,>(action: (signal: AbortSignal) => Promise<T>): Promise<T | undefined> => {
       controller.current?.abort();
       const next = new AbortController();
       controller.current = next;
       setBusy(true);
       setMessage("");
       try {
-        await action(next.signal);
+        const result = await action(next.signal);
+        if (controller.current === next && !next.signal.aborted) return result;
       } catch (error) {
         if (controller.current === next)
           setMessage(next.signal.aborted ? "cancelled" : vectorError(error));
       } finally {
-        if (controller.current === next) setBusy(false);
+        if (controller.current === next) {
+          controller.current = undefined;
+          setBusy(false);
+        }
       }
     },
   };
@@ -115,7 +130,7 @@ function Preview({
   revision: string;
   disabled: boolean;
   onApplied: () => void;
-  onApply?: () => boolean;
+  onApply?: () => boolean | Promise<boolean | undefined>;
 }) {
   const editor = useEditor(),
     t = useVectorText();
@@ -203,10 +218,12 @@ function Preview({
         type="button"
         data-testid="vector-apply"
         disabled={disabled || stale || (!!plan.warnings.length && !ack)}
-        onClick={() => {
+        onClick={async () => {
           if (disabled || stale || plan.warnings.length && !ack) return;
-          if (onApply ? onApply() : applyCadPlan(editor, plan)) onApplied();
-          else setFailed(true);
+          setFailed(false);
+          const result = onApply ? await onApply() : applyCadPlan(editor, plan);
+          if (result === true) onApplied();
+          else if (result === false) setFailed(true);
         }}
       >
         {t("apply")}
@@ -217,8 +234,18 @@ function Preview({
 }
 export { RasterTrace } from "./RasterTrace";
 
-export function VectorImport({ settings, revision, disabled, focusRequest }: Props & {
+async function loadVectorDrawing(file: File, page: number, outline: boolean, signal: AbortSignal,
+  options: import('./cad-pdf-page').PdfImportOptions) {
+  const source = await readVectorDrawingFile(file, page, outline, signal);
+  if (source.kind === 'svg') return { ...source, preview: undefined };
+  const { readVectorPdf } = await import('./cad-pdf-client');
+  return { ...await readVectorPdf(source.bytes, source.selectedPage, signal, options),
+    sourcePage: source.sourcePage, kind: source.kind };
+}
+
+export function VectorImport({ settings, revision, disabled, focusRequest, queued }: Props & {
   focusRequest?: { sequence: number; file?: File; dropPoint?: { x: number; y: number } };
+  queued?: QueuedImportControls;
 }) {
   const editor = useEditor(),
     t = useVectorText(),
@@ -228,26 +255,37 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
     [outline, setOutline] = useState(false),
     [mode,setMode]=useState<"auto"|"editable"|"appearance">("auto"),
     [dpi,setDpi]=useState(300),
-    [review, setReview] = useState<Review>();
+    [review, setReview] = useState<Review & { images: VectorImportImages }>();
   const [dropPoint, setDropPoint] = useState<{ x: number; y: number }>();
   const [group, setGroup] = useState(true);
   const section = useRef<HTMLDetailsElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const stagedImages = useRef<VectorImportImages>();
   const consumedFocus = useRef<number>();
-  const automaticOutlines = /\.(?:eps|cdr)$/i.test(file?.name ?? '');
-  const singlePage = /\.eps$/i.test(file?.name ?? '');
+  const kind = drawingFileKind(file);
+  const automaticOutlines = kind === 'eps' || kind === 'cdr';
+  const svg = kind === 'svg';
+  const singlePage = svg || kind === 'eps';
   const pageNumber = Number(page);
   const validPage = singlePage || Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= 5000;
+  function clearReview() {
+    stagedImages.current?.dispose();
+    stagedImages.current = undefined;
+    setReview(undefined);
+  }
+  useEffect(() => () => stagedImages.current?.dispose(), []);
   function chooseFile(next?: File, point?: { x: number; y: number }) {
     setFile(next);
     setDropPoint(point);
     setPage('1');
-    setMode(/\.(?:eps|cdr)$/i.test(next?.name ?? '') ? 'editable' : 'auto');
-    setReview(undefined);
+    setOutline(false);
+    const nextKind = drawingFileKind(next);
+    setMode(nextKind === 'eps' || nextKind === 'cdr' ? 'editable' : 'auto');
+    clearReview();
     work.setMessage('');
   }
   useEffect(() => {
-    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence) return;
+    if (!focusRequest || !section.current || consumedFocus.current === focusRequest.sequence || (focusRequest.file && disabled)) return;
     consumedFocus.current = focusRequest.sequence;
     section.current.open = true;
     section.current.querySelector('summary')?.focus();
@@ -268,19 +306,19 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
   return (
     <details ref={section} className="drawing-cad-section" open data-testid="vector-import">
       <summary>{t("import")}</summary>
-      <p className="drawing-help">{t("importHelp")}</p>
+      <p className="drawing-help">{t(svg ? "svg-file" : "importHelp")}</p>
       <fieldset
         className="drawing-cad-fields"
         disabled={disabled || !settings || work.busy}
       >
-        <Field label={t("file")}>
+        {!queued && <Field label={t("file")}>
           <input
             ref={input}
             type="file"
-            accept=".pdf,.eps,.cdr,application/pdf,application/postscript,application/vnd.corel-draw"
+            accept={VECTOR_FILE_ACCEPT}
             onChange={(e) => chooseFile(e.target.files?.[0])}
           />
-        </Field>
+        </Field>}
         {file && focusRequest?.file === file && <p className="drawing-help" role="status">{file.name}</p>}
         <Field label={t("page")}>
           <input
@@ -295,9 +333,9 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           />
         </Field>
         {file && !validPage && <p className="drawing-help is-error" role="alert">{t('pageError')}</p>}
-        <Field label={t('pdfMode')}><select value={mode} onChange={event=>setMode(event.target.value as typeof mode)}><option value="auto">{t('pdfAuto')}</option><option value="editable">{t('pdfEditable')}</option><option value="appearance">{t('pdfAppearance')}</option></select></Field>
-        {mode!=='editable'&&<Field label={t('renderDpi')}><select value={dpi} onChange={event=>setDpi(Number(event.target.value))}>{[72,150,300,600].map(value=><option key={value} value={value}>{value} DPI</option>)}</select></Field>}
-        <label className="drawing-vector-check">
+        {!svg && <Field label={t('pdfMode')}><select value={mode} onChange={event=>setMode(event.target.value as typeof mode)}><option value="auto">{t('pdfAuto')}</option><option value="editable">{t('pdfEditable')}</option><option value="appearance">{t('pdfAppearance')}</option></select></Field>}
+        {!svg&&mode!=='editable'&&<Field label={t('renderDpi')}><select value={dpi} onChange={event=>setDpi(Number(event.target.value))}>{[72,150,300,600].map(value=><option key={value} value={value}>{value} DPI</option>)}</select></Field>}
+        {!svg && <label className="drawing-vector-check">
           <input
             type="checkbox"
             checked={automaticOutlines || outline}
@@ -305,7 +343,7 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
             onChange={(e) => setOutline(e.target.checked)}
           />
           {t("outline")}
-        </label>
+        </label>}
         <label className="drawing-vector-check">
           <input type="checkbox" checked={group} onChange={event=>setGroup(event.target.checked)} />
           {t("groupImport")}
@@ -316,82 +354,76 @@ export function VectorImport({ settings, revision, disabled, focusRequest }: Pro
           disabled={!file || !validPage}
           onClick={() =>
             void work.run(async (signal) => {
-              setReview(undefined);
+              clearReview();
               if (!file || !settings || !validPage) return;
+              const images = createVectorImportImages(editor);
+              stagedImages.current = images;
+              let ready = false;
               const before = cadRevision(editor);
               const center = dropPoint ?? editor.getViewportPageBounds().center;
-              const { body, kind } = await vectorUploadPayload(file);
-              let bytes: Uint8Array;
-              const sourcePage = kind === "eps" ? 1 : pageNumber;
-              let selectedPage = sourcePage;
-              if (kind === "eps" || kind === "cdr" || outline) {
-                const response = await fetch(
-                  `${base}/api/canvas/convert-vector?page=${selectedPage}`,
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/octet-stream" },
-                    body,
-                    signal,
-                  },
-                );
-                if (!response.ok) {
-                  const error = await response
-                    .json()
-                    .catch(() => ({ code: "conversion" }));
-                  throw new Error(error.code);
+              try {
+                const result = await loadVectorDrawing(file, pageNumber, outline, signal, {
+                  mode, dpi, name: file.name, store: images.stage,
+                }).catch(error => {
+                  if (vectorError(error) === 'limit') throw new Error('vector-import-geometry');
+                  throw error;
+                });
+                if (signal.aborted) throw new Error("cancelled");
+                if (before !== cadRevision(editor)) throw new Error("stale");
+                if (!result.document.paths.length) {
+                  work.setMessage(result.kind === 'svg' ? 'svg-empty'
+                    : result.document.warnings.includes('pdf-text') ? 'pdf-text' : 'empty');
+                  return;
                 }
-                bytes = new Uint8Array(await response.arrayBuffer());
-                selectedPage = 1;
-              } else {
-                bytes = new Uint8Array(await body.arrayBuffer());
-              }
-              const { readVectorPdf } = await import("./cad-pdf-client");
-              const result = await readVectorPdf(bytes, selectedPage, signal, {mode,dpi,name:file.name,store:resource=>storeCanvasImage(editor,resource,signal)});
-              if (signal.aborted) throw new Error("cancelled");
-              if (before !== cadRevision(editor)) throw new Error("stale");
-              if (!result.document.paths.length) {
-                work.setMessage(
-                  result.document.warnings.includes("pdf-text")
-                    ? "pdf-text"
-                    : "empty",
+                if (result.kind === 'cdr') result.document.warnings.push('cdr-review');
+                const plan = prepareVectorImport(
+                  editor,
+                  settings,
+                  result.document,
+                  result.widthMm,
+                  center,
+                  result.kind === 'svg' ? file.name : `${file.name} · ${result.sourcePage}`,
+                  [],
+                  [],
+                  { center: true, group, compactForSave: true },
                 );
-                return;
+                images.retain(plan);
+                setReview({ plan, key, original: result.preview, images });
+                ready = true;
+              } finally {
+                if (!ready) {
+                  images.dispose();
+                  if (stagedImages.current === images) stagedImages.current = undefined;
+                }
               }
-              if (kind === 'cdr') result.document.warnings.push('cdr-review');
-              const plan = prepareVectorImport(
-                editor,
-                settings,
-                result.document,
-                result.widthMm,
-                center,
-                `${file.name} · ${sourcePage}`,
-                [],
-                [],
-                { center: true, group },
-              );
-              setReview({ plan, key, original: result.preview });
             })
           }
         >
           {t("preview")}
         </button>
       </fieldset>
+      {queued && <button type="button" disabled={work.busy} onClick={() => queued.finish(false)}>{queued.skipLabel}</button>}
       <WorkStatus work={work} />
-      {review && (
+      {review && <>
         <Preview
           review={review}
           inputKey={key}
           revision={revision}
           disabled={disabled || work.busy || !settings}
+          onApply={() => work.run(signal => review.images.apply(review.plan, signal))}
           onApplied={() => {
-            setReview(undefined);
+            clearReview();
             setCadNodeEditing(editor, false);
             editor.zoomToSelection();
             editor.focus();
             work.setMessage("done");
+            queued?.finish(true);
           }}
         />
-      )}
+        <button type="button" disabled={work.busy} onClick={() => { clearReview(); work.setMessage(''); }}>
+          {t('discardPreview')}
+        </button>
+      </>}
     </details>
   );
 }
@@ -423,6 +455,12 @@ export function VectorExport({ settings, revision, focusSequence }: Props) {
   const key = JSON.stringify([settings, format, scope, scope === "page" ? bleed : null]),
     stale =
       !!review && (review.key !== key || review.result.revision !== revision);
+  const canExport = !!review && !work.busy && !stale && !!review.result.text &&
+    (!review.result.omitted.length || ack);
+  function createFile() {
+    if (!review || !canExport || review.result.revision !== cadRevision(editor)) throw new Error('changed');
+    return new Blob([review.result.text], { type: format === 'pdf' ? 'application/pdf' : 'application/postscript' });
+  }
   return (
     <details className="drawing-cad-section" open ref={section} data-testid="vector-export">
       <summary>{t("export")}</summary>
@@ -499,42 +537,28 @@ export function VectorExport({ settings, revision, focusSequence }: Props) {
           {stale && <p role="status">{t("stale")}</p>}
           <button
             type="button"
-            disabled={
-              stale ||
-              !review.result.text ||
-              (!!review.result.omitted.length && !ack)
-            }
+            disabled={!canExport}
             onClick={() => {
-              if (
-                review.key !== key ||
-                review.result.revision !== cadRevision(editor)
-              )
-                return;
-              const url = URL.createObjectURL(
-                  new Blob([review.result.text], {
-                    type:
-                      format === "pdf"
-                        ? "application/pdf"
-                        : "application/postscript",
-                  }),
-                ),
-                link = document.createElement("a");
-              link.href = url;
-              link.download = `OMS-drawing.${format}`;
-              link.click();
-              setTimeout(() => URL.revokeObjectURL(url), 1000);
+              try {
+                const url = URL.createObjectURL(createFile());
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `OMS-drawing.${format}`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+              } catch { work.setMessage('stale'); }
             }}
           >
             {t("download")}
           </button>
-          <ProductionSaveButton extension={format} disabled={stale||!review.result.text||!!review.result.omitted.length&&!ack} createFile={()=>{if(review.result.revision!==cadRevision(editor))throw new Error("changed");return new Blob([review.result.text],{type:format==="pdf"?"application/pdf":"application/postscript"});}}/>
+          <ProductionSaveButton extension={format} source={review} disabled={!canExport} createFile={createFile}/>
         </div>
       )}
       <WorkStatus work={work}/>
     </details>
   );
 }
-export function CornerControls({ settings, revision, disabled, focusSequence }: Props) {
+export function CornerControls({ settings, revision, disabled, focusSequence, menuFocusSequence }: Props & { menuFocusSequence?: number }) {
   const editor = useEditor(),
     t = useVectorText();
   const section = useRef<HTMLDetailsElement>(null);
@@ -542,13 +566,19 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
   const [scope, setScope] = useState<'all' | 'node'>('all');
   const [kind, setKind] = useState<"fillet" | "chamfer">("fillet"),
     [amount, setAmount] = useState(() => String(2 / unitMm(settings?.unit ?? 'mm'))),
+    [outgoing, setOutgoing] = useState(() => String(2 / unitMm(settings?.unit ?? 'mm'))),
+    [equal, setEqual] = useState(true),
     [review, setReview] = useState<Review>(),
     [message, setMessage] = useState("");
   const previousUnit = useRef(settings?.unit ?? 'mm');
   useEffect(() => {
     const unit = settings?.unit ?? 'mm', factor = unitMm(previousUnit.current) / unitMm(unit);
     previousUnit.current = unit;
-    if (factor !== 1) setAmount(value => value.trim() && Number.isFinite(Number(value)) ? String(Number((Number(value) * factor).toPrecision(14))) : value);
+    if (factor !== 1) {
+      const convert = (value: string) => value.trim() && Number.isFinite(Number(value)) ? String(Number((Number(value) * factor).toPrecision(14))) : value;
+      setAmount(convert);
+      setOutgoing(convert);
+    }
   }, [settings?.unit]);
   useEffect(() => {
     if (focusSequence === undefined || !section.current) return;
@@ -557,8 +587,17 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
     section.current.querySelector<HTMLElement>('summary')?.focus();
     section.current.scrollIntoView({ block: 'nearest' });
   }, [editor, focusSequence]);
-  const key = JSON.stringify([settings, kind, amount, scope, scope === 'node' ? selectedNode : null]);
-  const valid = amount.trim() !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
+  useEffect(() => {
+    if (menuFocusSequence === undefined || !section.current) return;
+    section.current.open = true;
+    section.current.querySelector('summary')?.focus();
+    section.current.scrollIntoView?.({ block: 'nearest' });
+  }, [menuFocusSequence]);
+  const asymmetric = kind === 'chamfer' && !equal;
+  const outgoingValue = asymmetric ? outgoing : amount;
+  const key = JSON.stringify([settings, kind, amount, outgoingValue, scope, scope === 'node' ? selectedNode : null]);
+  const positive = (value: string) => value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) > 0;
+  const valid = positive(amount) && positive(outgoingValue);
   return (
     <details ref={section} className="drawing-cad-section" data-testid="vector-corners">
       <summary>{t("corners")}</summary>
@@ -576,15 +615,20 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
             <option value="chamfer">{t("chamfer")}</option>
           </select>
         </Field>
-        <Field label={`${t(kind === 'fillet' ? 'cornerRadius' : 'cornerSetback')} (${settings?.unit ?? 'mm'})`}>
+        {kind === 'chamfer' && <label className="drawing-vector-check"><input type="checkbox" checked={equal}
+          onChange={event => { setEqual(event.target.checked); if (!event.target.checked) setOutgoing(amount); }} />{t('cornerEqualSetbacks')}</label>}
+        <Field label={`${t(kind === 'fillet' ? 'cornerRadius' : asymmetric ? 'cornerIncoming' : 'cornerSetback')} (${settings?.unit ?? 'mm'})`}>
           <input
             type="number"
             step="any"
             value={amount}
-            aria-invalid={!valid}
+            aria-invalid={!positive(amount)}
             onChange={(e) => setAmount(e.target.value)}
           />
         </Field>
+        {asymmetric && <Field label={`${t('cornerOutgoing')} (${settings?.unit ?? 'mm'})`}>
+          <input type="number" step="any" value={outgoing} aria-invalid={!positive(outgoing)} onChange={event => setOutgoing(event.target.value)} />
+        </Field>}
         <button
           type="button"
           disabled={!valid || scope === 'node' && !selectedNode}
@@ -593,10 +637,11 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
               setMessage("");
               if (!settings || disabled || !valid) return;
               const amountMm = Number(amount) * unitMm(settings.unit);
+              const outgoingMm = Number(outgoingValue) * unitMm(settings.unit);
               if (scope === 'node') {
-                const plan = prepareNodeCorner(editor, settings, amountMm, kind);
+                const plan = prepareNodeCorner(editor, settings, amountMm, kind, outgoingMm);
                 setReview({ plan, key, originalContours: plan.originalContours, previewBounds: plan.previewBounds });
-              } else setReview({ plan: prepareCorners(editor, settings, amountMm, kind), key });
+              } else setReview({ plan: prepareCorners(editor, settings, amountMm, kind, outgoingMm), key });
             } catch (e) {
               setReview(undefined);
               setMessage(vectorError(e));
@@ -623,7 +668,7 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
     </details>
   );
 }
-export function VectorPaintControls({ settings, revision, disabled, focusSequence }: Props) {
+export function VectorPaintControls({ settings, revision, disabled, focusSequence, gradientFocusSequence }: Props & { gradientFocusSequence?: number }) {
   const editor = useEditor(), t = useSolidFillText();
   const section = useRef<HTMLDetailsElement>(null);
   const source = useValue('solid CAD fill', () => drawingSolidFillSource(editor), [editor]);
@@ -659,7 +704,7 @@ export function VectorPaintControls({ settings, revision, disabled, focusSequenc
       }}>{t('apply')}</button>
     </fieldset>
     {result && result.signature === signature && <p role={result.success?'status':'alert'} className="drawing-help">{t(result.success?'applied':'failed')}</p>}
-    <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings}/>
+    <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings} focusSequence={gradientFocusSequence} />
     <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings}/>
   </details>;
 }

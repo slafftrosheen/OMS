@@ -1,15 +1,17 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useEditor, useValue, type Editor, type TLShape } from '@tldraw/tldraw';
 import { arcContour, curvePathData, mapContours, nodeAt, validContours, type CadBezierNode, type CadContour } from './cad-curves';
 import { getSelectedCadNodes, isCadNodeEditing } from './cad-node-selection';
 import { cadShapeDxfGeometry, cadShapeIsClipped } from './cad-dxf';
 import { applyCadPlan, makeCadPlan, type CadPlannedShape } from './cad-plans';
 import {
-  angledCadSegment, measureCadEdgeAngle, measureCadSegment, parallelCadSegment,
+  angledCadSegment, measureCadEdgeAngle, measureCadJointAngle, measureCadSegment, parallelCadSegment,
   productionPresetGeometry, productionPresets, segmentContour, type CadSegment, type ProductionPreset
 } from './cad-production-geometry';
 import { cadMmPerPixel, readCadSettings, unitMm, type CadSettings } from './cad-settings';
 import { useProductionToolsText } from './production-tools-copy';
+import { applyDrawingGuideChange, prepareDrawingGuideChange } from './drawing-guides';
+import { requestDrawingUi } from './drawing-ui-requests';
 
 function straightBezier(start: CadBezierNode, end: CadBezierNode): CadSegment | null {
   const { x, y, length } = measureCadSegment({ start, end });
@@ -27,31 +29,37 @@ function straightBezier(start: CadBezierNode, end: CadBezierNode): CadSegment | 
     ? { start, end } : null;
 }
 
-function selectedBezierEdge(editor: Editor, shape: TLShape, settings: CadSettings): CadSegment | null {
-  if (shape.type !== 'cad-bezier' || !isCadNodeEditing(editor)) return null;
+function selectedBezierEdges(editor: Editor, shape: TLShape, settings: CadSettings): CadSegment[] {
+  if (shape.type !== 'cad-bezier' || !isCadNodeEditing(editor)) return [];
   const nodes = getSelectedCadNodes(editor);
-  if (nodes.length !== 2 || nodes[0].contourIndex !== nodes[1].contourIndex) return null;
+  if (!nodes.length || nodes.length > 2 || (nodes[1] && nodes[0].contourIndex !== nodes[1].contourIndex)) return [];
   const [a, b] = nodes;
   const contour = (shape.props as { contours: CadContour[] }).contours[a.contourIndex];
-  if (!contour || cadShapeIsClipped(editor, shape) || (shape.meta.omsVectorPaint as { clips?: unknown[] })?.clips?.length) return null;
+  if (!contour || cadShapeIsClipped(editor, shape) || (shape.meta.omsVectorPaint as { clips?: unknown[] })?.clips?.length) return [];
   const next = (index: number) => contour.closed ? (index + 1) % contour.nodes.length : index + 1;
-  if (next(a.nodeIndex) !== b.nodeIndex && next(b.nodeIndex) !== a.nodeIndex) return null;
-  const [first, second] = next(a.nodeIndex) === b.nodeIndex ? [a, b] : [b, a];
   const transform = editor.getShapePageTransform(shape);
   const factor = cadMmPerPixel(settings);
-  const [edge] = mapContours([{
-    closed: false, nodes: [contour.nodes[first.nodeIndex], contour.nodes[second.nodeIndex]]
-  }], point => {
-    const page = transform.applyToPoint(point);
-    return { x: (page.x - settings.originX) * factor, y: (settings.originY - page.y) * factor };
-  });
-  if (!validContours([edge])) return null;
-  return straightBezier(edge.nodes[0], edge.nodes[1]);
+  function edge(i: number, j: number) {
+    const start = contour.nodes[i], end = contour.nodes[j];
+    if (!start || !end) return null;
+    const [mapped] = mapContours([{ closed: false, nodes: [start, end] }], point => {
+      const page = transform.applyToPoint(point);
+      return { x: (page.x - settings.originX) * factor, y: (settings.originY - page.y) * factor };
+    });
+    return validContours([mapped]) ? straightBezier(mapped.nodes[0], mapped.nodes[1]) : null;
+  }
+  if (!b) {
+    const last = contour.closed ? (a.nodeIndex + contour.nodes.length - 1) % contour.nodes.length : a.nodeIndex - 1;
+    const before = edge(last, a.nodeIndex), after = edge(a.nodeIndex, next(a.nodeIndex));
+    return before && after ? [before, after] : [];
+  }
+  const segment = next(a.nodeIndex) === b.nodeIndex ? edge(a.nodeIndex, b.nodeIndex)
+    : next(b.nodeIndex) === a.nodeIndex ? edge(b.nodeIndex, a.nodeIndex) : null;
+  return segment ? [segment] : [];
 }
 
 function straightSegment(editor: Editor, shape: TLShape, settings: CadSettings): CadSegment | null {
   try {
-    if (isCadNodeEditing(editor) && getSelectedCadNodes(editor).length === 2) return selectedBezierEdge(editor, shape, settings);
     const geometry = cadShapeDxfGeometry(editor, shape, settings);
     const entity = geometry.entity ?? (geometry.entities?.length === 1 ? geometry.entities[0] : undefined);
     if (entity?.type === 'polyline' && !entity.closed && entity.points.length === 2) {
@@ -68,6 +76,10 @@ function straightSegment(editor: Editor, shape: TLShape, settings: CadSettings):
 
 function selectedSegments(editor: Editor, settings: CadSettings | null) {
   const shapes = editor.getSelectedShapes();
+  if (settings && shapes.length === 1 && isCadNodeEditing(editor)) {
+    const edges = selectedBezierEdges(editor, shapes[0], settings);
+    if (edges.length || getSelectedCadNodes(editor).length === 2) return edges;
+  }
   return settings && shapes.length <= 2
     ? shapes.map(shape => straightSegment(editor, shape, settings)) : [];
 }
@@ -106,13 +118,26 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
   const [side, setSide] = useState<'left' | 'right' | 'both'>('left');
   const [length, setLength] = useState('100');
   const [heading, setHeading] = useState('45');
+  const [startMode, setStartMode] = useState<'auto' | 'coordinates'>('auto');
+  const [startX, setStartX] = useState('0'), [startY, setStartY] = useState('0');
+  const [relative, setRelative] = useState(false);
   const [result, setResult] = useState<'created' | 'failed'>();
   const unit = settings?.unit ?? 'mm';
   const unitFactor = unitMm(unit);
+  const previousUnit = useRef(unit);
+  useEffect(() => {
+    const factor = unitMm(previousUnit.current) / unitMm(unit);
+    previousUnit.current = unit;
+    if (factor === 1) return;
+    const convert = (value: string) => Number.isFinite(numeric(value)) ? String(Number((numeric(value) * factor).toPrecision(12))) : value;
+    setOffset(convert); setLength(convert); setStartX(convert); setStartY(convert);
+  }, [unit]);
   const [first, second] = segments;
   const measurement = first && measureCadSegment(first);
-  const angle = first && second ? measureCadEdgeAngle(first, second) : undefined;
-  const separation = first && second && measurement && angle !== undefined && angle < 1e-8
+  const joint = first && second ? measureCadJointAngle(first, second) : undefined;
+  const smaller = first && second ? measureCadEdgeAngle(first, second) : undefined;
+  const angle = joint ?? smaller;
+  const separation = first && second && measurement && smaller !== undefined && smaller < 1e-8
     ? Math.abs(measurement.x * (second.start.y - first.start.y) - measurement.y * (second.start.x - first.start.x)) / measurement.length
     : undefined;
   const format = (value: number) => value.toFixed(settings?.precision ?? 2);
@@ -121,7 +146,9 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
   const lengthMm = numeric(length) * unitFactor;
   const headingDegrees = numeric(heading);
   const validOffset = Number.isFinite(offsetMm) && offsetMm > 1e-6;
-  const validLine = Number.isFinite(lengthMm) && lengthMm > 1e-6 && Number.isFinite(headingDegrees);
+  const validLine = Number.isFinite(lengthMm) && lengthMm > 1e-6 && Number.isFinite(headingDegrees) &&
+    (startMode === 'auto' || [startX, startY].every(value => Number.isFinite(numeric(value)))) &&
+    (!relative || (segments.length === 1 && !!first));
   const editable = !!settings && !readOnly;
 
   function construct(kind: 'parallel' | 'angled') {
@@ -140,12 +167,27 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
       if (!validLine) return;
       const center = editor.getViewportPageBounds().center;
       const factor = cadMmPerPixel(current);
-      const start = selection.length === 1 && selection[0] ? selection[0].start
+      const reference = selection.length === 1 ? selection[0] : null;
+      if (relative && !reference) return;
+      const start = startMode === 'coordinates' ? { x: numeric(startX) * unitMm(current.unit), y: numeric(startY) * unitMm(current.unit) }
+        : reference ? reference.start
         : { x: (center.x - current.originX) * factor, y: (current.originY - center.y) * factor };
-      lines = [angledCadSegment(start, numeric(length) * unitMm(current.unit), headingDegrees)];
+      lines = [angledCadSegment(start, numeric(length) * unitMm(current.unit), headingDegrees + (relative && reference ? measureCadSegment(reference).heading : 0))];
       name = t('angledLine');
     }
     setResult(addSegments(editor, current, lines, name) ? 'created' : 'failed');
+  }
+
+  function guideFromEdge() {
+    const current = readCadSettings(editor), edge = selectedSegments(editor, current);
+    if (!current || edge.length !== 1 || !edge[0]) return;
+    const { start } = edge[0], factor = cadMmPerPixel(current);
+    try {
+      const plan = prepareDrawingGuideChange(editor, { kind: 'add', axis: 'angle', angle: measureCadSegment(edge[0]).heading,
+        pivot: { x: current.originX + start.x / factor, y: current.originY - start.y / factor } });
+      if (!applyDrawingGuideChange(editor, plan)) { setResult('failed'); return; }
+      requestDrawingUi(editor, { kind: 'panel', action: 'guides' });
+    } catch { setResult('failed'); }
   }
 
   return <section className="drawing-production-section" aria-label={t('construction')}>
@@ -158,7 +200,7 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
       <dt>{t('heading')}</dt><dd>{format(measurement.heading)}°</dd>
     </dl>}
     {angle !== undefined && <dl className="drawing-cad-values">
-      <dt>{t('angle')}</dt><dd>{format(angle)}°</dd>
+      <dt>{t(joint === undefined ? 'edgeAngle' : 'angle')}</dt><dd>{format(angle)}°</dd>
       {separation !== undefined && <><dt>{t('parallelDistance')}</dt><dd>{distance(separation)}</dd></>}
     </dl>}
     {first && segments.length === 1 && <form className="drawing-cad-fields" onSubmit={event => { event.preventDefault(); construct('parallel'); }}>
@@ -169,15 +211,26 @@ export function CadStraightEdgeTools({ settings }: { settings: CadSettings | nul
         <option value="left">{t('left')}</option><option value="right">{t('right')}</option><option value="both">{t('both')}</option>
       </select></label>
       <button type="submit" disabled={!editable || !validOffset} data-testid="drawing-create-parallel">{t('createParallel')}</button>
+      <button type="button" disabled={!editable} onClick={guideFromEdge}>{t('guideFromEdge')}</button>
     </form>}
     <form className="drawing-cad-fields" onSubmit={event => { event.preventDefault(); construct('angled'); }}>
       <h4>{t('angledLine')}</h4>
+      <label className="drawing-cad-field"><span>{t('lineStart')}</span><select value={startMode} disabled={!editable}
+        onChange={event=>setStartMode(event.target.value as typeof startMode)}>
+        <option value="auto">{t('autoLineStart')}</option><option value="coordinates">{t('exactLineStart')}</option>
+      </select></label>
+      {startMode === 'coordinates' && <>
+        <label className="drawing-cad-field"><span>X ({unit})</span><input type="number" step="any" value={startX} disabled={!editable} onChange={event=>setStartX(event.target.value)} /></label>
+        <label className="drawing-cad-field"><span>Y ({unit})</span><input type="number" step="any" value={startY} disabled={!editable} onChange={event=>setStartY(event.target.value)} /></label>
+      </>}
       <label className="drawing-cad-field"><span>{t('length')} ({unit})</span><input type="number" step="any" min="0" value={length}
         aria-invalid={!Number.isFinite(lengthMm) || lengthMm <= 1e-6} disabled={!editable}
         onChange={event => { setResult(undefined); setLength(event.target.value); }} /></label>
       <label className="drawing-cad-field"><span>{t('heading')} (°)</span><input type="number" step="any" value={heading}
         aria-invalid={!Number.isFinite(headingDegrees)} disabled={!editable}
         onChange={event => { setResult(undefined); setHeading(event.target.value); }} /></label>
+      {(relative || segments.length === 1 && first) && <label className="drawing-cad-check"><input type="checkbox" checked={relative}
+        disabled={!editable} onChange={event=>setRelative(event.target.checked)} /><span>{t('relativeHeading')}</span></label>}
       <p className="drawing-help">{t('headingHelp')}</p>
       <button type="submit" disabled={!editable || !validLine} data-testid="drawing-create-angled">{t('createAngled')}</button>
     </form>

@@ -20,6 +20,77 @@ async function drawWith(page: Page, key: string) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} configures page snapping and offers Page setup for a sizeless sheet`, async ({ page }) => {
+    await open(page, mode);
+    const view = page.locator('[data-drawing-menu="view"]');
+    await view.locator(':scope > summary').click();
+    const snapTo = view.locator('[data-drawing-submenu="snapTo"]');
+    await snapTo.locator(':scope > summary').hover();
+    await snapTo.locator('[data-command="snapPage"]').click();
+    await page.getByTestId('drawing-status-snap-options').click();
+    const options = page.getByTestId('drawing-snap-options');
+    await expect(options.getByTestId('drawing-snap-page')).toBeChecked();
+    await options.getByRole('button', { name: 'Page setup', exact: true }).click();
+    const setup = page.getByTestId('drawing-page-setup');
+    await setup.getByLabel('Size preset', { exact: true }).selectOption('A4');
+    await setup.getByRole('button', { name: 'Apply page setup', exact: true }).click();
+    await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
+    await page.getByTestId('drawing-status-snap-options').click();
+    await expect(options.getByTestId('drawing-snap-page')).toBeChecked();
+    await expect(options.getByRole('button', { name: 'Page setup', exact: true })).toHaveCount(0);
+  });
+
+  test(`${mode} uses one-shot F2, persistent Z and X for erasing`, async ({ page }) => {
+    await open(page, mode);
+    const viewport = await page.locator('.drawing-viewport').boundingBox();
+    if (!viewport) throw new Error('Drawing viewport missing');
+    const point = { x: viewport.x + 40, y: viewport.y + viewport.height - 40 };
+    await page.mouse.click(point.x, point.y);
+    await page.keyboard.press('F6');
+    await page.keyboard.press('F2');
+    await expect.poll(async () => (await scene(page)).tool).toBe('zoom');
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(async () => (await scene(page)).tool).toBe('geo');
+    await page.keyboard.press('F2');
+    await page.keyboard.press('Escape');
+    await expect.poll(async () => (await scene(page)).tool).toBe('geo');
+    await page.keyboard.press('z');
+    await expect.poll(async () => (await scene(page)).tool).toBe('zoom');
+    await page.keyboard.press('x');
+    await expect.poll(async () => (await scene(page)).tool).toBe('eraser');
+  });
+
+  test(`${mode} opens the targeted paint controls and toggles grid snapping independently`, async ({ page }) => {
+    await open(page, mode);
+    await drawWith(page, 'F6');
+    await page.keyboard.press('Control+q');
+    await page.keyboard.press('F11');
+    await expect(page.getByTestId('gradient-fill-section')).toHaveAttribute('open', '');
+    await expect(page.getByTestId('gradient-fill-section').locator('summary')).toBeFocused();
+    await page.keyboard.press('Shift+F11');
+    await expect(page.getByTestId('vector-paint').locator('> summary')).toBeFocused();
+    await page.keyboard.press('Shift+F12');
+    await expect(page.getByTestId('drawing-outline-pen').locator('input[type=color]')).toBeFocused();
+    await page.getByTestId('drawing-status-snap-options').click();
+    await page.getByTestId('drawing-snap-master').check();
+    await expect(page.getByTestId('drawing-snap-grid-show')).not.toBeChecked();
+    await page.keyboard.press('Alt+y');
+    await expect(page.getByTestId('drawing-snap-grid')).toBeChecked();
+    await expect(page.getByTestId('drawing-snap-grid-show')).not.toBeChecked();
+    await expect(page.getByTestId('drawing-snap-objects')).toBeChecked();
+    await page.keyboard.press('Alt+z');
+    await expect(page.getByTestId('drawing-snap-objects')).not.toBeChecked();
+    await expect(page.getByTestId('drawing-snap-endpoints')).toBeDisabled();
+    await expect(page.getByTestId('drawing-snap-grid')).toBeChecked();
+    await expect(page.getByTestId('drawing-snap-guidelines')).toBeChecked();
+    await page.keyboard.press('Alt+q');
+    await expect(page.getByTestId('drawing-snap-master')).not.toBeChecked();
+    await page.keyboard.press('Alt+z');
+    await expect(page.getByTestId('drawing-snap-master')).not.toBeChecked();
+    await expect(page.getByTestId('drawing-snap-objects')).toBeChecked();
+    await expect(page.getByTestId('drawing-snap-grid')).toBeChecked();
+  });
+
   test(`${mode} lists every instrument and activates every drawing mode`, async ({ page }) => {
     test.setTimeout(60_000);
     await open(page, mode);

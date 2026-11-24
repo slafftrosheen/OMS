@@ -114,7 +114,52 @@ for (const mode of ['idea', 'order']) {
     await expect(drawing.getByText('Dimension reference missing', { exact: true })).toBeVisible();
     await expect(drawing.getByText('160.00 mm', { exact: true })).toHaveCount(0);
   });
-  test(`${mode} drops DXF as editable artwork and opens EPS in editable mode`, async ({ page }) => {
+  test(`${mode} drawing picker reviews a batch in order and opens each supported format`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    const toolbar = page.getByTestId('drawing-import');
+    await expect(toolbar).toBeEnabled();
+    async function choose(files: { name: string; mimeType: string; buffer: Buffer }[]) {
+      const chooser = page.waitForEvent('filechooser');
+      await toolbar.click();
+      await (await chooser).setFiles(files);
+    }
+    const svg = { name: 'workshop.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="10mm"><rect width="100%" height="100%"/></svg>') };
+    const dxf = { name: 'workshop.dxf', mimeType: 'application/dxf',
+      buffer: await readFile('tests/fixtures/cad-splines/mixed-ascii.dxf') };
+    await choose([svg, dxf]);
+    const queue = page.getByTestId('drawing-import-queue');
+    const panel = page.getByTestId('vector-import');
+    await expect(queue).toContainText('Drawing import queue · 2');
+    await queue.getByText('Waiting files', {exact: true}).click();
+    await expect(queue.getByText(dxf.name, {exact: true})).toBeVisible();
+    await expect(panel.getByText(svg.name, {exact: true})).toBeVisible();
+    const enable = page.getByRole('button', { name: 'Enable CAD in mm at 1:1', exact: true });
+    if (await enable.isVisible()) await enable.click();
+    await panel.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await panel.getByTestId('vector-apply').click();
+    const dxfPanel = page.getByTestId('drawing-cad-import');
+    await expect(dxfPanel.getByText(dxf.name, { exact: true })).toBeVisible();
+    await expect(queue).toContainText('Drawing import queue · 1');
+    await dxfPanel.getByRole('button', {name: 'Skip this file'}).click();
+    await expect(queue).toHaveCount(0);
+    for (const [name, mimeType, expectedMode, singlePage] of [
+      ['workshop.pdf', 'application/pdf', 'auto', false],
+      ['workshop.eps', 'application/postscript', 'editable', true],
+      ['workshop.cdr', 'application/vnd.corel-draw', 'editable', false],
+    ] as const) {
+      await choose([{ name, mimeType, buffer: Buffer.from('fixture') }]);
+      await expect(panel.getByText(name, { exact: true })).toBeVisible();
+      await expect(panel.getByRole('combobox', { name: 'Import mode' })).toHaveValue(expectedMode);
+      const pageField = panel.getByRole('spinbutton', { name: 'Page number' });
+      if (singlePage) await expect(pageField).toBeDisabled(); else await expect(pageField).toBeEnabled();
+      await panel.getByRole('button', { name: 'Skip this file' }).click();
+    }
+    await expect.poll(async () => (await scene(page)).shapes.some((shape: any) => shape.type === 'cad-bezier')).toBe(true);
+  });
+
+  test(`${mode} drops DXF and SVG as editable artwork and opens EPS in editable mode`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
     await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
@@ -154,6 +199,20 @@ for (const mode of ['idea', 'order']) {
     const eps = page.getByTestId('vector-import');
     await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
     await expect(eps.getByRole('combobox', { name: 'Import mode' })).toHaveValue('editable');
+    await drop('editable-logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50"><path fill="#145abc" fill-rule="evenodd" d="M10 10H30V30H10Z M15 15H25V25H15Z"/></svg>');
+    await expect(page.getByTestId('drawing-import-queue')).toContainText('Drawing import queue · 2');
+    await expect(eps.getByText('editable-paths.eps', { exact: true })).toBeVisible();
+    await eps.getByRole('button', {name: 'Skip this file'}).click();
+    const svg = page.getByTestId('vector-import');
+    await expect(svg.getByText('editable-logo.svg', { exact: true })).toBeVisible();
+    await expect(svg.getByRole('combobox', { name: 'Import mode' })).toHaveCount(0);
+    await svg.getByRole('button', { name: /preview/i }).click();
+    await svg.getByTestId('vector-apply').click();
+    await expect.poll(async () => {
+      const { shapes, selected } = await scene(page);
+      const logo = shapes.find((shape: any) => selected.includes(shape.id) && shape.type === 'cad-bezier');
+      return { fill: logo?.meta.omsVectorPaint?.fill, rule: logo?.props.fillRule, contours: logo?.props.contours.length };
+    }).toEqual({ fill: '#145abc', rule: 'evenodd', contours: 2 });
   });
 
   test(`${mode} builds production vectors and keeps controls in full screen`, async ({ page }) => {

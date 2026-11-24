@@ -1,5 +1,6 @@
 import type { Editor } from '@tldraw/tldraw';
 import { regularPolygon, cornerContour } from './cad-corners';
+import { NODE_FILLET_TOLERANCE_MM } from './cad-node-corners';
 import { mapContours, nodeAt, type CadContour } from './cad-curves';
 import { cadPointToCanvas, unitMm, validateCadSettings, type CadSettings } from './cad-settings';
 import { makeCadPlan, CadOperationError } from './cad-plans';
@@ -15,7 +16,7 @@ export interface ParametricShapeOptions {
  * Coordinates and corner size are in document units, angles are CAD Y-up.
  * Complex-star cycles visit every vertex once, including disconnected cycles
  * when point count and skip step have a common divisor (six/2 = two triangles). */
-export function parametricShapeContours(options: ParametricShapeOptions): CadContour[] {
+export function parametricShapeContours(options: ParametricShapeOptions, tolerance = NODE_FILLET_TOLERANCE_MM): CadContour[] {
   const { kind, points, step, innerRatio, width, height, centerX, centerY, rotation, corner, cornerSize } = options;
   if (!['polygon', 'star', 'complex-star'].includes(kind) || !Number.isInteger(points) || points < 3 || points > 64 ||
       ![width, height, centerX, centerY, rotation].every(Number.isFinite) || width <= 0 || height <= 0 ||
@@ -36,7 +37,7 @@ export function parametricShapeContours(options: ParametricShapeOptions): CadCon
       do { visited.add(index); nodes.push(nodeAt(scaled.nodes[index])); index = (index + step) % points; } while (index !== first);
       contours.push({ closed: true, nodes });
     }
-  } else if (corner !== 'sharp') contours = [cornerContour(scaled, cornerSize, corner)];
+  } else if (corner !== 'sharp') contours = [cornerContour(scaled, cornerSize, corner, cornerSize, tolerance)];
   const a = rotation * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
   return mapContours(contours, p => ({ x: centerX + p.x * c - p.y * s, y: centerY + p.x * s + p.y * c }));
 }
@@ -44,6 +45,6 @@ export function parametricShapeContours(options: ParametricShapeOptions): CadCon
 export function prepareParametricShape(editor: Editor, settings: CadSettings, options: ParametricShapeOptions) {
   if (!validateCadSettings(settings) || Math.max(options.width, options.height) * unitMm(settings.unit) > 1_000_000)
     throw new CadOperationError('shape-input');
-  const contours = mapContours(parametricShapeContours(options), p => cadPointToCanvas(p, settings));
+  const contours = mapContours(parametricShapeContours(options, NODE_FILLET_TOLERANCE_MM / unitMm(settings.unit)), p => cadPointToCanvas(p, settings));
   return makeCadPlan(editor, settings, contours, { name: options.kind === 'polygon' ? 'Polygon' : options.kind === 'star' ? 'Star' : 'Complex star' });
 }

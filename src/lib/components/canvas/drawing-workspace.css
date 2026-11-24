@@ -205,6 +205,9 @@
 .drawing-cad-section:last-child { border-bottom: 0; margin-bottom: 0; }
 .drawing-cad-section > summary { min-height: 32px; padding: 8px 0; cursor: pointer; font-weight: 600; }
 .drawing-cad-section[open] > summary { margin-bottom: 4px; }
+.drawing-import-queue { border-bottom: 1px solid var(--border); margin-bottom: 8px; padding-bottom: 8px; }
+.drawing-import-queue p { margin: 4px 0; font-weight: 600; }
+.drawing-import-queue ol { margin: 4px 0; padding-inline-start: 24px; max-height: 120px; overflow: auto; overflow-wrap: anywhere; }
 .drawing-cad-fields { display: grid; gap: 8px; border: 0; padding: 0; margin: 0 0 8px; min-width: 0; }
 .drawing-cad-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(76px, 1fr); align-items: center; gap: 8px; font-size: 11px; }
 .drawing-cad-field > span { overflow-wrap: anywhere; }

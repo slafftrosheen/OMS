@@ -56,7 +56,7 @@ describe('parametric polygon and star construction', () => {
     const plain = contours({ points: 4 })[0];
     const chamfer = contours({ points: 4, corner: 'chamfer', cornerSize: 3 })[0];
     const fillet = contours({ points: 4, corner: 'fillet', cornerSize: 3 })[0];
-    assert.equal(chamfer.nodes.length, 8); assert.equal(fillet.nodes.length, 8);
+    assert.equal(chamfer.nodes.length, 8); assert.ok(fillet.nodes.length >= 8);
     near(Math.hypot(chamfer.nodes[0].x - plain.nodes[0].x, chamfer.nodes[0].y - plain.nodes[0].y), 3);
     assert.ok(chamfer.nodes.every(n => n.inX === 0 && n.inY === 0 && n.outX === 0 && n.outY === 0));
     assert.ok(fillet.nodes.some(n => Math.hypot(n.inX, n.inY, n.outX, n.outY) > 0)); assert.ok(validContours([fillet]));

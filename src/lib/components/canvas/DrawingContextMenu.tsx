@@ -12,7 +12,8 @@ import { useArrangeTaskText } from './arrange-task-copy';
 import { useOutlineText } from './outline-copy';
 import { useOutlineToObjectText } from './outline-object-copy';
 import { useObjectTreeText } from './object-tree-copy';
-import { captureDrawingObjectStack } from './drawing-object-tree';
+import { useDrawingCommandText } from './drawing-command-copy';
+import { captureDrawingObjectStack, prepareDrawingObjectOrder } from './drawing-object-tree';
 import { requestDrawingUi, type DrawingUiRequest } from './drawing-ui-requests';
 
 /** Reuse the editor's menu positioning, pointer selection, submenus, focus and
@@ -81,12 +82,15 @@ function DrawingContextMenuContent() {
   const workbench = useWorkbenchText(), arrange = useArrangeTaskText();
   const outline = useOutlineText(), outlineObject = useOutlineToObjectText();
   const objects = useObjectTreeText();
+  const { commands } = useDrawingCommandText();
   const state = useValue('OMS context selection', () => {
     const controls = captureToolkitControls(editor), shapes = editor.getSelectedShapes();
     let editable = controls.canEditSelection;
     try { assertCadEditable(editor, [...editor.getSelectedShapeIds()]); } catch { editable = false; }
     const stack = captureDrawingObjectStack(editor);
     return { controls, editable, canReverse: !!stack && stack.selected.length > 1,
+      canMoveToLayerFront: editable && !!prepareDrawingObjectOrder(editor, { kind: 'layer-edge', side: 'front' }),
+      canMoveToLayerBack: editable && !!prepareDrawingObjectOrder(editor, { kind: 'layer-edge', side: 'behind' }),
       text: shapes.length === 1 && shapes[0].type === 'text',
       curve: shapes.length === 1 && ['cad-path', 'cad-bezier'].includes(shapes[0].type),
       drawing: shapes.length > 0 && shapes.every(shape => ['group', 'geo', 'draw', 'highlight', 'line', 'arrow',
@@ -138,8 +142,10 @@ function DrawingContextMenuContent() {
       </TldrawUiMenuSubmenu>
       <TldrawUiMenuSubmenu id="oms-order" label={label('objectOrder')} disabled={!editable}>
         {command('front', tr('toolkit.toolbar.front'), editable, '$Home')}
+        {command('frontLayer', commands.frontLayer, state.canMoveToLayerFront, '!PageUp')}
         {command('forward', label('forward'), editable, '$PageUp')}
         {command('backward', label('backward'), editable, '$PageDown')}
+        {command('backLayer', commands.backLayer, state.canMoveToLayerBack, '!PageDown')}
         {command('back', tr('toolkit.toolbar.back'), editable, '$End')}
         {item('relative-order', objects('relativeOrder'), { kind: 'objects', action: 'relative' })}
         {item('reverse-order', objects('reverse'), { kind: 'objects', action: 'reverse' }, state.canReverse)}
@@ -147,7 +153,7 @@ function DrawingContextMenuContent() {
       {command('lock', label('lock'))}
     </TldrawUiMenuGroup>
     {editable && state.drawing && <TldrawUiMenuGroup id="oms-curves">
-      {item('convert', workbench('outlines'), { kind: 'cad', action: 'convert' }, true, '$q')}
+      {command('convert', commands.convert, editable, '$q')}
       {item('outline', outline('title'), { kind: 'cad', action: 'outline' }, true, 'F12')}
       {item('outline-object', outlineObject('title'), { kind: 'cad', action: 'outlineObject' }, true, '$!q')}
       {item('fill', label('fill'), { kind: 'cad', action: 'paint' })}

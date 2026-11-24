@@ -4,7 +4,7 @@ import { canvasLengthToUnit, type CadSettings } from './cad-settings';
 import { polylineSession, resolveCadDraftPoint, type CadPointEntryMode } from './cad-polyline-draft';
 import { useWorkbenchText } from './workbench-copy';
 
-export function CadPointEntry({ settings }: { settings: CadSettings | null }) {
+export function CadPointEntry({ settings, singleSegment = false }: { settings: CadSettings | null; singleSegment?: boolean }) {
   const editor = useEditor(), t = useWorkbenchText(), session = polylineSession(editor);
   const draft = useValue('typed polyline points', () => session.state.get(), [session]);
   const readonly = useValue('typed point permission', () => editor.getInstanceState().isReadonly, [editor]);
@@ -28,8 +28,10 @@ export function CadPointEntry({ settings }: { settings: CadSettings | null }) {
       <label><span>{mode === 'polar' ? `${t('angle')} (°)` : `${mode === 'offset' ? 'ΔY' : 'Y'} ↑ (${unit})`}</span><input aria-label={mode === 'polar' ? `${t('angle')} (°)` : `${mode === 'offset' ? 'ΔY' : 'Y'} (${unit})`} type="number" step="any" required value={second} onChange={event => { setSecond(event.target.value); setFailed(false); }}/></label>
       <button type="submit" disabled={!point}>{t('addPoint')}</button>
       <button type="button" disabled={!count} onClick={() => { session.controller?.back(); setFailed(false); }}>{t('previousPoint')}</button>
-      <button type="button" disabled={count < 2} onClick={() => complete(false)}>{t('finishPath')}</button>
-      <button type="button" disabled={count < 3} onClick={() => complete(true)}>{t('closePath')}</button>
+      {!singleSegment && <>
+        <button type="button" disabled={count < 2} onClick={() => complete(false)}>{t('finishPath')}</button>
+        <button type="button" disabled={count < 3} onClick={() => complete(true)}>{t('closePath')}</button>
+      </>}
     </fieldset>
     {failed && <span className="drawing-point-error" role="alert">{t('pointInvalid')}</span>}
     {!failed && last && draft?.pointer && <span className="drawing-point-live" aria-label={t('segmentPreview')}>

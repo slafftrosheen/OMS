@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { createTLStore, defaultShapeUtils, HistoryManager } from '@tldraw/tldraw';
+import { Box, createTLStore, defaultShapeUtils, HistoryManager } from '@tldraw/tldraw';
 import { fixture } from '../helpers/cad-editor';
 import { findCadSnap, snapCadPoint, clearCadSnap, cadSnapIndicator, lineSnapIntersection, nearestCubicPoint, snapCadHandle, type CadSnapKind } from '../../src/lib/components/canvas/cad-snap';
 import { readCadSnapSettings, writeCadSnapSettings, DEFAULT_CAD_SNAP_SETTINGS } from '../../src/lib/components/canvas/cad-snap-settings';
@@ -10,6 +10,8 @@ import { CadCircleTool, CadDimensionTool } from '../../src/lib/components/canvas
 import { CadBezierTool } from '../../src/lib/components/canvas/CadBezierTool';
 import { CadArcThreePointTool } from '../../src/lib/components/canvas/CadThreePointTool';
 import { CadPathShapeUtil, CadDimensionShapeUtil } from '../../src/lib/components/canvas/shapes/CadShapes';
+import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
+import { nearestDrawingPageSnap } from '../../src/lib/components/canvas/drawing-page-snap';
 
 function setup(...targets: CadSnapKind[]) {
   const f = fixture(); f.state.snap = true;
@@ -23,6 +25,44 @@ const line = (f: ReturnType<typeof setup>, id: string, a = { x: 0, y: 0 }, b = {
 function close(actual: {x:number;y:number} | undefined, expected: {x:number;y:number}, tolerance = 1e-5) {
   assert.ok(actual && Math.hypot(actual.x - expected.x, actual.y - expected.y) <= tolerance, `${JSON.stringify(actual)} != ${JSON.stringify(expected)}`);
 }
+
+describe('calibrated sheet snapping', () => {
+  it('acquires landmarks and finite edges with circular tolerance and honors locked axes', () => {
+    const page = new Box(0, 0, 400, 200);
+    for (const [point, target, expected] of [
+      [{ x: 203, y: 98 }, 'center', { x: 200, y: 100 }],
+      [{ x: -3, y: 2 }, 'corner', { x: 0, y: 0 }],
+      [{ x: 196, y: 198 }, 'midpoint', { x: 200, y: 200 }],
+      [{ x: 396, y: 65 }, 'edge', { x: 400, y: 65 }],
+    ] as const) {
+      const hit = nearestDrawingPageSnap(page, point, 8);
+      assert.equal(hit?.target, target);
+      assert.deepEqual(hit?.point, expected);
+    }
+    assert.equal(nearestDrawingPageSnap(page, { x: -6, y: -6 }, 8), null);
+    assert.equal(nearestDrawingPageSnap(page, { x: 400, y: -20 }, 8), null);
+    assert.equal(nearestDrawingPageSnap(page, { x: 203, y: 98 }, 8, new Set(['x'])), null);
+    assert.deepEqual(nearestDrawingPageSnap(page, { x: 200, y: 98 }, 8, new Set(['x'])), {
+      point: { x: 200, y: 100 }, target: 'center',
+    });
+  });
+
+  it('is independent of objects and switches, follows calibrated scale, and ignores the drawing datum', () => {
+    const f = setup('page');
+    const point = { x: 243, y: 118 }, center = { x: 240, y: 120 };
+    assert.equal(findCadSnap(f.editor, point, null), null);
+    f.editor.updatePage({ meta: { ...f.editor.getCurrentPage().meta, omsPageSize: { widthMm: 254, heightMm: 127 },
+      omsCad: { ...DEFAULT_CAD_SETTINGS, scale: 2, originX: 400, originY: -300 } } });
+    assert.equal(writeCadSnapSettings(f.editor, { objects: false, guidelines: false }), true);
+    const hit = findCadSnap(f.editor, point, null);
+    assert.equal(hit?.kind, 'page'); close(hit?.point, center);
+    f.editor.inputs.ctrlKey = true;
+    assert.equal(findCadSnap(f.editor, point, null), null);
+    f.editor.inputs.ctrlKey = false;
+    assert.equal(writeCadSnapSettings(f.editor, { page: false }), true);
+    assert.equal(findCadSnap(f.editor, point, null), null);
+  });
+});
 
 describe('selectable CAD snap targets', () => {
   it('toggles endpoint and midpoint independently and handles rotated groups', () => {
@@ -87,6 +127,23 @@ describe('selectable CAD snap targets', () => {
     f.editor.updatePage({ meta: { ...f.editor.getCurrentPage().meta, omsCad: { originX: 7, originY: 9 } } });
     close(findCadSnap(f.editor, { x: -18, y: 22 }, null)?.point, { x: -20, y: 20 });
   });
+
+  it('ignores object geometry when object snapping is off while leaving grid and saved points active', () => {
+    const f = setup('endpoints', 'grid');
+    line(f, 'shape:reference', { x: 4, y: 4 }, { x: 40, y: 4 });
+    const point = { x: 5, y: 4 };
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'endpoints');
+    assert.equal(writeCadSnapSettings(f.editor, { objects: false }), true);
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'grid');
+    assert.equal(readCadSnapSettings(f.editor).endpoints, true);
+    assert.equal(readCadSnapSettings(f.editor).guidelines, true);
+    f.state.snap = false;
+    f.editor.inputs.ctrlKey = true;
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'grid');
+    assert.equal(writeCadSnapSettings(f.editor, { objects: true }), true);
+    assert.equal(findCadSnap(f.editor, point, null)?.kind, 'endpoints');
+    assert.equal(f.state.snap, false);
+  });
   it('excludes self, invisible and clipped artwork, but permits locked reference geometry', () => {
     const f = setup('endpoints'); line(f, 'shape:path');
     assert.equal(findCadSnap(f.editor, { x: 1, y: 0 }, 'shape:path' as any), null);
@@ -143,11 +200,12 @@ describe('saved snap settings', () => {
     const editor: any = { store, getInstanceState: () => ({ isReadonly: false }), getCurrentPage: () => store.get('page:page' as any), getDocumentSettings: () => store.get('document:document' as any),
       updatePage: (patch: any) => store.put([{ ...editor.getCurrentPage(), ...patch }]), run: history.batch, mark: history.mark.bind(history), bailToMark: history.bailToMark };
     try {
-      assert.equal(writeCadSnapSettings(editor, { midpoints: true, perpendicular: true, tangent: true, grid: true, gridSpacing: 25, tolerance: 12 }), true);
+      assert.equal(writeCadSnapSettings(editor, { objects: false, midpoints: true, perpendicular: true, tangent: true, grid: true, gridSpacing: 25, tolerance: 12 }), true);
       const saved = JSON.parse(JSON.stringify(store.serialize())); assert.equal(saved['page:page'].meta.omsCadSnap.midpoints, true); assert.equal(saved['document:document'].gridSize, 25);
       assert.equal(saved['page:page'].meta.omsCadSnap.perpendicular, true); assert.equal(saved['page:page'].meta.omsCadSnap.tangent, true);
       history.undo(); assert.deepEqual(readCadSnapSettings(editor), DEFAULT_CAD_SNAP_SETTINGS);
       history.redo(); assert.equal(readCadSnapSettings(editor).gridSpacing, 25); assert.equal(readCadSnapSettings(editor).midpoints, true); assert.equal(editor.getCurrentPage().meta.keep, true);
+      assert.equal(readCadSnapSettings(editor).objects, false);
       assert.equal(readCadSnapSettings(editor).perpendicular, true); assert.equal(readCadSnapSettings(editor).tangent, true);
     } finally { history.dispose(); }
   });

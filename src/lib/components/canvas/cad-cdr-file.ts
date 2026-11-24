@@ -10,25 +10,33 @@ export function isRiffCdr(bytes: Uint8Array, size = bytes.length): boolean {
   return length >= 4 && length + 8 <= size;
 }
 
-/** Check the directory before any native decoder inflates a CDR package. */
-export function isCdrArchive(
-  bytes: Uint8Array,
-  verifyEntry?: (data: Uint8Array, size: number, method: number) => boolean,
-): boolean {
-  if (bytes.length < 22) return false;
+const directoryTailSize = 22 + 65_535;
+
+function cdrDirectory(bytes: Uint8Array, size: number) {
+  if (bytes.length < 22) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (view.getUint32(0, true) !== localSignature) return false;
   let end = bytes.length - 22;
   const minimum = Math.max(0, end - 65_535);
   for (; end >= minimum; end--) {
     if (view.getUint32(end, true) === endSignature && end + 22 + view.getUint16(end + 20, true) === bytes.length)
       break;
   }
-  if (end < minimum || view.getUint16(end + 4, true) || view.getUint16(end + 6, true)) return false;
-  const count = view.getUint16(end + 10, true), size = view.getUint32(end + 12, true);
+  if (end < minimum || view.getUint16(end + 4, true) || view.getUint16(end + 6, true)) return null;
+  const count = view.getUint16(end + 10, true), directorySize = view.getUint32(end + 12, true);
   const start = view.getUint32(end + 16, true);
-  if (!count || count > 4096 || count !== view.getUint16(end + 8, true) || start + size !== end) return false;
-  let offset = start, expanded = 0, found = false;
+  if (!count || count > 4096 || count !== view.getUint16(end + 8, true) ||
+      start + directorySize !== size - bytes.length + end) return null;
+  return { start, end: start + directorySize, count };
+}
+
+type CdrEntry = { name: string; nameLength: number; local: number; method: number; flags: number; length: number; compressed: number };
+
+function checkDirectory(
+  directory: Uint8Array, count: number, start: number, checkEntry?: (entry: CdrEntry) => boolean,
+): boolean {
+  const view = new DataView(directory.buffer, directory.byteOffset, directory.byteLength);
+  const end = directory.length;
+  let offset = 0, expanded = 0, found = false;
   const names = new Set<string>();
   for (let i = 0; i < count; i++) {
     if (offset + 46 > end || view.getUint32(offset, true) !== centralSignature) return false;
@@ -39,20 +47,48 @@ export function isCdrArchive(
     const next = offset + 46 + nameLength + extra + comment;
     expanded += length;
     if (!nameLength || next > end || expanded > maxExpandedBytes || flags & 1 ||
-        (method !== 0 && method !== 8) || view.getUint16(offset + 34, true) || local + 30 > start ||
-        view.getUint32(local, true) !== localSignature) return false;
-    const nameStart = local + 30;
-    const dataStart = nameStart + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
-    if (dataStart + compressed > start ||
-        view.getUint16(local + 26, true) !== nameLength ||
-        view.getUint16(local + 8, true) !== method || view.getUint16(local + 6, true) !== flags) return false;
-    const name = text.decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
-    if (name !== text.decode(bytes.subarray(nameStart, nameStart + nameLength)) ||
-        name.startsWith('/') || /[\\:\u0000]/.test(name) || name.split('/').includes('..') || names.has(name)) return false;
-    if (verifyEntry && !verifyEntry(bytes.subarray(dataStart, dataStart + compressed), length, method)) return false;
+        (method !== 0 && method !== 8) || view.getUint16(offset + 34, true) || local + 30 + nameLength + compressed > start) return false;
+    const name = text.decode(directory.subarray(offset + 46, offset + 46 + nameLength));
+    if (name.startsWith('/') || /[\\:\u0000]/.test(name) || name.split('/').includes('..') || names.has(name)) return false;
+    if (checkEntry && !checkEntry({ name, nameLength, local, method, flags, length, compressed })) return false;
     names.add(name);
     if (/^content\/(?:riffData\.cdr|root\.dat)$/i.test(name) && length >= 12) found = true;
     offset = next;
   }
   return offset === end && found;
+}
+
+/** Browser preflight reads only the ZIP directory. Local headers and the
+ * bounded inflated sizes are verified again on the server before conversion. */
+export async function probeCdrArchive(file: Blob): Promise<boolean> {
+  const tailStart = Math.max(0, file.size - directoryTailSize);
+  const tail = new Uint8Array(await file.slice(tailStart).arrayBuffer());
+  const archive = cdrDirectory(tail, file.size);
+  if (!archive) return false;
+  const { start, end, count } = archive;
+  const directory = start >= tailStart ? tail.subarray(start - tailStart, end - tailStart)
+    : new Uint8Array(await file.slice(start, end).arrayBuffer());
+  return checkDirectory(directory, count, start);
+}
+
+/** Check the directory and every local entry before a native decoder inflates the package. */
+export function isCdrArchive(
+  bytes: Uint8Array,
+  verifyEntry?: (data: Uint8Array, size: number, method: number) => boolean,
+): boolean {
+  if (bytes.length < 22) return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint32(0, true) !== localSignature) return false;
+  const archive = cdrDirectory(bytes, bytes.length);
+  if (!archive) return false;
+  const { start, end, count } = archive;
+  return checkDirectory(bytes.subarray(start, end), count, start, entry => {
+    const { name, nameLength, local, method, flags, length, compressed } = entry;
+    if (view.getUint32(local, true) !== localSignature || view.getUint16(local + 26, true) !== nameLength ||
+        view.getUint16(local + 8, true) !== method || view.getUint16(local + 6, true) !== flags) return false;
+    const nameStart = local + 30;
+    const dataStart = nameStart + nameLength + view.getUint16(local + 28, true);
+    if (dataStart + compressed > start || name !== text.decode(bytes.subarray(nameStart, nameStart + nameLength))) return false;
+    return !verifyEntry || verifyEntry(bytes.subarray(dataStart, dataStart + compressed), length, method);
+  });
 }

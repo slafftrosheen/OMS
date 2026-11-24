@@ -13,17 +13,17 @@ export function DrawingGuideAlignment({ guide }: { guide: DrawingGuide | null })
   const readonly = useValue('Guideline alignment readonly', () => editor.getInstanceState().isReadonly, [editor]);
   const busy = drawingGuidesBusy(editor);
   const ready = useValue('Guideline alignment readiness', () => {
-    if (!guide || busy) return false;
+    if (!guide || guide.axis === 'angle' || busy) return false;
     try { return !!prepareArrangePlan(editor, { kind: 'align', axis: guide.axis, alignment: 'center', reference: { position: guide.position, together } }); }
     catch { return false; }
   }, [editor, guide?.id, guide?.axis, guide?.position, together, revision, readonly, busy]);
-  if (!guide) return null;
+  if (!guide || guide.axis === 'angle') return null;
   const alignmentLabels = guide.axis === 'x' ? ['alignLeft', 'alignCenterX', 'alignRight'] as const
     : ['alignTop', 'alignCenterY', 'alignBottom'] as const;
   function align(alignment: 'start' | 'center' | 'end') {
     if (drawingGuidesBusy(editor)) { setMessage('busy'); return; }
     const current = readDrawingGuides(editor).guides.find(item => item.id === guide!.id);
-    if (!current || current.axis !== guide!.axis || current.position !== guide!.position || cadRevision(editor) !== revision) { setMessage('alignFailed'); return; }
+    if (!current || current.axis === 'angle' || current.axis !== guide!.axis || current.position !== guide!.position || cadRevision(editor) !== revision) { setMessage('alignFailed'); return; }
     try {
       const plan = prepareArrangePlan(editor, { kind: 'align', axis: current.axis, alignment, reference: { position: current.position, together } });
       setMessage(applyArrangePlan(editor, plan) ? 'aligned' : 'alignFailed');

@@ -62,6 +62,7 @@ describe('OMS-R12 Order and Draft Order contract',()=>{
     expect(MAX_ORDER_FILE_BYTES).toBe(25*1024*1024);
     expect(normalizeOrderFile({name:'drawing.cdr',type:'application/octet-stream',size:1024}).mime).toBe('application/octet-stream');
     expect(normalizeOrderFile({name:'laser.dxf',type:'application/x-dxf',size:1024}).mime).toBe('application/dxf');
+    expect(normalizeOrderFile({name:'artwork.eps',type:'image/x-eps',size:1024}).mime).toBe('application/postscript');
     expect(normalizeOrderFile({name:'artwork.pdf',type:'application/pdf',size:1024}).mime).toBe('application/pdf');
     expect(()=>normalizeOrderFile({name:'payload.exe',type:'application/octet-stream',size:300})).toThrow();
     expect(()=>normalizeOrderFile({name:'fake.pdf',type:'image/jpeg',size:300})).toThrow();

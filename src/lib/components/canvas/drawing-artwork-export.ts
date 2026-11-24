@@ -6,57 +6,19 @@ import { cadRevision } from './cad-plans';
 import { drawingPngSize, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { readDrawingPageSize } from './drawing-pages';
 
-// Match private attachment limits; the aggregate also bounds base64 expansion.
-export const DRAWING_EXPORT_ASSET_BYTES = 25 * 1024 * 1024;
-export const DRAWING_EXPORT_TOTAL_ASSET_BYTES = 64 * 1024 * 1024;
-const MAX_ASSET_PIXELS = 64 * 1024 * 1024;
+import { readOriginalDrawingRaster, decodeOriginalDrawingRaster, DRAWING_EXPORT_ASSET_BYTES,
+  DRAWING_EXPORT_TOTAL_ASSET_BYTES, DRAWING_EXPORT_TOTAL_ASSET_PIXELS } from './drawing-raster-original';
+export { DRAWING_EXPORT_ASSET_BYTES, DRAWING_EXPORT_TOTAL_ASSET_BYTES } from './drawing-raster-original';
 
 function revision(editor: Editor) {
   return JSON.stringify([cadRevision(editor), editor.getAssets()]);
 }
 
 async function originalRaster(raster: VectorRaster, signal: AbortSignal, remaining: number, check: () => void) {
-  if (!validRasterReference(raster.png, raster.fileId)) throw new Error('asset-fetch');
-  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(60_000)]);
-  let response: Response;
-  try { response = await fetch(raster.png, { credentials: 'same-origin', redirect: 'error', signal: requestSignal }); }
-  catch { check(); throw new Error('asset-fetch'); }
-  try { check(); } catch (error) { await response.body?.cancel(); throw error; }
-  const limit = Math.min(DRAWING_EXPORT_ASSET_BYTES, remaining);
-  if (!response.ok || response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'image/png' || !response.body) {
-    await response.body?.cancel(); throw new Error('asset-fetch');
-  }
-  if (Number(response.headers.get('content-length')) > limit) {
-    await response.body.cancel(); throw new Error('limit');
-  }
-  const reader = response.body.getReader(), chunks: ArrayBuffer[] = [];
-  let bytes = 0;
-  try {
-    while (true) {
-      check();
-      const chunk = await reader.read();
-      check();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > limit) throw new Error('limit');
-      chunks.push(new Uint8Array(chunk.value).buffer);
-    }
-  } catch (error) {
-    await reader.cancel().catch(() => {}); check();
-    throw error instanceof Error && error.message === 'limit' ? error : new Error('asset-fetch');
-  } finally { reader.releaseLock(); }
-  const blob = new Blob(chunks, { type: 'image/png' });
-  try {
-    const size = await drawingPngSize(blob);
-    if (size.width !== raster.width || size.height !== raster.height) throw new Error('asset-fetch');
-    // Decode as well as checking IHDR: a truncated/corrupt PNG must not be
-    // reported as a successful self-contained export. Keep the original bytes.
-    const bitmap = await createImageBitmap(blob);
-    try {
-      if (bitmap.width !== raster.width || bitmap.height !== raster.height) throw new Error('asset-fetch');
-    } finally { bitmap.close(); }
-  } catch { check(); throw new Error('asset-fetch'); }
-  check();
+  const { blob, bytes } = await readOriginalDrawingRaster(raster, signal, remaining, check);
+  // Validate the original before embedding it. Preserve its PNG bytes.
+  const bitmap = await decodeOriginalDrawingRaster(blob, raster, check);
+  bitmap.close();
   const encoded = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('asset-fetch'));
@@ -122,7 +84,7 @@ export async function prepareDrawingArtworkSvg(editor: Editor, format: 'svg' | '
     let data = cache.get(href);
     if (!data) {
       pixels += raster.width * raster.height;
-      if (pixels > MAX_ASSET_PIXELS) throw new Error('limit');
+      if (pixels > DRAWING_EXPORT_TOTAL_ASSET_PIXELS) throw new Error('limit');
       const original = await originalRaster(raster, signal, DRAWING_EXPORT_TOTAL_ASSET_BYTES - totalBytes, check);
       data = original.data; totalBytes += original.bytes; cache.set(href, data);
     }

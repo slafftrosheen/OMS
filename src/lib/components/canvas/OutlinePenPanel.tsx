@@ -1,12 +1,14 @@
 import React,{useEffect,useId,useRef,useState,type ReactNode} from 'react';
 import {useEditor,useValue} from '@tldraw/tldraw';
-import {canvasLengthToUnit,type CadSettings} from './cad-settings';
+import {canvasLengthToUnit,unitMm,type CadSettings} from './cad-settings';
+import {convertSelectionToCurves,getCadCurveConversionIssue} from './cad-editing';
 import {OUTLINE_FIELDS,readOutlineSelection,prepareOutlinePlan,applyOutlinePlan,outlinePatchFromInput,type OutlineField,type OutlineInput,type OutlinePlan} from './drawing-outline';
 import {useOutlineText,outlineError} from './outline-copy';
 import {vectorPaint} from './cad-vector';
 
 type Draft=Record<OutlineField,string>;
 const numeric=(value:string)=>value.trim()?Number(value):NaN;
+const widthPresetsMm = [0.10, 0.18, 0.25, 0.35, 0.50, 0.70, 1, 1.4, 2, 3, 5];
 function draftFrom(p:ReturnType<typeof vectorPaint>,settings:CadSettings|null):Draft{
  const length=(value:number)=>String(settings?canvasLengthToUnit(value,settings):value);
  return {stroke:p.stroke,strokeWidth:length(p.strokeWidth),strokeOpacity:String(p.strokeOpacity*100),
@@ -18,7 +20,7 @@ function inputFrom(draft:Draft,checked:OutlineField[]):OutlineInput{
    ['strokeWidth','miterLimit','dashOffset'].includes(key)?numeric(draft[key]):draft[key];
  return input as OutlineInput;
 }
-export function OutlinePenPanel({settings,revision,disabled,focusSequence}:{settings:CadSettings|null;revision:string;disabled:boolean;focusSequence?:number}){
+export function OutlinePenPanel({settings,revision,disabled,focusSequence,focusColor}:{settings:CadSettings|null;revision:string;disabled:boolean;focusSequence?:number;focusColor?:boolean}){
  const editor=useEditor(),t=useOutlineText(),section=useRef<HTMLDetailsElement>(null),errorId=useId();
  const source=useValue('outline selection',()=>{try{return readOutlineSelection(editor);}catch{return null;}},[editor]);
  const identity=JSON.stringify([source?.map(item=>item.shape.id),settings]);
@@ -33,12 +35,38 @@ export function OutlinePenPanel({settings,revision,disabled,focusSequence}:{sett
   const current=draftFrom(source?.[0]?.paint??vectorPaint({},'black'),settings);
   setDraft(previous=>({...current,...Object.fromEntries(checked.map(field=>[field,previous[field]]))}));
  },[sourcePaintKey,identity,checked.join('|')]);
- useEffect(()=>{if(focusSequence!==undefined&&section.current){section.current.open=true;section.current.scrollIntoView({block:'nearest'});section.current.querySelector('summary')?.focus();}},[focusSequence]);
+
  const readonly=useValue('outline read-only',()=>editor.getInstanceState().isReadonly,[editor]);
+ const convertible = useValue('convert native outline geometry', () => !getCadCurveConversionIssue(editor), [editor]);
  const blocked=disabled||readonly||!settings||!source||loaded!==identity;
+ const colorInput=useRef<HTMLInputElement>(null), consumedFocus=useRef<number>();
+ useEffect(()=>{
+  if(focusSequence===undefined||focusSequence===consumedFocus.current||!section.current)return;
+  if(focusColor&&source&&!disabled&&!readonly&&settings&&loaded!==identity)return;
+  consumedFocus.current=focusSequence;
+  section.current.open=true;
+  const target=focusColor&&!blocked?colorInput.current:section.current.querySelector('summary');
+  target?.scrollIntoView({block:'nearest'});
+  target?.focus();
+ },[focusSequence,focusColor,blocked,source,disabled,readonly,settings,loaded,identity]);
  const input=inputFrom(draft,checked),key=JSON.stringify([draft,checked,settings]);
  let valid=false;try{if(settings&&checked.length){outlinePatchFromInput(input,settings);valid=true;}}catch{}
  const stale=!!review&&(review.plan.revision!==revision||review.key!==key);
+ const width=numeric(draft.strokeWidth);
+ let validWidth=false;
+ try { if(settings) { outlinePatchFromInput({strokeWidth:width},settings); validWidth=true; } } catch {}
+ function applyField(field: 'stroke' | 'strokeWidth', input: OutlineInput) {
+  if (!settings || blocked) return;
+  try {
+   const applied = applyOutlinePlan(editor, prepareOutlinePlan(editor, input, settings));
+   setMessage(applied ? 'done' : 'failed');
+   if (applied) {
+    setReview(undefined);
+    setChecked(previous => previous.filter(value => value !== field));
+   }
+  } catch (error) { setMessage(outlineError(error)); }
+ }
+ const previewScale=review ? Math.min(8,12/Math.max(0.001,...review.plan.samples.map(paint=>paint.strokeWidth))) : 1;
  const mixed=(field:OutlineField)=>!!source&&source.some(item=>JSON.stringify(item.paint[field])!==JSON.stringify(source[0].paint[field]));
  const edit=(field:OutlineField,value:string)=>{setDraft(old=>({...old,[field]:value}));setChecked(old=>old.includes(field)?old:[...old,field]);setMessage(undefined);};
  const field=(field:OutlineField,control:ReactNode)=> <div className="drawing-cad-field" key={field}>
@@ -49,10 +77,24 @@ export function OutlinePenPanel({settings,revision,disabled,focusSequence}:{sett
  return <details className="drawing-cad-section" open ref={section} data-testid="drawing-outline-pen">
   <summary>{t('title')}</summary><p className="drawing-help">{t('help')}</p>
   {!source?<p className="drawing-help">{t('selection')}</p>:<p className="drawing-help">{t('count')}: {source.length}</p>}
+  {!source && convertible && settings && <button type="button" disabled={disabled||readonly}
+    onClick={()=>setMessage(convertSelectionToCurves(editor,settings)?'converted':'failed')}>{t('convertForOutline')}</button>}
   <fieldset className="drawing-cad-fields" disabled={blocked} aria-describedby={errorId}>
-   {field('stroke',<div className="drawing-vector-paint-row"><input type="color" aria-label={t('stroke')} value={draft.stroke==='none'?'#000000':draft.stroke} onChange={event=>edit('stroke',event.target.value)}/>
-    <label><input type="checkbox" checked={draft.stroke==='none'} onChange={event=>edit('stroke',event.target.checked?'none':'#000000')}/>{t('none')}</label></div>)}
-   {field('strokeWidth',<input type="number" aria-label={t('strokeWidth')} min={0} step="any" value={draft.strokeWidth} onChange={event=>edit('strokeWidth',event.target.value)}/>)}
+   {field('stroke',<>
+    <div className="drawing-vector-paint-row"><input ref={colorInput} type="color" aria-label={t('stroke')} value={draft.stroke==='none'?'#000000':draft.stroke} onChange={event=>edit('stroke',event.target.value)}/>
+      <label><input type="checkbox" checked={draft.stroke==='none'} onChange={event=>edit('stroke',event.target.checked?'none':'#000000')}/>{t('none')}</label></div>
+    <button type="button" disabled={!checked.includes('stroke')} onClick={()=>applyField('stroke', {stroke:draft.stroke})}>{t('applyColor')}</button>
+   </>)}
+   {field('strokeWidth',<>
+    <input type="number" aria-label={t('strokeWidth')} min={0} step="any" value={draft.strokeWidth} onChange={event=>edit('strokeWidth',event.target.value)}/>
+    <select aria-label={t('widthPresets')} value="" onChange={event=>{
+      if(event.target.value && settings) edit('strokeWidth',String(Number((Number(event.target.value)/unitMm(settings.unit)).toPrecision(12))));
+    }}>
+      <option value="">{t('widthPresets')}</option>
+      {widthPresetsMm.map(mm=><option key={mm} value={mm}>{mm} mm</option>)}
+    </select>
+    <button type="button" disabled={!validWidth||!checked.includes('strokeWidth')} onClick={()=>applyField('strokeWidth', {strokeWidth:width})}>{t('applyWidth')}</button>
+   </>)}
    {field('strokeOpacity',<input type="number" aria-label={t('strokeOpacity')} min={0} max={100} step="any" value={draft.strokeOpacity} onChange={event=>edit('strokeOpacity',event.target.value)}/>)}
    {select('lineCap',['butt','round','square'])}{select('lineJoin',['miter','round','bevel'])}
    {field('miterLimit',<input type="number" aria-label={t('miterLimit')} min={1} max={1000} step="any" value={draft.miterLimit} onChange={event=>edit('miterLimit',event.target.value)}/>)}
@@ -71,11 +113,11 @@ export function OutlinePenPanel({settings,revision,disabled,focusSequence}:{sett
   {review&&<div className="drawing-cad-report">
    <p>{t('count')}: {review.plan.count}</p><p className="drawing-help">{t('sample')}</p>
    {review.plan.samples.map((paint,index)=><div key={index}>{paint.stroke==='none'||paint.strokeWidth===0||paint.strokeOpacity===0?<span>{t('noStroke')}</span>:<svg viewBox="0 0 180 48" width="100%" height="48" role="img" aria-label={t('sample')}>
-    <path d="M14 34 H68 L95 12 L123 34 H166" fill="none" stroke={paint.stroke} strokeWidth={3} strokeOpacity={paint.strokeOpacity} strokeLinecap={paint.lineCap} strokeLinejoin={paint.lineJoin} strokeMiterlimit={paint.miterLimit} strokeDasharray={paint.dash.map(v=>v*3/Math.max(paint.strokeWidth,0.001)).join(' ')} strokeDashoffset={paint.dashOffset*3/Math.max(paint.strokeWidth,0.001)}/>
+    <path d="M14 34 H68 L95 12 L123 34 H166" fill="none" stroke={paint.stroke} strokeWidth={paint.strokeWidth*previewScale} strokeOpacity={paint.strokeOpacity} strokeLinecap={paint.lineCap} strokeLinejoin={paint.lineJoin} strokeMiterlimit={paint.miterLimit} strokeDasharray={paint.dash.map(v=>v*previewScale).join(' ')} strokeDashoffset={paint.dashOffset*previewScale}/>
    </svg>}</div>)}
    {stale&&<p className="drawing-help" role="alert">{t('changed')}</p>}
    <button type="button" disabled={blocked||stale} onClick={()=>{if(!review||stale)return;const applied=applyOutlinePlan(editor,review.plan);setMessage(applied?'done':'failed');if(applied){setReview(undefined);setChecked([]);}}}>{t('apply')}</button>
   </div>}
-  {message&&<p className="drawing-help" role={message==='done'?'status':'alert'}>{t(message)}</p>}
+  {message&&<p className="drawing-help" role={message==='done'||message==='converted'?'status':'alert'}>{t(message)}</p>}
  </details>;
 }

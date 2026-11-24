@@ -74,6 +74,7 @@
     "react-dom": "^18.3.1",
     "svelte": "^5.1.16",
     "svelte-i18n": "file:packages/svelte-i18n",
+    "svg-pathdata": "6.0.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

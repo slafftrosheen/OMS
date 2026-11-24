@@ -6,10 +6,32 @@ import {editDrawingText,textPointSize,spaceDrawingSelection,scaleCanvasForm} fro
 import {addOrderFileDocument} from '../../src/lib/components/canvas/order-file-documents';
 import {arrangeProductionPocket} from '../../src/lib/components/canvas/production-layout';
 import {uploadOrderCanvasFiles} from '../../src/lib/components/canvas/asset-uploader';
-import {saveProductionExport} from '../../src/lib/components/canvas/production-export';
+import {productionExportTarget,saveProductionExport} from '../../src/lib/components/canvas/production-export';
 import {setOrderBridge} from '../../src/lib/components/canvas/state-bridge';
+import {MAX_ORDER_FILE_BYTES} from '../../src/lib/order/file-limits';
+import {CadLineTool} from '../../src/lib/components/canvas/CadPolylineTool';
+import {polylineSession,resolveCadDraftPoint} from '../../src/lib/components/canvas/cad-polyline-draft';
+import {applyDrawingGuideChange,prepareDrawingGuideChange} from '../../src/lib/components/canvas/drawing-guides';
+import {DEFAULT_CAD_SETTINGS} from '../../src/lib/components/canvas/cad-settings';
 
 describe('CAD drawing and text workbench',()=>{
+ it('finishes a two-point line on an angled guide or at an exact typed bearing',()=>{
+  const f=fixture();
+  assert.equal(applyDrawingGuideChange(f.editor,prepareDrawingGuideChange(f.editor,
+   {kind:'add',axis:'angle',pivot:{x:125,y:75},angle:45})),true);
+  f.state.snap=true;
+  const line=new CadLineTool(f.editor,undefined as any);
+  const click=(x:number,y:number)=>{f.editor.inputs.currentPagePoint={x,y};line.onPointerDown({button:0} as any);};
+  line.onEnter();click(10,10);click(126,78);
+  const drawn=f.editor.getOnlySelectedShape();assert.equal(drawn.type,'cad-path');
+  assert.deepEqual(drawn.props.points,[{x:0,y:0},{x:114,y:66}]);
+  assert.equal(polylineSession(f.editor).controller,null);
+  line.onEnter();const session=polylineSession(f.editor);
+  assert.equal(session.controller!.add({x:0,y:0}),true);
+  const target=resolveCadDraftPoint('polar',25.4,90,{x:0,y:0},DEFAULT_CAD_SETTINGS)!;
+  assert.equal(session.controller!.add(target),true);
+  assert.ok(Math.abs(f.editor.getOnlySelectedShape().props.points[1].y+96)<1e-8);
+ });
  it('constructs exact centre-radius circles and rejects zero/oversized geometry',()=>{
   assert.deepEqual(twoPointGeometry('circle',{x:10,y:20},{x:13,y:24}),{type:'cad-ellipse',x:5,y:15,props:{w:10,h:10}});
   assert.equal(twoPointGeometry('circle',{x:0,y:0},{x:0,y:0}),null);
@@ -93,7 +115,28 @@ describe('production file destinations',()=>{
  });
  it('retains a stored attachment but skips canvas placement when permissions change during upload',async()=>{
   const f=pocket();setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async()=>{},onStoreCanvasFile:async()=>{f.state.isReadonly=true;return {id:'queued',url:'blob:queued'};}});
-  await saveProductionExport(f.editor,new File(['x'],'part.dxf',{type:'application/dxf'}),'cnc');assert.equal(f.shapes.size,2);
+  const result=await saveProductionExport(f.editor,new File(['x'],'part.dxf',{type:'application/dxf'}),'cnc');assert.equal(f.shapes.size,2);
+  assert.equal(result.placed,false);
+ });
+ it('rolls back partial layout and retries the saved draft file after canvas edits without another upload',async()=>{
+  const f=pocket(), file=new File(['drawing'],'part.pdf',{type:'application/pdf'});
+  let uploads=0;
+  setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async()=>{},onStoreCanvasFile:async()=>{
+   uploads++;
+   return {id:'queued',url:'blob:queued'};
+  }});
+  const originalUpdate=f.editor.updateShape;
+  f.editor.updateShape=(patch:any)=>{if(patch.type==='document')throw new Error('layout failed');return originalUpdate(patch);};
+  const first=await saveProductionExport(f.editor,file,'cnc');
+  assert.equal(first.placed,false);
+  assert.equal(f.shapes.size,2);
+  f.editor.updateShape=originalUpdate;
+  f.editor.updatePage({meta:{edited:true}});
+  const retry=await saveProductionExport(f.editor,file,'cnc');
+  assert.equal(retry.placed,true);
+  assert.equal(retry.id,first.id);
+  assert.equal(uploads,1);
+  assert.equal([...f.shapes.values()].filter(s=>s.props.fileId==='queued').length,1);
  });
 });
 
@@ -112,6 +155,76 @@ describe('stored production export contract',()=>{
    globalThis.fetch=async()=>new Response('{}',{status:403});
    await assert.rejects(()=>saveProductionExport(f.editor,new File(['x'],'other.dxf'),'laser'));assert.equal(f.shapes.size,2);
   }finally{globalThis.fetch=original;}
+ });
+ it('reuses the upload request after a lost response and assigns a fresh one to another save',async()=>{
+  const f=fixture();
+  f.editor.createShape({id:'shape:laser',type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
+  setOrderBridge(f.editor,{orderId:'order-123'});
+  const file=new File(['%PDF-1.7'],'part.pdf',{type:'application/pdf'});
+  const requests:FormDataEntryValue[]=[];
+  const original=globalThis.fetch;
+  try {
+   globalThis.fetch=async(_input,init)=>{
+    const requestId=(init?.body as FormData).get('canvas_export_request_id');
+    assert.equal(typeof requestId,'string');
+    requests.push(requestId!);
+    if(requests.length===1)throw new TypeError('Response lost');
+    return Response.json({file:{id:requests.length===2?'recovered':'another-save'}},{status:201});
+   };
+   await assert.rejects(saveProductionExport(f.editor,file,'laser'),{message:'exportUnconfirmed'});
+   assert.equal(f.shapes.size,1);
+   assert.equal((await saveProductionExport(f.editor,file,'laser')).placed,true);
+   assert.equal(requests[1],requests[0]);
+   assert.equal((await saveProductionExport(f.editor,new File([file],file.name,{type:file.type}),'laser')).placed,true);
+   assert.notEqual(requests[2],requests[0]);
+  } finally { globalThis.fetch=original; }
+ });
+ it('checks the attachment limit before saving and distinguishes HTTP recovery cases',async()=>{
+  const f=fixture();
+  f.editor.createShape({id:'shape:laser',type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
+  setOrderBridge(f.editor,{orderId:'order-123'});
+  const oversized=new File([new Uint8Array(MAX_ORDER_FILE_BYTES+1)],'large.png',{type:'image/png'});
+  const file=new File(['%PDF-1.7'],'part.pdf',{type:'application/pdf'});
+  const original=globalThis.fetch;
+  try {
+   globalThis.fetch=async()=>assert.fail('invalid attachment must not be sent');
+   await assert.rejects(saveProductionExport(f.editor,oversized,'laser'),{message:'exportAttachmentLimit'});
+   await assert.rejects(saveProductionExport(f.editor,new File([],'empty.pdf'),'laser'),{message:'exportEmptyFile'});
+   const requestIds=new Set<FormDataEntryValue|null>();
+   for(const [status,issue] of [[401,'exportSignIn'],[403,'exportForbidden'],[409,'exportConflict'],[413,'exportUploadLimit'],
+       [429,'exportBusy'],[503,'exportStoreUnavailable'],[504,'exportTimeout'],[200,'exportUnconfirmed']] as const){
+    globalThis.fetch=async(_input,init)=>{
+     requestIds.add((init?.body as FormData).get('canvas_export_request_id'));
+     return new Response('<html>Unexpected response</html>',{status});
+    };
+    await assert.rejects(saveProductionExport(f.editor,file,'laser'),{message:issue});
+   }
+   assert.equal(requestIds.size,1);
+   assert.ok([...requestIds][0]);
+   assert.equal(f.shapes.size,1);
+  } finally { globalThis.fetch=original; }
+ });
+ it('skips upload for a stale target and skips placement in a replacement pocket',async()=>{
+  const f=fixture(), file=new File(['drawing'],'part.svg',{type:'image/svg+xml'});
+  const frame=(id:string)=>f.editor.createShape({id,type:'frame',props:{w:800,h:500},meta:{omsFilePocket:'laser'}});
+  frame('shape:first');
+  setOrderBridge(f.editor,{orderId:'order-123'});
+  const before=productionExportTarget(f.editor,'laser')!;
+  setOrderBridge(f.editor,{orderId:'order-456'});
+  const original=globalThis.fetch;
+  try {
+   globalThis.fetch=async()=>assert.fail('stale export must not be uploaded');
+   await assert.rejects(saveProductionExport(f.editor,file,'laser',undefined,undefined,before),/changed/);
+   globalThis.fetch=async()=>{
+    f.editor.deleteShapes(['shape:first']);
+    frame('shape:replacement');
+    return Response.json({file:{id:'committed'}},{status:201});
+   };
+   const result=await saveProductionExport(f.editor,file,'laser');
+   assert.equal(result.placed,false);
+   assert.equal(f.shapes.size,1);
+   assert.equal(result.id,'committed');
+  } finally { globalThis.fetch=original; }
  });
 });
 

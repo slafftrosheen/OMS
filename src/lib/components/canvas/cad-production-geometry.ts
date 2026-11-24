@@ -25,6 +25,18 @@ export function measureCadEdgeAngle(first: CadSegment, second: CadSegment) {
   return Math.min(difference, 180 - difference);
 }
 
+/** Included angle of the two rays at a shared endpoint, including obtuse corners. Units are millimetres. */
+export function measureCadJointAngle(first: CadSegment, second: CadSegment): number | undefined {
+  for (const [a, aEnd] of [[first.start, first.end], [first.end, first.start]]) {
+    for (const [b, bEnd] of [[second.start, second.end], [second.end, second.start]]) {
+      if (Math.hypot(a.x - b.x, a.y - b.y) > 0.001) continue;
+      const u = delta(a, aEnd), v = delta(b, bEnd);
+      if (Math.min(Math.hypot(u.x, u.y), Math.hypot(v.x, v.y)) < 1e-6) continue;
+      return Math.atan2(Math.abs(u.x * v.y - u.y * v.x), u.x * v.x + u.y * v.y) / radians;
+    }
+  }
+}
+
 export function parallelCadSegment(segment: CadSegment, distance: number): CadSegment {
   const { x, y, length } = measureCadSegment(segment);
   const dx = -y / length * distance;

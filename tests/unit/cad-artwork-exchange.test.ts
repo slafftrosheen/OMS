@@ -27,6 +27,7 @@ import {
 } from "../../src/lib/components/canvas/cad-curves";
 import {
   VECTOR_DEFAULT_PAINT,
+  scalePaint,
   validVectorPaint,
   type VectorPath,
 } from "../../src/lib/components/canvas/cad-paint";
@@ -38,8 +39,9 @@ import { convertVectorFile } from "../../src/lib/server/cad/convert-vector";
 import { encodePdfRaster } from "../../src/lib/components/canvas/cad-raster";
 import { pdfOperatorsToVectors } from "../../src/lib/components/canvas/cad-pdf";
 import { prepareVectorImport } from "../../src/lib/components/canvas/cad-vector";
+import { readVectorSvg } from "../../src/lib/components/canvas/cad-svg-import";
 import { applyCadPlan } from "../../src/lib/components/canvas/cad-plans";
-import { DEFAULT_CAD_SETTINGS } from "../../src/lib/components/canvas/cad-settings";
+import { DEFAULT_CAD_SETTINGS, cadMmPerPixel } from "../../src/lib/components/canvas/cad-settings";
 import { fixture } from "../helpers/cad-editor";
 const rect = (x = 0, y = 0, w = 100, h = w) => ({
   closed: true,
@@ -189,7 +191,92 @@ async function read(text: string | Uint8Array, withImages = false) {
     await task.destroy();
   }
 }
+function readSvgFixture(source: string) {
+  const { JSDOM } = createRequire(resolve("package.json"))("jsdom");
+  const dom = new JSDOM(), previous = Object.getOwnPropertyDescriptor(globalThis, "DOMParser");
+  Object.defineProperty(globalThis, "DOMParser", { value: dom.window.DOMParser, configurable: true });
+  try { return readVectorSvg(source); }
+  finally {
+    if (previous) Object.defineProperty(globalThis, "DOMParser", previous);
+    else Reflect.deleteProperty(globalThis, "DOMParser");
+    dom.window.close();
+  }
+}
+
 describe("clipped artwork, gradients and embedded raster exchange", () => {
+  async function compareSvgShadings(source: string, points: number[][], expectedTypes: (string | undefined)[]) {
+    const sharp = createRequire(resolve("package.json"))("sharp");
+    const imported = readSvgFixture(source);
+    assert.deepEqual(imported.document.warnings, []);
+    assert.deepEqual(imported.document.paths.map(p => p.paint.gradient?.type), expectedTypes);
+    const paths = imported.document.paths.map(p => ({ ...p,
+      paint: scalePaint(p.paint, .75), contours: mapContours(p.contours, ({x, y}) => ({ x: x * .75, y: y * .75 })),
+    }));
+    const { data, info } = await sharp(Buffer.from(source), { density: 54 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.deepEqual([info.width, info.height, info.channels], [imported.document.width * .75, imported.document.height * .75, 3]);
+    for (const format of ["pdf", "eps"] as const) {
+      const output = serializeVectorDocument(paths, format);
+      assert.doesNotMatch(output, /\/Subtype \/Image/);
+      const pixel = await pixels(output, format);
+      for (const [x, y] of points) {
+        const offset = (y * info.width + x) * info.channels;
+        const svg = [...data.subarray(offset, offset + 3)], actual = pixel(x, y);
+        assert.ok(svg.every((value, c) => Math.abs(value - actual[c]) < 10), `${format} ${x},${y}: ${actual} vs ${svg}`);
+      }
+    }
+  }
+
+  it("matches independently rendered SVG gradient colors after exporting to PDF and EPS", async () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+      <defs><linearGradient id="l" x1="10%" x2="85%" y2="20%" gradientTransform="rotate(10 .5 .5)">
+      <stop offset="0" stop-color="#ef2311"/><stop offset=".45" stop-color="#317c24"/><stop offset="1" stop-color="#2455be"/>
+      </linearGradient><radialGradient id="r" cx="45%" fx="40%" r="50%">
+      <stop offset="0" stop-color="#edd821"/><stop offset="1" stop-color="#15155c"/>
+      </radialGradient></defs><rect width="100" height="80" fill="white"/>
+      <rect width="80" height="40" transform="translate(45) rotate(90)" fill="url(#l)"/>
+      <rect x="55" width="40" height="80" fill="url(#r)"/></svg>`;
+    await compareSvgShadings(source, [[16, 5], [16, 22], [16, 46], [53, 29], [63, 29], [57, 45]], [undefined, "linear", "radial"]);
+  });
+
+  it("keeps sharp transitions and pad colors in both linear and radial PDF and EPS shading", async () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">
+      <defs><linearGradient id="l" gradientUnits="userSpaceOnUse" x1="20" x2="100">
+      <stop offset="0" stop-color="#a02010"/><stop offset="0" stop-color="#eda712"/>
+      <stop offset=".5" stop-color="#eda712"/><stop offset=".5" stop-color="#126ca4"/>
+      <stop offset="1" stop-color="#126ca4"/><stop offset="1" stop-color="#5f289e"/>
+      </linearGradient><radialGradient id="r" href="#l" gradientUnits="userSpaceOnUse" cx="62" cy="90" fx="57" fr="12" r="38"/>
+      </defs><rect width="120" height="60" fill="url(#l)"/>
+      <rect y="60" width="120" height="60" fill="url(#r)"/></svg>`;
+    await compareSvgShadings(source, [
+      [8, 20], [17, 20], [43, 20], [47, 20], [72, 20], [79, 20],
+      [42, 67], [56, 67], [62, 67], [67, 67], [72, 67], [80, 67],
+    ], ["linear", "radial"]);
+  });
+
+  it("matches reused symbols, nested viewports and referenced clipping in PDF and EPS", async () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80">
+      <defs><rect id="insert" width="8" height="8" fill="currentColor"/>
+        <symbol id="badge" viewBox="0 0 20 20">
+          <rect x="-5" width="30" height="20" fill="url(#ramp)"/>
+          <use href="#insert" x="4" y="4"/>
+        </symbol>
+        <linearGradient id="ramp" gradientUnits="userSpaceOnUse"><stop stop-color="#9e304c"/><stop offset="1" stop-color="#dc9f5a"/></linearGradient>
+        <path id="window" clip-rule="evenodd" d="M0 0H28V20H0Z M8 5H20V15H8Z"/>
+        <clipPath id="cut"><use href="#window" x="2" y="2"/></clipPath>
+        <rect id="panel" width="32" height="24" fill="#234878"/>
+      </defs>
+      <rect width="120" height="80" fill="white"/>
+      <use href="#badge" x="18" y="12" width="40" height="30" color="#176034"/>
+      <use href="#panel" x="70" y="14" clip-path="url(#cut)"/>
+      <svg x="36" y="49" width="40" height="20" viewBox="0 0 20 20" preserveAspectRatio="none">
+        <rect x="25%" width="50%" height="100%" fill="#7b529a"/>
+      </svg></svg>`;
+    await compareSvgShadings(source, [
+      [12, 18], [14, 12], [18, 12], [24, 15], [42, 14], [45, 17],
+      [53, 14], [56, 15], [62, 19], [70, 21], [74, 14], [40, 44], [50, 44],
+    ], [undefined, "linear", undefined, undefined, undefined]);
+  });
+
   it("preserves independently authored EPS artwork through real Ghostscript conversion and editable PDF import", async () => {
     const previous = globalThis.document;
     (globalThis as any).document = { createElement: () => createCanvas(1, 1) };
@@ -523,5 +610,49 @@ describe("clipped artwork, gradients and embedded raster exchange", () => {
       /save-limit/,
     );
     assert.equal(f.editor.getCurrentPageShapeIds().size, 0);
+  });
+
+  it("fits precise vector imports without dropping geometry or changing the source", () => {
+    const f = fixture();
+    const source = structuredClone(gradient);
+    source.paint.gradient!.bounds = undefined;
+    const nodes = source.contours[0].nodes;
+    nodes[0].x = 1.12345678901234;
+    nodes[0].outX = 41.78912345698765;
+    nodes[1].inY = -32.45698712365498;
+    const document = { paths: [source], width: 100, height: 100, warnings: [] };
+    const original = structuredClone(document);
+    function plan(compactForSave: boolean) {
+      return prepareVectorImport(f.editor, DEFAULT_CAD_SETTINGS, document, 100,
+        { x: 3.123456789, y: 7.654321098 }, "CDR", [], [], { compactForSave });
+    }
+    const exact = plan(false);
+    assert.deepEqual(plan(true), exact);
+    f.editor.store = { getStoreSnapshot: () => 'x'.repeat(1_900_000 - JSON.stringify(exact.shapes).length + 15) };
+    assert.throws(() => plan(false), /save-limit/);
+    const compact = plan(true);
+    assert.deepEqual(compact.warnings, ['vector-compact']);
+    assert.deepEqual(document, original);
+    assert.equal(Object.hasOwn(compact.shapes![0].meta!.omsVectorPaint.gradient, 'bounds'), false);
+    assert.equal(compact.contours[0].nodes.length, nodes.length);
+    for (const [i, node] of compact.contours[0].nodes.entries()) {
+      const before = exact.contours[0].nodes[i];
+      for (const axis of ['x', 'y', 'inX', 'inY', 'outX', 'outY'] as const)
+        assert.ok(Math.abs(node[axis] - before[axis]) * cadMmPerPixel(DEFAULT_CAD_SETTINGS) <= 0.0000005);
+    }
+  });
+
+  it("exports straight segments with line operators and leaves genuine cubics editable", async () => {
+    const path: VectorPath = { contours: [rect()], fillRule: 'nonzero', paint: VECTOR_DEFAULT_PAINT };
+    path.contours[0].nodes[0].outY = -10;
+    const pdf = serializeVectorDocument([path], 'pdf');
+    assert.match(pdf, /\sl\n/);
+    assert.match(pdf, /\sc\n/);
+    const eps = serializeVectorDocument([path], 'eps');
+    assert.match(eps, /\slineto\n/);
+    assert.match(eps, /\scurveto\n/);
+    const document = await read(pdf);
+    assert.equal(document.paths[0].contours[0].nodes.length, 4);
+    assert.equal(document.paths[0].contours[0].nodes[0].outY, -10);
   });
 });

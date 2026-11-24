@@ -212,10 +212,41 @@ export function setCadStraightSegment(editor: Editor, settings: CadSettings, ci:
   }, true);
 }
 export function deleteCadCurveNode(editor: Editor, ci: number, ni: number): boolean {
-  return editCurve(editor, (contours) => {
-    if (!contours[ci]?.nodes[ni] || contours[ci].nodes.length <= 2) throw new Error('node');
-    contours[ci].nodes.splice(ni, 1);
+  return deleteCadCurveNodes(editor, [{ contourIndex: ci, nodeIndex: ni }]);
+}
+
+/** Remove a node set in one history entry. A failed contour leaves every contour intact. */
+export function deleteCadCurveNodes(editor: Editor, nodes: readonly { contourIndex: number; nodeIndex: number }[]): boolean {
+  if (!nodes.length) return false;
+  return editCurve(editor, contours => {
+    const removed = new Map<number, Set<number>>();
+    for (const { contourIndex, nodeIndex } of nodes) {
+      if (!contours[contourIndex]?.nodes[nodeIndex]) throw new Error('node');
+      const indices = removed.get(contourIndex) ?? new Set<number>();
+      indices.add(nodeIndex);
+      removed.set(contourIndex, indices);
+    }
+    for (const [index, indices] of removed) {
+      const contour = contours[index];
+      if (contour.nodes.length - indices.size < 2) throw new Error('node');
+      contour.nodes = contour.nodes.filter((_, i) => !indices.has(i));
+    }
   });
+}
+
+/** Move selected anchors in page axes and carry both relative handles. */
+export function nudgeCadCurveNodes(editor: Editor, dx: number, dy: number): boolean {
+  const shape = editor.getOnlySelectedShape(), nodes = getSelectedCadNodes(editor);
+  if (shape?.type !== 'cad-bezier' || !nodes.length || !Number.isFinite(dx) || !Number.isFinite(dy)) return false;
+  const toLocal = editor.getShapePageTransform(shape).clone().invert();
+  const origin = toLocal.applyToPoint({ x: 0, y: 0 }), shifted = toLocal.applyToPoint({ x: dx, y: dy });
+  return editCurve(editor, contours => {
+    for (const { contourIndex, nodeIndex } of nodes) {
+      const node = contours[contourIndex].nodes[nodeIndex];
+      node.x += shifted.x - origin.x;
+      node.y += shifted.y - origin.y;
+    }
+  }, true);
 }
 export function setCadCurveClosed(editor: Editor, ci: number, closed: boolean): boolean {
   return editCurve(editor, (contours) => {

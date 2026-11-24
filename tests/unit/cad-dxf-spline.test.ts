@@ -87,6 +87,11 @@ describe('DXF SPLINE records and isolated import failures',()=>{
     assert.deepEqual(result.omitted,[]);
     assert.deepEqual(result.contours.map(contour=>contour.closed),[true,true,false]);
   });
+  it('ignores fully clamped constant spans in a closed Corel-style chain',()=>{
+    const filler = closedChain[1][0];
+    const result = plan(clampedCubics([closedChain[0], [filler, filler, filler, filler], ...closedChain.slice(1)]));
+    assert.deepEqual(result, plan(clampedCubics(closedChain)));
+  });
   it('accepts absent counts and absent all-unit weights',()=>{
     const parsed=readDxfSpline(controlPairs.filter(([c])=>![72,73,74].includes(c)));
     assert.equal(parsed.weights,undefined);

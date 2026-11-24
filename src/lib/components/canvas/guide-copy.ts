@@ -4,6 +4,9 @@ import { locale } from 'svelte-i18n';
 
 export const enGuide = {
   title: 'Guidelines', open: 'Guidelines…', horizontal: 'Horizontal', vertical: 'Vertical', orientation: 'Direction', position: 'Position',
+  angled: 'Angled', pivotX: 'Pivot X', pivotY: 'Pivot Y', angle: 'Angle', useCenter: 'Use selection or view center',
+  angleHelp: 'Angles increase counterclockwise from +X. Drag the solid handle to move the pivot along the guide. Drag the hollow handle to rotate. Hold Shift for 15° steps.',
+  convertAngle: 'Rotate to angle…', pivotHandle: 'Move the pivot along the guideline', rotateHandle: 'Rotate around the guideline pivot',
   add: 'Add guideline', move: 'Move guideline', remove: 'Delete guideline', selected: 'Selected guideline',
   showGuides: 'Show guidelines', lockEditing: 'Lock guideline editing', snapGuides: 'Snap to guidelines',
   guideVisible: 'Show this guideline', guideLocked: 'Lock this guideline', lockedLabel: 'locked', hiddenLabel: 'hidden',
@@ -18,7 +21,7 @@ export const enGuide = {
   rulerHint: 'Drag into the drawing to add a guideline', dragHint: 'Drag to move; drag outside the drawing to delete. Escape cancels.',
   dragHorizontal: 'Drag down to add a horizontal guideline; Enter opens Guidelines',
   dragVertical: 'Drag right to add a vertical guideline; Enter opens Guidelines',
-  dragHelp: 'Drag to move; drag outside the drawing to delete; Escape cancels',
+  dragHelp: 'Drag to move. Double-click a horizontal or vertical guide to rotate it. Drag outside the drawing to delete.',
   created: 'Guideline added.', moved: 'Guideline moved.', removed: 'Guideline deleted.', canceled: 'Guideline change canceled.', editGuide: 'Edit guideline',
   alignTitle: 'Align artwork to this guideline', keepTogether: 'Keep relative positions',
   alignLeft: 'Left edge', alignCenterX: 'Horizontal center', alignRight: 'Right edge',
@@ -38,6 +41,9 @@ export const enGuide = {
 type Copy = Record<keyof typeof enGuide, string>;
 const ru: Copy = {
   title: 'Направляющие', open: 'Направляющие…', horizontal: 'Горизонтальная', vertical: 'Вертикальная', orientation: 'Направление', position: 'Положение',
+  angled: 'Наклонная', pivotX: 'Центр вращения X', pivotY: 'Центр вращения Y', angle: 'Угол', useCenter: 'Взять центр выделения или вида',
+  angleHelp: 'Угол отсчитывается против часовой стрелки от +X. Сплошная ручка перемещает центр вдоль направляющей. Полая ручка вращает её. Shift задаёт шаг 15°.',
+  convertAngle: 'Повернуть на угол…', pivotHandle: 'Переместить центр вращения вдоль направляющей', rotateHandle: 'Повернуть вокруг центра направляющей',
   add: 'Добавить направляющую', move: 'Переместить направляющую', remove: 'Удалить направляющую', selected: 'Выбранная направляющая',
   showGuides: 'Показать направляющие', lockEditing: 'Заблокировать редактирование направляющих', snapGuides: 'Привязывать к направляющим',
   guideVisible: 'Показать эту направляющую', guideLocked: 'Заблокировать эту направляющую', lockedLabel: 'заблокирована', hiddenLabel: 'скрыта',
@@ -52,7 +58,7 @@ const ru: Copy = {
   rulerHint: 'Перетащите на чертёж, чтобы добавить направляющую', dragHint: 'Перетащите для перемещения, за пределы чертежа — для удаления. Escape отменяет.',
   dragHorizontal: 'Потяните вниз, чтобы добавить горизонтальную направляющую; Enter открывает направляющие',
   dragVertical: 'Потяните вправо, чтобы добавить вертикальную направляющую; Enter открывает направляющие',
-  dragHelp: 'Перетащите для перемещения, за пределы чертежа — для удаления; Escape отменяет',
+  dragHelp: 'Перетащите для перемещения. Дважды щёлкните по горизонтальной или вертикальной направляющей для поворота. Перетащите за пределы чертежа для удаления.',
   created: 'Направляющая добавлена.', moved: 'Направляющая перемещена.', removed: 'Направляющая удалена.', canceled: 'Изменение направляющей отменено.', editGuide: 'Редактировать направляющую',
   alignTitle: 'Выровнять графику по этой направляющей', keepTogether: 'Сохранить взаимное положение',
   alignLeft: 'Левый край', alignCenterX: 'Центр по горизонтали', alignRight: 'Правый край',
@@ -71,6 +77,9 @@ const ru: Copy = {
 };
 const lv: Copy = {
   title: 'Vadlīnijas', open: 'Vadlīnijas…', horizontal: 'Horizontāla', vertical: 'Vertikāla', orientation: 'Virziens', position: 'Novietojums',
+  angled: 'Slīpa', pivotX: 'Rotācijas centra X', pivotY: 'Rotācijas centra Y', angle: 'Leņķis', useCenter: 'Izmantot atlases vai skata centru',
+  angleHelp: 'Leņķi mēra pretēji pulksteņrādītāja virzienam no +X. Aizpildītais rokturis pārvieto centru gar vadlīniju. Tukšais rokturis pagriež vadlīniju. Ar Shift solis ir 15°.',
+  convertAngle: 'Pagriezt leņķī…', pivotHandle: 'Pārvietot rotācijas centru gar vadlīniju', rotateHandle: 'Pagriezt vadlīniju ap tās centru',
   add: 'Pievienot vadlīniju', move: 'Pārvietot vadlīniju', remove: 'Dzēst vadlīniju', selected: 'Atlasītā vadlīnija',
   showGuides: 'Rādīt vadlīnijas', lockEditing: 'Bloķēt vadlīniju rediģēšanu', snapGuides: 'Piesaistīt vadlīnijām',
   guideVisible: 'Rādīt šo vadlīniju', guideLocked: 'Bloķēt šo vadlīniju', lockedLabel: 'bloķēta', hiddenLabel: 'paslēpta',
@@ -85,7 +94,7 @@ const lv: Copy = {
   rulerHint: 'Ievelciet rasējumā, lai pievienotu vadlīniju', dragHint: 'Velciet, lai pārvietotu; velciet ārpus rasējuma, lai dzēstu. Escape atceļ.',
   dragHorizontal: 'Velciet uz leju, lai pievienotu horizontālu vadlīniju; Enter atver vadlīnijas',
   dragVertical: 'Velciet pa labi, lai pievienotu vertikālu vadlīniju; Enter atver vadlīnijas',
-  dragHelp: 'Velciet, lai pārvietotu; velciet ārpus rasējuma, lai dzēstu; Escape atceļ',
+  dragHelp: 'Velciet, lai pārvietotu. Veiciet dubultklikšķi uz horizontālas vai vertikālas vadlīnijas, lai to pagrieztu. Velciet ārpus rasējuma, lai to dzēstu.',
   created: 'Vadlīnija pievienota.', moved: 'Vadlīnija pārvietota.', removed: 'Vadlīnija dzēsta.', canceled: 'Vadlīnijas maiņa atcelta.', editGuide: 'Rediģēt vadlīniju',
   alignTitle: 'Līdzināt grafiku šai vadlīnijai', keepTogether: 'Saglabāt savstarpējo novietojumu',
   alignLeft: 'Kreisā mala', alignCenterX: 'Horizontālais centrs', alignRight: 'Labā mala',

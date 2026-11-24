@@ -2,9 +2,18 @@ import React,{useEffect,useId,useRef,useState} from 'react';
 import {useEditor,useValue,type TLPageId} from '@tldraw/tldraw';
 import {canvasLengthToUnit,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {readCadSnapSettings,writeCadSnapSettings} from './cad-snap-settings';
+import {drawingGridVisible} from './drawing-grid-state';
+import {drawingPageBounds} from './drawing-pages';
+import {ariaDrawingKeys,drawingCommands,formatDrawingKeys} from './drawing-command-map';
 import {useSnapText} from './snap-copy';
 
-const targets=['endpoints','midpoints','centers','quadrants','intersections','perpendicular','tangent','guidelines','nearest','grid'] as const;
+const targets = ['endpoints', 'midpoints', 'centers', 'quadrants', 'intersections', 'perpendicular', 'tangent', 'nearest'] as const;
+const snapTargets = [
+  {target:'objects',keys:drawingCommands.snapObjects.keys},
+  {target:'grid',keys:drawingCommands.snapGrid.keys},
+  {target:'guidelines'},
+  {target:'page'},
+] as const;
 
 function SnapNumberField({field,value,pageId,settings,disabled}:{
   field:'tolerance'|'gridSpacing';value:number;pageId:TLPageId;settings:CadSettings|null;disabled:boolean;
@@ -51,18 +60,19 @@ function SnapNumberField({field,value,pageId,settings,disabled}:{
   </>;
 }
 
-export function CadSnapPanel({settings}:{settings:CadSettings|null}){
+export function CadSnapPanel({settings,onPageSetup}:{settings:CadSettings|null;onPageSetup:()=>void}){
   const editor=useEditor(),t=useSnapText();
   const state=useValue('CAD snap options',()=>({
     pageId:editor.getCurrentPageId(),options:readCadSnapSettings(editor),master:editor.user.getIsSnapMode(),
-    gridShow:editor.getInstanceState().isGridMode,readonly:editor.getInstanceState().isReadonly
+    gridShow:drawingGridVisible(editor).get(),readonly:editor.getInstanceState().isReadonly,
+    hasSheet:!!drawingPageBounds(editor)
   }),[editor]);
   const [failed,setFailed]=useState(false);
   useEffect(()=>setFailed(false),[state.pageId]);
   return <div data-testid="drawing-snap-options">
     <div className="drawing-workbench-fields">
-      <label className="drawing-cad-check"><input type="checkbox" checked={state.master} data-testid="drawing-snap-master" onChange={event=>editor.user.updateUserPreferences({isSnapMode:event.target.checked})}/><span>{t('enabled')}</span></label>
-      <label className="drawing-cad-check"><input type="checkbox" checked={state.gridShow} data-testid="drawing-snap-grid-show" onChange={event=>editor.updateInstanceState({isGridMode:event.target.checked})}/><span>{t('gridShow')}</span></label>
+      <label className="drawing-cad-check"><input type="checkbox" checked={state.master} data-testid="drawing-snap-master" aria-keyshortcuts={ariaDrawingKeys(drawingCommands.snap.keys)} onChange={event=>editor.user.updateUserPreferences({isSnapMode:event.target.checked})}/><span>{t('enabled')} <kbd>{formatDrawingKeys(drawingCommands.snap.keys)}</kbd></span></label>
+      <label className="drawing-cad-check"><input type="checkbox" checked={state.gridShow} data-testid="drawing-snap-grid-show" onChange={event=>drawingGridVisible(editor).set(event.target.checked)}/><span>{t('gridShow')}</span></label>
     </div>
     <p className="drawing-help">{t('scope')}</p>
     <p className="drawing-help">{t('keys')}</p>
@@ -70,8 +80,20 @@ export function CadSnapPanel({settings}:{settings:CadSettings|null}){
     {state.readonly&&<p className="drawing-help">{t('readOnly')}</p>}
     <fieldset className="drawing-workbench-fields" disabled={state.readonly}>
       <legend>{t('targets')}</legend>
-      {targets.map(target=><label key={target} className="drawing-cad-check"><input type="checkbox" checked={state.options[target]} data-testid={`drawing-snap-${target}`}
-        onChange={event=>setFailed(editor.getCurrentPageId()!==state.pageId||!writeCadSnapSettings(editor,{[target]:event.target.checked}))}/><span>{t(target)}</span></label>)}
+      {snapTargets.map(item => <label key={item.target} className="drawing-cad-check">
+        <input type="checkbox" checked={state.options[item.target]} data-testid={`drawing-snap-${item.target}`}
+          aria-keyshortcuts={'keys' in item ? ariaDrawingKeys(item.keys) : undefined}
+          onChange={event => setFailed(editor.getCurrentPageId() !== state.pageId || !writeCadSnapSettings(editor, { [item.target]: event.target.checked }))} />
+        <span>{t(item.target)} {'keys' in item && <kbd>{formatDrawingKeys(item.keys)}</kbd>}</span>
+      </label>)}
+      {state.options.page && !state.hasSheet && <p className="drawing-help" role="status">
+        {t('pageSizeRequired')} <button type="button" onClick={onPageSetup}>{t('pageSetup')}</button>
+      </p>}
+      <fieldset className="drawing-workbench-fields" disabled={!state.options.objects}>
+        <legend>{t('objectPoints')}</legend>
+        {targets.map(target=><label key={target} className="drawing-cad-check"><input type="checkbox" checked={state.options[target]} data-testid={`drawing-snap-${target}`}
+          onChange={event=>setFailed(editor.getCurrentPageId()!==state.pageId||!writeCadSnapSettings(editor,{[target]:event.target.checked}))}/><span>{t(target)}</span></label>)}
+      </fieldset>
       <p className="drawing-help">{t('intersectionsHelp')}</p>
       <p className="drawing-help">{t('constructionHelp')}</p>
       <p className="drawing-help">{t('guidelinesHelp')}</p>

@@ -8,7 +8,9 @@ export async function readVectorPdf(
   signal: AbortSignal,
   options: PdfImportOptions = {},
 ) {
+  if (signal.aborted) throw new Error("cancelled");
   const pdfjs = await import("pdfjs-dist");
+  if (signal.aborted) throw new Error("cancelled");
   pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
   const task = pdfjs.getDocument({
     data,
@@ -19,9 +21,9 @@ export async function readVectorPdf(
     useSystemFonts: false,
     stopAtErrors: true,
   });
-  const abort = () => {
-    void task.destroy();
-  };
+  let destroyed: Promise<void> | undefined;
+  const destroy = () => destroyed ??= task.destroy();
+  const abort = () => { void destroy().catch(() => {}); };
   signal.addEventListener("abort", abort, { once: true });
   try {
     if (signal.aborted) throw new Error("cancelled");
@@ -42,6 +44,6 @@ export async function readVectorPdf(
     );
   } finally {
     signal.removeEventListener("abort", abort);
-    await task.destroy();
+    await destroy().catch(error => { if (!signal.aborted) throw error; });
   }
 }
