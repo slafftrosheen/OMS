@@ -179,7 +179,7 @@ export function beginDrawingGuideDrag(
       return;
     }
     consume(next);
-    if (next.key.toLowerCase() === 'q' && !next.altKey && !next.ctrlKey && !next.metaKey) {
+    if ((next.code === 'KeyQ' || next.key.toLowerCase() === 'q') && !next.altKey && !next.ctrlKey && !next.metaKey) {
       qHeld = true;
       setCadSnapSuppressed(editor, true);
       if (fresh()) drawingGuideDrag(editor).set(preview(last));
@@ -194,7 +194,7 @@ export function beginDrawingGuideDrag(
       last = { ...last, shiftKey: next.shiftKey, ctrlKey: next.ctrlKey };
     } else {
       consume(next);
-      if (next.key.toLowerCase() === 'q') { qHeld = false; setCadSnapSuppressed(editor, false); }
+      if (next.code === 'KeyQ' || next.key.toLowerCase() === 'q') { qHeld = false; setCadSnapSuppressed(editor, false); }
     }
     if (fresh()) drawingGuideDrag(editor).set(preview(last));
   }

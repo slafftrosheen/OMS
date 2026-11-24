@@ -34,6 +34,10 @@ export function clearDrawingKeyReleases(editor: Editor): void {
   for (const cleanup of [...(keyReleases.get(editor)?.values() ?? [])]) cleanup();
 }
 
+export function drawingPointerGestureOwner(editor: Editor): DrawingPointerOwner | null {
+  return gestures.get(editor)?.owner ?? null;
+}
+
 export function isDrawingPointerGestureActive(editor: Editor): boolean {
   return gestures.has(editor);
 }

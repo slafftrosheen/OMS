@@ -52,6 +52,7 @@ async function harness(run: (value: any) => Promise<void>) {
   const { EditorComponentsProvider } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditorComponents.mjs');
   const { useCanvasEvents } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useCanvasEvents.mjs');
   const { useDocumentEvents } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useDocumentEvents.mjs');
+  const { ContainerProvider } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useContainer.mjs');
   const { CadPathShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadShapes');
   const { CadBezierShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadBezierShape');
   const { DrawingPickSelectionForeground } = await import('../../src/lib/components/canvas/DrawingPickSelectionForeground');
@@ -94,9 +95,9 @@ async function harness(run: (value: any) => Promise<void>) {
   function Application({ editor }: { editor: any }) {
     return <div data-testid="drawing-workspace"><div className="drawing-viewport">
       <div className="tl-container" tabIndex={0} ref={containerRef}>
-        {editor && <tldraw.ContainerProvider container={container}><EditorContext.Provider value={editor}>
+        {editor && <ContainerProvider container={container}><EditorContext.Provider value={editor}>
           <EditorComponentsProvider><Canvas editor={editor} /></EditorComponentsProvider>
-        </EditorContext.Provider></tldraw.ContainerProvider>}
+        </EditorContext.Provider></ContainerProvider>}
       </div>
     </div></div>;
   }
@@ -216,6 +217,10 @@ describe('Pick rotation pivot with real editor and DOM events', () => {
         assert.equal(editor.getPath(), 'select.idle');
         await pointer(document.body, 'pointermove', screen(end));
         assert.deepEqual(snapshot(), before); near(rotation.drawingRotationPreview(editor).get().angle, 90);
+        assert.equal(rotation.drawingRotationPreview(editor).get().error, null, 'the owning pointer can prepare a read-only preview');
+        const { prepareRadialPlan } = await import('../../src/lib/components/canvas/drawing-radial');
+        assert.throws(() => prepareRadialPlan(editor, { center, angle: 90, copies: 0, rotateCopies: true }), /radialBusy/,
+          'numeric commands still reject an active rotation gesture');
         await pointer(document.body, 'pointerup', screen(end));
         const after = snapshot();
         points(id).forEach((point: any, i: number) => nearPoint(point, { x: center.x + oldPoints[i].y - center.y, y: center.y - (oldPoints[i].x - center.x) }));

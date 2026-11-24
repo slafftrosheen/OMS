@@ -5,6 +5,8 @@ import { cadRevision, CadOperationError } from './cad-plans';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { MAX_REPEAT_SHAPES } from './drawing-operations';
 import { canWriteCadSnapSettings } from './cad-snap-settings';
+import { hasCanvasDraft } from './canvas-document';
+import { drawingPointerGestureOwner } from './drawing-pointer-gesture';
 
 const TYPES = new Set(['group', 'geo', 'draw', 'highlight', 'line', 'text', 'image', 'cad-path', 'cad-bezier', 'cad-ellipse', 'cad-arc', 'cad-dimension']);
 const TAU = Math.PI * 2;
@@ -64,6 +66,19 @@ function geometry(editor: Editor, shapes: TLShape[]) {
 
 export function prepareRadialPlan(editor: Editor, options: RadialOptions, expected = [...editor.getSelectedShapeIds()]): RadialPlan {
   if (!editor.getInstanceState().isReadonly && !canWriteCadSnapSettings(editor)) throw new CadOperationError('radialBusy');
+  return prepareRadialGeometry(editor, options, expected);
+}
+
+/** A rotation handle owns the pointer while producing its read-only preview.
+ * Numeric commands still use the busy guard; the pointer applies only after
+ * releasing its claim and passing the ordinary apply/revision checks. */
+export function prepareRadialPointerPreview(editor: Editor, options: RadialOptions): RadialPlan {
+  if (drawingPointerGestureOwner(editor) !== 'rotation' || !editor.isIn('select.idle') ||
+      editor.inputs?.isPointing || editor.inputs?.isDragging || hasCanvasDraft(editor)) throw new CadOperationError('radialBusy');
+  return prepareRadialGeometry(editor, options, [...editor.getSelectedShapeIds()]);
+}
+
+function prepareRadialGeometry(editor: Editor, options: RadialOptions, expected: readonly TLShapeId[]): RadialPlan {
   const { center, angle, copies, rotateCopies } = options;
   if (!center || !validCadPoint(center) || !Number.isFinite(angle) || Math.abs(angle) < 1e-8 || Math.abs(angle) >= 360 ||
     !Number.isInteger(copies) || copies < 0 || copies > 200 || typeof rotateCopies !== 'boolean' ||

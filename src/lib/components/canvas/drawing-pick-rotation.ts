@@ -2,7 +2,7 @@ import { atom, react, type Editor } from '@tldraw/tldraw';
 import { cadRevision } from './cad-plans';
 import { mapContours, validContours, type CadContour } from './cad-curves';
 import { validCadPoint, type CadPoint } from './cad-settings';
-import { applyRadialPlan, prepareRadialPlan, type RadialPlan } from './drawing-radial';
+import { applyRadialPlan, prepareRadialPlan, prepareRadialPointerPreview, type RadialPlan } from './drawing-radial';
 import { isDrawingSkewMode } from './drawing-pick-skew';
 import { readSkewSelection, readSkewSelectionContours } from './drawing-skew';
 import { readDrawingRotationPivot, setDrawingRotationPivot } from './drawing-rotation-pivot';
@@ -107,7 +107,7 @@ function start(editor: Editor, kind: 'pivot' | 'rotate', event: PointerEvent, ta
     let error: DrawingRotationNotice = null;
     try {
       if (!validCadPoint(point) || !validContours(result)) throw new Error('Invalid rotated geometry');
-      if (moved && Math.abs(normalized) > 1e-8) plan = prepareRadialPlan(editor, { center: pivot.point, angle: normalized, copies: 0, rotateCopies: true });
+      if (moved && Math.abs(normalized) > 1e-8) plan = prepareRadialPointerPreview(editor, { center: pivot.point, angle: normalized, copies: 0, rotateCopies: true });
     } catch { error = 'invalid'; }
     drawingRotationPreview(editor).set({ kind, point: pivot.point, angle, source, result, error });
   };

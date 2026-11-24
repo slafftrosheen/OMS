@@ -8,6 +8,7 @@ import { CadPolylineTool } from '../../src/lib/components/canvas/CadPolylineTool
 import { CadDimensionTool, CadCircleTool } from '../../src/lib/components/canvas/CadTwoPointTool';
 import { polylineSession } from '../../src/lib/components/canvas/cad-polyline-draft';
 import type { CadPoint } from '../../src/lib/components/canvas/cad-settings';
+import { fixture } from '../helpers/cad-editor';
 
 const parabola = [{x:-1,y:1},{x:-1/3,y:-1/3},{x:1/3,y:-1/3},{x:1,y:1}];
 const inflection = [{x:-1,y:-1},{x:-1/3,y:1},{x:1/3,y:-1},{x:1,y:1}];
@@ -40,7 +41,7 @@ function setup(points=parabola.map(p=>scale(p,100)),angle=0,origin={x:0,y:0}) {
   };
   return {editor,shapes,state,opts,matrix,make};
 }
-function click(tool:any,f:ReturnType<typeof setup>,point:CadPoint){f.editor.inputs.currentPagePoint=point;tool.onPointerDown({button:0});}
+function click(tool:any,f:{editor:any},point:CadPoint){f.editor.inputs.currentPagePoint=point;tool.onPointerDown({button:0});}
 
 describe('cubic construction geometry',()=>{
   it('finds both finite parabola tangents without tessellating',()=>{
@@ -151,7 +152,12 @@ describe('cubic construction snap integration',()=>{
   });
   it('uses first dimension point while circle radius and Shift constraints remain independent',()=>{
     for(const Tool of [CadDimensionTool,CadCircleTool]){
-      const f=setup(),tool=new Tool(f.editor,undefined as any);tool.onEnter();click(tool,f,{x:0,y:-25});click(tool,f,{x:51,y:24});
+      // Tool creation validates complete native geometry and world bounds;
+      // the snap-only stub above deliberately has neither of those APIs.
+      const f=fixture(),snap=setup();f.state.snap=true;
+      f.editor.updatePage({meta:{omsCadSnap:snap.opts}});
+      f.editor.createShape(snap.shapes.get('shape:reference'));
+      const tool=new Tool(f.editor,undefined as any);tool.onEnter();click(tool,f,{x:0,y:-25});click(tool,f,{x:51,y:24});
       const result=[...f.shapes.values()].find(s=>s.id!=='shape:reference');assert.ok(result);
       if(Tool===CadDimensionTool)pointNear({x:result.x+result.props.endX,y:result.y+result.props.endY},{x:50,y:25});
       else near(result.props.w/2,Math.hypot(51,49));

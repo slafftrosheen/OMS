@@ -143,6 +143,30 @@ describe('production save control', () => {
 });
 
 describe('paint-aware CAD artwork export bounds', () => {
+  it('omits hidden native artwork and descendants of hidden groups from SVG and PNG bounds', async () => harness(async h => {
+    const visible=h.tl.createShapeId(),hidden=h.tl.createShapeId(),first=h.tl.createShapeId(),second=h.tl.createShapeId();
+    h.editor.createShapes([
+      {id:visible,type:'geo',x:100,y:100,props:{w:100,h:100}},
+      {id:hidden,type:'geo',x:20000,y:100,opacity:0,props:{w:100,h:100}},
+      {id:first,type:'geo',x:-20000,y:100,props:{w:100,h:100}},
+      {id:second,type:'geo',x:-20000,y:300,props:{w:100,h:100}}
+    ]);
+    h.editor.groupShapes([first,second]);
+    const group=h.editor.getShape(h.editor.getShape(first).parentId);
+    assert.equal(group.type,'group');
+    h.editor.updateShape({id:group.id,type:'group',opacity:0});
+    const before=h.snapshot();
+    for(const format of ['svg','png']) {
+      const result=h.planDrawingExport(h.editor,format,{scope:'all',scale:1,background:false,padding:0});
+      assert.equal(result.ok,true);
+      assert.deepEqual(result.value.ids,[visible]);
+      assert.deepEqual(result.value.bounds,{x:100,y:100,w:100,h:100});
+    }
+    h.editor.select(hidden,group.id);
+    assert.deepEqual(h.planDrawingExport(h.editor,'svg',{scope:'selected',scale:1,background:false,padding:0}),{ok:false,error:'exportEmpty'});
+    assert.deepEqual(h.snapshot(),before,'export must leave hidden objects and their visibility intact');
+  }));
+
   for (const vertical of [false, true]) it(`exports the complete thick ${vertical ? 'vertical' : 'horizontal'} centerline with zero padding`, async () => harness(async h => {
     const shape = h.create([h.contour(vertical ? [[0, 0], [0, 100]] : [[0, 0], [100, 0]])], { strokeWidth: 100, strokeOpacity: 1 });
     const before = h.snapshot(), result = await exported(h, [shape.id]);

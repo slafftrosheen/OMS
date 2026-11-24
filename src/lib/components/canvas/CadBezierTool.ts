@@ -1,7 +1,7 @@
 import { registerCanvasDraft } from './canvas-document';
 import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type TLShapeId } from '@tldraw/tldraw';
 import { nodeAt, validContours, type CadBezierNode } from './cad-curves';
-import { validCadPoint } from './cad-settings';
+import { validCadPoint, type CadPoint } from './cad-settings';
 import { clearCadSnap, snapCadPoint } from './cad-snap';
 import { tryNewCadOutlineMeta } from './drawing-outline-defaults';
 
@@ -13,6 +13,8 @@ export class CadBezierTool extends StateNode {
   private mark: string | null = null;
   private clearDraft: () => void = () => {};
   private dragging = false;
+  private dragOrigin: CadPoint | null = null;
+  private dragMoved = false;
   override onEnter = () => {
     this.clearDraft();
     this.clearDraft = registerCanvasDraft(this.editor, () => this.shapeId ? { id: this.shapeId, props: this.nodes.length >= 2 ? { contours: [{ closed: false, nodes: structuredClone(this.nodes) }] } : null } : null);
@@ -21,6 +23,8 @@ export class CadBezierTool extends StateNode {
     this.shapeId = null;
     this.mark = null;
     this.dragging = false;
+    this.dragOrigin = null;
+    this.dragMoved = false;
     this.editor.selectNone();
     this.editor.setCursor({ type: 'cross', rotation: 0 });
   };
@@ -71,6 +75,8 @@ export class CadBezierTool extends StateNode {
     }
     this.nodes.push(nodeAt(point));
     this.dragging = true;
+    this.dragOrigin = { x: this.editor.inputs.currentPagePoint.x, y: this.editor.inputs.currentPagePoint.y };
+    this.dragMoved = false;
     this.render();
     if (this.nodes.length >= 4096) this.finish(false);
   };
@@ -83,6 +89,11 @@ export class CadBezierTool extends StateNode {
     clearCadSnap(this.editor);
     const last = this.nodes.at(-1)!,
       point = this.editor.inputs.currentPagePoint;
+    // Snapping can place the anchor away from the press. That displacement is
+    // not a handle drag, including when a stationary move event is delivered.
+    if (!validCadPoint(point) || !this.dragMoved && this.dragOrigin &&
+        Math.hypot(point.x - this.dragOrigin.x, point.y - this.dragOrigin.y) < 1e-8) return;
+    this.dragMoved = true;
     let x = point.x - last.x,
       y = point.y - last.y;
     if (this.editor.inputs.shiftKey) {
@@ -91,6 +102,9 @@ export class CadBezierTool extends StateNode {
       x = length * Math.cos(angle);
       y = length * Math.sin(angle);
     }
+    // Native pointer-up may be the first event carrying a drag's final point.
+    // A stationary click still authors a corner, without smooth handles.
+    if (!x && !y && last.mode === 'corner') return;
     const next = { ...last, outX: x, outY: y, inX: -x, inY: -y, mode: 'symmetric' as const };
     const nodes = [...this.nodes.slice(0, -1), next];
     if (
@@ -103,7 +117,10 @@ export class CadBezierTool extends StateNode {
     }
   };
   override onPointerUp = () => {
+    if (this.dragging) this.onPointerMove();
     this.dragging = false;
+    this.dragOrigin = null;
+    this.dragMoved = false;
   };
   override onKeyDown: TLEventHandlers['onKeyDown'] = (info) => {
     if (this.editor.getInstanceState().isReadonly) { this.cancel(); return; }
@@ -147,6 +164,8 @@ export class CadBezierTool extends StateNode {
     this.mark = null;
     this.nodes = [];
     this.dragging = false;
+    this.dragOrigin = null;
+    this.dragMoved = false;
     if (select) this.editor.setCurrentTool('select');
     if (id) this.editor.setSelectedShapes([id]);
     if (mark) this.editor.mark(`${mark}-complete`);
@@ -159,6 +178,8 @@ export class CadBezierTool extends StateNode {
     this.mark = null;
     this.nodes = [];
     this.dragging = false;
+    this.dragOrigin = null;
+    this.dragMoved = false;
     if (mark) this.editor.bailToMark(mark);
     if (select) this.editor.setCurrentTool('select');
   }

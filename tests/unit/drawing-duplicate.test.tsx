@@ -30,26 +30,34 @@ async function harness(run: (h: any) => Promise<void>) {
   const React = await import('react'), { act } = React, { createRoot } = await import('react-dom/client');
   const tl = await import('@tldraw/tldraw'), cad = await import('../../src/lib/components/canvas/cad-settings');
   const duplicate = await import('../../src/lib/components/canvas/drawing-duplicate');
+  const { installDrawingDimensionCopies } = await import('../../src/lib/components/canvas/drawing-dimension-copies');
   const { applyToolkitToolbarAction } = await import('../../src/lib/components/canvas/toolkit-controls');
   const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
-  const { CadPathShapeUtil, CadEllipseShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadShapes');
+  const { CadPathShapeUtil, CadEllipseShapeUtil, CadDimensionShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadShapes');
   const { CadPolylineTool } = await import('../../src/lib/components/canvas/CadPolylineTool');
   const { CadCircleTool } = await import('../../src/lib/components/canvas/CadTwoPointTool');
   const { hasCanvasDraft } = await import('../../src/lib/components/canvas/canvas-document');
   const { locale, t } = await import('svelte-i18n'); locale.set('en'); const stopText = t.subscribe(() => {});
   const host = document.createElement('div'); document.body.append(host);
-  const shapeUtils = [...tl.defaultShapeUtils, CadPathShapeUtil, CadEllipseShapeUtil];
+  const shapeUtils = [...tl.defaultShapeUtils, CadPathShapeUtil, CadEllipseShapeUtil, CadDimensionShapeUtil];
   const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
     bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools, CadPolylineTool, CadCircleTool], getContainer: () => host, initialState: 'select' });
+  const stopDimensionCopies = installDrawingDimensionCopies(editor);
   editor.updateViewportScreenBounds(new tl.Box(0, 0, 1600, 1200)); editor.updateInstanceState({ isFocused: true });
-  editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: cad.DEFAULT_CAD_SETTINGS, retained: 'keep' } });
+  editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS }, retained: 'keep' } });
   const root = createRoot(host), tick = async (ms = 25) => { await act(async () => { await new Promise(resolve => setTimeout(resolve, ms)); }); };
   const add = (x = 100, y = 100, patch = {}) => {
     const id = tl.createShapeId(); editor.createShape({ id, type: 'geo', x, y, props: { w: 80, h: 40, fill: 'solid', dash: 'solid', size: 's' }, ...patch });
     return id;
   };
+  const linkedArtwork = () => {
+    const source = add(), dimension = tl.createShapeId();
+    editor.createShape({ id: dimension, type: 'cad-dimension', x: 100, y: 140,
+      props: { endX: 80, endY: 0, link: { kind: 'horizontal', sourceIds: [source] } } });
+    return { source, dimension };
+  };
   const snapshot = () => structuredClone(editor.store.getStoreSnapshot('document'));
-  const pointer = async (name: string, point: { x: number; y: number }, extra = {}) => {
+  const pointer = async (name: 'pointer_down' | 'pointer_move' | 'pointer_up', point: { x: number; y: number }, extra = {}) => {
     await act(async () => editor.dispatch({ type: 'pointer', name, point: { ...editor.pageToScreen(point), z: .5 }, target: 'canvas',
       button: 0, pointerId: 1, isPen: false, shiftKey: false, ctrlKey: false, altKey: false, ...extra })); await tick(40);
   };
@@ -57,9 +65,9 @@ async function harness(run: (h: any) => Promise<void>) {
     await act(async () => { Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')!.set!.call(element, value);
       element.dispatchEvent(new Event('input', { bubbles: true })); }); await tick();
   };
-  try { await run({ editor, tl, cad, duplicate, applyToolkitToolbarAction, add, snapshot, pointer, root, host, React, act, EditorContext, input, tick, locale, hasCanvasDraft }); }
+  try { await run({ editor, tl, cad, duplicate, applyToolkitToolbarAction, add, linkedArtwork, snapshot, pointer, root, host, React, act, EditorContext, input, tick, locale, hasCanvasDraft }); }
   finally {
-    await act(async () => root.unmount()); editor.dispose(); host.remove(); stopText();
+    await act(async () => root.unmount()); stopDimensionCopies(); editor.dispose(); host.remove(); stopText();
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
   }
@@ -147,6 +155,108 @@ describe('precise duplicate command', () => {
     editor.select(group); const p = editor.getShapePageTransform(group).point();
     assert.equal(d.duplicateDrawingSelection(editor, { x: 0, y: 0 }), true);
     const inPlace = editor.getShapePageTransform(editor.getOnlySelectedShape()).point(); near(inPlace.x, p.x); near(inPlace.y, p.y);
+  }));
+
+  it('duplicates associative dimensions with their own copied sources', async () => harness(async h => {
+    const { editor, duplicate: d, tl, add, snapshot } = h;
+    const { getDimensionEndpoints } = await import('../../src/lib/components/canvas/cad-dimension-links');
+    const source = add(), dimension = tl.createShapeId();
+    editor.createShape({ id: dimension, type: 'cad-dimension', x: 100, y: 140,
+      props: { endX: 80, endY: 0, link: { kind: 'horizontal', sourceIds: [source] } } });
+    editor.select(source, dimension); editor.mark('linked-copy-start'); const before = snapshot();
+    assert.equal(d.duplicateDrawingSelection(editor, { x: 240, y: 60 }), true);
+    const copied = editor.getSelectedShapes(), copy = copied.find((shape: any) => shape.type === 'geo'),
+      annotation = copied.find((shape: any) => shape.type === 'cad-dimension');
+    assert.deepEqual(annotation.props.link.sourceIds, [copy.id]);
+    editor.mark('copied-source-edit');
+    editor.updateShape({ id: copy.id, type: copy.type, props: { w: 120 } });
+    const measured = getDimensionEndpoints(editor, editor.getShape(annotation.id));
+    near(measured.end.x - measured.start.x, 120);
+    const original = getDimensionEndpoints(editor, editor.getShape(dimension));
+    near(original.end.x - original.start.x, 80);
+    editor.undo(); editor.undo(); assert.deepEqual(snapshot(), before);
+  }));
+
+  it('remaps nested-group dimensions and keeps links to sources outside the copied subtree', async () => harness(async h => {
+    const { editor, duplicate: d, tl, linkedArtwork, add, snapshot } = h;
+    const { source, dimension } = linkedArtwork(), external = add(700, 300), externalDimension = tl.createShapeId();
+    editor.createShape({ id: externalDimension, type: 'cad-dimension', x: 700, y: 340,
+      props: { endX: 80, endY: 0, link: { kind: 'horizontal', sourceIds: [external] } } });
+    editor.groupShapes([source, dimension, externalDimension]);
+    const group = editor.getOnlySelectedShape(); editor.mark('nested-dimension-copy'); const before = snapshot();
+    assert.equal(d.duplicateDrawingSelection(editor, { x: 200, y: 120 }), true);
+    const copy = editor.getOnlySelectedShape();
+    const members = [...editor.getShapeAndDescendantIds([copy.id])].map((id: any) => editor.getShape(id));
+    const sourceCopy = members.find((shape: any) => shape.type === 'geo');
+    const annotations = members.filter((shape: any) => shape.type === 'cad-dimension');
+    assert.equal(annotations.length, 2);
+    assert.ok(annotations.some((shape: any) => shape.props.link.sourceIds[0] === sourceCopy.id));
+    assert.ok(annotations.some((shape: any) => shape.props.link.sourceIds[0] === external));
+    assert.deepEqual(editor.getShape(dimension).props.link.sourceIds, [source]);
+    assert.ok(editor.getShape(group.id));
+    editor.undo(); assert.deepEqual(snapshot(), before); editor.redo();
+    assert.ok(editor.getShape(sourceCopy.id));
+  }));
+
+  for (const cancel of [false, true]) it(`keeps native Alt-copy dimensions linked to the copied source and ${cancel ? 'cancels without leftovers' : 'undoes in one step'}`, async () => harness(async h => {
+    const { editor, linkedArtwork, pointer, tick, snapshot, act } = h;
+    const { source, dimension } = linkedArtwork();
+    editor.select(source, dimension); editor.mark('alt-dimension-copy'); const before = snapshot();
+    await pointer('pointer_down', { x: 110, y: 110 }, { target: 'selection', handle: 'background', altKey: true });
+    await tick(150);
+    await pointer('pointer_move', { x: 350, y: 170 }, { altKey: true }); await tick(150);
+    await pointer('pointer_move', { x: 350, y: 170 }, { altKey: true });
+    const selected = editor.getSelectedShapes(), copy = selected.find((shape: any) => shape.type === 'geo'),
+      annotation = selected.find((shape: any) => shape.type === 'cad-dimension');
+    assert.notEqual(copy.id, source); assert.notEqual(annotation.id, dimension);
+    assert.deepEqual(annotation.props.link.sourceIds, [copy.id]);
+    if (cancel) {
+      // The application maps Escape to the native cancel event; this harness
+      // mounts the Editor without the workspace's keyboard command layer.
+      await act(async () => editor.cancel());
+      await tick(); assert.equal(editor.getPath(), 'select.idle'); assert.deepEqual(snapshot(), before);
+    } else {
+      await pointer('pointer_up', { x: 350, y: 170 }, { altKey: true });
+      assert.deepEqual(editor.getShape(annotation.id).props.link.sourceIds, [copy.id]);
+      near(editor.getShape(copy.id).x, 340); near(editor.getShape(copy.id).y, 160);
+      editor.undo(); assert.deepEqual(snapshot(), before);
+      editor.redo(); assert.deepEqual(editor.getShape(annotation.id).props.link.sourceIds, [copy.id]);
+    }
+  }));
+
+  for (const otherPage of [false, true]) it(`remaps pasted associative dimensions on ${otherPage ? 'another page' : 'the same page'}`, async () => harness(async h => {
+    const { editor, tl, linkedArtwork, snapshot } = h;
+    const { getDimensionEndpoints } = await import('../../src/lib/components/canvas/cad-dimension-links');
+    const { source, dimension } = linkedArtwork();
+    const content = editor.getContentFromCurrentPage([source, dimension]); assert.ok(content);
+    if (otherPage) {
+      const page = tl.PageRecordType.createId(); editor.createPage({ id: page, name: 'Paste destination' }); editor.setCurrentPage(page);
+    }
+    editor.selectNone(); editor.mark('paste-dimension-copy'); const before = snapshot();
+    editor.putContentOntoCurrentPage(content, { select: true, point: { x: 800, y: 500 } });
+    const selected = editor.getSelectedShapes(), copy = selected.find((shape: any) => shape.type === 'geo'),
+      annotation = selected.find((shape: any) => shape.type === 'cad-dimension');
+    assert.ok(copy && annotation); assert.deepEqual(annotation.props.link.sourceIds, [copy.id]);
+    const measured = getDimensionEndpoints(editor, annotation); assert.equal(measured.status, 'linked');
+    near(measured.end.x - measured.start.x, 80);
+    editor.undo(); assert.deepEqual(snapshot(), before);
+  }));
+
+  it('keeps each repeat-grid dimension associated with its own cell', async () => harness(async h => {
+    const { editor, linkedArtwork, snapshot } = h;
+    const { repeatDrawingSelection } = await import('../../src/lib/components/canvas/drawing-operations');
+    const { source, dimension } = linkedArtwork(); editor.select(source, dimension); editor.mark('dimension-grid');
+    const before = snapshot();
+    const result = repeatDrawingSelection(editor, { rows: 2, columns: 3, gapX: 20, gapY: 30 }, [source, dimension]);
+    assert.equal(result.ok, true);
+    const annotations = editor.getCurrentPageShapes().filter((shape: any) => shape.type === 'cad-dimension');
+    assert.equal(annotations.length, 6);
+    assert.equal(new Set(annotations.map((shape: any) => shape.props.link.sourceIds[0])).size, 6);
+    for (const annotation of annotations) {
+      const related = editor.getShape(annotation.props.link.sourceIds[0]); assert.equal(related.type, 'geo');
+      near(annotation.x, related.x); near(annotation.y, related.y + related.props.h);
+    }
+    editor.undo(); assert.deepEqual(snapshot(), before);
   }));
 
   it('rejects read-only, locked descendants, capacity and out-of-range geometry without partial state', async () => harness(async h => {

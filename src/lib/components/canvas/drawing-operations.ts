@@ -260,12 +260,12 @@ export interface DrawingExportPlan {
  * dimensions and snaps. Padding is additional user whitespace, not a hidden
  * allowance for a pen that might be much wider than the default padding. */
 function drawingExportBounds(editor: Editor, shape: TLShape): Box | undefined {
-  if (!CAD_APPEARANCE_TYPES.has(shape.type)) return editor.getShapeMaskedPageBounds(shape.id);
-  const paint = cadShapePaint(shape), stroke = cadPaintHasStroke(paint);
-  if (!stroke && !cadPaintHasFill(paint)) return;
   for (let ancestor: TLShape | undefined = shape; ancestor; ancestor = editor.getShape(ancestor.parentId)) {
     if (ancestor.opacity === 0) return;
   }
+  if (!CAD_APPEARANCE_TYPES.has(shape.type)) return editor.getShapeMaskedPageBounds(shape.id);
+  const paint = cadShapePaint(shape), stroke = cadPaintHasStroke(paint);
+  if (!stroke && !cadPaintHasFill(paint)) return;
   let bounds: Box | undefined;
   try { cadAppearanceGeometry(shape); bounds = getCadShapePageBounds(editor, shape); }
   catch { bounds = editor.getShapePageBounds(shape); }

@@ -1,5 +1,5 @@
 import {placeProductionDocument} from './production-layout';
-import {createShapeId, type Editor} from '@tldraw/tldraw';
+import {Box,createShapeId,pointInPolygon,type Editor} from '@tldraw/tldraw';
 import {frameFilePocket, PRODUCTION_FILE_POCKETS, type CanvasOrderAttachment, type ProductionFilePocket} from '$lib/order/file-pockets';
 import {ORDER_CANVAS_SCALE_META_KEY, readOrderCanvasScale} from '$lib/order/canvas-layout-scale';
 import {readCadSettings} from './cad-settings';
@@ -15,8 +15,16 @@ export function documentFilePocket(editor:Editor,shape:{parentId:string;meta:Rec
 }
 
 export function orderPocketAtPoint(editor: Editor, point: {x: number; y: number}) {
-  return [...editor.getCurrentPageShapesSorted()].reverse().find(shape =>
-    frameFilePocket(shape) && editor.getShapePageBounds(shape)?.containsPoint(point));
+  return [...editor.getCurrentPageShapesSorted()].reverse().find(shape => {
+    if(!frameFilePocket(shape))return false;
+    const mask=editor.getShapeMask(shape.id);
+    if(mask&&!pointInPolygon(point,mask))return false;
+    // A rotated pocket's page bounds include empty triangles outside its body.
+    // Route uploads by the actual visible frame so a nearby DXF/SVG drop still
+    // reaches the drawing importer instead of becoming a production attachment.
+    const {w,h}=shape.props as {w:number;h:number};
+    return new Box(0,0,w,h).containsPoint(editor.getPointInShapeSpace(shape,point));
+  });
 }
 export function addOrderFileDocument(editor: Editor, file: Omit<CanvasOrderAttachment, 'file_type'>,
   position: {x: number; y: number}, pocket?: ProductionFilePocket):boolean {

@@ -70,6 +70,28 @@ export function productionCardLayout(width:number,count:number,headerHeight:numb
   const cardWidth=Math.min(360*scale,(available-gap*(columns-1))/columns);
   return Array.from({length:count},(_,i)=>({x:gap+(i%columns)*(cardWidth+gap),y:headerHeight+gap+Math.floor(i/columns)*304*scale,w:cardWidth,h:280*scale}));
 }
+
+/** Retain a viewer's orientation while arranging its complete visible box.
+ * A reassignment between rotated pockets changes its local rotation. Packing
+ * its unrotated width/height would clip it into the header or adjacent cards. */
+function rotatedCardLayout(width:number,cards:LayoutShape[],headerHeight:number,scale:number){
+  const gap=24*scale,minWidth=120*scale,height=280*scale;
+  const angles=cards.map(card=>({c:Math.abs(Math.cos(card.rotation)),s:Math.abs(Math.sin(card.rotation))}));
+  const layoutWidth=Math.max(width,...angles.map(({c,s})=>c*minWidth+s*height+2*gap));
+  const available=layoutWidth-2*gap,base=productionCardLayout(layoutWidth,cards.length,headerHeight,scale);
+  let x=gap,y=headerHeight+gap,rowHeight=0;
+  const positions=cards.map((card,index)=>{
+    const {c,s}=angles[index];
+    const w=c>1e-8?Math.min(base[index].w,Math.max(minWidth,(available-s*height)/c)):base[index].w;
+    const rotation=Mat.Identity().rotate(card.rotation);
+    const bounds=Box.FromPoints(new Box(0,0,w,height).corners.map(point=>rotation.applyToPoint(point)));
+    if(x>gap&&x+bounds.w>layoutWidth-gap+1e-8*scale){x=gap;y+=rowHeight+gap;rowHeight=0;}
+    const position={x:x-bounds.x,y:y-bounds.y,w,h:height,bottom:y+bounds.h};
+    x+=bounds.w+gap;rowHeight=Math.max(rowHeight,bounds.h);
+    return position;
+  });
+  return {width:layoutWidth,positions};
+}
 /** Only cards created by the pocket importer are arranged. Hand-placed artwork
  * and grouped documents retain their coordinates. Frames grow, never crop files. */
 function prepareProductionLayout(editor:Editor,frameId?:TLFrameShape['id'],headerHeight?:number,change?:DocumentChange,isNew=false):LayoutPlan|null{
@@ -94,8 +116,9 @@ function prepareProductionLayout(editor:Editor,frameId?:TLFrameShape['id'],heade
   const shapes=[...after.values()];
   const children=shapes.filter(s=>s.parentId===frame.id);
   const cards=children.filter(s=>s.type==='document' && s.meta.omsAutoArrange===true && !lockedInLayout(after,s,pageId));
-  const positions=productionCardLayout(frame.props.w,cards.length,header,scale);
+  const arranged=rotatedCardLayout(frame.props.w,cards,header,scale),positions=arranged.positions;
   const updates:any[]=[];
+  if(arranged.width>frame.props.w)updates.push({id:frame.id,type:'frame',props:{w:arranged.width}});
   if(headerHeight!==undefined&&frame.meta.omsPocketHeaderHeight!==header)
     updates.push({id:frame.id,type:'frame',meta:{...frame.meta,omsPocketHeaderHeight:header}});
   cards.forEach((s,i)=>{
@@ -104,7 +127,7 @@ function prepareProductionLayout(editor:Editor,frameId?:TLFrameShape['id'],heade
       updates.push({id:s.id,type:s.type,x:p.x,y:p.y,props:{w:p.w,h:p.h},
         ...(changedScale?{meta:{...s.meta,[ORDER_CANVAS_SCALE_META_KEY]:scale}}:{})});
   });
-  let height=Math.max(frame.props.h,header+48*scale,...positions.map(p=>p.y+p.h+24*scale));
+  let height=Math.max(frame.props.h,header+48*scale,...positions.map(p=>p.bottom+24*scale));
   for(const child of children.filter(s=>!cards.includes(s))){
     const stored=editor.getShape(child.id);
     const bounds=child.type==='document'||child.type==='frame'?new Box(0,0,child.props.w,child.props.h):stored?editor.getShapeGeometry(stored).bounds:null;
@@ -119,7 +142,7 @@ function prepareProductionLayout(editor:Editor,frameId?:TLFrameShape['id'],heade
     if(Math.abs(frame.rotation)<1e-8)for(const other of shapes){
       if(other.id===frame.id||!frameFilePocket(other)||other.parentId!==frame.parentId||Math.abs(other.rotation)>1e-8||lockedInLayout(after,other,pageId))continue;
       const w=(other.props as any).w;
-      if(other.y>=frame.y+frame.props.h-scale && other.x<frame.x+frame.props.w && other.x+w>frame.x)
+      if(other.y>=frame.y+frame.props.h-scale && other.x<frame.x+arranged.width && other.x+w>frame.x)
         updates.push({id:other.id,type:other.type,y:other.y+height-frame.props.h});
     }
   }

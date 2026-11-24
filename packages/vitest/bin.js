@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { resolve, join, extname, sep } from 'node:path';
-import { readdir, stat, access, mkdir, writeFile } from 'node:fs/promises';
+import { readdir, stat, access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import esbuild from 'esbuild';
 import { runSuites, resetSuites } from './index.js';
@@ -96,14 +96,17 @@ const aliasPlugin = {
 };
 
 const tempRoot = join(tmpdir(), 'rf-vitest');
+let tempRun;
 
 async function ensureTempDir() {
+  if (tempRun) return tempRun;
   await mkdir(tempRoot, { recursive: true });
-  return tempRoot;
+  tempRun = await mkdtemp(join(tempRoot, 'run-'));
+  return tempRun;
 }
 
 async function loadTests(files) {
-  await ensureTempDir();
+  const tempDir = await ensureTempDir();
   for (const file of files) {
     const result = await esbuild.build({
       absWorkingDir: root,
@@ -127,13 +130,14 @@ globalThis.$effect ??= (fn) => fn();`
       plugins: [aliasPlugin]
     });
     const output = result.outputFiles?.[0]?.text ?? '';
-    const tempFile = join(tempRoot, `${Date.now()}-${randomBytes(6).toString('hex')}.mjs`);
+    const tempFile = join(tempDir, `${Date.now()}-${randomBytes(6).toString('hex')}.mjs`);
     await writeFile(tempFile, output, 'utf8');
     await import(pathToFileURL(tempFile).href);
   }
 }
 
 async function main() {
+  let fatalError = false;
   try {
     const files = [];
     for (const target of targets) {
@@ -142,7 +146,8 @@ async function main() {
     }
     if (!files.length) {
       console.error('No test files found.');
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     await loadTests(files);
     const failures = await runSuites();
@@ -152,8 +157,14 @@ async function main() {
     }
   } catch (error) {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
+    fatalError = true;
+  } finally {
+    if (tempRun) await rm(tempRun, { recursive: true, force: true });
   }
+  // A partially imported suite can leave timers or editor channels alive.
+  // Fatal loading errors still terminate, after this run's files are removed.
+  if (fatalError) process.exit(1);
 }
 
 main();

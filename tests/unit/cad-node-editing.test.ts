@@ -173,7 +173,9 @@ describe('canvas node inspection and handle targets', () => {
     for (const extra of [{ button: 2 }, { name: 'pointer_move' }, { target: 'shape' }, { handle: { id: '0:99:node' } }, { handle: { id: 'top_left' } }, { shape: { ...f.only(), id: 'shape:other' } }])
       inspectCadNodeEvent(f.editor, { type: 'pointer', name: 'pointer_down', button: 0, target: 'handle', shape: f.only(), handle: { id: '0:1:node' }, ...extra } as any);
     assert.equal(getSelectedCadNode(f.editor)!.nodeIndex, 2); assert.equal(getSelectedCadNode(other.editor)!.nodeIndex, 0);
-    f.only().props.contours[0].nodes.pop(); assert.equal(getSelectedCadNode(f.editor)!.nodeIndex, 0);
+    const contour = f.only().props.contours[0];
+    f.editor.updateShape({ id: f.only().id, type: 'cad-bezier', props: { contours: [{ ...contour, nodes: contour.nodes.slice(0, -1) }] } });
+    assert.equal(getSelectedCadNode(f.editor)!.nodeIndex, 0);
     assert.equal(selectCadNode(f.editor, -1, 0), false); assert.equal(selectCadNode(f.editor, 0, 1.5), false);
     f.editor.selectNone(); assert.equal(getSelectedCadNode(f.editor), null);
     f.editor.deleteShapes(['shape:curve']); assert.equal(getSelectedCadNode(f.editor), null);

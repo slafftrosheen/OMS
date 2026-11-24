@@ -18,10 +18,11 @@ function editor(rotation=0){
   getCurrentPageShapesSorted:()=>[shape],complete:()=>{},setCurrentTool:(t:string)=>{e.tool=t;},
   getShapePageTransform:()=>new Mat(Math.cos(rotation),Math.sin(rotation),-Math.sin(rotation),Math.cos(rotation),shape.x,shape.y),
   getPointInShapeSpace:(_s:any,p:any)=>({x:Math.cos(rotation)*(p.x-shape.x)+Math.sin(rotation)*(p.y-shape.y),y:-Math.sin(rotation)*(p.x-shape.x)+Math.cos(rotation)*(p.y-shape.y)}),
-  mark:(m:string)=>{e.marks.push(m);if(!m.endsWith('-complete'))snapshot=structuredClone(shape);},run:(f:()=>void)=>f(),bailToMark:()=>{shape=snapshot;},
+  // Native store records are immutable and rollback restores the prior record.
+  mark:(m:string)=>{e.marks.push(m);if(!m.endsWith('-complete'))snapshot=shape;},run:(f:()=>void)=>f(),bailToMark:()=>{shape=snapshot;},
   updateShapes:(changes:any[])=>{for(const c of changes){shape={...shape,...c,props:{...shape.props,...c.props}};if(fail)throw Error('fail');}},
   flags:(flags:any)=>{if('readonly'in flags)readonly=flags.readonly;if('locked'in flags)locked=flags.locked;if('selected'in flags)selected=flags.selected;if('fail'in flags)fail=flags.fail;if('mask'in flags)mask=flags.mask;},
-  mutate:(f:(s:any)=>void)=>f(shape),store:{getStoreSnapshot:()=>({shape})}
+  mutate:(f:(s:any)=>void)=>{const next=structuredClone(shape);f(next);shape=next;},store:{getStoreSnapshot:()=>({shape})}
  };
  return e;
 }

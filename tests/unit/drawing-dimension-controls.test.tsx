@@ -34,11 +34,13 @@ async function harness(run: (h: any) => Promise<void>) {
   const { CadDimensionControls } = await import('../../src/lib/components/canvas/CadDimensionControls');
   const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
   const { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadShapes');
+  const { CadCircleTool, CadDimensionTool } = await import('../../src/lib/components/canvas/CadTwoPointTool');
+  const { CadAngularDimensionTool } = await import('../../src/lib/components/canvas/CadAngularDimensionTool');
   const { locale, t } = await import('svelte-i18n'); locale.set('en'); const stopText = t.subscribe(() => {});
   const host = document.createElement('div'); document.body.append(host);
   const shapeUtils = [...tl.defaultShapeUtils, CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil];
   const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
-    bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools], getContainer: () => host, initialState: 'select' });
+    bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools, CadCircleTool, CadDimensionTool, CadAngularDimensionTool], getContainer: () => host, initialState: 'select' });
   editor.updateViewportScreenBounds(new tl.Box(0, 0, 1600, 1200));
   editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS } } });
   const root = createRoot(host), tick = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)); }); };
@@ -73,7 +75,11 @@ async function harness(run: (h: any) => Promise<void>) {
     await act(async () => editor.updatePage({ id: editor.getCurrentPageId(), meta: { ...editor.getCurrentPage().meta,
       omsCad: patch === null ? null : { ...cad.readCadSettings(editor), ...patch } } })); await tick();
   };
-  try { await run({ editor, tl, cad, defaults, registerCanvasDraft, host, render, get, input, select, click, submit, escape, snapshot, addDimension, changeSettings, locale, act, tick }); }
+  const pointer = async (name: string, x: number, y: number) => {
+    await act(async () => editor.dispatch({ type: 'pointer', name, target: 'canvas', point: { x, y, z: .5 }, button: 0,
+      pointerId: 1, shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, isPen: false } as any)); await tick();
+  };
+  try { await run({ editor, tl, cad, defaults, registerCanvasDraft, host, render, get, input, select, click, submit, escape, snapshot, addDimension, changeSettings, locale, act, tick, pointer }); }
   finally {
     await act(async () => root.unmount()); editor.dispose(); host.remove(); stopText();
     channels.forEach(channel => { channel.port1.close(); channel.port2.close(); }); dom.window.close();
@@ -244,5 +250,75 @@ describe('dimension docker defaults and physical annotation editing', () => {
       assert.ok(get('drawing-dimension-text-height').closest('label')!.textContent!.includes(height));
       assert.equal(section.open, true); assert.equal(get('drawing-dimension-defaults-precision').value, '4');
     }
+  }));
+});
+
+describe('native circle and dimension construction boundaries', () => {
+  it('commits each construction in one Undo and cancels a permission change without touching earlier artwork', async () => harness(async h => {
+    const { editor, pointer, snapshot, act, tick } = h;
+    for (const tool of ['cad-circle', 'cad-dimension', 'cad-dimension-angular']) {
+      await act(async () => editor.setCurrentTool(tool)); await tick(); const before = snapshot();
+      await pointer('pointer_down', 100, 100); await pointer('pointer_up', 100, 100);
+      if (tool === 'cad-dimension-angular') { await pointer('pointer_down', 300, 100); await pointer('pointer_up', 300, 100); }
+      await pointer('pointer_move', 100, 300); await pointer('pointer_down', 100, 300); await pointer('pointer_up', 100, 300);
+      const created = structuredClone(editor.getOnlySelectedShape());
+      assert.equal(created.type, tool === 'cad-circle' ? 'cad-ellipse' : 'cad-dimension');
+      assert.equal(editor.isIn('select.idle'), true);
+      if (tool === 'cad-circle') assert.equal(created.meta.omsVectorPaint.hairline, true);
+      await act(async () => editor.undo()); await tick(); assert.deepEqual(snapshot(), before);
+      await act(async () => editor.redo()); await tick(); assert.deepEqual(editor.getShape(created.id), created);
+      const completed = snapshot();
+      await act(async () => editor.setCurrentTool(tool)); await tick();
+      await pointer('pointer_down', 400, 100); await pointer('pointer_up', 400, 100);
+      if (tool === 'cad-dimension-angular') { await pointer('pointer_down', 600, 100); await pointer('pointer_up', 600, 100); }
+      await pointer('pointer_move', 400, 300);
+      await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      await pointer('pointer_move', 400, 350);
+      assert.deepEqual(snapshot(), completed);
+      await act(async () => editor.updateInstanceState({ isReadonly: false })); await tick();
+    }
+  }));
+
+  it('clears circles whose far side exceeds the canvas, including an invalid endpoint after a valid preview', async () => harness(async h => {
+    const { editor, pointer, snapshot, act, tick } = h;
+    for (const axis of ['x', 'y']) {
+      await act(async () => {
+        editor.setCamera({ x: axis === 'x' ? -999500 : 0, y: axis === 'y' ? -999500 : 0, z: 1 });
+        editor.setCurrentTool('cad-circle');
+      }); await tick();
+      const before = snapshot();
+      await pointer('pointer_down', 400, 400); await pointer('pointer_up', 400, 400);
+      await pointer('pointer_move', axis === 'x' ? 350 : 400, axis === 'y' ? 350 : 400);
+      assert.equal(editor.getCurrentPageShapes().length, 1);
+      await pointer('pointer_move', axis === 'x' ? 100 : 400, axis === 'y' ? 100 : 400);
+      assert.deepEqual(snapshot(), before, `invalid ${axis} extent must remove the preview`);
+      await act(async () => editor.dispatch({ type: 'keyboard', name: 'key_down', key: 'Enter', code: 'Enter', shiftKey: false, altKey: false, ctrlKey: false, metaKey: false })); await tick();
+      assert.deepEqual(snapshot(), before);
+      await act(async () => editor.cancel()); await tick();
+    }
+  }));
+
+  it('cancels refused or rewritten circle creation and updates without committing a stale radius', async () => harness(async h => {
+    const { editor, tl, pointer, snapshot, act, tick } = h;
+    const retained = tl.createShapeId('retained-before-circle');
+    editor.createShape({ id: retained, type: 'geo', x: 700, y: 500 });
+    for (const mode of ['create-refused', 'create-rewritten', 'update-refused', 'update-rewritten']) {
+      await act(async () => editor.setCurrentTool('cad-circle')); await tick();
+      const before = snapshot();
+      await pointer('pointer_down', 100, 100); await pointer('pointer_up', 100, 100);
+      const originalCreate = editor.createShape, originalUpdate = editor.updateShape;
+      if (mode.startsWith('update')) {
+        await pointer('pointer_move', 200, 100); assert.equal(editor.getCurrentPageShapes().length, 2);
+      }
+      if (mode === 'create-refused') editor.createShape = () => editor;
+      if (mode === 'create-rewritten') editor.createShape = (shape: any) => originalCreate.call(editor, { ...shape, props: { ...shape.props, w: shape.props.w / 2 } });
+      if (mode === 'update-refused') editor.updateShape = () => editor;
+      if (mode === 'update-rewritten') editor.updateShape = (shape: any) => originalUpdate.call(editor, { ...shape, props: { ...shape.props, w: shape.props.w / 2 } });
+      try { await pointer('pointer_move', 300, 100); }
+      finally { editor.createShape = originalCreate; editor.updateShape = originalUpdate; }
+      assert.deepEqual(snapshot(), before, mode);
+      assert.equal(editor.isIn('select.idle'), true, mode);
+    }
+    assert.ok(editor.getShape(retained));
   }));
 });

@@ -1,6 +1,6 @@
 import { registerCanvasDraft } from './canvas-document';
 import {StateNode,createShapeId,DefaultColorStyle,type TLEventHandlers,type TLShapeId} from '@tldraw/tldraw';
-import {validCadPoint,type CadPoint} from './cad-settings';
+import {CAD_MAX_COORDINATE,validCadPoint,type CadPoint} from './cad-settings';
 import {clearCadSnap,snapCadPoint} from './cad-snap';
 import {tryNewCadOutlineMeta} from './drawing-outline-defaults';
 import { dimensionCreationStyle, dimensionStyleForCreation, type DimensionCreationStyle } from './cad-dimension-defaults';
@@ -11,7 +11,7 @@ export function twoPointGeometry(kind:'circle'|'dimension',start:CadPoint,end:Ca
  if(!validCadPoint(start)||!validCadPoint(end)||!validCadPoint({x:dx,y:dy})||length<1e-6)return null;
  if(kind==='circle'){
   const corner={x:start.x-length,y:start.y-length};
-  if(!validCadPoint(corner)||!validCadPoint({x:length*2,y:length*2}))return null;
+  if(!validCadPoint(corner)||!validCadPoint({x:start.x+length,y:start.y+length})||!validCadPoint({x:length*2,y:length*2}))return null;
   return {type:'cad-ellipse' as const,...corner,props:{w:length*2,h:length*2}};
  }
  const annotation=style===undefined?dimensionStyleForCreation(zoom):style;
@@ -41,11 +41,23 @@ class CadTwoPointTool extends StateNode{
     if(this.editor.getShape(this.shapeId))throw new Error('Dimension preview removal was refused');
     return false;
    }
-   const requested={id:this.shapeId,parentId:this.editor.getCurrentPageId(),...geometry,props:{...geometry.props,color:this.editor.getStyleForNextShape(DefaultColorStyle)}};
-   if(this.editor.getShape(this.shapeId))this.editor.updateShape(requested);
-   else {const meta=this.kind==='circle'?tryNewCadOutlineMeta(this.editor):undefined;if(meta===null)return false;this.editor.createShape({...requested,...(meta?{meta}:{})});}
+   const previous=this.editor.getShape(this.shapeId);
+   const meta=this.kind==='circle'?(previous?.meta??tryNewCadOutlineMeta(this.editor)):undefined;
+   if(meta===null)return false;
+   const requested={id:this.shapeId,parentId:this.editor.getCurrentPageId(),...geometry,props:{...geometry.props,color:this.editor.getStyleForNextShape(DefaultColorStyle)},...(meta?{meta}:{})};
+   if(previous)this.editor.updateShape(requested);
+   else this.editor.createShape(requested);
    if(geometry.type==='cad-dimension'&&!dimensionCreationMatches(this.editor,{...requested,type:'cad-dimension',props:{...geometry.props,color:requested.props.color}}))
     throw new Error('Dimension preview was refused or changed');
+   if(geometry.type==='cad-ellipse'){
+    const actual=this.editor.getShape(this.shapeId);
+    if(!actual||actual.type!==geometry.type||actual.parentId!==requested.parentId||actual.rotation!==0||actual.x!==requested.x||actual.y!==requested.y||
+     Object.entries(requested.props).some(([key,value])=>(actual.props as Record<string,unknown>)[key]!==value)||JSON.stringify(actual.meta)!==JSON.stringify(meta))
+     throw new Error('Circle preview was refused or changed');
+    const bounds=this.editor.getShapePageBounds(actual);
+    if(!bounds||![bounds.minX,bounds.minY,bounds.maxX,bounds.maxY].every(value=>Number.isFinite(value)&&Math.abs(value)<=CAD_MAX_COORDINATE))
+     throw new Error('Circle preview exceeds drawing bounds');
+   }
    return !!this.editor.getShape(this.shapeId);
   } catch {this.cancel();return false;}
  }

@@ -301,6 +301,36 @@ describe('Text controls with a real editor', () => {
     });
   });
 
+  it('keeps click anchors and drawn paragraph widths exact inside rotated frames for every text alignment', async () => {
+    await harness(async ({ editor, defaults, operations, pointer, cad, act, tick, tl }) => {
+      const parent = tl.createShapeId('rotated-text-parent');
+      await act(async () => editor.createShape({ id: parent, type: 'frame', x: -700, y: -700, rotation: .4,
+        props: { w: 2500, h: 2500 } })); await tick();
+      for (const align of ['start', 'middle', 'end']) for (const reverse of [false, true]) {
+        const scale = reverse ? 10 : .1, zoom = reverse ? 2 : 1;
+        await act(async () => {
+          editor.complete(); editor.selectNone();
+          editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS, scale } } });
+          defaults.setNextDrawingTextStyle(editor, { pointSize: 36, textAlign: align });
+          editor.setCamera({ x: 0, y: 0, z: zoom }); editor.setCurrentTool('text');
+        }); await tick();
+        await pointer('pointer_down', 200 * zoom, 150 * zoom); await pointer('pointer_up', 200 * zoom, 150 * zoom);
+        const clickText = editor.getOnlySelectedShape(); assert.equal(clickText.parentId, parent);
+        const bounds = editor.getShapePageBounds(clickText);
+        near(align === 'start' ? bounds.minX : align === 'end' ? bounds.maxX : bounds.midX, 200);
+        near(bounds.midY, 150); near(operations.textPointSize(clickText, cad.readCadSettings(editor)), 36);
+        await act(async () => { editor.complete(); editor.selectNone(); editor.setCurrentTool('text'); }); await tick();
+        const start = reverse ? 700 : 100, end = reverse ? 100 : 700;
+        await pointer('pointer_down', start * zoom, 350 * zoom);
+        await pointer('pointer_move', end * zoom, 350 * zoom); await pointer('pointer_up', end * zoom, 350 * zoom);
+        const paragraph = editor.getOnlySelectedShape(); assert.equal(paragraph.parentId, parent);
+        near(editor.getShapePageBounds(paragraph).minX, 100);
+        near(editor.getShapePageBounds(paragraph).w, 600);
+        near(operations.textPointSize(paragraph, cad.readCadSettings(editor)), 36);
+      }
+    });
+  });
+
   it('keeps calibrated exact type anchored and gives its changes a single undo step', async () => {
     await harness(async ({ editor, add, select, operations, textStyle, cad, act, tick }) => {
       for (const scale of [.1, 1, 10, 1000]) {

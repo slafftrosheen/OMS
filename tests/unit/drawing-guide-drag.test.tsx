@@ -51,6 +51,7 @@ async function harness(run: (value: any) => Promise<void>) {
   const { EditorContext } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useEditor.mjs');
   const { useCanvasEvents } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useCanvasEvents.mjs');
   const { useDocumentEvents } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useDocumentEvents.mjs');
+  const { ContainerProvider } = await import('../../node_modules/@tldraw/editor/dist-esm/lib/hooks/useContainer.mjs');
   const { DrawingGuideOverlay, DrawingSnapIndicator } = await import('../../src/lib/components/canvas/DrawingGuideOverlay');
   const drag = await import('../../src/lib/components/canvas/drawing-guide-drag');
   const guides = await import('../../src/lib/components/canvas/drawing-guides');
@@ -84,7 +85,7 @@ async function harness(run: (value: any) => Promise<void>) {
     return <div data-testid="drawing-workspace">
       <button type="button" data-testid="ruler-x">Top ruler</button><button type="button" data-testid="ruler-y">Left ruler</button>
       <div className="drawing-viewport"><div className="tl-container" tabIndex={0} ref={containerRef}>
-        {editor && <tldraw.ContainerProvider container={container}><EditorContext.Provider value={editor}><Canvas /></EditorContext.Provider></tldraw.ContainerProvider>}
+        {editor && <ContainerProvider container={container}><EditorContext.Provider value={editor}><Canvas /></EditorContext.Provider></ContainerProvider>}
       </div></div>
     </div>;
   }
@@ -201,7 +202,7 @@ describe('Guideline drag with a real editor and DOM events', () => {
     });
   });
 
-  it('snaps a moved guideline to artwork and releases/reacquires the target with Q without moving the pointer', async () => {
+  for (const snapKey of ['q', 'Q', 'й']) it(`snaps a moved guideline to artwork and releases/reacquires with physical Q (${snapKey}) without moving the pointer`, async () => {
     await harness(async ({ editor, guides, drag, env, container, line, pointer, addArtwork, addGuide, snapshot, act, tick }) => {
       const { isCadSnapSuppressed, setCadSnapSuppressed } = await import('../../src/lib/components/canvas/cad-snap-settings');
       await addArtwork(); await addGuide('x', 150);
@@ -213,13 +214,13 @@ describe('Guideline drag with a real editor and DOM events', () => {
       near(drag.drawingGuideDrag(editor).get().position, 80);
       assert.equal(drag.drawingGuideDrag(editor).get().snap.kind, 'centers');
       assert.ok(container.querySelector('[data-testid="drawing-guide-object-snap"]'));
-      await act(async () => env.win.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', code: 'KeyQ', bubbles: true, cancelable: true })));
+      await act(async () => env.win.dispatchEvent(new KeyboardEvent('keydown', { key: snapKey, code: 'KeyQ', bubbles: true, cancelable: true })));
       await tick();
       near(drag.drawingGuideDrag(editor).get().position, 83);
       assert.equal(isCadSnapSuppressed(editor), true);
       assert.equal(container.querySelector('[data-testid="drawing-guide-object-snap"]'), null);
       assert.deepEqual(snapshot(), before);
-      await act(async () => env.win.dispatchEvent(new KeyboardEvent('keyup', { key: 'q', code: 'KeyQ', bubbles: true, cancelable: true })));
+      await act(async () => env.win.dispatchEvent(new KeyboardEvent('keyup', { key: snapKey, code: 'KeyQ', bubbles: true, cancelable: true })));
       await tick();
       near(drag.drawingGuideDrag(editor).get().position, 80);
       assert.equal(isCadSnapSuppressed(editor), false);
