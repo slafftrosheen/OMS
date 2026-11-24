@@ -47,10 +47,11 @@ export function installDrawingSnapTargets(editor: Editor): () => void {
   snaps.getSnappableShapes = shapes;
   handles.snapHandle = handle;
   drawingGridVisible(editor);
+  // tldraw invokes the scheduler as a method, so keep the browser API inside a closure.
   const untrack = react('Drawing grid snapping', () => {
     const grid = editor.user.getIsSnapMode() && readCadSnapSettings(editor).grid;
     if (editor.getInstanceState().isGridMode !== grid) editor.updateInstanceState({ isGridMode: grid });
-  }, { scheduleEffect: queueMicrotask });
+  }, { scheduleEffect: callback => queueMicrotask(callback) });
   return () => {
     untrack();
     if (snaps.getSnappableShapes === shapes) snaps.getSnappableShapes = originalShapes;

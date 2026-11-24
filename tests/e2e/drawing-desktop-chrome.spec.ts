@@ -20,6 +20,26 @@ async function drawWith(page: Page, key: string) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} mounts without scheduler errors and synchronizes native grid snapping`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => { errors.push(error.message); console.log('Canvas page error:', error.stack); });
+    await open(page, mode);
+    expect(errors).toEqual([]);
+    await page.getByTestId('drawing-status-snap-options').click();
+    await page.getByTestId('drawing-snap-master').check();
+    await page.getByTestId('drawing-snap-grid').check();
+    await expect.poll(async () => (await scene(page)).gridSnapping).toBe(true);
+    await page.getByTestId('drawing-snap-master').uncheck();
+    await expect.poll(async () => (await scene(page)).gridSnapping).toBe(false);
+    await page.getByTestId('drawing-snap-master').check();
+    await expect.poll(async () => (await scene(page)).gridSnapping).toBe(true);
+    await page.getByTestId('drawing-snap-grid').uncheck();
+    await expect.poll(async () => (await scene(page)).gridSnapping).toBe(false);
+    await page.reload();
+    await expect(page.getByTestId('drawing-tool-rectangle')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
   test(`${mode} configures page snapping and offers Page setup for a sizeless sheet`, async ({ page }) => {
     await open(page, mode);
     const view = page.locator('[data-drawing-menu="view"]');

@@ -175,7 +175,7 @@
   $effect(() => { document.documentElement.dataset.theme = theme; });
   onMount(() => {
     (window as any).__drawingFixture = {
-      inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), page: editor?.getCurrentPage(), tool: editor?.getCurrentToolId(), readonly, saves, doubleClickDurationMs: editor?.options.doubleClickDurationMs }),
+      inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), page: editor?.getCurrentPage(), tool: editor?.getCurrentToolId(), gridSnapping: editor?.getInstanceState().isGridMode, readonly, saves, doubleClickDurationMs: editor?.options.doubleClickDurationMs }),
       point: (id:string,x=.2,y=.2) => { const bounds=editor.getShapePageBounds(id); return editor.pageToScreen({x:bounds.x+bounds.w*x,y:bounds.y+bounds.h*y}); },
       screenPoint: (point:{x:number;y:number}) => editor.screenToPage(point),
       pagePoint: (point:{x:number;y:number}) => editor.pageToScreen(point),
