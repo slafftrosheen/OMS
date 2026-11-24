@@ -109,7 +109,7 @@ function updateFor(shape: TLShape, source: DrawingAppearance, fields: DrawingApp
           [sx, 0, 0, sy, b.x - a.x * sx, b.y - a.y * sy]).gradient;
       }
     }
-    if (fields.outline) for (const key of ['stroke', 'strokeWidth', 'strokeOpacity', 'lineCap', 'lineJoin', 'miterLimit', 'dash', 'dashOffset'] as const)
+    if (fields.outline) for (const key of ['stroke', 'strokeWidth', 'hairline', 'strokeOpacity', 'lineCap', 'lineJoin', 'miterLimit', 'dash', 'dashOffset'] as const)
       (paint as any)[key] = structuredClone(copied[key]);
     if (!validVectorPaint(paint)) throw new Error('incompatible');
     update.meta = { ...shape.meta, omsVectorPaint: paintMetadata(paint) };

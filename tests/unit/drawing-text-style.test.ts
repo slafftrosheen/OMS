@@ -34,7 +34,8 @@ describe('contextual text formatting', () => {
     ids.forEach((id, i) => {
       const s = f.editor.getShape(id);
       assert.equal(textPointSize(s), 36);
-      assert.deepEqual({ ...s, props: { ...s.props, scale: before[i].props.scale } }, before[i]);
+      if (!s.props.autoSize) assert.ok(Math.abs(s.props.w * s.props.scale - before[i].props.w * before[i].props.scale) < 1e-8, 'fixed paragraph width stays fixed');
+      assert.deepEqual({ ...s, props: { ...s.props, w: before[i].props.w, scale: before[i].props.scale } }, before[i]);
     });
     assert.equal(f.marks.length, 2); // One shared history boundary, not one per object.
   });
@@ -107,13 +108,23 @@ describe('contextual text formatting', () => {
   });
   it('accepts supported point size limits and does not record a no-op', () => {
     const f = textFixture();
+    // Fitted text can use the full point-size range. Fixed paragraphs also
+    // require enough local layout width to keep their displayed box unchanged.
+    f.editor.setSelectedShapes([ids[0]]);
     for (const pointSize of [1, 3000]) {
-      assert.equal(applySelectedDrawingTextStyle(f.editor, ids, { pointSize }), true);
-      ids.forEach(id => assert.equal(textPointSize(f.editor.getShape(id)), pointSize));
+      assert.equal(applySelectedDrawingTextStyle(f.editor, [ids[0]], { pointSize }), true);
+      assert.equal(textPointSize(f.editor.getShape(ids[0])), pointSize);
     }
     const count = f.marks.length;
-    assert.equal(applySelectedDrawingTextStyle(f.editor, ids, { pointSize: 3000 }), true);
+    assert.equal(applySelectedDrawingTextStyle(f.editor, [ids[0]], { pointSize: 3000 }), true);
     assert.equal(f.marks.length, count);
+  });
+  it('rejects a whole typography batch when one fixed box would expand at the requested size', () => {
+    const f = textFixture();
+    f.editor.updateShape({ id: ids[1], type: 'text', props: { size: 'm', scale: 1, w: 64, autoSize: false } });
+    const before = snapshot(f);
+    assert.equal(applySelectedDrawingTextStyle(f.editor, ids, { pointSize: 96, font: 'mono', letterSpacing: 10 }), false);
+    assert.deepEqual(snapshot(f), before); assert.equal(f.marks.length, 0);
   });
   it('rolls the entire batch back when an editor update throws', () => {
     const f = textFixture(), before = snapshot(f), update = f.editor.updateShape;

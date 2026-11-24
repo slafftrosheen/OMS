@@ -7,7 +7,10 @@ import { CAD_META_KEY, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-setti
 import { CadDrawingMeasurements } from './CadDrawingMeasurements';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
 import {installDrawingFonts} from './drawing-fonts';
+import {installDrawingTextDefaults} from './drawing-text-defaults';
 import {CadCircleTool,CadDimensionTool} from './CadTwoPointTool';
+import {CadAngularDimensionTool} from './CadAngularDimensionTool';
+import {CadRectangleTool,CadEllipseTool,CadPentagonTool,CadStarTool,CadTriangleTool,CadDiamondTool} from './CadBoxTool';
 import {CadArcThreePointTool,CadCircleThreePointTool} from './CadThreePointTool';
 import {CadConstructionOverlay} from './CadConstructionOverlay';
 import {CadNodeSelectionOverlay} from './CadNodeSelectionOverlay';
@@ -210,11 +213,12 @@ export function CanvasApp({
         installDrawingTextUtil(editor);
         cleanupCadTransformsRef.current?.();
         const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor), stopPivot = installDrawingRotationPivot(editor);
+        const stopTextDefaults = installDrawingTextDefaults(editor);
         const stopPen = installDrawingPenInput(editor);
         const stopPickGuideSnapping = installDrawingPickGuideSnapping(editor), stopPickClick = installDrawingPickClickToggle(editor);
         const stopWheel = installDrawingWheel(editor), stopPickMarquee = installDrawingPickMarquee(editor), stopCurveHover = installCadBezierHoverBounds(editor);
         const stopLayers = installProductionLayers(editor), stopSnapTargets = installDrawingSnapTargets(editor);
-        cleanupCadTransformsRef.current = () => { stopCurveHover(); stopWheel(); stopPickMarquee(); stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
+        cleanupCadTransformsRef.current = () => { stopCurveHover(); stopWheel(); stopPickMarquee(); stopSnapTargets(); stopLayers(); stopPen(); cancelCadFreehand(editor); stopPickClick(); stopPickGuideSnapping(); stopTransforms(); stopTextDefaults(); stopFonts(); stopSkewMode(); cancelDrawingRotationPointer(editor); stopPivot(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         if (!readCadSettings(editor) && editor.getPages().length === 1 && !editor.getCurrentPageShapeIds().size) {
             const page = editor.getCurrentPage();
@@ -369,7 +373,7 @@ export function CanvasApp({
                     snapshot={initialSnapshot as any}
                     cameraOptions={DRAWING_CAMERA_OPTIONS}
                     shapeUtils={customShapeUtils}
-                    tools={[CadLineTool, CadPolylineTool, CadBezierTool, CadFreehandTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
+                    tools={[CadLineTool, CadPolylineTool, CadBezierTool, CadFreehandTool, CadRectangleTool, CadEllipseTool, CadPentagonTool, CadStarTool, CadTriangleTool, CadDiamondTool, CadCircleTool, CadDimensionTool, CadAngularDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}

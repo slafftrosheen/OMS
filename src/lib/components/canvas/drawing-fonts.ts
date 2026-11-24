@@ -1,5 +1,6 @@
 import { DefaultFontStyle, type Editor, type TLShape, type TLShapeId, type TLTextShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
+import { canFormatDrawingText } from './drawing-text-formatting';
 
 export const MAX_DRAWING_FONT_BYTES = 1024 * 1024;
 export const MAX_DRAWING_FONTS_BYTES = 1024 * 1024;
@@ -196,7 +197,7 @@ export function fontSupportsText(font: any, text: string): boolean {
   return [...text.normalize('NFC')].every(c => /\s/u.test(c) || font.hasGlyphForCodePoint(c.codePointAt(0)));
 }
 export function drawingFontPatch(editor: Editor, shape: TLTextShape, value: string) {
-  if (builtin.has(value)) return { props: { font: value as TLTextShape['props']['font'] }, meta: { ...shape.meta, omsFontId: null } };
+  if (builtin.has(value)) return { props: { font: value as TLTextShape['props']['font'] }, meta: getShapeDrawingFontId(shape) ? { ...shape.meta, omsFontId: null } : shape.meta };
   const found = getLoadedDrawingFont(editor, value);
   if (!found) return fail('font-missing');
   if (!fontSupportsText(found.font, shape.props.text)) return fail('font-glyphs');
@@ -204,13 +205,15 @@ export function drawingFontPatch(editor: Editor, shape: TLTextShape, value: stri
 }
 export function applySelectedDrawingFont(editor: Editor, expectedIds: readonly TLShapeId[], value: string): boolean {
   const ids = editor.getSelectedShapeIds();
-  if (editor.getInstanceState().isReadonly || editor.getCurrentToolId() !== 'select' || !ids.length || new Set(expectedIds).size !== expectedIds.length || ids.length !== expectedIds.length || ids.some(id => !expectedIds.includes(id))) return false;
+  if (!canFormatDrawingText(editor) || !ids.length || new Set(expectedIds).size !== expectedIds.length || ids.length !== expectedIds.length || ids.some(id => !expectedIds.includes(id))) return false;
   try {
-    const updates = ids.map(id => {
+    const updates = ids.flatMap(id => {
       const shape = editor.getShape<TLTextShape>(id);
       if (!shape || shape.type !== 'text' || editor.isShapeOrAncestorLocked(shape)) return fail('font-readonly');
-      return { id, type: 'text' as const, ...drawingFontPatch(editor, shape, value) };
+      const patch = drawingFontPatch(editor, shape, value);
+      return drawingFontValue(shape) === value ? [] : [{ id, type: 'text' as const, ...patch }];
     });
+    if (!updates.length) return true;
     return drawingTransaction(editor, () => {
       editor.updateShapes(updates);
       if (ids.some(id => drawingFontValue(editor.getShape<TLTextShape>(id)!) !== value)) return fail('font-invalid');
@@ -222,14 +225,18 @@ export function getNextDrawingFont(editor: Editor): string {
   return typeof id === 'string' && id ? id : editor.getStyleForNextShape(DefaultFontStyle);
 }
 export function setNextDrawingFont(editor: Editor, value: string): boolean {
-  if (editor.getInstanceState().isReadonly || !builtin.has(value) && !getLoadedDrawingFont(editor, value)) return false;
-  editor.setStyleForNextShapes(DefaultFontStyle, builtin.has(value) ? value as TLTextShape['props']['font'] : 'sans');
-  editor.updateInstanceState({ meta: { ...editor.getInstanceState().meta, omsNextFont: builtin.has(value) ? null : value } });
+  if (editor.isDisposed || editor.getInstanceState().isReadonly || !builtin.has(value) && !getLoadedDrawingFont(editor, value)) return false;
+  if (getNextDrawingFont(editor) === value) return true;
+  editor.run(() => {
+    editor.setStyleForNextShapes(DefaultFontStyle, builtin.has(value) ? value as TLTextShape['props']['font'] : 'sans');
+    editor.updateInstanceState({ meta: { ...editor.getInstanceState().meta, omsNextFont: builtin.has(value) ? null : value } });
+  }, { history: 'ignore' });
   return true;
 }
 export function installDrawingFonts(editor: Editor): () => void {
-  return editor.sideEffects.registerBeforeCreateHandler('shape', (shape) => {
-    if (shape.type !== 'text' || editor.getCurrentToolId() !== 'text' || getShapeDrawingFontId(shape)) return shape;
+  return editor.sideEffects.registerBeforeCreateHandler('shape', (shape, source) => {
+    if (source !== 'user' || shape.type !== 'text' || !editor.isIn('text.pointing') || getShapeDrawingFontId(shape)) return shape;
+    if ((shape as TLTextShape).props.text !== '') return shape;
     const next = getNextDrawingFont(editor);
     if (!builtin.has(next) && getLoadedDrawingFont(editor, next)) return { ...shape, meta: { ...shape.meta, omsFontId: next } };
     return shape;

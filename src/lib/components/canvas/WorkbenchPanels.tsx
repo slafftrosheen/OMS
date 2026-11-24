@@ -2,9 +2,8 @@ import React,{useEffect,useId,useState,type ReactNode} from 'react';
 import {useEditor,useValue,type Editor,type TLShapeId,type TLTextShape} from '@tldraw/tldraw';
 import {useWorkbenchText} from './workbench-copy';
 import {useDrawingText} from './drawing-copy';
-import {drawingTextPointSizeDisplay} from './drawing-text-style';
-import {DEFAULT_DRAWING_TEXT_SPACING,getDrawingTextSpacing} from './drawing-text-spacing';
-import {DrawingFontManager, DrawingFontPicker} from './DrawingFonts';
+import {NextTextProperties, SelectedTextStyleFields} from './DrawingTextControls';
+import {DrawingFontManager} from './DrawingFonts';
 import {drawingFontValue} from './drawing-fonts';
 import {editDrawingText,scaleCanvasForm,textPointSize} from './workbench-operations';
 import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
@@ -15,6 +14,9 @@ import {CadDimensionControls} from './CadDimensionControls';
 import {getDimensionEndpoints,type DimensionSource} from './cad-dimension-links';
 import {cadConstruction} from './cad-construction';
 import {measureCadSelection} from './cad-measurements';
+import {useCadText} from './cad-copy';
+import {dimensionPrecision} from './cad-dimension-settings';
+import type {CadDimensionShape} from './shapes/CadShapes';
 import {applyArrangePlan,arrangementRoots,arrangeGapFromDisplay,MAX_ARRANGE_GAP,prepareArrangePlan,type ArrangeOptions} from './drawing-arrange';
 import {drawingObjectName,drawingObjectAlias} from './drawing-operations';
 import {CadOperationError,cadRevision} from './cad-plans';
@@ -28,63 +30,50 @@ const displayArrangeGap=(distance:number,settings:CadSettings|null)=>String(sett
 
 export function TextPanel({onOutlines,onLettering,fontFocusRequest=0}:{onOutlines:()=>void;onLettering:()=>void;fontFocusRequest?:number}){
  const editor=useEditor(),t=useWorkbenchText();
- const {tr}=useDrawingText();
  const readonly=useValue('lettering permission',()=>editor.getInstanceState().isReadonly,[editor]);
- const shape=useValue('editable text',()=>{const s=editor.getOnlySelectedShape();return s?.type==='text'?s as TLTextShape:null;},[editor]);
+ const shape=useValue('editable text',()=>{const s=editor.getOnlySelectedShape();return editor.getCurrentToolId()==='select'&&s?.type==='text'?s as TLTextShape:null;},[editor]);
  const disabled=useValue('text permission',()=>!shape||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape),[editor,shape]);
- const [text,setText]=useState(''),[font,setFont]=useState('sans'),[align,setAlign]=useState<TLTextShape['props']['textAlign']>('start'),[points,setPoints]=useState('18'),[auto,setAuto]=useState(true),[failed,setFailed]=useState(false);
- const [letters,setLetters]=useState(String(DEFAULT_DRAWING_TEXT_SPACING.letterSpacing)),[lines,setLines]=useState(String(DEFAULT_DRAWING_TEXT_SPACING.lineHeight*100));
- const [letterError,setLetterError]=useState(false),[lineError,setLineError]=useState(false);
- const letterErrorId=useId(),lineErrorId=useId();
- const pointSize=shape?textPointSize(shape):undefined;
- const storedFont=shape?drawingFontValue(shape):undefined;
- const spacing=shape?getDrawingTextSpacing(shape):undefined;
- // A property-bar edit only refreshes its corresponding draft. In particular,
- // changing font, size or spacing must not discard content waiting for Apply.
- useEffect(()=>{if(shape)setText(shape.props.text);},[shape?.id,shape?.props.text]);
- useEffect(()=>{if(storedFont!==undefined)setFont(storedFont);},[shape?.id,storedFont]);
- useEffect(()=>{if(shape)setAlign(shape.props.textAlign);},[shape?.id,shape?.props.textAlign]);
- useEffect(()=>{if(pointSize!==undefined)setPoints(String(drawingTextPointSizeDisplay(pointSize)));},[shape?.id,pointSize]);
- useEffect(()=>{if(spacing)setLetters(String(drawingTextPointSizeDisplay(spacing.letterSpacing)));setLetterError(false);},[shape?.id,spacing?.letterSpacing]);
- useEffect(()=>{if(spacing)setLines(String(drawingTextPointSizeDisplay(spacing.lineHeight*100)));setLineError(false);},[shape?.id,spacing?.lineHeight]);
- useEffect(()=>{if(shape)setAuto(shape.props.autoSize);},[shape?.id,shape?.props.autoSize]);
- useEffect(()=>setFailed(false),[shape?.id]);
  const lettering=<button type="button" className="drawing-lettering-button" disabled={readonly} onClick={onLettering}>{t('newLettering')}</button>;
- if(!shape)return <><p className="drawing-help">{t('textHint')}</p><DrawingFontManager focusRequest={fontFocusRequest}/>{lettering}</>;
- const apply=()=>{
-  const letterSpacing=letters.trim()?Number(letters):NaN,lineSpacing=lines.trim()?Number(lines):NaN;
-  const validLetters=Number.isFinite(letterSpacing)&&letterSpacing>=-50&&letterSpacing<=200,validLines=Number.isFinite(lineSpacing)&&lineSpacing>=50&&lineSpacing<=500;
-  setLetterError(!validLetters);setLineError(!validLines);
-  if(!validLetters||!validLines){setFailed(false);return false;}
-  const success=editDrawingText(editor,shape.id,{text,font,textAlign:align,autoSize:auto,pointSize:points.trim()?Number(points):NaN,letterSpacing,lineHeight:lineSpacing/100});setFailed(!success);return success;
- };
- const spacingKey=(event:React.KeyboardEvent<HTMLInputElement>,field:'letters'|'lines')=>{
-  event.stopPropagation();
-  if(event.key==='Enter'){event.preventDefault();apply();}
-  if(event.key==='Escape'){
-   event.preventDefault();
-   const saved=getDrawingTextSpacing(shape);
-   if(field==='letters'){setLetters(String(drawingTextPointSizeDisplay(saved.letterSpacing)));setLetterError(false);}
-   else{setLines(String(drawingTextPointSizeDisplay(saved.lineHeight*100)));setLineError(false);}
-   setFailed(false);event.currentTarget.blur();
-  }
- };
- return <><fieldset className="drawing-workbench-fields" disabled={disabled}>
-  <label><span>{t('content')}</span><textarea rows={6} value={text} maxLength={10000} onChange={e=>setText(e.target.value)}/></label>
-  <DrawingFontPicker value={font} disabled={disabled} onChange={setFont} testId="drawing-text-docker-font"/>
-  <label><span>{t('fontSize')}</span><input type="number" min={1} max={3000} step="any" value={points} onChange={e=>setPoints(e.target.value)}/></label>
-  <label><span>{t('letterSpacing')}</span><input type="number" min={-50} max={200} step="any" value={letters} aria-invalid={letterError} aria-describedby={letterError?letterErrorId:undefined} data-testid="drawing-text-docker-letter-spacing" onChange={e=>{setLetters(e.target.value);setLetterError(false);}} onKeyDown={e=>spacingKey(e,'letters')}/></label>
-  {letterError&&<p id={letterErrorId} className="drawing-help is-error" role="alert">{t('letterSpacingInvalid')}</p>}
-  <label><span>{t('lineSpacing')}</span><input type="number" min={50} max={500} step="any" value={lines} aria-invalid={lineError} aria-describedby={lineError?lineErrorId:undefined} data-testid="drawing-text-docker-line-spacing" onChange={e=>{setLines(e.target.value);setLineError(false);}} onKeyDown={e=>spacingKey(e,'lines')}/></label>
-  {lineError&&<p id={lineErrorId} className="drawing-help is-error" role="alert">{t('lineSpacingInvalid')}</p>}
-  <label><span>{t('align')}</span><select value={align} onChange={e=>setAlign(e.target.value as typeof align)}>{['start','middle','end'].map(value=><option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.horizontal.${value}`)}</option>)}</select></label>
-  <label className="drawing-cad-check"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)}/><span>{t('autoWidth')}</span></label>
-  <div className="drawing-workbench-actions"><button type="button" onClick={()=>setText(text.toLocaleUpperCase())}>{t('upper')}</button><button type="button" onClick={()=>setText(text.toLocaleLowerCase())}>{t('lower')}</button></div>
-  <button type="button" onClick={apply}>{t('apply')}</button>
-  <button type="button" onClick={()=>{if(apply())onOutlines();}}>{t('outlines')}</button>
-  {failed&&<p role="alert">{t('invalid')}</p>}
- </fieldset><DrawingFontManager focusRequest={fontFocusRequest}/>{lettering}</>;
+ return <>
+  {shape?<TextObjectEditor key={shape.id} shape={shape} disabled={disabled} onOutlines={onOutlines}/>:<>
+   <p className="drawing-help">{t('nextTextHint')}</p>
+   <NextTextProperties compact={false} disabled={readonly}/>
+   <button type="button" className="drawing-lettering-button" data-testid="drawing-create-text" disabled={readonly} onClick={()=>{editor.complete();editor.setCurrentTool('text');editor.focus();}}>{t('createText')}</button>
+  </>}
+  <DrawingFontManager focusRequest={fontFocusRequest}/>{lettering}
+ </>;
 }
+
+function TextObjectEditor({shape,disabled,onOutlines}:{shape:TLTextShape;disabled:boolean;onOutlines:()=>void}){
+ const editor=useEditor(),t=useWorkbenchText(),{label}=useDrawingText();
+ const [text,setText]=useState(shape.props.text),[failed,setFailed]=useState(false);
+ // Typography applies immediately. Refresh only changed content so an unfinished
+ // text draft survives font/spacing changes in either the docker or property bar.
+ useEffect(()=>{setText(shape.props.text);setFailed(false);},[shape.id,shape.props.text]);
+ useEffect(()=>{if(disabled){setText(shape.props.text);setFailed(false);}},[disabled]);
+ const apply=()=>{
+  if(disabled)return false;
+  const current=editor.getShape<TLTextShape>(shape.id);
+  if(!current||current.type!=='text')return false;
+  const success=editDrawingText(editor,shape.id,{text,font:drawingFontValue(current),textAlign:current.props.textAlign,autoSize:current.props.autoSize,pointSize:textPointSize(current)});
+  setFailed(!success);return success;
+ };
+ return <fieldset className="drawing-workbench-fields" disabled={disabled}>
+  <label><span>{t('content')}</span><textarea rows={4} value={text} maxLength={10000} data-testid="drawing-text-docker-content"
+   onChange={e=>{setText(e.target.value);setFailed(false);}} onKeyDown={event=>{
+    event.stopPropagation();
+    if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();apply();}
+    if(event.key==='Escape'){event.preventDefault();setText(shape.props.text);setFailed(false);event.currentTarget.blur();}
+   }}/></label>
+  <SelectedTextStyleFields shapes={[shape]} disabled={disabled} compact={false} prefix="drawing-text-docker"/>
+  <p className="drawing-help">{t('textStyleHint')}</p>
+  <div className="drawing-workbench-actions"><button type="button" onClick={()=>setText(text.toLocaleUpperCase())}>{t('upper')}</button><button type="button" onClick={()=>setText(text.toLocaleLowerCase())}>{t('lower')}</button></div>
+  <button type="button" data-testid="drawing-text-docker-apply" onClick={apply}>{t('apply')}</button>
+  <button type="button" data-testid="drawing-text-docker-outlines" onClick={()=>{if(apply())onOutlines();}}>{t('outlines')}</button>
+  {failed&&<p className="drawing-help is-error" role="alert">{label('changedFailed')}</p>}
+ </fieldset>;
+}
+
 export function ArrangePanel({settings,children}:{settings:CadSettings|null;children:ReactNode}){
  const editor=useEditor(),t=useWorkbenchText();
  const controls=useValue('arrange permissions',()=>captureToolkitControls(editor),[editor]);
@@ -206,27 +195,30 @@ function ArrangeAlignmentIcon({axis,alignment}:{axis:'x'|'y';alignment:'start'|'
  </svg>;
 }
 export function MeasurePanel({settings,onTool,onDocument}:{settings:CadSettings|null;onTool:(tool:string)=>void;onDocument:()=>void}){
- const editor=useEditor(),t=useWorkbenchText();
+ const editor=useEditor(),t=useWorkbenchText(),{label}=useCadText();
  const construction=useValue('measure construction',()=>cadConstruction(editor).get(),[editor]);
  const activeTool=useValue('measure tool',()=>editor.getCurrentToolId(),[editor]);
- const hint=construction?t(construction.points.length===0?'pickFirst':construction.points.length===1?'pickThrough':construction.kind==='arc'?'pickArcEnd':'pickThird'):t(activeTool==='cad-dimension'?'measureHint':'measureSelection');
+ const hint=construction?construction.kind==='angle'?label(construction.points.length===0?'dimensionPickVertex':construction.points.length===1?'dimensionPickFirstRay':'dimensionPickSecondRay'):t(construction.points.length===0?'pickFirst':construction.points.length===1?'pickThrough':construction.kind==='arc'?'pickArcEnd':'pickThird'):t(activeTool==='cad-dimension'?'measureHint':'measureSelection');
  const measurement=useValue('CAD curve measurements',()=>measureCadSelection(editor,settings),[editor,settings]);
  const state=useValue('measure selection',()=>{const shape=editor.getOnlySelectedShape();return {shape,bounds:getCadSelectionPageBounds(editor),readonly:editor.getInstanceState().isReadonly};},[editor]);
- const length=(n:number)=>`${(settings?canvasLengthToUnit(n,settings):n).toFixed(settings?.precision??2)} ${settings?.unit??'px'}`;
- const dimension=state.shape?.type==='cad-dimension'?state.shape:null;
+ const dimension=state.shape?.type==='cad-dimension'?state.shape as CadDimensionShape:null;
+ const precision=dimension?dimensionPrecision(dimension,settings):settings?.precision??2;
+ const length=(n:number)=>`${(settings?canvasLengthToUnit(n,settings):n).toFixed(precision)} ${settings?.unit??'px'}`;
  const points=useValue('measured dimension endpoints',()=>dimension?getDimensionEndpoints(editor,dimension as DimensionSource):null,[editor,dimension]);
  return <><p className="drawing-help">{hint}</p><dl className="drawing-cad-values">
   {!dimension&&<><dt>{t('width')}</dt><dd>{state.bounds?length(state.bounds.w):'—'}</dd><dt>{t('height')}</dt><dd>{state.bounds?length(state.bounds.h):'—'}</dd></>}
   {measurement.measured>0&&<><dt>{t('curveLength')}</dt><dd>{measurement.approximate?'≈ ':''}{length(measurement.length)}</dd><dt>{t('openPaths')}</dt><dd>{measurement.open}</dd><dt>{t('closedPaths')}</dt><dd>{measurement.closed}</dd></>}
   {measurement.radius!==undefined&&<><dt>{t('radius')}</dt><dd>{length(measurement.radius)}</dd><dt>{t('diameter')}</dt><dd>{length(measurement.radius*2)}</dd></>}
   {measurement.sweep!==undefined&&<><dt>{t('sweep')}</dt><dd>{measurement.sweep.toFixed(settings?.precision??2)}°</dd></>}
+  {measurement.bearing!==undefined&&<><dt>{label('measurementBearing')}</dt><dd>{measurement.bearing.toFixed(precision)}°</dd></>}
+  {measurement.cornerAngle!==undefined&&<><dt>{label('measurementCornerAngle')}</dt><dd>{measurement.cornerAngle.toFixed(precision)}°</dd></>}
   {!dimension&&measurement.omitted>0&&<><dt>{t('omittedMeasure')}</dt><dd>{measurement.omitted}</dd></>}
   {points&&points.status!=='broken'&&dimension&&<>
-    {points.angleSweep ? <><dt>{t('angle')}</dt><dd>{(Math.abs(points.angleSweep)*180/Math.PI).toFixed(settings?.precision??2)}°</dd></>
+    {points.angleSweep ? <><dt>{t('angle')}</dt><dd>{(Math.abs(points.angleSweep)*180/Math.PI).toFixed(precision)}°</dd></>
       : <><dt>{t(points.radialKind ?? 'distance')}</dt><dd>{length(Math.hypot(points.end.x-points.start.x,points.end.y-points.start.y))}</dd></>}
-    {!points.angleSweep&&!points.radialKind&&<><dt>{t('angle')}</dt><dd>{((-Math.atan2(points.end.y-points.start.y,points.end.x-points.start.x)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(2)}°</dd></>}
+    {!points.angleSweep&&!points.radialKind&&<><dt>{label('measurementBearing')}</dt><dd>{((-Math.atan2(points.end.y-points.start.y,points.end.x-points.start.x)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(precision)}°</dd></>}
   </>}
- </dl><CadDimensionControls settings={settings}/><p className="drawing-help">{t('lengthHint')}</p>{state.shape?.type==='cad-arc'&&<p className="drawing-help">{t('arcHandles')}</p>}<div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-arc-three')}>{t('arcThree')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle-three')}>{t('circleThree')}</button></div></>;
+ </dl><CadDimensionControls settings={settings}/><p className="drawing-help">{t('lengthHint')}</p>{state.shape?.type==='cad-arc'&&<p className="drawing-help">{t('arcHandles')}</p>}<div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension-angular')}>{label('drawAngularDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-arc-three')}>{t('arcThree')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle-three')}>{t('circleThree')}</button></div></>;
 }
 export function FormScaleControl(){
  const editor=useEditor(),t=useWorkbenchText();

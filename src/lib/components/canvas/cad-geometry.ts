@@ -1,5 +1,6 @@
 import { createShapeId, type Editor, type TLShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
+import { newCadOutlineMeta } from './drawing-outline-defaults';
 import { captureToolkitControls } from './toolkit-controls';
 import { getCadSelectionPageBounds } from './cad-bounds';
 import { CAD_DIMENSION_SOURCE_LIMIT, dimensionSources, getDimensionEndpoints, makeDimensionLink, radialDimensionKind, resolveDimensionLink,
@@ -122,7 +123,7 @@ export function createCadGeometry(editor: Editor, input: CadGeometryInput, setti
   }
   return drawingTransaction(editor, () => {
     editor.complete(); editor.setCurrentTool('select');
-    editor.createShape({ ...shape, id, parentId: editor.getCurrentPageId() });
+    editor.createShape({ ...shape, id, parentId: editor.getCurrentPageId(), meta: newCadOutlineMeta(editor, settings) });
     if (!editor.getShape(id)) throw new Error('Shape was not created');
     editor.setSelectedShapes([id]);
     if ((input.kind === 'rectangle' || input.kind === 'ellipse') && input.rotation) editor.rotateShapesBy([id], -input.rotation * Math.PI / 180);

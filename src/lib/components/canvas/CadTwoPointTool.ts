@@ -2,6 +2,7 @@ import { registerCanvasDraft } from './canvas-document';
 import {StateNode,createShapeId,DefaultColorStyle,type TLEventHandlers,type TLShapeId} from '@tldraw/tldraw';
 import {validCadPoint,type CadPoint} from './cad-settings';
 import {clearCadSnap,snapCadPoint} from './cad-snap';
+import {tryNewCadOutlineMeta} from './drawing-outline-defaults';
 
 export function twoPointGeometry(kind:'circle'|'dimension',start:CadPoint,end:CadPoint,zoom=1){
  const dx=end.x-start.x,dy=end.y-start.y,length=Math.hypot(dx,dy);
@@ -30,7 +31,7 @@ class CadTwoPointTool extends StateNode{
   if(!this.start||!this.shapeId)return false;
   const geometry=twoPointGeometry(this.kind,this.start,this.point(),this.editor.getZoomLevel());if(!geometry)return false;
   if(this.editor.getShape(this.shapeId))this.editor.updateShape({id:this.shapeId,...geometry});
-  else this.editor.createShape({id:this.shapeId,parentId:this.editor.getCurrentPageId(),...geometry,props:{...geometry.props,color:this.editor.getStyleForNextShape(DefaultColorStyle)}});
+  else {const meta=this.kind==='circle'?tryNewCadOutlineMeta(this.editor):undefined;if(meta===null)return false;this.editor.createShape({id:this.shapeId,parentId:this.editor.getCurrentPageId(),...geometry,props:{...geometry.props,color:this.editor.getStyleForNextShape(DefaultColorStyle)},...(meta?{meta}:{})});}
   return !!this.editor.getShape(this.shapeId);
  }
  override onPointerDown:TLEventHandlers['onPointerDown']=info=>{

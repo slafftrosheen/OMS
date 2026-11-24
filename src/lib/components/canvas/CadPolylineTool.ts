@@ -3,6 +3,7 @@ import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type
 import { CAD_MAX_POINTS, validCadPoint, type CadPoint } from './cad-settings';
 import { clearCadSnap, snapCadPoint } from './cad-snap';
 import { polylineSession } from './cad-polyline-draft';
+import { tryNewCadOutlineMeta } from './drawing-outline-defaults';
 
 /** Click-based drafting: no freehand smoothing and no hidden coordinate quantization. */
 export class CadPolylineTool extends StateNode {
@@ -57,10 +58,12 @@ export class CadPolylineTool extends StateNode {
     if (this.points.length && Math.hypot(point.x - this.points.at(-1)!.x, point.y - this.points.at(-1)!.y) < 1e-6) return false;
     if (!this.shapeId) {
       if (this.editor.getCurrentPageShapeIds().size >= this.editor.options.maxShapesPerPage) return false;
+      const meta = tryNewCadOutlineMeta(this.editor); if (!meta) return false;
       this.shapeId = createShapeId(); this.mark = `cad-polyline-${this.shapeId}`;
       this.editor.mark(this.mark);
       this.editor.createShape({ id: this.shapeId, type: 'cad-path', parentId: this.editor.getCurrentPageId(), x: point.x, y: point.y,
-        props: { points: [{ x: 0, y: 0 }, { x: 1e-5, y: 0 }], closed: false, color: this.editor.getStyleForNextShape(DefaultColorStyle) } });
+        props: { points: [{ x: 0, y: 0 }, { x: 1e-5, y: 0 }], closed: false, color: this.editor.getStyleForNextShape(DefaultColorStyle) },
+        meta });
       if (!this.editor.getShape(this.shapeId)) { this.cancel(); return false; }
     }
     this.points.push(point); this.render();

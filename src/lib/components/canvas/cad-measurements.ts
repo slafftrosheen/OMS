@@ -4,6 +4,7 @@ import { cubicLength, ellipseLength, type CurveLengthBudget } from './cad-curve-
 import { cadShapeIsClipped, cadShapeHasNonCuttingRaster } from './cad-dxf';
 import { shapeCadContours } from './cad-editing';
 import { cadMmPerPixel, type CadSettings } from './cad-settings';
+import { angularDimensionPoints, straightDimensionEdge } from './cad-dimension-links';
 
 export { cubicLength } from './cad-curve-length';
 
@@ -32,7 +33,9 @@ function measureShape(editor: Editor, shape: TLShape, tolerance: number, budget:
 export function measureCadSelection(editor: Editor, settings: CadSettings | null) {
   const shapes = [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])]
     .map(id => editor.getShape(id)).filter((s): s is TLShape => !!s && s.type !== 'group');
-  const result = { length: 0, open: 0, closed: 0, approximate: false, measured: 0, omitted: 0, radius: undefined as number | undefined, sweep: undefined as number | undefined };
+  const result = { length: 0, open: 0, closed: 0, approximate: false, measured: 0, omitted: 0,
+    radius: undefined as number | undefined, sweep: undefined as number | undefined,
+    bearing: undefined as number | undefined, cornerAngle: undefined as number | undefined };
   // A total 0.001 mm numerical target (0.001 px for legacy uncalibrated pages).
   const tolerance = (settings ? 0.001 / cadMmPerPixel(settings) : 0.001) / Math.max(1, shapes.length);
   const budget = { remaining: 100000 };
@@ -44,6 +47,15 @@ export function measureCadSelection(editor: Editor, settings: CadSettings | null
       result.approximate ||= measurement.approximate; result.measured++;
       if (shapes.length === 1) { result.radius = measurement.radius; result.sweep = measurement.sweep; }
     } catch { result.omitted++; }
+  }
+  // Only report an angle for supported, unclipped geometry. Page transforms
+  // include every rotated ancestor; screen zoom never changes these values.
+  if (!result.omitted && shapes.length) {
+    const corner = angularDimensionPoints(editor, shapes);
+    if (corner && shapes[0].type !== 'cad-arc') result.cornerAngle = Math.abs(corner.angleSweep!) * 180 / Math.PI;
+    const edge = shapes.length === 1 && straightDimensionEdge(editor, shapes[0]);
+    if (edge && Math.hypot(edge[1].x - edge[0].x, edge[1].y - edge[0].y) >= 1e-6)
+      result.bearing = ((-Math.atan2(edge[1].y - edge[0].y, edge[1].x - edge[0].x) * 180 / Math.PI) % 360 + 360) % 360;
   }
   return result;
 }

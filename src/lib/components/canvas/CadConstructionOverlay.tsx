@@ -8,7 +8,9 @@ export function CadConstructionOverlay() {
   const state = useValue('CAD construction guides', () => ({ draft: cadConstruction(editor).get(), zoom: editor.getZoomLevel() }), [editor]);
   if (!state.draft) return null;
   const { points, pointer, valid } = state.draft, scale = 1 / state.zoom;
-  const guides = pointer ? [...points, pointer] : points;
+  const guides = state.draft.kind === 'angle' && points.length === 2
+    ? [points[1], points[0], ...(pointer ? [pointer] : [])]
+    : pointer ? [...points, pointer] : points;
   return <svg aria-hidden="true" width={1} height={1} style={{ position: 'absolute', overflow: 'visible', pointerEvents: 'none', zIndex: 1000001 }}>
     <polyline points={guides.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="var(--color-selected, #4169e1)" strokeWidth={scale} strokeDasharray={`${4 * scale} ${4 * scale}`} />
     {points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r={4 * scale} fill="var(--rf-cv-sheet, white)" stroke="var(--color-selected, #4169e1)" strokeWidth={1.5 * scale}/><text x={p.x + 8 * scale} y={p.y - 8 * scale} fontSize={12 * scale} fill="var(--color-selected, #4169e1)" className="rf-cv-label">{i + 1}</text></g>)}

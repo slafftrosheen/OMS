@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { Editor } from '@tldraw/tldraw';
 import {
-  ariaDrawingKeys, drawingCommands, drawingCycleIndex, drawingDockers, drawingEventKeys, drawingMenuCommands,
+  ariaDrawingKeys, drawingCommands, drawingCycleIndex, drawingDockers, drawingEventKeys, drawingMenuCommands, drawingToolAlias,
   drawingOwnCommandForKeys, drawingReadOnlyTools, drawingToolForKeys, drawingToolIds, drawingToolKeys, drawingToolTargets,
   formatDrawingKeys,
 } from '../../src/lib/components/canvas/drawing-command-map';
@@ -24,13 +24,15 @@ describe('drawing workspace tool wiring', () => {
     const app = readCanvas('CanvasApp.tsx');
     const registered = app.match(/tools=\{\[([^\]]+)\]\}/)?.[1].split(',').map(name => name.trim());
     assert.ok(registered?.length);
-    const sources = ['CadPolylineTool', 'CadBezierTool', 'CadFreehandTool', 'CadTwoPointTool', 'CadThreePointTool']
+    const sources = ['CadPolylineTool', 'CadBezierTool', 'CadFreehandTool', 'CadTwoPointTool', 'CadThreePointTool', 'CadAngularDimensionTool', 'CadBoxTool']
       .map(name => readCanvas(`${name}.ts`)).join('\n');
     const declared = new Map([...sources.matchAll(/class (\w+) extends \w+\s*\{\s*static override id\s*=\s*'([^']+)'/g)]
       .map(([, name, id]) => [name, id]));
     const custom = Object.values(drawingToolTargets)
-      .flatMap(target => target.kind === 'editor'
-        ? [target.tool, ...('calibratedTool' in target ? [target.calibratedTool] : [])].filter(tool => tool.startsWith('cad-')) : []);
+      .flatMap(target => [
+        ...(target.kind === 'editor' ? [target.tool] : []),
+        ...('calibratedTool' in target ? [target.calibratedTool] : []),
+      ].filter(tool => tool.startsWith('cad-')));
     assert.deepEqual(registered.map(name => declared.get(name)).sort(), custom.sort());
   });
 
@@ -41,6 +43,14 @@ describe('drawing workspace tool wiring', () => {
     const shared = [...editor.matchAll(/'([^']+)'/g)].map(([, id]) => id);
     const routed = [...resolver.matchAll(/case '([^']+)'/g)].map(([, id]) => id);
     assert.deepEqual([...shared, ...routed].sort(), Object.keys(drawingCommands).sort());
+  });
+
+  it('keeps calibrated primitive names and return-to-tool behavior on their toolbar actions', () => {
+    for (const [id, target] of Object.entries(drawingToolTargets)) {
+      if ('calibratedTool' in target) assert.equal(drawingToolAlias(target.calibratedTool), id);
+    }
+    assert.equal(drawingToolAlias('cad-dimension-angular'), 'cad-dimension-angular');
+    assert.equal(drawingToolAlias('select'), 'select');
   });
 
   it('routes the advertised shortcuts with exact modifiers', () => {

@@ -3,7 +3,8 @@ import { regularPolygon, cornerContour } from './cad-corners';
 import { NODE_FILLET_TOLERANCE_MM } from './cad-node-corners';
 import { mapContours, nodeAt, type CadContour } from './cad-curves';
 import { cadPointToCanvas, unitMm, validateCadSettings, type CadSettings } from './cad-settings';
-import { makeCadPlan, CadOperationError } from './cad-plans';
+import { CadOperationError } from './cad-plans';
+import { makeNewCadShapePlan } from './drawing-outline-defaults';
 
 export type ParametricShapeKind = 'polygon' | 'star' | 'complex-star';
 export interface ParametricShapeOptions {
@@ -46,5 +47,5 @@ export function prepareParametricShape(editor: Editor, settings: CadSettings, op
   if (!validateCadSettings(settings) || Math.max(options.width, options.height) * unitMm(settings.unit) > 1_000_000)
     throw new CadOperationError('shape-input');
   const contours = mapContours(parametricShapeContours(options, NODE_FILLET_TOLERANCE_MM / unitMm(settings.unit)), p => cadPointToCanvas(p, settings));
-  return makeCadPlan(editor, settings, contours, { name: options.kind === 'polygon' ? 'Polygon' : options.kind === 'star' ? 'Star' : 'Complex star' });
+  return makeNewCadShapePlan(editor, settings, contours, options.kind === 'polygon' ? 'Polygon' : options.kind === 'star' ? 'Star' : 'Complex star');
 }

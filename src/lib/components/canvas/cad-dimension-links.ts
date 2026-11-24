@@ -18,7 +18,7 @@ export interface CadDimensionLink {
 }
 type Endpoints = { start: CadPoint; end: CadPoint; angleSweep?: number };
 type DimensionSource = TLShape & {
-  props: { endX: number; endY: number; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null; angleSweep?: number | null };
+  props: { endX: number; endY: number; link?: CadDimensionLink | null; radialKind?: CadRadialDimensionKind | null; angleSweep?: number | null; angleReflex?: boolean | null };
 };
 
 export function dimensionSources(editor: Editor, ids: TLShapeId[]): TLShape[] {
@@ -55,23 +55,42 @@ export function circularDimensionPoints(source: TLShape): { center: CadPoint; ri
   return { center: { x: w / 2, y: height / 2 }, rim: { x: w, y: height / 2 } };
 }
 
-function straightEdge(editor: Editor, shape: TLShape): CadPoint[] | null {
-  const props = shape.props as { points: CadPoint[] | Record<string, CadPoint>; closed?: boolean; spline?: string };
-  const points = shape.type === 'cad-path' && !props.closed && Array.isArray(props.points) ? props.points
-    : shape.type === 'line' && props.spline === 'line' ? Object.values(props.points) : [];
+function straightPathVertices(shape: TLShape): CadPoint[] {
+  const props = shape.props as Record<string, any>;
+  if (shape.type === 'cad-path' && !props.closed && Array.isArray(props.points)) return props.points;
+  if (shape.type === 'line' && props.spline === 'line') return (Object.values(props.points) as Array<CadPoint & { index: string }>)
+    .sort((a, b) => a.index < b.index ? -1 : a.index > b.index ? 1 : 0);
+  if (shape.type === 'cad-bezier' && props.contours?.length === 1 && !props.contours[0].closed &&
+      props.contours[0].nodes.every(node => !node.inX && !node.inY && !node.outX && !node.outY)) return props.contours[0].nodes;
+  return [];
+}
+
+export function straightDimensionEdge(editor: Editor, shape: TLShape): CadPoint[] | null {
+  const points = straightPathVertices(shape);
   if (points.length !== 2) return null;
   const transform = editor.getShapePageTransform(shape);
   return points.map(p => transform.applyToPoint(p));
 }
 
-function angleAt(vertex: CadPoint, a: CadPoint, b: CadPoint): Endpoints | null {
+/** Signed smaller angle between two rays. Page coordinates increase downwards. */
+export function angleDimensionAt(vertex: CadPoint, a: CadPoint, b: CadPoint): Endpoints | null {
+  if (![vertex, a, b].every(validCadPoint)) return null;
   const ax = a.x - vertex.x, ay = a.y - vertex.y, bx = b.x - vertex.x, by = b.y - vertex.y;
   const aLength = Math.hypot(ax, ay), bLength = Math.hypot(bx, by);
-  if (Math.min(aLength, bLength) < 1e-8) return null;
+  if (Math.min(aLength, bLength) < 1e-6) return null;
   const angleSweep = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
   if (Math.abs(angleSweep) < 1e-8) return null;
   const ratio = Math.min(aLength, bLength) / aLength;
-  return { start: vertex, end: { x: vertex.x + ax * ratio, y: vertex.y + ay * ratio }, angleSweep };
+  const end = { x: vertex.x + ax * ratio, y: vertex.y + ay * ratio };
+  return validCadPoint(end) && validCadPoint({ x: end.x - vertex.x, y: end.y - vertex.y })
+    ? { start: vertex, end, angleSweep } : null;
+}
+
+/** Explicit sector choice is idempotent, including after detaching a linked arc. */
+export function dimensionAngleSweep(sweep: number | null | undefined, reflex?: boolean | null): number | null {
+  if (sweep == null) return null;
+  if (reflex == null || Math.abs(Math.abs(sweep) - Math.PI) < 1e-8 || (Math.abs(sweep) > Math.PI) === reflex) return sweep;
+  return sweep - Math.sign(sweep) * 2 * Math.PI;
 }
 
 export function angularDimensionPoints(editor: Editor, sources: TLShape[]): Endpoints | null {
@@ -89,17 +108,17 @@ export function angularDimensionPoints(editor: Editor, sources: TLShape[]): Endp
         angleSweep: -sweep,
       };
     }
-    const { points, closed } = source.props as { points?: CadPoint[]; closed?: boolean };
-    if (source.type !== 'cad-path' || closed || points?.length !== 3) return null;
+    const points = straightPathVertices(source);
+    if (points.length !== 3) return null;
     const [a, vertex, b] = points.map(p => transform.applyToPoint(p));
-    return angleAt(vertex, a, b);
+    return angleDimensionAt(vertex, a, b);
   }
   if (sources.length !== 2) return null;
-  const first = straightEdge(editor, sources[0]), second = straightEdge(editor, sources[1]);
+  const first = straightDimensionEdge(editor, sources[0]), second = straightDimensionEdge(editor, sources[1]);
   if (!first || !second) return null;
   for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) {
     if (Math.hypot(first[a].x - second[b].x, first[a].y - second[b].y) <= 1e-7)
-      return angleAt(first[a], first[1 - a], second[1 - b]);
+      return angleDimensionAt(first[a], first[1 - a], second[1 - b]);
   }
   return null;
 }
@@ -151,12 +170,12 @@ export function resolveDimensionLink(editor: Editor, link: CadDimensionLink, pag
 export function getDimensionEndpoints(editor: Editor, shape: DimensionSource) {
   const { endX, endY, link } = shape.props;
   const radialKind = link ? radialDimensionKind(link.kind) : shape.props.radialKind ?? null;
-  const fallback = { start: { x: 0, y: 0 }, end: { x: endX, y: endY }, radialKind, angleSweep: shape.props.angleSweep ?? null };
+  const fallback = { start: { x: 0, y: 0 }, end: { x: endX, y: endY }, radialKind, angleSweep: dimensionAngleSweep(shape.props.angleSweep, shape.props.angleReflex) };
   if (!link) return { ...fallback, status: 'free' as const };
   const pageId = editor.getAncestorPageId(shape);
   const points = pageId && resolveDimensionLink(editor, link, pageId);
   if (!points) return { ...fallback, status: 'broken' as const };
-  return { start: editor.getPointInShapeSpace(shape, points.start), end: editor.getPointInShapeSpace(shape, points.end), radialKind, angleSweep: points.angleSweep ?? null, status: 'linked' as const };
+  return { start: editor.getPointInShapeSpace(shape, points.start), end: editor.getPointInShapeSpace(shape, points.end), radialKind, angleSweep: dimensionAngleSweep(points.angleSweep, shape.props.angleReflex), status: 'linked' as const };
 }
 
 export type { DimensionSource };

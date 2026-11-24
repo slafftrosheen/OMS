@@ -50,7 +50,7 @@ describe('CAD drawing and text workbench',()=>{
   const shape=f.editor.getOnlySelectedShape();assert.equal(shape.type,'cad-dimension');assert.equal(Math.hypot(shape.props.endX,shape.props.endY),50);
  });
  it('edits exact point size and multiline text in one operation, respecting ancestor locks',()=>{
-  const f=fixture();f.editor.createShape({id:'shape:text',type:'text',props:{text:'old',size:'m',scale:1,font:'sans',textAlign:'start',autoSize:true}});f.editor.setSelectedShapes(['shape:text']);
+  const f=fixture();f.editor.createShape({id:'shape:text',type:'text',props:{text:'old',size:'m',scale:1,font:'sans',textAlign:'start',autoSize:true,w:120}});f.editor.setSelectedShapes(['shape:text']);
   const props={text:'Latvija\nRīga',pointSize:72,font:'serif',textAlign:'middle',autoSize:false} as const;
   assert.equal(editDrawingText(f.editor,'shape:text' as any,props),true);
   assert.equal(textPointSize(f.editor.getShape('shape:text')),72);assert.equal(f.editor.getShape('shape:text').props.text,props.text);

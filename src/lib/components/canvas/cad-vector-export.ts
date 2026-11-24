@@ -233,7 +233,7 @@ export function serializeVectorDocument(
     if (pdf) body.push(`/GS${i} gs`);
     for (const c of p.clips ?? []) body.push(clip(c.contours, c.fillRule));
     body.push(
-      `${num(p.strokeWidth)} ${pdf ? "w" : "setlinewidth"}`,
+      `${num(p.hairline ? 0 : p.strokeWidth)} ${pdf ? "w" : "setlinewidth"}`,
       `${["butt", "round", "square"].indexOf(p.lineCap)} ${pdf ? "J" : "setlinecap"}`,
       `${["miter", "round", "bevel"].indexOf(p.lineJoin)} ${pdf ? "j" : "setlinejoin"}`,
       `${num(p.miterLimit)} ${pdf ? "M" : "setmiterlimit"}`,

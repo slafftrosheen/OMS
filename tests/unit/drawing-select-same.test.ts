@@ -76,6 +76,12 @@ describe('Select Same artwork', () => {
       paintShape('dash', 'cad-arc', { strokeWidth: 3, dash: [2, 2] })]);
     assert.deepEqual(plan(c.editor, fields({ fill: true, outline: true })).ids, ['source', 'path']);
   });
+  it('matches device hairlines regardless of fallback width without matching an equal numeric stroke', () => {
+    const c = canvas([paintShape('source', 'cad-path', { hairline: true, strokeWidth: .04 }),
+      paintShape('hairline', 'cad-path', { hairline: true, strokeWidth: .02 }),
+      paintShape('numeric', 'cad-path', { strokeWidth: .04 })]);
+    assert.deepEqual(plan(c.editor, fields({ outline: true })).ids, ['source', 'hairline']);
+  });
   it('matches the same gradient definition independent of property insertion order', () => {
     const gradient = { type: 'linear', matrix: [1, 0, 0, 1, 0, 0], start: [0, 0], end: [100, 0], r0: 0, r1: 1,
       stops: [{ offset: 0, color: '#ff0000' }, { offset: 1, color: '#0000ff' }] };

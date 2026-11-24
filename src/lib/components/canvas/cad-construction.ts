@@ -30,7 +30,7 @@ export function threePointGeometry(kind: 'arc' | 'circle', a: CadPoint, b: CadPo
 }
 
 export interface CadConstruction {
-  kind: 'arc' | 'circle'; points: CadPoint[]; pointer: CadPoint | null; valid: boolean;
+  kind: 'arc' | 'circle' | 'angle'; points: CadPoint[]; pointer: CadPoint | null; valid: boolean;
 }
 function constructionAtom() { return atom<CadConstruction | null>('cad construction', null); }
 const sessions = new WeakMap<Editor, ReturnType<typeof constructionAtom>>();

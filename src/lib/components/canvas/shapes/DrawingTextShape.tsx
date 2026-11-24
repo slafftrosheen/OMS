@@ -6,6 +6,7 @@ import { curvePathData } from '../cad-curves';
 import {useDrawingFontText} from '../font-copy';
 import { TEXT_PIXELS } from '../workbench-operations';
 import { drawingTextBaseline, drawingTextLineHeight, getDrawingTextSpacing, hasDrawingTextSpacing, withDrawingTextSpacing } from '../drawing-text-spacing';
+import { isDrawingTextFormatting } from '../drawing-text-formatting';
 
 /** Native text records and tools remain compatible. Uploaded faces override only
  * text measurement/rendering; no mutation of tldraw's global four-font registry. */
@@ -61,20 +62,26 @@ export class DrawingTextShapeUtil extends TextShapeUtil {
     const contours = spans.flatMap(span => glyphRunContours(font, span.text, span.box.x, span.box.y + baseline, fontSize, spacing.letterSpacing));
     return <path d={curvePathData(contours)} fill={getDefaultColorTheme(ctx)[p.color].solid} fillRule="nonzero" />;
   }
-  // TextShapeUtil defines this as an instance field. Preserve its original
-  // behavior for built-ins; custom faces use their measured metrics throughout.
-  private nativeBeforeUpdate = (this as TextShapeUtil).onBeforeUpdate;
   override onBeforeUpdate = (prev: TLTextShape, incoming: TLTextShape) => {
     let next = incoming;
-    if (prev.props.font !== next.props.font && getShapeDrawingFontId(prev) === getShapeDrawingFontId(next)) {
+    if (getShapeDrawingFontId(prev) && prev.props.font !== next.props.font && getShapeDrawingFontId(prev) === getShapeDrawingFontId(next)) {
       next = { ...next, meta: { ...next.meta, omsFontId: null } };
     }
-    if (!getShapeDrawingFontId(prev) && !getShapeDrawingFontId(next) && !hasDrawingTextSpacing(prev) && !hasDrawingTextSpacing(next)) return this.nativeBeforeUpdate(prev, next) ?? (next !== incoming ? next : undefined);
-    if (!next.props.autoSize) return { ...next, props: { ...next.props } };
     const p = prev.props, n = next.props;
     const beforeSpacing = getDrawingTextSpacing(prev), afterSpacing = getDrawingTextSpacing(next);
     const textChanged = p.text !== n.text;
-    if (!textChanged && p.size === n.size && p.font === n.font && p.scale === n.scale && p.textAlign === n.textAlign && p.autoSize === n.autoSize && getShapeDrawingFontId(prev) === getShapeDrawingFontId(next) && beforeSpacing.letterSpacing === afterSpacing.letterSpacing && beforeSpacing.lineHeight === afterSpacing.lineHeight) return next;
+    const layoutChanged = textChanged || p.size !== n.size || p.font !== n.font || p.textAlign !== n.textAlign || p.autoSize !== n.autoSize
+      || getShapeDrawingFontId(prev) !== getShapeDrawingFontId(next) || beforeSpacing.letterSpacing !== afterSpacing.letterSpacing || beforeSpacing.lineHeight !== afterSpacing.lineHeight;
+    const pointSizeChanged = p.scale !== n.scale && isDrawingTextFormatting(this.editor);
+    if (!layoutChanged && !pointSizeChanged) return next !== incoming ? next : undefined;
+    if (!n.autoSize) {
+      // Native 2.4 stores scaled auto widths in `w`. Freeze the measured width
+      // when switching modes instead of treating that stale value as local px.
+      const w = p.autoSize && n.w === p.w ? this.getMinDimensions(prev).width * p.scale / n.scale : n.w;
+      // Geometry caches key on props identity. A metadata-only font or spacing
+      // edit must invalidate fixed-width text geometry as well.
+      return { ...next, props: { ...n, w } };
+    }
     const a = this.getMinDimensions(prev), b = this.getMinDimensions(next);
     const dw = b.width * n.scale - a.width * p.scale, dh = b.height * n.scale - a.height * p.scale;
     const delta = new Vec(n.textAlign === 'end' ? dw : n.textAlign === 'middle' ? dw / 2 : 0, textChanged ? 0 : dh / 2).rot(next.rotation);

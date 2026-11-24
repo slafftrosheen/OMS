@@ -1,12 +1,13 @@
 import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry } from './cad-shape-appearance';
 import { vectorPaint, paintMetadata } from './cad-vector';
-import { validVectorPaint, type VectorPaint } from './cad-paint';
+import { CAD_HAIRLINE_FALLBACK_MM, validVectorPaint, type VectorPaint } from './cad-paint';
 import { assertCadEditable, cadRevision, CadOperationError } from './cad-plans';
 import { drawingTransaction } from './drawing-commands';
-import { unitLengthToCanvas, validateCadSettings, type CadSettings } from './cad-settings';
+import { canWriteCadSnapSettings } from './cad-snap-settings';
+import { cadMmPerPixel, unitLengthToCanvas, validateCadSettings, type CadSettings } from './cad-settings';
 
-export const OUTLINE_FIELDS = ['stroke','strokeWidth','strokeOpacity','lineCap','lineJoin','miterLimit','dash','dashOffset'] as const;
+export const OUTLINE_FIELDS = ['stroke','strokeWidth','hairline','strokeOpacity','lineCap','lineJoin','miterLimit','dash','dashOffset'] as const;
 export type OutlineField = typeof OUTLINE_FIELDS[number];
 export type OutlinePatch = Partial<Pick<VectorPaint,OutlineField>>;
 export type OutlineInput = OutlinePatch; // Width, dash lengths and offset use the active document unit.
@@ -41,6 +42,11 @@ export function outlinePatchFromInput(input:OutlineInput,settings:CadSettings):O
   if(Object.hasOwn(input,'dash')&&(!Array.isArray(input.dash)||input.dash.some(value=>!Number.isFinite(value))))throw new CadOperationError('invalid');
   const patch=structuredClone(input);
   if(Object.hasOwn(patch,'strokeWidth'))patch.strokeWidth=unitLengthToCanvas(patch.strokeWidth!,settings);
+  // Explicit width entry switches off hairline. A hairline is never encoded
+  // as SVG's invisible zero-width stroke, including when the source was hidden.
+  if(Object.hasOwn(patch,'hairline')&&typeof patch.hairline!=='boolean')throw new CadOperationError('invalid');
+  if(patch.hairline===true)patch.strokeWidth=CAD_HAIRLINE_FALLBACK_MM/cadMmPerPixel(settings);
+  else if(Object.hasOwn(patch,'strokeWidth'))patch.hairline=false;
   if(Object.hasOwn(patch,'dashOffset'))patch.dashOffset=unitLengthToCanvas(patch.dashOffset!,settings);
   if(Object.hasOwn(patch,'dash')){
     if(!Array.isArray(patch.dash))throw new CadOperationError('invalid');
@@ -66,12 +72,13 @@ function proposed(editor:Editor,patch:OutlinePatch){
   return {source,updates};
 }
 export function prepareOutlinePlan(editor:Editor,input:OutlineInput,settings:CadSettings):OutlinePlan {
+  if(!canWriteCadSnapSettings(editor))throw new CadOperationError(editor.getInstanceState().isReadonly?'readonly':'busy');
   const patch=outlinePatchFromInput(input,settings),{source}=proposed(editor,patch);
   return {revision:cadRevision(editor),patch,count:source.length,samples:source.slice(0,3).map(item=>({...item.paint,...patch}))};
 }
 export function applyOutlinePlan(editor:Editor,plan:OutlinePlan):boolean {
   try{
-    if(plan.revision!==cadRevision(editor))return false;
+    if(!canWriteCadSnapSettings(editor)||plan.revision!==cadRevision(editor))return false;
     editor.complete();editor.setCurrentTool('select');
     if(plan.revision!==cadRevision(editor))return false;
     const {source,updates}=proposed(editor,plan.patch);

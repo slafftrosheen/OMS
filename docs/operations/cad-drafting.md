@@ -2,6 +2,8 @@
 
 Idea boards and order canvases use the same CAD tools and document format. CAD shapes and page settings are included in the existing canvas snapshot, autosave and revision flows. No database migration or external CAD service is required.
 
+For the current angle tool, dimension controls, hairline outline defaults and corrected text settings, see [Measurements, outlines and text](canvas-measurements-outline-text.md).
+
 ## Finding the tools
 
 The left toolbox gives Rectangle, Ellipse and polygon shapes separate positions. **Arc · three points** is in the curves flyout; **Circle · three points** is in the ellipse/circle flyout. Both are also available from the **Measure** docker. For an arc, click its start, a point along the desired arc, and its end. The middle point chooses the short or long arc. For a circle, click three points on its circumference. Numbered construction guides follow object snapping; Backspace removes the last point and Escape cancels the whole gesture. Coincident, collinear and out-of-range points cannot complete a shape. Guides are transient and never saved/exported. The resulting native arcs/circles remain analytic in DXF output.

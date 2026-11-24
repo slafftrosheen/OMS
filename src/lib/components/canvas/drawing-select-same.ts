@@ -78,7 +78,7 @@ function attributes(shape: TLShape): Record<keyof SelectSameFields, string | nul
     }
     result.outline = signature(paint.stroke === 'none' || paint.strokeWidth === 0 || paint.strokeOpacity === 0
       ? { family: 'cad', outline: 'none' }
-      : { family: 'cad', color: paint.stroke, width: paint.strokeWidth,
+      : { family: 'cad', color: paint.stroke, width: paint.hairline ? 'hairline' : paint.strokeWidth,
         opacity: paint.strokeOpacity, cap: paint.lineCap, join: paint.lineJoin, miter: paint.miterLimit,
         dash: paint.dash, offset: paint.dashOffset });
   }

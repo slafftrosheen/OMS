@@ -42,6 +42,7 @@ export function expandOutlineContours(contours: CadContour[], paint: VectorPaint
   if (!validContours(contours) || !validVectorPaint(paint) || !Number.isFinite(mmPerPixel) || mmPerPixel <= 0 ||
       !Number.isFinite(toleranceMm) || toleranceMm < .001 || toleranceMm > 1) throw new CadOperationError('invalid');
   if (paint.dash.length) throw new CadOperationError('dashed');
+  if (paint.hairline) throw new CadOperationError('hairline');
   if (paint.stroke === 'none' || paint.strokeOpacity <= 0 || paint.strokeWidth <= 0) throw new CadOperationError('invisible');
   const radius = paint.strokeWidth * mmPerPixel / 2;
   if (radius < 2 / SCALE || radius > 1e7) throw new CadOperationError('geometry');
@@ -156,6 +157,7 @@ function eligible(editor: Editor) {
     }
     if(editor.getShapeMask(shape.id)||paint.clips?.length||paint.raster&&paint.raster.usage!=='material')throw new CadOperationError('unsupported');
     if(paint.dash.length)throw new CadOperationError('dashed');
+    if(paint.hairline)throw new CadOperationError('hairline');
     if(paint.stroke==='none'||paint.strokeWidth<=0||paint.strokeOpacity<=0||shape.opacity<=0)throw new CadOperationError('invisible');
   }
   return source;

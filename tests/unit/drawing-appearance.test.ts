@@ -69,6 +69,19 @@ describe('copy and apply drawing appearance', () => {
     const paint = f.shapes.get('target').meta.omsVectorPaint; assert.deepEqual(paint.raster, raster); assert.equal(paint.strokeWidth, 8); assert.deepEqual(f.shapes.get('target').meta.omsMaterialTexture, { scale: 300 });
     assert.deepEqual(applyDrawingAppearance(f.editor, fillOnly), { ok: false, error: 'incompatible' });
   });
+  it('copies hairline semantics and clears them when a regular outline is pasted', () => {
+    const f = fixture();
+    f.add('hairline', 'cad-bezier', {}, { omsVectorPaint: { ...VECTOR_DEFAULT_PAINT, strokeWidth: .04, hairline: true } });
+    f.add('numeric', 'cad-bezier', {}, { omsVectorPaint: { ...VECTOR_DEFAULT_PAINT, strokeWidth: 2 } });
+    f.add('target', 'cad-bezier');
+    f.select('hairline'); assert.equal(copyDrawingAppearance(f.editor).ok, true);
+    f.select('target'); assert.equal(applyDrawingAppearance(f.editor, outlineOnly).ok, true);
+    assert.equal(f.shapes.get('target').meta.omsVectorPaint.hairline, true);
+    f.select('numeric'); assert.equal(copyDrawingAppearance(f.editor).ok, true);
+    f.select('target'); assert.equal(applyDrawingAppearance(f.editor, outlineOnly).ok, true);
+    assert.equal(f.shapes.get('target').meta.omsVectorPaint.hairline, undefined);
+    assert.equal(f.shapes.get('target').meta.omsVectorPaint.strokeWidth, 2);
+  });
   it('rejects locked descendants and read-only edits atomically while permitting copy', () => {
     const f = fixture(), source = f.add('source', 'geo', { color: 'red' }); source.isLocked = true;
     f.select('source'); f.readonly(true); assert.equal(copyDrawingAppearance(f.editor).ok, true); assert.deepEqual(applyDrawingAppearance(f.editor), { ok: false, error: 'protected' });

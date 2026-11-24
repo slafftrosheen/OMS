@@ -3,6 +3,7 @@ import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type
 import { nodeAt, validContours, type CadBezierNode } from './cad-curves';
 import { validCadPoint } from './cad-settings';
 import { clearCadSnap, snapCadPoint } from './cad-snap';
+import { tryNewCadOutlineMeta } from './drawing-outline-defaults';
 
 /** Click for corners; drag from the new anchor for symmetric Bézier handles. */
 export class CadBezierTool extends StateNode {
@@ -51,6 +52,7 @@ export class CadBezierTool extends StateNode {
     if (this.nodes.length && Math.hypot(point.x - this.nodes.at(-1)!.x, point.y - this.nodes.at(-1)!.y) < 1e-6) return;
     if (!this.shapeId) {
       if (this.editor.getCurrentPageShapeIds().size >= this.editor.options.maxShapesPerPage) return;
+      const meta = tryNewCadOutlineMeta(this.editor); if (!meta) return;
       this.shapeId = createShapeId();
       this.mark = `cad-bezier-${this.shapeId}`;
       this.editor.mark(this.mark);
@@ -60,6 +62,7 @@ export class CadBezierTool extends StateNode {
         parentId: this.editor.getCurrentPageId(),
         x: 0,
         y: 0,
+        meta,
         props: {
           contours: [{ closed: false, nodes: [nodeAt(point), nodeAt({ x: point.x + 1e-5, y: point.y })] }],
           color: this.editor.getStyleForNextShape(DefaultColorStyle)

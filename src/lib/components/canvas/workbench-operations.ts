@@ -4,12 +4,13 @@ import {drawingTransaction} from './drawing-commands';
 import {prepareArrangePlan,applyArrangePlan} from './drawing-arrange';
 import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
 import {drawingTextSpacingMeta,validDrawingTextSpacing,type DrawingTextSpacing} from './drawing-text-spacing';
+import {canFormatDrawingText,canKeepDrawingTextWidth,drawingTextFixedWidthAtScale,MIN_DRAWING_TEXT_LAYOUT_WIDTH,withDrawingTextFormatting} from './drawing-text-formatting';
 export const TEXT_PIXELS={s:18,m:24,l:36,xl:44};
 export function textPointSize(shape:TLTextShape){return TEXT_PIXELS[shape.props.size]*shape.props.scale*0.75;}
 export function editDrawingText(editor:Editor,id:TLTextShape['id'],props:{text:string;font:string;textAlign:TLTextShape['props']['textAlign'];autoSize:boolean;pointSize:number}&Partial<DrawingTextSpacing>){
  const shape=editor.getShape<TLTextShape>(id);
- if(!shape||shape.type!=='text'||editor.getOnlySelectedShape()?.id!==id||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape))return false;
- if(!Number.isFinite(props.pointSize)||props.pointSize<1||props.pointSize>3000||props.text.length>10000||!['start','middle','end'].includes(props.textAlign)||!validDrawingTextSpacing(props))return false;
+ if(!shape||shape.type!=='text'||editor.getOnlySelectedShape()?.id!==id||!canFormatDrawingText(editor)||editor.isShapeOrAncestorLocked(shape))return false;
+ if(!Number.isFinite(props.pointSize)||props.pointSize<1||props.pointSize>3000||typeof props.text!=='string'||props.text.length>10000||typeof props.autoSize!=='boolean'||!['start','middle','end'].includes(props.textAlign)||!validDrawingTextSpacing(props))return false;
  const {pointSize,font,letterSpacing,lineHeight,...rest}=props;
  try {
  const patch=drawingFontPatch(editor,{...shape,props:{...shape.props,text:props.text}},font);
@@ -17,7 +18,16 @@ export function editDrawingText(editor:Editor,id:TLTextShape['id'],props:{text:s
  if(letterSpacing!==undefined)spacing.letterSpacing=letterSpacing;
  if(lineHeight!==undefined)spacing.lineHeight=lineHeight;
  const meta=Object.keys(spacing).length?drawingTextSpacingMeta({meta:patch.meta},spacing):patch.meta;
- return drawingTransaction(editor,()=>editor.updateShape({id,type:'text',meta,props:{...rest,...patch.props,scale:pointSize/(TEXT_PIXELS[shape.props.size]*0.75)}}));
+ const scale=pointSize/(TEXT_PIXELS[shape.props.size]*0.75);
+ const width=!props.autoSize&&(scale!==shape.props.scale||shape.props.autoSize)?drawingTextFixedWidthAtScale(editor,shape,scale):undefined;
+ if(width!==undefined&&!canKeepDrawingTextWidth(width))return false;
+ const nextProps={...rest,...patch.props,scale,...(width!==undefined?{w:Math.max(MIN_DRAWING_TEXT_LAYOUT_WIDTH,width)}:{})};
+ if(Object.entries(nextProps).every(([key,value])=>shape.props[key as keyof TLTextShape['props']]===value)&&JSON.stringify(meta)===JSON.stringify(shape.meta))return true;
+ return drawingTransaction(editor,()=>{
+  withDrawingTextFormatting(editor,()=>editor.updateShape({id,type:'text',meta,props:nextProps}));
+  const applied=editor.getShape<TLTextShape>(id);
+  if(!applied||Object.entries(nextProps).some(([key,value])=>applied.props[key as keyof TLTextShape['props']]!==value)||JSON.stringify(applied.meta)!==JSON.stringify(meta))throw new Error('Text changes were not applied');
+ });
  } catch {return false;}
 }
 /** Compatibility entry point; shares precise bounds and protection with Arrange. */

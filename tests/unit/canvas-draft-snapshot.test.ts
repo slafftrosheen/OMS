@@ -8,6 +8,7 @@ import { CadPolylineTool } from '../../src/lib/components/canvas/CadPolylineTool
 import { CadBezierTool } from '../../src/lib/components/canvas/CadBezierTool';
 import { CadCircleTool, CadDimensionTool } from '../../src/lib/components/canvas/CadTwoPointTool';
 import { CadArcThreePointTool, CadCircleThreePointTool } from '../../src/lib/components/canvas/CadThreePointTool';
+import { CadAngularDimensionTool } from '../../src/lib/components/canvas/CadAngularDimensionTool';
 import { CadBezierShapeUtil } from '../../src/lib/components/canvas/shapes/CadBezierShape';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from '../../src/lib/components/canvas/shapes/CadShapes';
 
@@ -52,9 +53,9 @@ describe('CAD drafts at the persistence boundary', () => {
     const saved = f.saved()[0]; assert.equal(saved.props.contours[0].nodes[1].outY, 30);
     f.click(210, 20); assert.equal(saved.props.contours[0].nodes.length, 2); assert.equal(f.saved()[0].props.contours[0].nodes.length, 3);
   });
-  for (const Tool of [CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]) it(`omits unconfirmed ${Tool.id} previews, then retains the confirmed shape`, () => {
+  for (const Tool of [CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool, CadAngularDimensionTool]) it(`omits unconfirmed ${Tool.id} previews, then retains the confirmed shape`, () => {
     const f = setup(Tool); f.click(10, 20);
-    if (Tool === CadArcThreePointTool || Tool === CadCircleThreePointTool) f.click(110, 20);
+    if (Tool === CadArcThreePointTool || Tool === CadCircleThreePointTool || Tool === CadAngularDimensionTool) f.click(110, 20);
     f.move(110, 120); assert.equal(f.shapes.size, 1); assert.equal(f.saved().length, 0);
     f.click(110, 120); assert.equal(f.saved().length, 1);
   });
@@ -102,10 +103,10 @@ describe('CAD drafts at the persistence boundary', () => {
     assert.equal(JSON.stringify(store.getStoreSnapshot()), before); assert.equal(f.marks.length, marks); assert.equal(f.state.tool, 'cad-polyline');
   });
 
-  for (const Tool of [CadPolylineTool, CadBezierTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool]) {
+  for (const Tool of [CadPolylineTool, CadBezierTool, CadCircleTool, CadDimensionTool, CadArcThreePointTool, CadCircleThreePointTool, CadAngularDimensionTool]) {
     it(`Order Save omits an unconfirmed ${Tool.id} shape instead of persisting a canceled preview`, () => {
       const f = setup(Tool); f.click(10, 20);
-      if (Tool === CadArcThreePointTool || Tool === CadCircleThreePointTool) f.click(110, 20);
+      if (Tool === CadArcThreePointTool || Tool === CadCircleThreePointTool || Tool === CadAngularDimensionTool) f.click(110, 20);
       if (Tool !== CadPolylineTool && Tool !== CadBezierTool) f.move(110, 120);
       const store = orderStore(f), raw = getSnapshot(store), shapeId = [...f.shapes.keys()][0] as TLShapeId, marks = f.marks.length;
       assert.ok(raw.document.store[shapeId], 'the previous raw save included an unconfirmed preview');

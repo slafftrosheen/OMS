@@ -34,6 +34,7 @@ export const drawingIconPaths: Record<string, ReactNode> = {
   // Text, dimensions, connectors
   text: <path d="M4 5V3h16v2M12 3v18m-4 0h8" />,
   'cad-dimension': <path d="M3 4v16M21 4v16M3 12h18m-14-3-4 3 4 3m10-6 4 3-4 3"/>,
+  'cad-dimension-angular': <path d="M3 20h18M3 20 17 4M14 20a11 11 0 0 0-4-8m4 4v4h-4m-3-7 3-1 1-3"/>,
   'cad-measure-tools': <path d="M4 4v16h16M4 20 19 5M4 13a7 7 0 0 1 5 2" />,
   arrow: <path d="M4 20 20 4M10 4h10v10" />,
   frame: <path d="M3 6h18M3 18h18M6 3v18M18 3v18" />,

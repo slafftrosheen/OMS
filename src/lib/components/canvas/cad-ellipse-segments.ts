@@ -1,7 +1,7 @@
 import type { Editor } from '@tldraw/tldraw';
 import { arcContour, cubicAt, mapContours, nodeAt, type CadContour } from './cad-curves';
 import { cadPointToCanvas, unitMm, validateCadSettings, type CadSettings } from './cad-settings';
-import { makeCadPlan } from './cad-plans';
+import { makeNewCadShapePlan } from './drawing-outline-defaults';
 
 export type EllipseSegmentKind = 'arc' | 'pie' | 'chord';
 export interface EllipseSegmentOptions {
@@ -63,5 +63,5 @@ export function prepareEllipseSegment(editor: Editor, settings: CadSettings, opt
   const contour = ellipseSegmentContour(options, ELLIPSE_SEGMENT_TOLERANCE_MM / mm);
   const contours = mapContours([contour], point => cadPointToCanvas(point, settings));
   const name = { arc: 'Elliptic arc', pie: 'Pie sector', chord: 'Ellipse chord' }[options.kind];
-  return makeCadPlan(editor, settings, contours, { name });
+  return makeNewCadShapePlan(editor, settings, contours, name);
 }

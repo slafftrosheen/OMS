@@ -13,6 +13,7 @@ const en={
  changed:'The drawing or options changed. Preview again.',done:'Outlines converted. The new objects are selected.',
  selection:'Select solid CAD paths, curves, ellipses or groups containing only CAD artwork.',
  invalid:'Enter a flattening tolerance from 0.001 to 1 mm.',protected:'The selection is read-only, locked or contains protected content.',
+ hairline:'Device hairlines have no fixed physical width. Choose a custom width in Outline pen before converting to cutting contours.',
  dashed:'Dashed outlines cannot be converted yet. Choose a solid outline explicitly in Outline pen first.',
  unsupported:'Clipped artwork, raster pages and unsupported shape types cannot be converted.',
  bound:'Remove shape bindings before converting an outline.',
@@ -34,6 +35,7 @@ const ru:Record<Key,string>={
  changed:'Рисунок или параметры изменились. Повторите предпросмотр.',done:'Контуры преобразованы. Новые объекты выделены.',
  selection:'Выберите сплошные CAD-пути, кривые, эллипсы или группы только с CAD-графикой.',
  invalid:'Введите допуск аппроксимации от 0,001 до 1 мм.',protected:'Выделение заблокировано, доступно только для чтения или содержит защищённые объекты.',
+ hairline:'У аппаратной волосяной линии нет фиксированной физической толщины. Перед преобразованием в линии реза укажите толщину в пере контура.',
  dashed:'Штриховые контуры пока не преобразуются. Сначала явно выберите сплошной контур в пере контура.',
  unsupported:'Обрезанная графика, растровые страницы и неподдерживаемые типы объектов не преобразуются.',
  bound:'Перед преобразованием удалите привязки объектов.',
@@ -54,6 +56,7 @@ const lv:Record<Key,string>={
  changed:'Zīmējums vai iestatījumi ir mainījušies. Priekšskatiet vēlreiz.',done:'Kontūras pārveidotas. Jaunie objekti ir atlasīti.',
  selection:'Atlasiet nepārtrauktus CAD ceļus, līknes, elipses vai grupas tikai ar CAD grafiku.',
  invalid:'Ievadiet aproksimācijas pielaidi no 0,001 līdz 1 mm.',protected:'Atlase ir tikai lasāma, bloķēta vai satur aizsargātus objektus.',
+ hairline:'Ierīces mata līnijām nav fiksēta fiziska biezuma. Pirms pārvēršanas griešanas kontūrās izvēlieties pielāgotu biezumu kontūras spalvā.',
  dashed:'Svītrotas kontūras vēl nevar pārveidot. Vispirms kontūras spalvā skaidri izvēlieties nepārtrauktu kontūru.',
  unsupported:'Apgrieztus attēlus, rastra lapas un neatbalstītus objektu tipus nevar pārveidot.',
  bound:'Pirms pārveidošanas noņemiet objektu piesaistes.',
@@ -67,5 +70,5 @@ export function useOutlineToObjectText(){const language=useSyncExternalStore(sub
 export function outlineToObjectError(error:unknown):Key{
  const code=(error as {code?:string})?.code;
  if(code==='readonly'||code==='locked')return 'protected';
- return ['selection','invalid','dashed','unsupported','bound','invisible','geometry','limit'].includes(code??'')?code as Key:'failed';
+ return ['selection','invalid','hairline','dashed','unsupported','bound','invisible','geometry','limit'].includes(code??'')?code as Key:'failed';
 }

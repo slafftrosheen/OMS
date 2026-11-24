@@ -207,7 +207,7 @@ export const drawingToolIds = [
   'cad-freehand', 'line', 'cad-bezier', 'cad-polyline', 'draw', 'highlight',
   'rectangle', 'ellipse', 'cad-circle', 'cad-circle-three', 'cad-arc-three',
   'pentagon', 'star', 'triangle', 'diamond',
-  'text', 'cad-dimension', 'cad-measure-tools', 'arrow', 'frame',
+  'text', 'cad-dimension', 'cad-dimension-angular', 'cad-measure-tools', 'arrow', 'frame',
   'fx-contour', 'fx-repeat', 'fx-radial', 'fx-shaping',
   'eyedropper', 'paint', 'outline', 'clipart',
 ] as const;
@@ -215,7 +215,7 @@ export type DrawingToolId = typeof drawingToolIds[number];
 
 type DrawingToolTarget =
   | { kind: 'editor'; tool: string; calibratedTool?: string; panel?: DrawingDocker }
-  | { kind: 'geometry'; shape: 'rectangle' | 'ellipse' | 'pentagon' | 'star' | 'triangle' | 'diamond' }
+  | { kind: 'geometry'; shape: 'rectangle' | 'ellipse' | 'pentagon' | 'star' | 'triangle' | 'diamond'; calibratedTool?: string }
   | { kind: 'command'; command: DrawingCommandId };
 
 export const drawingToolTargets = {
@@ -232,17 +232,18 @@ export const drawingToolTargets = {
   'cad-polyline': { kind: 'editor', tool: 'cad-polyline' },
   draw: { kind: 'editor', tool: 'draw' },
   highlight: { kind: 'editor', tool: 'highlight' },
-  rectangle: { kind: 'geometry', shape: 'rectangle' },
-  ellipse: { kind: 'geometry', shape: 'ellipse' },
+  rectangle: { kind: 'geometry', shape: 'rectangle', calibratedTool: 'cad-rectangle' },
+  ellipse: { kind: 'geometry', shape: 'ellipse', calibratedTool: 'cad-ellipse' },
   'cad-circle': { kind: 'editor', tool: 'cad-circle', panel: 'measure' },
   'cad-circle-three': { kind: 'editor', tool: 'cad-circle-three', panel: 'measure' },
   'cad-arc-three': { kind: 'editor', tool: 'cad-arc-three', panel: 'measure' },
-  pentagon: { kind: 'geometry', shape: 'pentagon' },
-  star: { kind: 'geometry', shape: 'star' },
-  triangle: { kind: 'geometry', shape: 'triangle' },
-  diamond: { kind: 'geometry', shape: 'diamond' },
+  pentagon: { kind: 'geometry', shape: 'pentagon', calibratedTool: 'cad-pentagon' },
+  star: { kind: 'geometry', shape: 'star', calibratedTool: 'cad-star' },
+  triangle: { kind: 'geometry', shape: 'triangle', calibratedTool: 'cad-triangle' },
+  diamond: { kind: 'geometry', shape: 'diamond', calibratedTool: 'cad-diamond' },
   text: { kind: 'editor', tool: 'text', panel: 'text' },
   'cad-dimension': { kind: 'editor', tool: 'cad-dimension', panel: 'measure' },
+  'cad-dimension-angular': { kind: 'editor', tool: 'cad-dimension-angular', panel: 'measure' },
   'cad-measure-tools': { kind: 'command', command: 'measure' },
   arrow: { kind: 'editor', tool: 'arrow' },
   frame: { kind: 'editor', tool: 'frame' },
@@ -258,6 +259,13 @@ export const drawingToolTargets = {
 
 export function isDrawingToolId(value: string): value is DrawingToolId {
   return Object.hasOwn(drawingToolTargets, value);
+}
+
+/** Editor-only calibrated modes share their toolbar names, active states and
+ * return-to-tool behavior with the corresponding uncalibrated tool. */
+export function drawingToolAlias(editorTool: string): string {
+  return Object.entries(drawingToolTargets).find(([, target]) =>
+    'calibratedTool' in target && target.calibratedTool === editorTool)?.[0] ?? editorTool;
 }
 
 export type DrawingToolSection = 'selectTools' | 'drawTools' | 'annotateTools' | 'effectTools' | 'productionTools';
@@ -276,7 +284,7 @@ export const drawingToolbox: ReadonlyArray<{ id: DrawingToolSection; groups: Rea
   ] },
   { id: 'annotateTools', groups: [
     { id: 'text', tools: ['text'] },
-    { id: 'dimension', tools: ['cad-dimension', 'cad-measure-tools'] },
+    { id: 'dimension', tools: ['cad-dimension', 'cad-dimension-angular', 'cad-measure-tools'] },
     { id: 'annotations', tools: ['arrow', 'frame'] },
   ] },
   { id: 'effectTools', groups: [

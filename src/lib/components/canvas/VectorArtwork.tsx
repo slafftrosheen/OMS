@@ -1,18 +1,22 @@
 import React from "react";
+import { useValue, type Editor } from '@tldraw/tldraw';
 import { curvePathData, type CadContour } from "./cad-curves";
-import type { VectorPaint } from "./cad-paint";
+import { vectorDisplayStrokeWidth, type VectorPaint } from "./cad-paint";
 /** Shared by the actual canvas, SVG export and the import preview. IDs include
  * a caller prefix so previews and live objects never share gradient/clip IDs. */
-export function VectorArtwork({ id, contours, fillRule, paint }: {
-  id: string; contours: CadContour[]; fillRule: "evenodd" | "nonzero"; paint: VectorPaint;
+export function VectorArtwork({ id, contours, fillRule, paint, editor }: {
+  id: string; contours: CadContour[]; fillRule: "evenodd" | "nonzero"; paint: VectorPaint; editor?: Editor;
 }) {
-  return <VectorPathArtwork id={id} data={curvePathData(contours)} fillRule={fillRule} paint={paint} />;
+  return <VectorPathArtwork id={id} data={curvePathData(contours)} fillRule={fillRule} paint={paint} editor={editor} />;
 }
 
 /** Exact SVG path variant shared with analytic CAD primitives. */
-export function VectorPathArtwork({ id, data, fillRule, paint: p }: {
-  id: string; data: string; fillRule: "evenodd" | "nonzero"; paint: VectorPaint;
+export function VectorPathArtwork({ id, data, fillRule, paint: p, editor }: {
+  id: string; data: string; fillRule: "evenodd" | "nonzero"; paint: VectorPaint; editor?: Editor;
 }) {
+  // Only live artwork follows camera zoom. SVG/raster export and import
+  // previews use the positive physical fallback carried by the paint.
+  const strokeWidth = useValue('CAD visible hairline', () => vectorDisplayStrokeWidth(p, editor?.getZoomLevel()), [p, editor]);
   const prefix = id.replace(/[^a-zA-Z0-9_-]/g, "_"),
     g = p.gradient,
     r = p.raster;
@@ -46,7 +50,8 @@ export function VectorPathArtwork({ id, data, fillRule, paint: p }: {
         d={data}
         fill="none"
         stroke={p.stroke}
-        strokeWidth={p.strokeWidth}
+        strokeWidth={strokeWidth}
+        data-oms-hairline={p.hairline ? 'true' : undefined}
         strokeOpacity={p.strokeOpacity}
         strokeLinecap={p.lineCap}
         strokeLinejoin={p.lineJoin}

@@ -2,7 +2,8 @@ import type { Editor } from '@tldraw/tldraw';
 import { mapContours, nodeAt, type CadBezierNode, type CadContour } from './cad-curves';
 import { ellipseSegmentContour, ELLIPSE_SEGMENT_TOLERANCE_MM } from './cad-ellipse-segments';
 import { cadPointToCanvas, unitMm, validateCadSettings, type CadSettings } from './cad-settings';
-import { CadOperationError, makeCadPlan } from './cad-plans';
+import { CadOperationError } from './cad-plans';
+import { makeNewCadShapePlan } from './drawing-outline-defaults';
 
 export const RECTANGLE_CORNERS = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'] as const;
 export type RectangleCorner = typeof RECTANGLE_CORNERS[number];
@@ -73,5 +74,5 @@ export function prepareRectangleShape(editor: Editor, settings: CadSettings, opt
   if (!validateCadSettings(settings) || Math.max(options.width, options.height) * unitMm(settings.unit) > 1_000_000)
     throw new CadOperationError('rectangle-input');
   const contours = rectangleShapeContours(options, ELLIPSE_SEGMENT_TOLERANCE_MM / unitMm(settings.unit));
-  return makeCadPlan(editor, settings, mapContours(contours, p => cadPointToCanvas(p, settings)), { name: 'Rectangle' });
+  return makeNewCadShapePlan(editor, settings, mapContours(contours, p => cadPointToCanvas(p, settings)), 'Rectangle');
 }

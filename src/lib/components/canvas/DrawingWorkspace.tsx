@@ -9,6 +9,7 @@ import { setCanvasSurface, useCanvasSurface } from './canvas-surface';
 import {cadConstruction} from './cad-construction';
 import { getSelectedCadNodes, isCadNodeEditing, selectAllCadNodes, setCadNodeEditing } from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
+import {newCadOutlineMeta,newCadOutlinePaint,useNativeCadOutlineColor} from './drawing-outline-defaults';
 import {RepeatGrid} from './RepeatGrid';
 import {DrawingAppearancePanel} from './DrawingAppearancePanel';
 import {useAppearanceText} from './appearance-copy';
@@ -54,9 +55,7 @@ import {useNodeArrangeText} from './node-arrange-copy';
 import {usePreflightText} from './preflight-copy';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
-import {textPointSize} from './workbench-operations';
-import {applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch} from './drawing-text-style';
-import {getDrawingTextSpacing} from './drawing-text-spacing';
+import {NextTextProperties, SelectedTextStyleFields} from './DrawingTextControls';
 import {CadSnapPanel} from './CadSnapPanel';
 import { convertSelectionToCurves, deleteCadCurveNodes, getCadCurveConversionIssue, nudgeCadCurveNodes } from './cad-editing';
 import { hasCanvasDraft } from './canvas-document';
@@ -65,7 +64,6 @@ import { canWriteCadSnapSettings, isCadSnapSuppressed, setCadSnapSuppressed, rea
 import {useSnapText} from './snap-copy';
 import {DrawingFontPicker, NextDrawingFontPicker} from './DrawingFonts';
 import {applySelectedDrawingFont, clearSelectedDrawingFontOverrides, drawingFontValue, setNextDrawingFont} from './drawing-fonts';
-import {useDrawingFontText} from './font-copy';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -98,7 +96,7 @@ import { DrawingIcon } from './drawing-icons';
 import {
   ariaDrawingKeys, drawingCommands, drawingCycleIndex, drawingEventKeys, drawingOwnCommandForKeys,
   drawingReadOnlyTools, drawingRepeatable, drawingToolbox, drawingToolForKeys, drawingToolKeys,
-  drawingToolTargets, formatDrawingKeys, isDrawingToolId,
+  drawingToolTargets, drawingToolAlias, formatDrawingKeys, isDrawingToolId,
   type DrawingCommandId, type DrawingCommandSpec, type DrawingDocker, type DrawingMenuId, type DrawingToolId,
 } from './drawing-command-map';
 import { useDrawingCommandText } from './drawing-command-copy';
@@ -294,6 +292,7 @@ function ToolButton({ label, icon, active, disabled, onClick, onDoubleClick, chi
 
 const toolCategories = drawingToolbox;
 const toolGroups = toolCategories.flatMap(category => category.groups);
+const usesCadOutline = (tool: string) => tool.startsWith('cad-') && !['cad-dimension', 'cad-dimension-angular', 'cad-freehand'].includes(tool);
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = Object.fromEntries(Object.entries(drawingToolKeys).map(([tool, keys]) => [tool, formatDrawingKeys(keys)]));
 /** Tool name with its key, without repeating a key the name already carries. */
@@ -317,101 +316,17 @@ function NumberField({ field, value, disabled, label }: { field: DrawingTransfor
   </label>;
 }
 
-const textNumericFields = {
-  pointSize: { label: 'fontSize', min: 1, max: 3000, testId: 'drawing-text-point-size' },
-  letterSpacing: { label: 'letterSpacing', min: -50, max: 200, testId: 'drawing-text-letter-spacing' },
-  lineHeight: { label: 'lineSpacing', min: 50, max: 500, testId: 'drawing-text-line-spacing' },
-} as const;
-
-function TextNumericStyleField({ field, selected, value, disabled }: {
-  field: keyof typeof textNumericFields; selected: readonly TLShapeId[]; value: number | undefined; disabled: boolean;
-}) {
-  const editor = useEditor();
-  const { label, tr } = useDrawingText();
-  const workbenchLabel = useWorkbenchText();
-  const config = textNumericFields[field];
-  const errorId = useId();
-  const displayed = value === undefined ? '' : String(drawingTextPointSizeDisplay(value));
-  const [draft, setDraft] = useState(displayed);
-  const [error, setError] = useState<'invalid' | 'changedFailed' | null>(null);
-  const dirty = useRef(false), cancelBlur = useRef(false);
-  useEffect(() => { setDraft(displayed); setError(null); dirty.current = false; }, [value, field]);
-  function commit() {
-    if (cancelBlur.current) { cancelBlur.current = false; return; }
-    if (!dirty.current) return;
-    const number = draft.trim() ? Number(draft) : NaN;
-    if (!Number.isFinite(number) || number < config.min || number > config.max) { setError('invalid'); return; }
-    if (!applySelectedDrawingTextStyle(editor, selected, { [field]: field === 'lineHeight' ? number / 100 : number })) { setError('changedFailed'); return; }
-    dirty.current = false; setError(null);
-  }
-  return <>
-    <label className={`drawing-property-field ${field === 'pointSize' ? 'drawing-property-point-size' : 'drawing-property-text-spacing'}`}><span title={workbenchLabel(config.label)}>{workbenchLabel(config.label)}</span>
-      <input type="number" aria-label={workbenchLabel(config.label)} min={config.min} max={config.max} step="any" value={draft}
-        placeholder={value === undefined ? tr('toolkit.toolbar.styleFields.mixed') : undefined} disabled={disabled}
-        aria-invalid={!!error} aria-describedby={error ? errorId : undefined} data-testid={config.testId}
-        onChange={event => { dirty.current = true; setDraft(event.target.value); setError(null); }} onBlur={commit}
-        onKeyDown={event => {
-          event.stopPropagation();
-          if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
-          if (event.key === 'Escape') {
-            event.preventDefault(); cancelBlur.current = true; dirty.current = false;
-            setDraft(displayed); setError(null); event.currentTarget.blur();
-          }
-        }} />
-    </label>
-    {error && <span className="drawing-property-error" id={errorId} role="alert">{
-      error === 'changedFailed' ? label(error) : field === 'pointSize' ? label('textSizeInvalid') : workbenchLabel(field === 'letterSpacing' ? 'letterSpacingInvalid' : 'lineSpacingInvalid')
-    }</span>}
-  </>;
-}
-
 function SelectedTextProperties({ shapes, disabled, onEdit, onOutlines, onFonts }: {
   shapes: TLTextShape[]; disabled: boolean; onEdit: () => void; onOutlines: () => void; onFonts: () => void;
 }) {
-  const editor = useEditor();
-  const { label, tr } = useDrawingText();
-  const workbenchLabel = useWorkbenchText();
-  const fontLabel = useDrawingFontText();
-  const [failed, setFailed] = useState(false);
-  const [fontFailed, setFontFailed] = useState(false);
-  const selected = shapes.map(shape => shape.id);
-  const shared = <T,>(read: (shape: TLTextShape) => T): T | undefined => {
-    const value = read(shapes[0]);
-    return shapes.every(shape => read(shape) === value) ? value : undefined;
-  };
-  const font = shared(drawingFontValue), align = shared(shape => shape.props.textAlign);
-  const points = shared(shape => drawingTextPointSizeDisplay(textPointSize(shape))), autoWidth = shared(shape => shape.props.autoSize);
-  const letterSpacing = shared(shape => drawingTextPointSizeDisplay(getDrawingTextSpacing(shape).letterSpacing));
-  const lineSpacing = shared(shape => drawingTextPointSizeDisplay(getDrawingTextSpacing(shape).lineHeight * 100));
-  const mixed = tr('toolkit.toolbar.styleFields.mixed');
-  const apply = (patch: DrawingTextStylePatch) => setFailed(!applySelectedDrawingTextStyle(editor, selected, patch));
+  const { label } = useDrawingText(), workbenchLabel = useWorkbenchText();
   return <div className="drawing-context-properties" role="group" aria-label={label('selectedText')} data-testid="drawing-selected-text-properties">
-    <DrawingFontPicker compact value={font} disabled={disabled} testId="drawing-text-font" onManage={onFonts}
-      onChange={value => { setFailed(false); setFontFailed(!applySelectedDrawingFont(editor, selected, value)); }} />
-    <TextNumericStyleField field="pointSize" selected={selected} value={points} disabled={disabled} />
-    <TextNumericStyleField field="letterSpacing" selected={selected} value={letterSpacing} disabled={disabled} />
-    <TextNumericStyleField field="lineHeight" selected={selected} value={lineSpacing} disabled={disabled} />
-    <label className="drawing-property-field"><span>{workbenchLabel('align')}</span>
-      <select aria-label={workbenchLabel('align')} disabled={disabled} value={align ?? ''} data-testid="drawing-text-align"
-        onChange={event => apply({ textAlign: event.target.value as TLTextShape['props']['textAlign'] })}>
-        {align === undefined && <option value="" disabled>{mixed}</option>}
-        {DefaultTextAlignStyle.values.map(value => <option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.horizontal.${value}`)}</option>)}
-      </select>
-    </label>
-    <label className="drawing-property-field"><span>{workbenchLabel('width')}</span>
-      <select aria-label={workbenchLabel('autoWidth')} disabled={disabled} value={autoWidth === undefined ? '' : String(autoWidth)} data-testid="drawing-text-auto-width"
-        onChange={event => apply({ autoSize: event.target.value === 'true' })}>
-        {autoWidth === undefined && <option value="" disabled>{mixed}</option>}
-        <option value="true">{workbenchLabel('autoWidth')}</option><option value="false">{label('fixedTextWidth')}</option>
-      </select>
-    </label>
+    <SelectedTextStyleFields shapes={shapes} disabled={disabled} onFonts={onFonts} />
     <span className="drawing-divider" />
     <div className="drawing-property-actions">
       <ToolButton icon="text" label={label('editText')} disabled={disabled || shapes.length !== 1} onClick={onEdit} testId="drawing-text-edit">{label('editText')}</ToolButton>
       <ToolButton icon="text-curves" label={workbenchLabel('outlines')} disabled={disabled || shapes.length !== 1} onClick={onOutlines} testId="drawing-text-outlines">{workbenchLabel('outlines')}</ToolButton>
     </div>
-    {failed && <span className="drawing-property-error" role="alert">{label('changedFailed')}</span>}
-    {fontFailed && <span className="drawing-property-error" role="alert">{fontLabel('applyFailed')}</span>}
   </div>;
 }
 
@@ -651,7 +566,9 @@ export function DrawingChrome() {
   const nodeCount = useValue('Selected CAD node count', () =>
     nodeEditing && editor.getOnlySelectedShape()?.type === 'cad-bezier' ? getSelectedCadNodes(editor).length : null,
     [editor, nodeEditing]);
-  const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
+  const constructionHint = construction?.kind === 'angle'
+    ? cadLabel(construction.points.length === 0 ? 'dimensionPickVertex' : construction.points.length === 1 ? 'dimensionPickFirstRay' : 'dimensionPickSecondRay')
+    : construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
   const [toolGroup, setToolGroup] = useState<string | null>(null);
   const [groupTools, setGroupTools] = useState<Partial<Record<string, DrawingToolId>>>({});
   const [flyoutPosition, setFlyoutPosition] = useState({ left: 0, top: 0, maxHeight: 0 });
@@ -697,6 +614,7 @@ export function DrawingChrome() {
   const pickGuideSnap = useValue('Pick guideline target', () => drawingPickGuideSnap(editor).get(), [editor]);
   const rotationNoticeText = rotationNotice ? rotationLabel(rotationNotice) : '';
   const freehandOptions = useValue('Next freehand stroke', () => readCadFreehandOptions(editor), [editor]);
+  const nextOutline = useValue('Next CAD outline', () => usesCadOutline(editor.getCurrentToolId()) ? newCadOutlinePaint(editor) : null, [editor]);
   const freehandStatus = useValue('Freehand gesture status', () => {
     const preview = cadFreehandPreview(editor).get();
     return preview ? preview.error ?? (preview.continuation ? preview.continuation.closing ? 'closing' : 'continuing' : 'drawing') : null;
@@ -740,7 +658,7 @@ export function DrawingChrome() {
   const toolLabel = (tool: string) => (isDrawingToolId(tool) ? words.tools[tool] : undefined) ??
     (tool === 'paint' ? vectorLabel('paint') : tool === 'clipart' ? productionLabel('clipart') : tool === 'cad-measure-tools' ? productionLabel('construction') :
     tool === 'cad-freehand' ? penLabel('freehand') : tool === 'draw' ? penLabel('sketch') : tool === 'cad-arc-three' ? workbenchLabel('arcThree') :
-    tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') :
+    tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'cad-dimension-angular' ? cadLabel('drawAngularDimension') :
     tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') :
     tr(toolKeys[tool] ?? `toolkit.toolbar.${tool}`));
   function toolEnabled(tool: DrawingToolId): boolean {
@@ -765,10 +683,12 @@ export function DrawingChrome() {
     if (calibrated && route.kind === 'geometry') {
       editor.setStyleForNextShapes(DefaultDashStyle, 'solid'); editor.setStyleForNextShapes(DefaultFillStyle, 'none');
     }
-    if (route.kind === 'geometry') {
+    if (calibrated && 'calibratedTool' in route) {
+      editor.setCurrentTool(route.calibratedTool);
+    } else if (route.kind === 'geometry') {
       editor.setStyleForNextShapes(GeoShapeGeoStyle, route.shape);
       editor.setCurrentTool('geo');
-    } else editor.setCurrentTool(calibrated && 'calibratedTool' in route ? route.calibratedTool : route.tool);
+    } else editor.setCurrentTool(route.tool);
     editor.focus();
     return true;
   }
@@ -1163,7 +1083,7 @@ export function DrawingChrome() {
       return;
     }
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
-    drawingTransaction(editor, () => {
+    const changed = drawingTransaction(editor, () => {
       if (style === DefaultFontStyle && editor.isIn('select')) clearSelectedDrawingFontOverrides(editor);
       if (style === DefaultColorStyle && editor.isIn('select')) {
         for (const id of editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])) {
@@ -1172,10 +1092,13 @@ export function DrawingChrome() {
           if (patch) editor.updateShape(patch);
         }
       }
+      if (style === DefaultColorStyle && (usesCadOutline(editor.getCurrentToolId()) || editor.isIn('select') && !editor.getSelectedShapeIds().length)
+          && !useNativeCadOutlineColor(editor)) throw new Error('Outline color preference could not be changed');
       if (editor.isIn('select')) editor.setStyleForSelectedShapes(style, value);
       if (style === DefaultFontStyle) setNextDrawingFont(editor, value);
       else editor.setStyleForNextShapes(style, value);
     });
+    if (!changed) setNotice(label('changedFailed'));
   }
   function renderStyleSelect(field: typeof styleFields[number], compact = false) {
     if (field.id === 'font' && nextText) return <NextDrawingFontPicker key={field.id} compact={compact} disabled={!controls.canStyle} onManage={focusFonts} />;
@@ -1301,8 +1224,7 @@ export function DrawingChrome() {
     if (tool === 'select') return controls.tool === 'select' && !nodeEditing && !skewMode;
     if (tool === 'clipart') return panel === 'clipart';
     if (tool === 'cad-measure-tools') return panel === 'measure';
-    if (tool === 'line' && controls.tool === 'cad-line') return true;
-    return controls.tool === tool;
+    return drawingToolAlias(controls.tool) === tool;
   };
   const fullscreenLabel = productionLabel(context.fullscreen ? 'exitFullscreen' : 'fullscreen');
   function toggleFullscreen() {
@@ -1512,7 +1434,7 @@ export function DrawingChrome() {
   function togglePick() {
     const nativeTool = editor.getCurrentToolId();
     const current = isCadNodeEditing(editor) ? 'nodes' : isDrawingSkewMode(editor) ? 'free-transform' :
-      nativeTool === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : nativeTool === 'cad-line' ? 'line' : nativeTool;
+      nativeTool === 'geo' ? String(editor.getStyleForNextShape(GeoShapeGeoStyle)) : drawingToolAlias(nativeTool);
     if (current !== 'select') {
       previousTool.current = isDrawingToolId(current) ? current : null;
       if (chooseTool('select')) { flash(toolLabel('select'), 'Space'); return true; }
@@ -1528,7 +1450,7 @@ export function DrawingChrome() {
       select: () => { command('select-all'); flash(words.commands['select-all'], 'Ctrl+A'); },
       nodes: () => focusCad('nodes'), zoom: () => command('fit'), hand: () => { if (!pageBounds || !fitDrawingPage(editor)) command('fit'); },
       rectangle: () => pageFrame(), ellipse: () => focusCad('ellipse'), pentagon: () => focusCad('polygon'), star: () => focusCad('polygon'),
-      text: () => setPanel('text'), 'cad-freehand': () => setPanel('pen'), draw: () => setPanel('pen'), 'cad-dimension': () => setPanel('measure'),
+      text: () => setPanel('text'), 'cad-freehand': () => setPanel('pen'), draw: () => setPanel('pen'), 'cad-dimension': () => setPanel('measure'), 'cad-dimension-angular': () => setPanel('measure'),
       paint: () => focusCad('paint'), outline: () => focusCad('outline'), eyedropper: () => openAppearance(), clipart: () => setPanel('clipart'),
     };
     (actions[tool] ?? (() => setPanel('properties')))();
@@ -1541,7 +1463,12 @@ export function DrawingChrome() {
     const id = createShapeId();
     editor.complete(); editor.setCurrentTool('select');
     const created = drawingTransaction(editor, () => {
-      editor.createShape({ id, type: 'geo', x: page.x, y: page.y, props: { geo: 'rectangle', w: page.w, h: page.h, fill: 'none', dash: 'solid' } } as any);
+      const calibrated = readCadSettings(editor);
+      if (calibrated) editor.createShape({ id, type: 'cad-path', x: page.x, y: page.y,
+        props: { closed: true, points: [{ x: 0, y: 0 }, { x: page.w, y: 0 }, { x: page.w, y: page.h }, { x: 0, y: page.h }] },
+        meta: newCadOutlineMeta(editor, calibrated) } as any);
+      else editor.createShape({ id, type: 'geo', x: page.x, y: page.y, props: { geo: 'rectangle', w: page.w, h: page.h, fill: 'none', dash: 'solid' } } as any);
+      if (!editor.getShape(id)) throw new Error('Page frame could not be created');
       editor.select(id);
     });
     if (created) flash(words.ui.pageFrame); else setNotice(label('changedFailed'));
@@ -1557,8 +1484,10 @@ export function DrawingChrome() {
   const paintSwatch = (paint: DrawingStatusPaint | null, kind: 'fill' | 'outline') => {
     const name = kind === 'fill' ? words.ui.fill : words.ui.outline;
     const value = !paint ? '—' : paint.kind === 'none' ? (kind === 'fill' ? words.ui.noFill : words.ui.noOutline) : paint.kind === 'mixed' ? words.ui.mixed : paint.hex.toUpperCase();
-    const width = kind === 'outline' && paint?.kind === 'colour' && selectionSummary.outlineWidth !== null
-      ? ` · ${Number((settings ? canvasLengthToUnit(selectionSummary.outlineWidth, settings) : selectionSummary.outlineWidth).toFixed(settings?.precision ?? 2))} ${settings?.unit ?? 'px'}` : '';
+    const width = kind === 'outline' && paint?.kind === 'colour'
+      ? selectionSummary.outlineHairline ? ` · ${outlineLabel('hairline')}` : selectionSummary.outlineWidth !== null
+        ? ` · ${Number((settings ? canvasLengthToUnit(selectionSummary.outlineWidth, settings) : selectionSummary.outlineWidth).toFixed(settings?.precision ?? 2))} ${settings?.unit ?? 'px'}` : ''
+      : '';
     return <button type="button" className={`drawing-status-paint drawing-status-paint--${kind}`} title={`${name}: ${value}${width}`} aria-label={`${name}: ${value}${width}`}
       disabled={!paint} onClick={() => focusCad(kind === 'fill' ? 'paint' : 'outline')} data-testid={`drawing-status-${kind}`}>
       <span className={`drawing-status-chip${paint?.kind === 'none' ? ' is-none' : paint?.kind === 'mixed' ? ' is-mixed' : ''}`}
@@ -1649,13 +1578,10 @@ export function DrawingChrome() {
     {portal('properties', <>
       {textProperties ? <span className="drawing-property-caption">{label(nextText ? 'nextText' : 'selectedText')}{selectedText && selectedText.length > 1 ? ` · ${selectedText.length}` : ''}</span>
         : <span className="drawing-tool-name" title={controls.tool === 'select' ? label(nodeEditing ? 'nodeMarquee' : 'pickMarquee') : undefined}>
-          {toolLabel(nodeEditing ? 'nodes' : controls.tool === 'cad-line' ? 'line' : controls.tool)}</span>}<span className="drawing-divider" />
+          {toolLabel(nodeEditing ? 'nodes' : drawingToolAlias(controls.tool))}</span>}<span className="drawing-divider" />
       {selectedText ? <SelectedTextProperties key={state.selected.join('|')} shapes={selectedText} disabled={!controls.canEditSelection}
         onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} onFonts={focusFonts} />
-      : nextText ? <fieldset className="drawing-context-properties" disabled={!controls.canStyle} aria-label={label('nextText')} data-testid="drawing-next-text-properties">
-        <NextDrawingFontPicker disabled={!controls.canStyle} onManage={focusFonts} />
-        {['size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
-      </fieldset>
+      : nextText ? <NextTextProperties disabled={!controls.canStyle} onFonts={focusFonts} />
       : controls.tool === 'cad-freehand' ? <><DrawingFreehandControls compact /><ToolButton icon="pen" label={penLabel('title')} onClick={() => setPanel('pen')} testId="drawing-property-pen" /></>
       : controls.tool === 'cad-polyline' || controls.tool === 'cad-line' ? <CadPointEntry key={controls.tool} settings={settings} singleSegment={controls.tool === 'cad-line'}/>
       : nodeEditing ? <div className="drawing-property-actions" data-testid="drawing-node-properties">
@@ -1788,8 +1714,8 @@ export function DrawingChrome() {
           });
         }}><Icon name="no-color" /></button>
       {DefaultColorStyle.values.map(value => <button key={value} type="button" title={`${label('palette')}: ${label(value)}`}
-        aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={controls.tool === 'cad-freehand' ? freehandOptions.color.toLowerCase() === getDefaultColorTheme({ isDarkMode: false })[value].solid.toLowerCase() : color?.type === 'shared' && color.value === value}
-        disabled={controls.tool === 'cad-freehand' ? controls.readOnly || !!freehandStatus : !controls.canStyle || !color}
+        aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={controls.tool === 'cad-freehand' ? freehandOptions.color.toLowerCase() === getDefaultColorTheme({ isDarkMode: false })[value].solid.toLowerCase() : nextOutline ? nextOutline.stroke.toLowerCase() === getDefaultColorTheme({ isDarkMode: false })[value].solid.toLowerCase() : color?.type === 'shared' && color.value === value}
+        disabled={controls.tool === 'cad-freehand' ? controls.readOnly || !!freehandStatus : !controls.canStyle || !color && !nextOutline}
         onContextMenu={event => {
           event.preventDefault(); if (!captureToolkitControls(editor).canStyle || !editor.isIn('select')) return;
           drawingTransaction(editor, () => {

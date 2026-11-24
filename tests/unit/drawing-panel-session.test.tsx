@@ -49,7 +49,7 @@ async function harness(run: (h: any) => Promise<void>) {
   const editor = new tl.Editor({ store: tl.createTLStore({ shapeUtils, bindingUtils: tl.defaultBindingUtils }), shapeUtils,
     bindingUtils: tl.defaultBindingUtils, tools: [...tl.defaultTools, ...tl.defaultShapeTools], getContainer: () => host, initialState: 'select' });
   editor.updateViewportScreenBounds(new tl.Box(0, 0, 800, 600));
-  editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: cad.DEFAULT_CAD_SETTINGS } });
+  editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: { ...cad.DEFAULT_CAD_SETTINGS } } });
   const sourceId = tl.createShapeId();
   editor.createShape({ id: sourceId, type: 'cad-bezier', props: { fillRule: 'evenodd', contours: [{ closed: true,
     nodes: [[0, 0], [100, 0], [100, 60], [0, 60]].map(([x, y]) => nodeAt({ x, y })) }] } });
@@ -104,6 +104,85 @@ async function harness(run: (h: any) => Promise<void>) {
 }
 
 describe('drawing docker continuity', () => {
+  it('edits real dimension offset, precision and markers in drawing units with one undo', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, get, tick, select, input, snapshot, sourceId }: any) => {
+      const React = await import('react');
+      const { CadDimensionControls } = await import('../../src/lib/components/canvas/CadDimensionControls');
+      const { createCadDimension } = await import('../../src/lib/components/canvas/cad-geometry');
+      const settings = { ...cad.DEFAULT_CAD_SETTINGS, unit: 'in', scale: 5 };
+      await act(async () => {
+        editor.updatePage({ id: editor.getCurrentPageId(), meta: { omsCad: settings } });
+        assert.equal(createCadDimension(editor, settings, 'horizontal'), true);
+        root.render(<EditorContext.Provider value={editor}><CadDimensionControls settings={settings}/></EditorContext.Provider>);
+      });
+      const before = snapshot(), source = structuredClone(editor.getShape(sourceId));
+      await input(get('drawing-dimension-offset'), '-2');
+      await input(get('drawing-dimension-size'), '75');
+      await select(get('drawing-dimension-precision'), '4');
+      await select(get('drawing-dimension-markers'), 'arrow');
+      const apply = get('drawing-dimension-apply') as HTMLButtonElement;
+      assert.equal(apply.disabled, false);
+      await act(async () => apply.click()); await tick();
+      const dimension = editor.getOnlySelectedShape();
+      assert.ok(Math.abs(cad.canvasLengthToUnit(dimension.props.offset, settings) + 2) < 1e-10);
+      assert.equal(dimension.props.decorationScale, .75); assert.equal(dimension.props.precision, 4); assert.equal(dimension.props.marker, 'arrow');
+      assert.deepEqual(editor.getShape(sourceId), source); assert.match(get('drawing-dimension-settings').textContent, /Dimension settings applied/);
+      await act(async () => editor.undo()); await tick(); assert.deepEqual(snapshot(), before);
+    });
+  });
+
+  it('retains dimension drafts while hidden and blocks stale, hidden and read-only submissions', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, get, tick, select, snapshot, sourceId }: any) => {
+      const React = await import('react');
+      const { CadDimensionControls } = await import('../../src/lib/components/canvas/CadDimensionControls');
+      const { DrawingPanelSession } = await import('../../src/lib/components/canvas/DrawingPanelSession');
+      const { createCadDimension } = await import('../../src/lib/components/canvas/cad-geometry');
+      await act(async () => { assert.equal(createCadDimension(editor, cad.DEFAULT_CAD_SETTINGS, 'horizontal'), true); });
+      const render = async (active: boolean) => {
+        await act(async () => root.render(<EditorContext.Provider value={editor}><DrawingPanelSession active={active}>
+          <CadDimensionControls settings={cad.DEFAULT_CAD_SETTINGS}/>
+        </DrawingPanelSession></EditorContext.Provider>));
+      };
+      const submit = async () => {
+        await act(async () => get('drawing-dimension-settings').querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); await tick();
+      };
+      await render(true); await select(get('drawing-dimension-precision'), '3'); await render(false);
+      const beforeHiddenSubmit = snapshot(); await submit(); assert.deepEqual(snapshot(), beforeHiddenSubmit);
+      await act(async () => editor.updateShape({ id: sourceId, x: 40 })); await tick();
+      await render(true);
+      assert.equal((get('drawing-dimension-precision') as HTMLSelectElement).value, '3');
+      assert.equal((get('drawing-dimension-apply') as HTMLButtonElement).disabled, true);
+      assert.match(get('drawing-dimension-settings').textContent, /source geometry or document units changed/);
+      const stale = snapshot(); await submit(); assert.deepEqual(snapshot(), stale);
+      await act(async () => (get('drawing-dimension-reload') as HTMLButtonElement).click()); await tick();
+      await select(get('drawing-dimension-precision'), '5');
+      await act(async () => editor.updateInstanceState({ isReadonly: true })); await tick();
+      assert.equal((get('drawing-dimension-settings').querySelector('fieldset') as HTMLFieldSetElement).disabled, true);
+      const readonly = snapshot(); await submit(); assert.deepEqual(snapshot(), readonly);
+    });
+  });
+
+  it('exposes all six measurement kinds and an independent angle construction action', async () => {
+    await harness(async ({ editor, cad, root, EditorContext, act, get, host }: any) => {
+      const React = await import('react');
+      const { MeasurePanel } = await import('../../src/lib/components/canvas/WorkbenchPanels');
+      const tools: string[] = [];
+      await act(async () => {
+        editor.createShape({ id: 'shape:corner-measurement', type: 'cad-path', props: { closed: false,
+          points: [{ x: 100, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 100 }] } });
+        editor.select('shape:corner-measurement');
+        root.render(<EditorContext.Provider value={editor}><MeasurePanel settings={cad.DEFAULT_CAD_SETTINGS}
+          onTool={tool => tools.push(tool)} onDocument={() => {}}/></EditorContext.Provider>);
+      });
+      const select = get('drawing-dimension-links').querySelector('select') as HTMLSelectElement;
+      assert.deepEqual([...select.options].map(option => option.value), ['horizontal', 'vertical', 'aligned', 'angular', 'radius', 'diameter']);
+      assert.equal([...select.options].find(option => option.value === 'angular')!.disabled, false);
+      assert.match(host.textContent, /Angle between rays90\.00°/);
+      const angular = [...host.querySelectorAll('button')].find((button: any) => button.textContent === 'Draw angle dimension') as HTMLButtonElement;
+      assert.ok(angular && !angular.disabled); await act(async () => angular.click()); assert.deepEqual(tools, ['cad-dimension-angular']);
+    });
+  });
+
   it('reviews midline pairing in the real docker and applies editable curves in one undo', async () => {
     await harness(async ({ editor, cad, root, EditorContext, act, get, tick, select, snapshot }: any) => {
       const React = await import('react');
@@ -259,7 +338,7 @@ describe('drawing docker continuity', () => {
       await render(true);
       assert.equal(get('drawing-repeat'), section);
       assert.equal(document.querySelector('.drawing-cad-report')!, review);
-      assert.equal(section.querySelectorAll<HTMLInputElement>('input[type="number"]')[2].value, '3.75');
+      assert.equal((section as HTMLElement).querySelectorAll<HTMLInputElement>('input[type="number"]')[2].value, '3.75');
       assert.equal(selectControl(section, 'Horizontal').value, '-1');
       assert.equal((section.querySelector('.drawing-cad-report button') as HTMLButtonElement).disabled, false);
       assert.deepEqual(snapshot(), before, 'panel inspection never writes artwork');

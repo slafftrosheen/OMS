@@ -3,6 +3,7 @@ import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { clearCadSnap, snapCadPoint } from './cad-snap';
 import { cadConstruction, threePointGeometry } from './cad-construction';
+import { tryNewCadOutlineMeta } from './drawing-outline-defaults';
 
 class CadThreePointTool extends StateNode {
   protected kind: 'arc' | 'circle' = 'arc';
@@ -25,8 +26,11 @@ class CadThreePointTool extends StateNode {
     const geometry = this.points.length === 2 ? threePointGeometry(this.kind, this.points[0], this.points[1], point) : null;
     if (geometry && this.shapeId) {
       if (this.editor.getShape(this.shapeId)) this.editor.updateShape({ id: this.shapeId, ...geometry });
-      else this.editor.createShape({ id: this.shapeId, parentId: this.editor.getCurrentPageId(), ...geometry,
-        props: { ...geometry.props, color: this.editor.getStyleForNextShape(DefaultColorStyle) } });
+      else {
+        const meta = tryNewCadOutlineMeta(this.editor); if (!meta) { this.publish(point, false); return false; }
+        this.editor.createShape({ id: this.shapeId, parentId: this.editor.getCurrentPageId(), ...geometry,
+          props: { ...geometry.props, color: this.editor.getStyleForNextShape(DefaultColorStyle) }, meta });
+      }
     } else if (this.shapeId && this.editor.getShape(this.shapeId)) this.editor.deleteShapes([this.shapeId]);
     const valid = !!geometry && !!this.shapeId && !!this.editor.getShape(this.shapeId);
     this.publish(point, valid); return valid;

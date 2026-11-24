@@ -1,6 +1,6 @@
 import { multiplyMatrix, rectangularClipContainsBounds, type VectorClip, type VectorMatrix } from './cad-appearance';
 import { CAD_PLAN_GEOMETRY_LIMITS, curveBounds, nodeAt, validContours, type CadContour } from './cad-curves';
-import { VECTOR_DEFAULT_PAINT, validVectorPaint, type VectorDocument } from './cad-paint';
+import { VECTOR_DEFAULT_PAINT, validVectorPaint, type VectorDocument, type VectorPaint } from './cad-paint';
 import { SVG_MM_PER_PIXEL, SVG_NS, svgDiagonal, svgNestedViewport, svgRelativeLength, svgTransform,
   svgTranslate, svgViewport, type SvgViewportSize } from './cad-svg-coordinates';
 import { readSvgGradient, svgPaintReference, type SvgGradientFill } from './cad-svg-gradient';
@@ -306,7 +306,10 @@ export function readVectorSvg(source: string) {
           resolved.fill = fillRef.fallback ?? 'none';
         }
       }
-      const paint = savePaint(resolved, a, opacity, vectorEffect, color, warnings, viewport, gradientFill ?? undefined);
+      const paint: VectorPaint = savePaint(resolved, a, opacity, vectorEffect, color, warnings, viewport, gradientFill ?? undefined);
+      // Our SVG fallback is an ordinary positive stroke for other consumers.
+      // Retain the explicit semantic flag when that SVG returns to OMS.
+      if (attr('data-oms-hairline') === 'true' && paint.strokeWidth > 0) paint.hairline = true;
       if (paint.stroke !== 'none' && vectorEffect !== 'non-scaling-stroke' &&
           (Math.abs(a - b) > 1e-8 * Math.max(a, b) ||
           Math.abs(transform[0] * transform[2] + transform[1] * transform[3]) > 1e-8 * a * b)) {

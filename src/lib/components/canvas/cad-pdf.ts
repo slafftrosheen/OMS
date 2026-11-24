@@ -17,6 +17,7 @@ import {
 } from "./cad-curves";
 import {
   VECTOR_DEFAULT_PAINT,
+  CAD_HAIRLINE_FALLBACK_MM,
   type VectorDocument,
   type VectorPaint,
 } from "./cad-paint";
@@ -290,7 +291,10 @@ export function pdfOperatorsToVectors(
             fill: fill ? state.paint.fill : "none",
             stroke: stroke ? state.paint.stroke : "none",
             gradient: fill ? state.paint.gradient : undefined,
-            strokeWidth: state.paint.strokeWidth * sx,
+            // PDF zero width is a device hairline; SVG zero width is invisible.
+            // Keep the semantic flag and a positive fallback when importing it.
+            ...(stroke && state.paint.strokeWidth === 0 ? { hairline: true } : {}),
+            strokeWidth: (stroke && state.paint.strokeWidth === 0 ? CAD_HAIRLINE_FALLBACK_MM * 72 / 25.4 : state.paint.strokeWidth) * sx,
             dash: state.paint.dash.map((n) => n * sx),
             dashOffset: state.paint.dashOffset * sx,
           },

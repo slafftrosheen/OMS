@@ -9,6 +9,7 @@ import { cadSnapIndicator, clearCadSnap, findCadSnap, snapCadHandle, snapCadPoin
 import { applyDrawingGuideChange, prepareDrawingGuideChange, readDrawingGuides, type DrawingGuide } from '../../src/lib/components/canvas/drawing-guides';
 import { CadPolylineTool } from '../../src/lib/components/canvas/CadPolylineTool';
 import { CadCircleTool, CadDimensionTool } from '../../src/lib/components/canvas/CadTwoPointTool';
+import { CadAngularDimensionTool } from '../../src/lib/components/canvas/CadAngularDimensionTool';
 import { CadBezierTool } from '../../src/lib/components/canvas/CadBezierTool';
 import { CadArcThreePointTool, CadCircleThreePointTool } from '../../src/lib/components/canvas/CadThreePointTool';
 
@@ -88,7 +89,7 @@ describe('document guidelines in the central CAD snap pipeline', () => {
   });
 
   it('shares targets with all CAD creation tools and clears its marker on cancellation', () => {
-    for (const Tool of [CadPolylineTool, CadCircleTool, CadDimensionTool, CadBezierTool, CadArcThreePointTool, CadCircleThreePointTool]) {
+    for (const Tool of [CadPolylineTool, CadCircleTool, CadDimensionTool, CadBezierTool, CadArcThreePointTool, CadCircleThreePointTool, CadAngularDimensionTool]) {
       const f = setup(guide());
       const tool = new Tool(f.editor, undefined as any); tool.onEnter();
       f.editor.inputs.currentPagePoint = { x: 103, y: 20 }; tool.onPointerMove();
