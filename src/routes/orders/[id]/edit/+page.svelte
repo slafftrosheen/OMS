@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
   import OrderDraftFields from '$lib/order/OrderDraftFields.svelte';
   import OrderDeleteButton from '$lib/order/OrderDeleteButton.svelte';
   import { createUuid } from '$lib/utils/id';
@@ -105,6 +106,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Canvas state ─────────────────────────────────────────────────────────────
   let canvasLoaded = $state(false);
+  let canvasRequested = $state(false);
+  let canvasLoadFailed = $state(false);
   let canvasSnapshot: any = $state(null);
   let canvasDirty = $state(false);
   // Monotonic local change serial: completing an old save must not erase
@@ -185,7 +188,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let savedFormFingerprint: string | null = $state(null);
   let attachedFilesCount = $state<number | null>(null);
   let filesCountError = $state(false);
-  let focusPanel = $state(true);
+  let panelExpanded = $state(true);
   let unsavedWarningEnabled = $state(false);
 
   function formFingerprint():string {
@@ -204,7 +207,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let formDirty = $derived(savedFormFingerprint !== null &&
     formFingerprint() !== savedFormFingerprint);
   let hasUnsavedChanges = $derived(formDirty || canvasDirty);
-  let rightTab: WorkspaceSection = $state('details');
+  let rightTab = $state<WorkspaceSection>('details');
+  let workspaceNav = $state<HTMLElement>();
+  let drawingOnly = $derived(rightTab === 'canvas');
+  let focusPanel = $derived(!drawingOnly && panelExpanded);
   let activeGroup = $derived(workspaceGroup(rightTab));
   let pendingReviewCount = $derived(changeRequests.filter(
     cr=>cr.status==='pending'||cr.status==='open').length);
@@ -215,7 +221,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       return;
     }
     rightTab=section;
-    focusPanel=section!=='layers';
+    panelExpanded=section!=='layers';
     if(typeof window!=='undefined'){
       const url=new URL(window.location.href);
       if(url.searchParams.get('section')!==section){
@@ -224,6 +230,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
     }
   }
+  async function reviewDrawing() {
+    confirmOrderModal = false;
+    openWorkspaceSection('canvas');
+    await tick();
+    workspaceNav?.querySelector<HTMLButtonElement>('[aria-current="step"]')?.focus();
+  }
+
   async function refreshFileCount():Promise<number|null> {
     if(!orderId)return null;
     const scope=captureOrderRequest(), id=scope.id;
@@ -256,7 +269,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
       if(rightTab!==linked){
         rightTab=linked;
-        focusPanel=linked!=='layers';
+        panelExpanded=linked!=='layers';
       }
     });
   });
@@ -475,7 +488,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     profileChoices = []; profileChoicesError = ''; profileChoicesTruncated = false;
     changeRequests = []; changeRequestError = ''; reviewInProgress = false;
     savedFormFingerprint = null; saving = false; confirming = false;
-    canvasLoaded = false; canvasDirty = false; canvasChangeSerial++;
+    canvasRequested = false; canvasLoadFailed = false; canvasLoaded = false; canvasDirty = false; canvasChangeSerial++;
     canvasSnapshot = null; editorRef = null; selectedShape = null; multiSelectCount = 0;
     assistantPrefill = ''; assistantPrefillVersion = 0;
     intakeProfileIndex = null; intakeFileId = '';
@@ -487,15 +500,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     const query=new URLSearchParams(window.location.search);
     const initial=sectionFromQuery(query.get('section'));
     rightTab=assistantSections[initial] ? 'details' : initial;
-    focusPanel=rightTab!=='layers';
+    panelExpanded=rightTab!=='layers';
     if (!scope.owner) { error = $t('orderSheet.accessDenied'); loading = false; return; }
     await loadOrder(id, scope);
     if (!scope.isCurrent() || !currentOrderVisible) return;
+    unsavedWarningEnabled=true;
     void loadProfileChoices();
-    canvasLoaded=true;
     await Promise.all([loadChangeRequests(),refreshFileCount()]);
     if (!scope.isCurrent()) return;
-    unsavedWarningEnabled=true;
     if (assistantSections[initial]) openWorkspaceSection(initial);
     // Only a fixed, user-requested shortcut. No consent and no model call.
     if(query.get('assist')==='profiles' && canAskOrderAssistant)
@@ -522,12 +534,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       isRd = order.isRd === true; rdNotes = order.rdNotes || '';
       deliveryPresetId = typeof order.deliveryPresetId === 'string' ? order.deliveryPresetId : null;
       profiles = order.profiles; savedFormFingerprint=formFingerprint();
-      const csRes = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}/canvas-state`, {signal:scope.signal,cache:'no-store'});
-      if (csRes.ok) {
-        const cs = await csRes.json();
-        if (!scope.isCurrent()) return;
-        canvasSnapshot = cs.snapshot ?? null;
-      }
     } catch (err: any) {
       if (scope.isCurrent()) {
         error = err.message || $t('orderSheet.loadFailed');
@@ -535,6 +541,35 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
     } finally {
       if (scope.isCurrent()) loading = false;
+    }
+  }
+
+  // Start the drawing at its visible size and retain the same editor across section switches.
+  $effect(() => {
+    if (currentOrderVisible && !focusPanel && !canvasRequested) {
+      canvasRequested = true;
+      void loadCanvas(captureOrderRequest());
+    }
+  });
+
+  async function loadCanvas(scope: OrderRequestScope) {
+    canvasLoadFailed = false;
+    canvasLoaded = false;
+    try {
+      const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(scope.id)}/canvas-state`, {
+        signal: scope.signal, cache: 'no-store'
+      });
+      if (!response.ok) throw new Error();
+      const payload = await response.json();
+      if (!scope.isCurrent()) return;
+      if (!payload || !Object.hasOwn(payload, 'snapshot') ||
+        (payload.snapshot !== null && (typeof payload.snapshot !== 'object' || Array.isArray(payload.snapshot)))) {
+        throw new Error();
+      }
+      canvasSnapshot = payload.snapshot;
+      canvasLoaded = true;
+    } catch {
+      if (scope.isCurrent()) canvasLoadFailed = true;
     }
   }
 
@@ -663,13 +698,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     }
   }
 
-  function handleCanvasSave(snapshot: any, scope: OrderRequestScope) {
-    if (!scope.isCurrent() || !canEdit) return;
-    canvasSnapshot = snapshot;
-    markCanvasDirty();
-  }
-
-  /** Called when a form shape field changes on the canvas — syncs back to Svelte state */
+  /** Sync edits made on the drawing back into the order form. */
   function handleOrderChange(oid: string, patch: any, scope: OrderRequestScope) {
     if (!scope.isCurrent() || !canEdit || oid !== scope.id) return;
     if (patch.title !== undefined) title = patch.title;
@@ -751,18 +780,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
 
       if (canvasDirty) {
-        // CanvasApp coalesces snapshot callbacks by 250 ms. Capture the
-        // current tldraw document at save time rather than submitting an
-        // out-of-date snapshot during rapid edits.
-        let snapshot = canvasSnapshot;
-        if (editorRef?.store) {
-          const { captureOrderCanvasSnapshot } = await import('$lib/components/canvas/capture-order-canvas-snapshot');
-          if (!scope.isCurrent() || !editorRef?.store) return false;
-          snapshot = captureOrderCanvasSnapshot(editorRef);
-        }
-        if (!snapshot || typeof snapshot !== 'object') {
-          throw new Error('Canvas is not ready to save. Wait for the editor and retry.');
-        }
+        const { captureOrderCanvasSnapshot } = await import('$lib/components/canvas/capture-order-canvas-snapshot');
+        if (!scope.isCurrent()) return false;
+        if (!editorRef?.store) throw new Error($t('orderWorkspace.drawingLoadFailed'));
+        const snapshot = captureOrderCanvasSnapshot(editorRef);
         const serialAtSave = canvasChangeSerial;
         const canvasResponse = await fetch(
           `/api/draft-orders/${encodeURIComponent(scope.id)}/canvas-state`, {
@@ -1202,7 +1223,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     {/if}
   </section>
 {:else}
-<div class="canvas-editor">
+<div class="canvas-editor" class:drawing-only={drawingOnly}>
   <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
   <header class="top-bar">
     <div class="top-bar-left">
@@ -1279,6 +1300,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
     <!-- Primary actions — always visible -->
     <div class="top-bar-actions">
+      <button class="action-btn primary" onclick={saveDraft} disabled={saving || !canEdit}
+        title={$t('orderWorkspace.saveHelp')}>
+        <Icon name="save" size="sm" /> {saving ? $t('orderWorkspace.editor.saving') : $t('orderWorkspace.editor.saveDraft')}
+      </button>
+      {#if canApprove}
+        <button class="action-btn success" onclick={async()=>{const scope=captureOrderRequest();await refreshFileCount();if(scope.isCurrent() && canApprove)confirmOrderModal=true;}} disabled={confirming}>
+          <Icon name="check-circle" size="sm" /> {$t(confirming?'orderWorkspace.confirmingAction':'orderWorkspace.confirmAction')}
+        </button>
+      {/if}
       {#if canEdit}
         <button type="button" class="action-btn ghost" onclick={()=>openWorkspaceSection('intake')}
           disabled={saving||confirming}>
@@ -1297,19 +1327,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           <Icon name="rotate-ccw" size="sm" /> {$t('orderWorkspace.editor.rework')}
         </button>
       {/if}
-      <button class="action-btn primary" onclick={saveDraft} disabled={saving || !canEdit}
-        title={$t('orderWorkspace.saveHelp')}>
-        <Icon name="save" size="sm" /> {saving ? $t('orderWorkspace.editor.saving') : $t('orderWorkspace.editor.saveDraft')}
-      </button>
-      {#if canApprove}
-        <button class="action-btn success" onclick={async()=>{const scope=captureOrderRequest();await refreshFileCount();if(scope.isCurrent() && canApprove)confirmOrderModal=true;}} disabled={confirming}>
-          <Icon name="check-circle" size="sm" /> {$t(confirming?'orderWorkspace.confirmingAction':'orderWorkspace.confirmAction')}
-        </button>
-      {/if}
     </div>
   </header>
 
-  <nav class="workspace-flow" aria-label={$t('orderWorkspace.workflowLabel')}>
+  <nav bind:this={workspaceNav} class="workspace-flow" aria-label={$t('orderWorkspace.workflowLabel')}>
     {#each visibleWorkspaceGroups as group (group.id)}
       <button type="button" class:active={activeGroup===group.id}
         aria-current={activeGroup===group.id?'step':undefined}
@@ -1318,6 +1339,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             ? rightTab : group.sections[0])}>
         <span class="workspace-phase-icon">
           {#if group.id==='prepare'}<Icon name="clipboard-list" size="sm" />
+          {:else if group.id==='drawing'}<Icon name="pen-tool" size="sm" />
           {:else if group.id==='plan'}<Icon name="clipboard-check" size="sm" />
           {:else if group.id==='review'}<Icon name="git-pull-request" size="sm" />
           {:else}<Icon name="message-square" size="sm" />{/if}
@@ -1333,7 +1355,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {:else}{$t('orderWorkspace.savedState')}{/if}
     </span>
   </nav>
-  <div class="canvas-body" class:workspace-focused={focusPanel}>
+  <div class="canvas-body" class:workspace-focused={focusPanel} class:workspace-split={!drawingOnly && !focusPanel}>
     <!-- ── Left Toolbox ────────────────────────────────────────────────── -->
     <aside class="toolbox">
       <div class="tool-section">
@@ -1377,35 +1399,38 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
     <!-- ── Canvas ─────────────────────────────────────────────────────── -->
     <main class="canvas-area" oncontextmenu={openPdfMenuFromEvent} role="presentation">
-      {#if loading}
-        <div class="canvas-loading">
-          <div class="spinner"></div>
-          <p>{$t('orderWorkspace.editor.loadingCanvas')}</p>
-        </div>
-      {:else if error}
-        <div class="canvas-error">
+      {#if canvasLoadFailed}
+        <div class="canvas-error" role="alert">
           <Icon name="alert-circle" size="md" />
-          <p>{error}</p>
-          <a href="{base}/orders" class="action-btn primary">{$t('orderWorkspace.editor.backToOrders')}</a>
+          <p>{$t('orderWorkspace.drawingLoadFailed')}</p>
+          <button type="button" class="action-btn primary" onclick={() => void loadCanvas(captureOrderRequest())}>{$t('orderSheet.retry')}</button>
+        </div>
+      {:else if canvasLoaded && !canEdit && canvasSnapshot === null}
+        <div class="canvas-loading">
+          <p>{$t('orderWorkspace.noSavedDrawing')}</p>
+          <button type="button" class="action-btn ghost" onclick={() => openWorkspaceSection('files')}>{$t('orderWorkspace.sections.files')}</button>
         </div>
       {:else if canvasLoaded}
         {#key `${loadedOwnerKey}:${orderId}:${requestGeneration}`}
           {@const canvasScope = captureOrderRequest()}
-          {#await import('$lib/components/canvas/TldrawWrapper.svelte') then { default: TldrawWrapper }}
-            <TldrawWrapper
-              snapshot={canvasSnapshot}
-              orderSeed={orderSeed}
-              onReady={editor => handleEditorReady(editor,canvasScope)}
-              onSave={snapshot => handleCanvasSave(snapshot,canvasScope)}
-              onOrderChange={(id,patch) => handleOrderChange(id,patch,canvasScope)}
-              onProfileQuantityChange={(id,index,quantity)=>{if(canvasScope.isCurrent()&&canEdit&&id===orderId)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
-              onProfileChange={(id,index,profile) => handleProfileChange(id,index,profile,canvasScope)}
-              onAssetUploaded={(id,asset) => handleAssetUploaded(id,asset,canvasScope)}
-              toolkitReadOnly={!canEdit}
-              hideUI={false}
-            />
-          {/await}
+          <TldrawWrapper
+            snapshot={canvasSnapshot}
+            onError={() => { if (canvasScope.isCurrent()) canvasLoadFailed = true; }}
+            orderSeed={orderSeed}
+            onReady={editor => handleEditorReady(editor,canvasScope)}
+            onOrderChange={(id,patch) => handleOrderChange(id,patch,canvasScope)}
+            onProfileQuantityChange={(id,index,quantity)=>{if(canvasScope.isCurrent()&&canEdit&&id===orderId)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
+            onProfileChange={(id,index,profile) => handleProfileChange(id,index,profile,canvasScope)}
+            onAssetUploaded={(id,asset) => handleAssetUploaded(id,asset,canvasScope)}
+            toolkitReadOnly={!canEdit}
+            hideUI={false}
+          />
+          {#if !editorRef}
+            <div class="canvas-loading" role="status">{$t('orderWorkspace.editor.loadingCanvas')}</div>
+          {/if}
         {/key}
+      {:else}
+        <div class="canvas-loading" role="status">{$t('orderWorkspace.editor.loadingCanvas')}</div>
       {/if}
 
       {#if pdfMenu}
@@ -1434,7 +1459,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <div>
           <h2>{$t(`orderWorkspace.sections.${rightTab}`)}</h2>
         </div>
-        <button type="button" class="focus-toggle" onclick={() => focusPanel=!focusPanel}
+        <button type="button" class="focus-toggle" onclick={() => panelExpanded=!panelExpanded}
           aria-pressed={focusPanel}
           title={focusPanel?$t('orderWorkspace.showCanvas'):$t('orderWorkspace.focusPanel')}>
           <Icon name={focusPanel?'eye':'maximize'} size="sm" />
@@ -1584,6 +1609,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {:else}
         <p class="zone-intro">{$t('orderWorkspace.confirmLinkedFiles',{values:{count:attachedFilesCount}})}</p>
       {/if}
+      <button type="button" class="action-btn ghost drawing-review" disabled={confirming}
+        onclick={reviewDrawing}>
+        <Icon name="pen-tool" size="sm" /> {$t('orderWorkspace.openDrawing')}
+      </button>
       <label for="confirm-po">{$t('orderWorkspace.confirmPoLabel')}</label>
       <input id="confirm-po" bind:value={poNumber} maxlength="16"
         readonly={!canAssignPo && !!poNumber} disabled={!canAssignPo || confirming}
@@ -1893,7 +1922,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   @media(max-width:980px){
     .top-bar{gap:8px;padding:0 9px}
     .context-bar{display:none}
-    .canvas-body:not(.workspace-focused){grid-template-columns:46px minmax(175px,1fr) minmax(285px,42vw)}
+    .canvas-body.workspace-split{grid-template-columns:46px minmax(175px,1fr) minmax(285px,42vw)}
     .top-bar-actions .action-btn{padding:7px 9px}
   }
   @media(max-width:720px){
@@ -1903,8 +1932,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     .workspace-flow>button{padding:7px 9px}
     .workspace-inline-summary{display:none}
     .workspace-focused .order-field-panel{grid-template-columns:minmax(0,1fr)}
-    .canvas-body:not(.workspace-focused){grid-template-columns:40px minmax(0,1fr);position:relative}
-    .canvas-body:not(.workspace-focused) .right-docker{
+    .canvas-body.workspace-split{grid-template-columns:40px minmax(0,1fr);position:relative}
+    .canvas-body.workspace-split .right-docker{
       position:absolute;right:0;bottom:0;width:min(90%,360px);
       height:42%;box-shadow:0 -6px 24px rgba(0,0,0,.18)
     }
@@ -2182,18 +2211,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .action-btn.warn:hover { background: color-mix(in oklab, var(--warn, #ff9500) 10%, transparent); }
   .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* ── Spinner ─────────────────────────────────────────────────────────────── */
-  .spinner {
-    width: 28px;
-    height: 28px;
-    border: 3px solid var(--border);
-    border-top-color: var(--brand);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
   /* ── Edit page modals ────────────────────────────────────────────────────── */
   .edit-modal-backdrop {
     position: fixed;
@@ -2232,6 +2249,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     box-sizing: border-box;
   }
   .edit-modal textarea:focus { outline: none; border-color: var(--brand); }
+  .drawing-review {align-self:flex-start;}
   .edit-modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -2307,15 +2325,26 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     .top-bar {max-height:none;min-height:56px;}
     .top-bar-actions {max-width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin;}
     .top-bar-actions .action-btn {flex:0 0 auto;}
-    .canvas-body:not(.workspace-focused) .right-docker {
+    .canvas-body.workspace-split .right-docker {
       width:min(100%,390px);height:min(58dvh,56%);box-shadow:var(--glass-shadow-lg);}
     .workspace-focused .order-field-panel {padding:var(--space-md);}
   }
   @media(prefers-reduced-transparency:reduce) {.top-bar {backdrop-filter:none;background:var(--bg-1);}}
 
-  /* R04 mobile editor: dock follows the drawing area, never obscures it.
-     Existing Focus/Show canvas toggle remains the only source of state. */
+  /* The split view places its management panel below the drawing on small screens. */
   .canvas-body {min-height:0;}
+  :global(.rf-page):has(> .drawing-only) {
+    --order-nav-height:var(--bottombar-h,52px);
+    width:100%;padding:0;min-height:0;
+    height:calc(100dvh - var(--topbar-h,64px) - var(--order-nav-height) - var(--rail-safe,0px));
+  }
+  @media(max-width:1024px) {
+    :global(.rf-page):has(> .drawing-only) {--order-nav-height:var(--mobile-nav-h,68px);}
+  }
+  .drawing-only .top-bar-actions {margin-inline-start:auto;}
+  .drawing-only .canvas-body {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);}
+  .drawing-only .right-docker,.drawing-only .toolbox,.drawing-only .context-bar {display:none;}
+  .drawing-only .canvas-area {grid-area:1 / 1;}
   .right-docker,.docker-content,.canvas-area,.toolbox {min-height:0;min-width:0;}
   .docker-content {overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
   .top-bar-actions {scrollbar-width:thin;}
@@ -2333,21 +2362,21 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     .top-bar-actions .action-btn {min-height:42px;flex:0 0 auto;white-space:nowrap;}
     .workspace-flow {flex:0 0 auto;min-height:46px;overflow-x:auto;scroll-snap-type:x proximity;}
     .workspace-flow>button {flex:0 0 auto;scroll-snap-align:start;}
-    .canvas-body:not(.workspace-focused) {
+    .canvas-body.workspace-split {
       display:grid;
       grid-template-columns:44px minmax(0,1fr);
       grid-template-rows:minmax(150px,1fr) minmax(190px,42dvh);
       min-height:0;
       overflow:hidden;
     }
-    .canvas-body:not(.workspace-focused) .toolbox {
+    .canvas-body.workspace-split .toolbox {
       grid-column:1;grid-row:1;position:relative;height:auto;min-height:0;
       overflow-y:auto;
     }
-    .canvas-body:not(.workspace-focused) .canvas-area {
+    .canvas-body.workspace-split .canvas-area {
       grid-column:2;grid-row:1;position:relative;min-height:0;min-width:0;
     }
-    .canvas-body:not(.workspace-focused) .right-docker {
+    .canvas-body.workspace-split .right-docker {
       position:relative;left:auto;right:auto;top:auto;bottom:auto;
       width:auto;height:auto;max-height:none;min-height:0;
       grid-column:1/-1;grid-row:2;box-shadow:none;
@@ -2366,7 +2395,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   @media(max-width:420px) {
     .order-identity {font-size:var(--text-xs);}
     .workspace-flow>button {padding:8px 10px;}
-    .canvas-body:not(.workspace-focused) {grid-template-rows:minmax(130px,1fr) minmax(185px,46dvh);}
+    .canvas-body.workspace-split {grid-template-rows:minmax(130px,1fr) minmax(185px,46dvh);}
     .workspace-panel-heading {flex-wrap:wrap;}
   }
   @media(prefers-reduced-motion:reduce) {.canvas-editor button{transition:none;}}

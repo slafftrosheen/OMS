@@ -2369,7 +2369,8 @@
     "confirmFilesMissing": "Nav piesaistītu rasējumu vai pielikumu. Pirms apstiprināšanas pievienojiet vismaz vienu failu.",
     "confirmLinkedFiles": "Piesaistītie faili: {count}",
     "confirmSaveFirst": "Pirms apstiprināšanas saglabājiet visas izmaiņas un novērsiet saglabāšanas kļūdas.",
-    "confirmReloadRequired": "Pasūtījums ir mainījies vai nevar pārbaudīt tā pašreizējo versiju. Aizveriet logu, atsvaidziniet un pārskatiet pasūtījumu.",
+    "refreshReview": "Atsvaidzināt pasūtījumu",
+    "confirmReloadRequired": "Pirms apstiprināšanas atsvaidziniet pasūtījumu un pārskatiet tā pašreizējo versiju.",
     "confirmChecking": "Pārbaudām pasūtījumu, failus un versiju…",
     "confirmTitle": "Nodot pasūtījumu ražošanai?",
     "confirmPoLabel": "Ārēji piešķirts PO numurs (obligāts)",
@@ -2398,7 +2399,12 @@
       "review": "Izmaiņu pārskatīšana",
       "collaborate": "Saziņa"
     },
+    "openDrawing": "Atvērt rasējumu",
+    "noSavedDrawing": "Šim pasūtījumam nav saglabāta rasējuma.",
+    "drawingLoadFailed": "Neizdevās ielādēt pasūtījuma rasējumu.",
+    "openDrawingTab": "Atvērt rasējumu jaunā cilnē",
     "sections": {
+      "canvas": "Rasējums",
       "details": "Dati un profili",
       "files": "Pielikumi",
       "intake": "AI ievade",
@@ -2563,6 +2569,7 @@
       "review": "Pārbaudiet gatavību, neatbildētos jautājumus, atbildīgos un datumus pirms atļautas statusa maiņas."
     },
     "sectionTip": {
+      "canvas": "Pirms apstiprināšanas salīdziniet rasējumu ar pasūtījuma specifikāciju un pievienotajiem maketiem.",
       "details": "Padoms: fiksējiet izmērus, materiālus un lēmumus pasūtījumā; neizdomājiet trūkstošo.",
       "files": "Padoms: vispirms augšupielādējiet failus, pēc tam AI ievadē pārbaudiet PDF vai attēlu ieteikumus.",
       "intake": "Padoms: AI ieteikumus cilvēkam jāpārbauda, jāizvēlas un atsevišķi jāsaglabā.",

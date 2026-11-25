@@ -1,5 +1,6 @@
 <script lang="ts">
   import OrderDetailPage from '../../src/routes/orders/[id]/+page.svelte';
+  import ReviewQueue from '../../src/routes/orders/review/+page.svelte';
   import OrderEditorPage from '../../src/routes/orders/[id]/edit/+page.svelte';
   import OrderProfileSheet from '$lib/order/OrderProfileSheet.svelte';
   import OrderNativeProfileForm from '$lib/order/OrderNativeProfileForm.svelte';
@@ -12,7 +13,9 @@
   import type { OrderSheetProfile } from '$lib/order/order-sheet';
 
   provideAssistantContext();
-  const mode = new URLSearchParams(window.location.search).get('mode') || 'detail';
+  const query = new URLSearchParams(window.location.search);
+  const mode = query.get('mode') || 'detail';
+  const shell = query.has('shell');
   let profiles = $state<OrderSheetProfile[]>(orderSheetSnapshot().profiles);
   let changes = $state(0);
   let focused = $state<number | null>(null);
@@ -29,7 +32,8 @@
   }
 </script>
 
-<div class="order-fixture" class:editor-fixture={mode === 'editor'}>
+<div class="order-fixture" class:editor-fixture={mode === 'editor' && !shell} class:shell-fixture={shell}>
+{#if shell}<div class="fixture-topbar"></div>{:else}
 <header class="fixture-controls" aria-label="Order fixture controls">
   <button type="button" onclick={switchOrder}>Switch order fixture</button>
   <button type="button" onclick={() => currentUser.set(orderSheetUsers.second)}>Switch account fixture</button>
@@ -40,9 +44,12 @@
   <label>Fixture theme<select onchange={event => document.documentElement.dataset.theme = event.currentTarget.value}><option value="LightVim">Light</option><option value="DarkVim">Dark</option><option value="HighContrastVim">High contrast</option></select></label>
   {#if mode === 'sheet'}<button type="button" onclick={replaceConfiguration}>Replace saved profile fixture</button>{/if}
 </header>
-<main>
+{/if}
+<main class:rf-page={shell}>
   {#if mode === 'packet'}
     <StationProductionPacket orderId={page.params.id} station="cnc" onClose={() => {}} />
+  {:else if mode === 'review'}
+    <ReviewQueue />
   {:else if mode === 'editor'}
     <OrderEditorPage data={{id:page.params.id,order:null,files:[],profilePresets:[],session:null}} />
   {:else if mode === 'sheet'}
@@ -62,10 +69,15 @@
     <OrderDetailPage />
   {/if}
 </main>
+{#if shell}<div class="fixture-footer"></div>{/if}
 </div>
 
 <style>
   :global(html) { --topbar-h: 0px; --bottombar-h: 0px; }
+  .shell-fixture { --topbar-h:60px; --bottombar-h:52px; --mobile-nav-h:68px; }
+  .fixture-topbar {height:var(--topbar-h);}
+  .fixture-footer {position:fixed;inset:auto 0 0;height:var(--bottombar-h);}
+  @media(max-width:1024px) { .fixture-footer {height:var(--mobile-nav-h);} }
   .fixture-controls { position: relative; z-index: 2; flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); padding: var(--space-md); }
   .fixture-controls button, .fixture-controls select { min-height: var(--control-size); padding: var(--space-sm) var(--space-md); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-1); color: var(--ink-primary); font: inherit; }
   .fixture-controls label { display: grid; gap: var(--space-xs); font-size: var(--text-sm); color: var(--ink-secondary); }

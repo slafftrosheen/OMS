@@ -79,8 +79,7 @@ describe('OMS-R28 contextual order guidance UX',()=>{
  });
  it('localizes all section tips, statuses and safe prepared questions in EN/RU/LV',()=>{
    const keys=['brief','profiles','files','review'];
-   const sections=['details','files','intake','readiness','layers',
-     'revisions','changes','chat'];
+   const sections=Object.keys(ORDER_SECTION_HELP);
    for(const lang of ['en','ru','lv']){
      const t=JSON.parse(read(`src/locales/${lang}.json`)).orderGuide;
      expect(t.disclaimer.length).toBeGreaterThan(50);

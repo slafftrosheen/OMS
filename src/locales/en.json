@@ -2369,7 +2369,8 @@
     "confirmFilesMissing": "No linked drawings or attachments. Upload at least one file before confirmation.",
     "confirmLinkedFiles": "Verified linked files: {count}",
     "confirmSaveFirst": "Save and resolve all outstanding changes before confirming this order.",
-    "confirmReloadRequired": "This order changed, or its review snapshot could not be verified. Close this dialog, refresh and review the current version before confirming.",
+    "refreshReview": "Refresh order",
+    "confirmReloadRequired": "Refresh the order and review the current version before confirming.",
     "confirmChecking": "Checking saved order, files and revision…",
     "confirmTitle": "Release order to production?",
     "confirmPoLabel": "Externally issued PO number (required)",
@@ -2398,7 +2399,12 @@
       "review": "Review changes",
       "collaborate": "Collaborate"
     },
+    "openDrawing": "Open drawing",
+    "noSavedDrawing": "This order has no saved drawing.",
+    "drawingLoadFailed": "The order drawing could not be loaded.",
+    "openDrawingTab": "Open drawing in a new tab",
     "sections": {
+      "canvas": "Drawing",
       "details": "Details & profiles",
       "files": "Attachments",
       "intake": "AI intake",
@@ -2563,6 +2569,7 @@
       "review": "Run production readiness, resolve open questions and confirm roles and dates before any authorized status change."
     },
     "sectionTip": {
+      "canvas": "Compare the drawing with the order specifications and attached artwork before confirming.",
       "details": "Tip: record measurements, materials and decisions in saved order notes rather than assuming them.",
       "files": "Tip: upload source files first, then use AI Intake to extract proposed fields from a supported image or PDF.",
       "intake": "Tip: AI Intake suggestions are unverified until reviewed, selected and saved by a person.",

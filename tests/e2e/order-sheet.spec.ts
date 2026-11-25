@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { orderSheetBaseOrder, orderSheetIds, orderSheetLongNote, orderSheetMaterials,
   orderSheetSnapshot, orderSheetUsers } from '../ui/order-sheet-fixtures';
+import type { User } from '../../src/lib/auth/types';
 import type { OrderSheetSnapshot } from '../../src/lib/order/order-sheet';
 import { readFileSync } from 'node:fs';
 
@@ -18,14 +19,18 @@ test.afterEach(({ page }) => expect(runtimeErrors.get(page)).toEqual([]));
 
 type Options = {
   manager?: boolean;
+  actor?: User;
+  shell?: boolean;
+  section?: 'canvas' | 'layers';
+  canvasResponder?: (route: Route) => Promise<void>;
   status?: string;
-  mode?: 'detail' | 'sheet' | 'packet' | 'editor';
+  mode?: 'detail' | 'sheet' | 'packet' | 'editor' | 'review';
   snapshot?: (snapshot: OrderSheetSnapshot) => unknown;
   draftResponder?: (route: Route, snapshot: OrderSheetSnapshot) => Promise<void>;
   writeResponder?: (route: Route) => Promise<void>;
 };
 async function fixture(page: Page, options: Options = {}) {
-  let actor = options.manager ? orderSheetUsers.manager : orderSheetUsers.worker;
+  let actor = options.actor ?? (options.manager ? orderSheetUsers.manager : orderSheetUsers.worker);
   const writes: string[] = [], unexpected: string[] = [], navigation: string[] = [];
   const savedRequests: Array<{path:string;body:any}> = [];
   page.on('console', message => {
@@ -40,12 +45,16 @@ async function fixture(page: Page, options: Options = {}) {
       return route.fulfill({ status: 405, json: { error: 'No writes allowed in the saved-order fixture' } });
     }
     if (path === '/api/auth') return route.fulfill({ json: { user: actor } });
+    if (path === '/api/orders/pending-review') return route.fulfill({ json: [{
+      ...orderSheetBaseOrder(orderSheetSnapshot(orderSheetIds.first, 'PENDING_REVIEW')),
+      internal_ref: 'D-1001', file_count: 1, profile_count: 1
+    }] });
     if (path === '/api/materials') {
       const categories = (url.searchParams.get('categories') || url.searchParams.get('category'))?.split(',');
       return route.fulfill({ json: categories ? orderSheetMaterials.filter(item => categories.includes(item.category)) : orderSheetMaterials });
     }
     if (path === '/api/order/profile-choices') return route.fulfill({ json: { templates: [{ id: 'verified-template', code: 'LED', name: 'Verified channel letters' }], truncated: false } });
-    if (/^\/api\/draft-orders\/[^/]+\/canvas-state$/.test(path)) return route.fulfill({ json: { snapshot: null } });
+    if (/^\/api\/draft-orders\/[^/]+\/canvas-state$/.test(path)) return options.canvasResponder ? options.canvasResponder(route) : route.fulfill({ json: { snapshot: null } });
     if (/^\/api\/draft-orders\/[^/]+\/change-requests$/.test(path)) return route.fulfill({ json: [] });
     if (path === '/api/material-thickness-options') return route.fulfill({ json: [1.5, 2, 3, 5, 8].map(thickness => ({ thickness, unit: 'mm' })) });
     if (path === '/api/files') return route.fulfill({ headers: { 'X-Total-Count': '1' }, json: [{
@@ -74,7 +83,10 @@ async function fixture(page: Page, options: Options = {}) {
     unexpected.push(`${request.method()} ${path}`);
     return route.fulfill({ status: 404, json: { error: 'Unexpected fixture request' } });
   });
-  await page.goto(`/order-sheet.html?mode=${options.mode || 'detail'}`);
+  const query = new URLSearchParams({ mode: options.mode || 'detail' });
+  if (options.section) query.set('section', options.section);
+  if (options.shell) query.set('shell', '1');
+  await page.goto(`/order-sheet.html?${query}`);
   return { writes, savedRequests, unexpected, navigation, setActor: (next: typeof actor) => { actor = next; } };
 }
 
@@ -103,6 +115,8 @@ test('Head of Production opens the complete draft form before supporting tabs an
   await ready(page);
   await expect(page.locator('.order-header').getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Go to review queue', exact: true })).toBeVisible();
+  await page.locator('.order-header').getByRole('button', { name: 'Drawing', exact: true }).click();
+  expect(observed.navigation).toContain(`/orders/${orderSheetIds.first}/edit?section=canvas`);
   await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveCount(0);
   const form = page.locator('.order-specification');
   await expect(form.getByLabel('Profile name', { exact: true })).toHaveValue('Main yellow profile');
@@ -132,7 +146,7 @@ test('ordinary workers see a locked form and can read files, station flow, chat 
   await expect(page.getByText('approved-drawing.pdf', { exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Discussion', exact: true }).click();
   await expect(page.getByText('The signed drawing is attached for production.', { exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'Consumption', exact: true }).click();
+  await page.getByRole('tab', { name: 'Material consumption', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'Yellow acrylic', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Timeline', exact: true }).click();
   await expect(page.locator('.order-history-details')).toContainText(orderSheetIds.first);
@@ -363,4 +377,153 @@ test('the actual editor discards stale account, role and station loads before en
   await expect(page.locator('.inline-order-specification')).toHaveCount(0);
   await expect(page.locator('.editor-load-state')).toContainText('This account cannot read the saved order form');
   expect(observed.writes).toEqual([]); expect(observed.unexpected).toEqual([]);
+});
+
+test('Head of Production edits the full drawing, revisits the form and confirms the saved revision', async ({ page }) => {
+  const drawingRevision = '2026-10-31T12:00:00Z';
+  const observed = await fixture(page, {
+    manager: true, mode: 'editor', status: 'PENDING_REVIEW',
+    writeResponder: route => route.fulfill({ json: route.request().url().endsWith('/confirm')
+      ? { status: 'CONFIRMED' } : { updatedAt: drawingRevision } })
+  });
+  await editorReady(page);
+  const drawingTab = page.locator('.workspace-flow').getByRole('button', { name: 'Drawing' });
+  await drawingTab.click();
+  await expect(drawingTab).toHaveAttribute('aria-current', 'step');
+  await expect(page).toHaveURL(/section=canvas/);
+  const drawing = page.getByTestId('drawing-workspace');
+  const rectangle = page.getByTestId('drawing-tool-rectangle');
+  await expect(rectangle).toBeEnabled({ timeout: 45000 });
+  await expect(page.locator('.right-docker')).toBeHidden();
+  await expect(page.locator('.toolbox')).toBeHidden();
+  for (const size of [{width:1765,height:1000}, {width:390,height:844}]) {
+    await page.setViewportSize(size);
+    await expect.poll(async () => {
+      const body = await page.locator('.canvas-body').boundingBox(), box = await drawing.boundingBox();
+      return !!body && !!box && box.width >= size.width - 2 &&
+        Math.abs(box.height - body.height) < 2 && box.height > 200;
+    }).toBe(true);
+    await expect(page.locator('.top-bar').getByRole('button', { name: 'Confirm order' })).toBeInViewport();
+  }
+  await page.setViewportSize({width:1765,height:1000});
+  await expect(drawing.locator('.tl-shapes [data-shape-type="order-details"]')).toBeVisible();
+  await rectangle.click();
+  const viewport = (await page.locator('.drawing-viewport').boundingBox())!;
+  await page.mouse.move(viewport.x + 65, viewport.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(viewport.x + 205, viewport.y + 180, { steps: 8 });
+  await page.mouse.up();
+  const shape = drawing.locator('.tl-shapes [data-shape-type="cad-path"]');
+  await expect(shape).toHaveCount(1);
+  const originalRoot = await drawing.elementHandle();
+  await page.getByRole('button', { name: 'Prepare', exact: true }).click();
+  await editorReady(page);
+  const confirm = page.locator('.top-bar').getByRole('button', { name: 'Confirm order' });
+  await confirm.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Open drawing' }).click();
+  await expect(drawing).toBeVisible();
+  await expect(drawingTab).toBeFocused();
+  expect(await drawing.evaluate((node, original) => node === original, originalRoot)).toBe(true);
+  await expect(shape).toHaveCount(1);
+  await confirm.click();
+  await expect(page.locator('#confirm-po')).toHaveValue('RF-1001');
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm order' }).click();
+  await expect.poll(() => observed.savedRequests.map(request => request.path)).toEqual([
+    `/api/draft-orders/${orderSheetIds.first}/canvas-state`, `/api/draft-orders/${orderSheetIds.first}/confirm`
+  ]);
+  const [save, approval] = observed.savedRequests;
+  expect(save.body.expectedUpdatedAt).toBe(orderSheetSnapshot().updatedAt);
+  expect(Object.values(save.body.snapshot.document.store)).toContainEqual(expect.objectContaining({type:'cad-path'}));
+  expect(approval.body).toEqual({poNumber:'RF-1001',expectedUpdatedAt:drawingRevision});
+
+  await page.unrouteAll({behavior:'wait'});
+  const station = await fixture(page, {
+    actor:{...orderSheetUsers.worker,role:'StationHead'}, mode:'editor', section:'canvas', status:'CONFIRMED', shell:true,
+    canvasResponder:route => route.fulfill({json:{snapshot:save.body.snapshot}})
+  });
+  await expect(shape).toHaveCount(1);
+  await expect(rectangle).toBeDisabled();
+  for (const size of [{width:1920,height:1080}, {width:390,height:844}]) {
+    await page.setViewportSize(size);
+    await expect.poll(() => page.evaluate(() => {
+      const main = document.querySelector<HTMLElement>('main.rf-page')!;
+      const box = main.getBoundingClientRect();
+      const footer = document.querySelector<HTMLElement>('.fixture-footer')!;
+      return Math.abs(box.width - innerWidth) <= 1 &&
+        Math.abs(box.bottom - footer.getBoundingClientRect().top) <= 1 &&
+        document.querySelector('.drawing-status')!.getBoundingClientRect().bottom <= box.bottom + 1;
+    })).toBe(true);
+  }
+  await expect(confirm).toHaveCount(0);
+  expect(station.writes).toEqual([]);
+});
+
+test('drawing load errors allow retry without replacing a saved drawing or clearing draft edits', async ({page}) => {
+  let reads = 0;
+  const observed = await fixture(page, { manager:true, mode:'editor', status:'DRAFT', section:'layers',
+    canvasResponder:route => route.fulfill(++reads === 1 ? {status:503,json:{}} : {json:{snapshot:null}}) });
+  await expect(page.locator('.right-docker')).toBeVisible();
+  await expect(page.locator('.canvas-area')).toBeVisible();
+  await page.getByRole('button',{name:'Prepare',exact:true}).click();
+  const form = await editorReady(page);
+  await form.getByLabel('Profile name',{exact:true}).fill('Second set of letters');
+  await page.locator('.workspace-flow').getByRole('button',{name:'Drawing',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('The order drawing could not be loaded');
+  await expect(page.getByTestId('drawing-workspace')).toHaveCount(0);
+  await page.getByRole('alert').getByRole('button').click();
+  await expect(page.getByTestId('drawing-tool-rectangle')).toBeEnabled({timeout:45000});
+  await page.getByRole('button',{name:'Prepare',exact:true}).click();
+  await expect(form.getByLabel('Profile name',{exact:true})).toHaveValue('Second set of letters');
+  expect(reads).toBe(2);
+  expect(observed.writes).toEqual([]);
+});
+
+test('review queue gives direct drawing access and preserves the PO when checking artwork', async ({page}) => {
+  let revision = orderSheetSnapshot().updatedAt;
+  const observed = await fixture(page, { actor:{...orderSheetUsers.manager,role:'Boss'}, mode:'review',
+    status:'PENDING_REVIEW', snapshot:snapshot => ({...snapshot,updatedAt:revision,files:[{originalName:'artwork.pdf'}]}),
+    writeResponder:route => route.request().postDataJSON().expectedUpdatedAt === revision
+      ? route.fulfill({json:{status:'CONFIRMED'}}) : route.fulfill({status:409,json:{}})
+  });
+  const card = page.locator('.review-card');
+  await card.getByRole('button',{name:'Drawing',exact:true}).click();
+  const href = `/orders/${orderSheetIds.first}/edit?section=canvas`;
+  expect(observed.navigation).toContain(href);
+  await card.getByRole('button',{name:/confirm/i}).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('artwork.pdf');
+  await dialog.locator('#po-input').fill('RF-REVISED');
+  const reviewLink = dialog.getByRole('link',{name:'Open drawing in a new tab'});
+  await expect(reviewLink).toHaveAttribute('href',href);
+  await page.context().route('**/edit?section=canvas', route => route.fulfill({contentType:'text/html',body:'<title>Drawing</title>'}));
+  const popupPromise = page.waitForEvent('popup');
+  await reviewLink.click();
+  const popup = await popupPromise;
+  await expect(popup).toHaveURL(new URL(href,page.url()).href);
+  await popup.close();
+  await expect(dialog.locator('#po-input')).toHaveValue('RF-REVISED');
+  expect(observed.writes).toEqual([]);
+
+  revision = '2026-10-31T13:00:00Z';
+  const approve = dialog.getByRole('button',{name:'Confirm order',exact:true});
+  await approve.click();
+  await expect(approve).toBeDisabled();
+  await dialog.getByRole('button',{name:'Refresh order'}).click();
+  await expect(dialog.locator('#po-input')).toHaveValue('RF-REVISED');
+  await approve.click();
+  await expect(dialog).toBeHidden();
+  expect(observed.savedRequests.map(request => request.body)).toEqual([
+    {poNumber:'RF-REVISED',expectedUpdatedAt:orderSheetSnapshot().updatedAt},
+    {poNumber:'RF-REVISED',expectedUpdatedAt:revision}
+  ]);
+});
+
+test('a view-only order with no saved drawing leads directly to its attached artwork', async ({page}) => {
+  const observed = await fixture(page, { mode:'editor', section:'canvas', status:'CONFIRMED',
+    actor:{...orderSheetUsers.worker,role:'StationHead'} });
+  const area = page.locator('.canvas-area');
+  await expect(area).toContainText('This order has no saved drawing.');
+  await area.getByRole('button',{name:'Attachments'}).click();
+  await expect(page.getByText('approved-drawing.pdf',{exact:true})).toBeVisible();
+  expect(observed.writes).toEqual([]);
 });

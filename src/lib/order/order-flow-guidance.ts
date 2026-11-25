@@ -58,5 +58,5 @@ export function deriveOrderGuide(input:OrderGuideInput):OrderGuideResult{
 }
 export const ORDER_SECTION_HELP:Record<WorkspaceSection,GuideStepId>={
  details:'brief',files:'files',intake:'files',readiness:'review',
- layers:'profiles',revisions:'review',changes:'review',chat:'review'
+ canvas:'review',layers:'profiles',revisions:'review',changes:'review',chat:'review'
 };

@@ -4,6 +4,7 @@
 export const WORKSPACE_GROUPS = [
   {id:'prepare', label:'orderWorkspace.groups.prepare',
     sections:['details','files','intake']},
+  {id:'drawing', label:'orderWorkspace.sections.canvas', sections:['canvas']},
   {id:'plan', label:'orderWorkspace.groups.plan',
     sections:['readiness','layers']},
   {id:'review', label:'orderWorkspace.groups.review',

@@ -8,11 +8,10 @@ import {
 
 const read=(path:string)=>readFileSync(path,'utf8');
 describe('OMS-R16 consolidated order workspace',()=>{
-  it('provides one canonical section route for all eight task views',()=>{
+  it('provides one canonical section route for all task views',()=>{
     const ids=WORKSPACE_GROUPS.flatMap(g=>g.sections);
-    expect(ids).toHaveLength(8);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual(['details','files','intake','readiness',
+    expect(ids).toEqual(['details','files','intake','canvas','readiness',
       'layers','revisions','changes','chat']);
     for(const section of ids){
       expect(validWorkspaceSection(section)).toBe(true);

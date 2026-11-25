@@ -457,6 +457,11 @@
                 <Button variant="outline" onclick={() => (showQRModal = true)}>
                     {$t("orderDetail.qr_code")}
                 </Button>
+                {#if draftSheet}
+                  <Button variant="outline" onclick={() => goto(base + workspaceUrl(orderId,'canvas'))}>
+                    {$t('orderWorkspace.sections.canvas')}
+                  </Button>
+                {/if}
                 {#if mayEditSpecification}
                   <Button variant="outline" disabled={lifecycleBusy}
                     onclick={() => goto(base + workspaceUrl(orderId,'intake'))}>

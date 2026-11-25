@@ -1,5 +1,6 @@
 <script lang="ts">
   import { modalDialog } from '$lib/ui/modal-dialog';
+  import { workspaceUrl } from '$lib/order/workspace-navigation';
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
@@ -74,9 +75,13 @@
   }
 
   async function openConfirm(order: PendingOrder) {
+    poInput=order.po_number??'';
+    await loadConfirmEvidence(order);
+  }
+
+  async function loadConfirmEvidence(order: PendingOrder) {
     const sequence=++confirmLoadSequence;
     confirmTarget=order;
-    poInput=order.po_number??'';
     confirmError='';
     confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=true;
     try{
@@ -94,6 +99,7 @@
         throw new Error($t('orderWorkspace.confirmReloadRequired'));
       if(!Array.isArray(latest.files))
         throw new Error($t('orderWorkspace.confirmFilesUnknown'));
+      if (!canAssignPo) poInput=latest.poNumber??'';
       confirmRevision=latest.updatedAt;
       confirmFiles=latest.files.length;
       confirmDocumentNames=latest.files.slice(0,8).map((file:{originalName?:string;displayName?:string;filename?:string})=>
@@ -141,9 +147,12 @@
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        confirmError = res.status===409||res.status===428
-          ?$t('orderWorkspace.confirmReloadRequired')
-          :payload?.error ?? `HTTP ${res.status}`;
+        if (res.status===409||res.status===428) {
+          confirmRevision=null;
+          confirmError=$t('orderWorkspace.confirmReloadRequired');
+        } else {
+          confirmError=payload?.error ?? `HTTP ${res.status}`;
+        }
         return;
       }
       // The reply reflects an authorized, atomic release (or an idempotent
@@ -270,6 +279,9 @@
               <Button variant="secondary" onclick={() => goto(`${base}/orders/${order.id}`)}>
                 {$t('actions.open', { default: 'Open' })}
               </Button>
+              <Button variant="secondary" iconLeft="pen-tool" onclick={() => goto(base + workspaceUrl(order.id,'canvas'))}>
+                {$t('orderWorkspace.sections.canvas')}
+              </Button>
               <Button variant="primary" onclick={() => void openConfirm(order)} disabled={!canAssignPo && !order.po_number}>
                 <Icon name="check" size="sm" />
                 {$t('orders.review.confirm', { default: 'Confirm & assign PO' })}
@@ -363,6 +375,9 @@
             </ul>
           {/if}
         {/if}
+        <a class="review-drawing" href={base + workspaceUrl(confirmTarget.id,'canvas')} target="_blank" rel="noopener">
+          <Icon name="external-link" size="sm" /> {$t('orderWorkspace.openDrawingTab')}
+        </a>
         <label for="po-input">
           {$t('orders.review.po_label', { default: 'PO number (provided by Boss)' })}
         </label>
@@ -393,6 +408,11 @@
           <div class="banner error inline" role="alert">
             <Icon name="alert-circle" size="sm" />
             <span>{confirmError}</span>
+            {#if !confirmRevision}
+              <Button variant="secondary" disabled={confirmLoading || confirming} onclick={() => void loadConfirmEvidence(confirmTarget!)}>
+                {$t('orderWorkspace.refreshReview')}
+              </Button>
+            {/if}
           </div>
         {/if}
       </div>
@@ -703,6 +723,7 @@
   .ref {gap:var(--space-sm);flex-wrap:wrap;min-width:0;}
   .internal-ref {font-variant-numeric:tabular-nums;color:var(--ink-primary);}
 
+  .review-drawing {display:inline-flex;align-items:center;align-self:flex-start;gap:var(--space-xs);min-height:36px;color:var(--ink-primary);text-decoration:underline;}
   .actions {align-items:center;gap:var(--space-xs);flex-wrap:wrap;}
   .actions :global(button) {border-radius:var(--radius-sm);min-height:42px;}
   .card-row.body {grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);}
