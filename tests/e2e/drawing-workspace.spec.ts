@@ -9,7 +9,9 @@ async function checkOverviewEdge(page: Page, id: string, zoom: number) {
   const point = await page.evaluate(({ id, zoom }) => {
     const fixture = (window as any).__drawingFixture;
     const { x, y, w } = fixture.bounds(id);
-    const topEdge = { x: x + w / 2, y };
+    // Stay clear of the snapping fixture's crossing vertical guide: it paints
+    // the reference row too, hiding the horizontal edge's contrast there.
+    const topEdge = { x: x + w * .75, y };
     fixture.viewAt(topEdge, zoom);
     return fixture.pagePoint(topEdge);
   }, { id, zoom });
