@@ -180,6 +180,10 @@
       screenPoint: (point:{x:number;y:number}) => editor.screenToPage(point),
       pagePoint: (point:{x:number;y:number}) => editor.pageToScreen(point),
       bounds: (id:string) => { const bounds=editor.getShapePageBounds(id); return bounds ? {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h} : null; },
+      viewAt: (point: {x: number; y: number}, zoom: number) => {
+        editor.setCamera({ ...editor.getCamera(), z: zoom });
+        editor.centerOnPoint(point);
+      },
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       // Order drawings carry production pockets to the right of the form; stay clear of every shape.
       emptyArea: () => { const bounds = editor.getCurrentPageBounds(); editor.setCamera({ x: -Math.max(2400, (bounds?.maxX ?? 0) + 240), y: 0, z: 1 }); },

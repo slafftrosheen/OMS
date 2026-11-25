@@ -118,11 +118,14 @@ describe('real editor outline controls and calibrated drag primitives', () => {
     await change(()=>editor.updateInstanceState({isReadonly:true}));assert.equal(query('Width').matches(':disabled'),true);assert.equal(query('Apply to').matches(':disabled'),true);
   }));
 
-  it('keeps hairlines at one screen pixel under zoom while exported SVG uses positive fallback width', async () => harness(async h => {
+  it('keeps the screen hairline style out of previews and exported SVG', async () => harness(async h => {
     const {editor,defaults,root,React,act,tick,VectorArtwork,nodeAt,host,change}=h;
     const paint=defaults.newCadOutlinePaint(editor),contours=[{closed:false,nodes:[nodeAt({x:0,y:0}),nodeAt({x:100,y:10})]}];
-    await act(async()=>root.render(<svg><VectorArtwork id="live" contours={contours} fillRule="evenodd" paint={paint} editor={editor}/><VectorArtwork id="export" contours={contours} fillRule="evenodd" paint={paint}/></svg>));await tick();
-    for(const z of [.25,1,4]){await change(()=>editor.setCamera({x:0,y:0,z}));const paths=host.querySelectorAll('[data-oms-hairline="true"]');near(Number(paths[0].getAttribute('stroke-width'))*z,1);near(Number(paths[1].getAttribute('stroke-width')),paint.strokeWidth);}
+    await act(async()=>root.render(<svg><VectorArtwork id="live" contours={contours} fillRule="evenodd" paint={paint} live/><VectorArtwork id="export" contours={contours} fillRule="evenodd" paint={paint}/></svg>));await tick();
+    const [live, preview] = host.querySelectorAll('[data-oms-hairline="true"]');
+    assert.match(live.getAttribute('style'), /--tl-scale/);
+    assert.equal(preview.hasAttribute('style'), false);
+    near(Number(preview.getAttribute('stroke-width')), paint.strokeWidth);
     await change(()=>editor.createShape({id:'shape:export',type:'cad-path',props:{points:[{x:0,y:0},{x:100,y:10}]},meta:defaults.newCadOutlineMeta(editor)}));
     let exported:any;await act(async()=>{exported=await editor.getSvgString(['shape:export'],{bounds:new h.tl.Box(-1,-1,102,12),padding:0,scale:1,background:false});});assert.ok(exported);
     const dom=new DOMParser().parseFromString(exported.svg,'image/svg+xml'),path=dom.querySelector('[data-oms-hairline="true"]');assert.ok(path);near(Number(path.getAttribute('stroke-width')),paint.strokeWidth);

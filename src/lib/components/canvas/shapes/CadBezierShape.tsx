@@ -70,7 +70,7 @@ function CadBezierArtwork({ editor, shape, artwork }: { editor: Editor; shape: C
   }, [editor, shape.id]);
   return preview?.geometry && preview.continuation?.localContours
     ? <g data-testid="cad-freehand-source-preview" data-shape-id={shape.id}><VectorArtwork id={`shape-${shape.id}`}
-      contours={preview.continuation.localContours} fillRule={preview.geometry.fillRule} paint={preview.geometry.paint} editor={editor} /></g>
+      contours={preview.continuation.localContours} fillRule={preview.geometry.fillRule} paint={preview.geometry.paint} live /></g>
     : <>{artwork}</>;
 }
 const number = T.number;
@@ -285,7 +285,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
         contours={shape.props.contours}
         fillRule={shape.props.fillRule}
         paint={paint}
-        editor={live ? this.editor : undefined}
+        live={live}
       />
     );
   }

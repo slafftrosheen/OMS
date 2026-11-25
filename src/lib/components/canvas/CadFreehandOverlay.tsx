@@ -2,6 +2,7 @@ import React from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { CAD_FREEHAND_CLOSE_DISTANCE } from './CadFreehandTool';
 import { cadFreehandHover, cadFreehandPreview } from './cad-freehand-state';
+import { canvasStrokeWidth } from './cad-paint';
 import { curvePathData } from './cad-curves';
 import { cadFreehandOptions } from './cad-freehand';
 import { readCadFreehandEndpoints } from './cad-freehand-continuation';
@@ -37,6 +38,7 @@ export function CadFreehandOverlay() {
     })}
     {geometry && !preview?.continuation && <path data-testid="cad-freehand-result" d={curvePathData(geometry.contours)}
       fill={geometry.paint.fill} fillRule={geometry.fillRule} fillOpacity={geometry.paint.fillOpacity}
+      style={{ strokeWidth: canvasStrokeWidth(geometry.paint) }}
       stroke={geometry.paint.stroke} strokeWidth={geometry.paint.strokeWidth} strokeOpacity={geometry.paint.strokeOpacity}
       strokeLinecap={geometry.paint.lineCap} strokeLinejoin={geometry.paint.lineJoin} strokeMiterlimit={geometry.paint.miterLimit}
       strokeDasharray={geometry.paint.dash.length ? geometry.paint.dash.join(' ') : undefined}

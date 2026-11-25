@@ -1,7 +1,88 @@
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 async function scene(page: Page) { return page.evaluate(() => (window as any).__drawingFixture.inspect()); }
+// Sample the actual painted edge. Selection indicators and DOM bounds can both
+// report a visible object even when its unselected outline has rasterized away.
+async function checkOverviewEdge(page: Page, id: string, zoom: number) {
+  const point = await page.evaluate(({ id, zoom }) => {
+    const fixture = (window as any).__drawingFixture;
+    const { x, y, w } = fixture.bounds(id);
+    const topEdge = { x: x + w / 2, y };
+    fixture.viewAt(topEdge, zoom);
+    return fixture.pagePoint(topEdge);
+  }, { id, zoom });
+  await expect.poll(async () => {
+    const clip = { x: Math.round(point.x) - 5, y: Math.round(point.y) - 5, width: 10, height: 10 };
+    const image = await loadImage(await page.screenshot({ clip }));
+    const ctx = createCanvas(clip.width, clip.height).getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const { data } = ctx.getImageData(0, 0, clip.width, clip.height);
+    let visibleColumns = 0;
+    for (let x = 0; x < clip.width; x++) {
+      const background = x * 4;
+      for (let y = 2; y < 8; y++) {
+        const pixel = (y * clip.width + x) * 4;
+        if ([0, 1, 2].some(c => Math.abs(data[pixel + c] - data[background + c]) >= 45)) {
+          visibleColumns++;
+          break;
+        }
+      }
+    }
+    return visibleColumns;
+  }, { message: `Continuous unselected outline for ${id} at ${zoom * 100}% zoom` }).toBe(10);
+}
+
+for (const mode of ['idea', 'order']) {
+  test(`${mode} keeps imported artwork and drawn outlines visible at overview zoom`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}&text`);
+    await expect(page.locator('.tl-canvas')).toBeVisible({ timeout: 20000 });
+    await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+    await page.locator('.drawing-viewport').evaluate(node => {
+      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="1200mm" height="500mm" viewBox="0 0 1200 500">
+        <path fill="none" stroke="#333333" stroke-width="0.26" d="M10 10H1190V490H10Z"/>
+        <path fill="none" stroke="#335599" stroke-width="0.01" data-oms-hairline="true" d="M10 400H1190"/>
+      </svg>`;
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(new File([source], 'sign-outline.svg', { type: 'image/svg+xml' }));
+      const bounds = node.getBoundingClientRect();
+      node.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer,
+        clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2 }));
+    });
+    const importer = page.getByTestId('vector-import');
+    await importer.getByRole('button', { name: /preview/i }).click();
+    await importer.getByTestId('vector-apply').click();
+    const { shapes } = await scene(page);
+    const imported = shapes.find((shape: any) => shape.meta.omsVectorPaint?.stroke === '#333333');
+    const deviceHairline = shapes.find((shape: any) => shape.meta.omsVectorPaint?.hairline);
+    expect(imported.type).toBe('cad-bezier');
+    await page.getByRole('button', { name: 'Load snapping example' }).click();
+    await expect.poll(async () => (await scene(page)).selected).toEqual([]);
+    await page.mouse.move(0, 0);
+    await checkOverviewEdge(page, imported.id, .025);
+    const live = page.locator('.tl-shapes [data-shape-type="cad-bezier"]');
+    const numeric = live.locator('path[stroke="#333333"]');
+    const hairline = live.locator('path[data-oms-hairline="true"]');
+    const screenWidth = (stroke: typeof numeric, zoom: number) =>
+      stroke.evaluate((p, z) => parseFloat(getComputedStyle(p).strokeWidth) * z, zoom);
+    await expect.poll(() => screenWidth(numeric, .025)).toBeCloseTo(1);
+    await expect.poll(() => screenWidth(hairline, .025)).toBeCloseTo(1);
+
+    await page.evaluate(id => {
+      const fixture = (window as any).__drawingFixture;
+      const { x, y, w } = fixture.bounds(id);
+      fixture.viewAt({ x: x + w / 2, y }, 4);
+    }, deviceHairline.id);
+    await expect.poll(() => screenWidth(numeric, 4)).toBeCloseTo(imported.meta.omsVectorPaint.strokeWidth * 4);
+    await expect.poll(() => screenWidth(hairline, 4)).toBeCloseTo(1);
+    await checkOverviewEdge(page, 'shape:snap-horizontal', .1);
+    await checkOverviewEdge(page, 'shape:snap-panel', .1);
+    expect((await scene(page)).shapes.find((shape: any) => shape.id === imported.id)).toEqual(imported);
+  });
+}
+
 async function drawRectangle(page: Page) {
   await page.getByTestId('drawing-tool-rectangle').click();
   const canvas = await page.locator('.drawing-viewport').boundingBox();
@@ -162,7 +243,7 @@ for (const mode of ['idea', 'order']) {
   test(`${mode} drops DXF and SVG as editable artwork and opens EPS in editable mode`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
-    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await expect(page.locator('.tl-canvas')).toBeVisible({ timeout: 20000 });
     if (mode === 'order') {
       await expect.poll(async () => (await scene(page)).shapes.some((s: any) => s.type === 'order-details')).toBe(true);
     }

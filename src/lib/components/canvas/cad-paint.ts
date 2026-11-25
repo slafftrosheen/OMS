@@ -46,8 +46,12 @@ export const VECTOR_DEFAULT_PAINT: VectorPaint = {
 /** SVG has no portable printer hairline. Newly authored hairlines carry a
  * 0.01 mm fallback; PDF/EPS retain the device-hairline instruction instead. */
 export const CAD_HAIRLINE_FALLBACK_MM = 0.01;
-export function vectorDisplayStrokeWidth(paint: VectorPaint, zoom?: number): number {
-  return paint.hairline && Number.isFinite(zoom) && zoom! > 0 ? 1 / zoom! : paint.strokeWidth;
+/** tldraw supplies the inverse camera zoom on the live canvas. Let CSS update
+ * outlines together when zooming a large import, without rerendering its paths. */
+export function canvasStrokeWidth(paint: VectorPaint): string | undefined {
+  if (paint.stroke === 'none' || paint.strokeWidth === 0 || paint.strokeOpacity === 0) return undefined;
+  const pixel = 'calc(1px * var(--tl-scale))';
+  return paint.hairline ? pixel : `max(${paint.strokeWidth}px, ${pixel})`;
 }
 export function validVectorPaint(value: unknown): value is VectorPaint {
   const p = value as VectorPaint;

@@ -80,7 +80,7 @@ function analyticArtwork(editor: Editor, shape: CadPathShape | CadEllipseShape |
     if (shape.type !== 'cad-arc') return null;
     data = cadArcPath(shape.props);
   }
-  return <VectorPathArtwork id={`${prefix}-${shape.id}`} data={data} fillRule="evenodd" paint={paint} editor={prefix === 'shape' ? editor : undefined} />;
+  return <VectorPathArtwork id={`${prefix}-${shape.id}`} data={data} fillRule="evenodd" paint={paint} live={prefix === 'shape'} />;
 }
 
 export class CadPathShapeUtil extends ShapeUtil<CadPathShape> {

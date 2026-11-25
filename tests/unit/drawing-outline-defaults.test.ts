@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { fixture } from '../helpers/cad-editor';
-import { CAD_HAIRLINE_FALLBACK_MM, VECTOR_DEFAULT_PAINT, validVectorPaint, vectorDisplayStrokeWidth, scalePaint } from '../../src/lib/components/canvas/cad-paint';
+import { CAD_HAIRLINE_FALLBACK_MM, VECTOR_DEFAULT_PAINT, validVectorPaint, canvasStrokeWidth, scalePaint } from '../../src/lib/components/canvas/cad-paint';
 import { DEFAULT_CAD_SETTINGS, cadMmPerPixel, unitLengthToCanvas } from '../../src/lib/components/canvas/cad-settings';
 import { newCadOutlinePaint, newCadOutlineMeta, tryNewCadOutlineMeta, prepareOutlineDefaultsPlan, applyOutlineDefaultsPlan, useNativeCadOutlineColor } from '../../src/lib/components/canvas/drawing-outline-defaults';
 import { prepareOutlinePlan, applyOutlinePlan, outlinePatchFromInput } from '../../src/lib/components/canvas/drawing-outline';
@@ -27,12 +27,16 @@ describe('hairline outline defaults and production output', () => {
     assert.equal(fresh.hairline, true); assert.ok(fresh.strokeWidth > 0);
     near(fresh.strokeWidth * cadMmPerPixel(DEFAULT_CAD_SETTINGS), CAD_HAIRLINE_FALLBACK_MM);
     assert.equal(JSON.stringify(f.editor.getCurrentPage()), before); assert.equal(f.marks.length, 0);
-    for (const zoom of [.02, .25, 1, 4, 64]) near(vectorDisplayStrokeWidth(fresh, zoom) * zoom, 1);
-    assert.equal(vectorDisplayStrokeWidth(fresh), fresh.strokeWidth);
     assert.equal(cadPaintHasStroke(fresh), true);
     assert.equal(cadPaintHasStroke({ ...legacy, strokeWidth: 0 }), false);
     assert.equal(validVectorPaint({ ...fresh, strokeWidth: 0 }), false);
     assert.equal(validVectorPaint({ ...fresh, hairline: 'true' }), false);
+  });
+
+  it('only applies the live width floor to painted outlines', () => {
+    for (const hidden of [{ stroke: 'none' }, { strokeWidth: 0 }, { strokeOpacity: 0 }]) {
+      assert.equal(canvasStrokeWidth({ ...VECTOR_DEFAULT_PAINT, ...hidden }), undefined);
+    }
   });
 
   it('persists only explicit overrides in mm and applies physical widths/dashes at any document scale', () => {
