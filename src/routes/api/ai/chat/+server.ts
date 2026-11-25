@@ -4,7 +4,7 @@
  */
 import { json, error as kitError } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { openRouterChat, type OpenRouterMessage } from '$lib/server/ai/openrouter';
+import { openRouterChat, providerBillingFailure, type OpenRouterMessage } from '$lib/server/ai/openrouter';
 import { OPENROUTER_MODEL } from '$lib/server/config';
 
 function sseHeaders() {
@@ -34,6 +34,8 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
   try {
     result = await openRouterChat({ model, messages, stream: wantStream, temperature: typeof body.temperature === 'number' ? body.temperature : 0.5, maxTokens: 2048 });
   } catch (err) {
+    const billing = providerBillingFailure(err);
+    if (billing) return json(billing, { status: 402, headers: { 'Cache-Control': 'private, no-store' } });
     console.error('[api/ai/chat] OpenRouter request unavailable:', err instanceof Error ? err.name : 'unknown');
     return json({ error: 'AI provider unavailable or not configured' }, { status: 503 });
   }

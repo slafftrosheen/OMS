@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
-import { openRouterCompleteWithMetadata, OpenRouterHttpError } from '$lib/server/ai/openrouter';
+import { openRouterCompleteWithMetadata, OpenRouterHttpError, providerBillingFailure } from '$lib/server/ai/openrouter';
 import { toolkitModelChoices, resolveToolkitModel, allowOpenRouterWebSearch } from '$lib/server/toolkit/ai-models';
 import {readActiveAiModels, readAiRouting} from '$lib/server/ai/active-provider';
 import { parseToolkitModelResponse, normalizeToolkitVisualAssets, normalizeProviderWebSources } from '$lib/server/toolkit/ai-response';
@@ -161,6 +161,8 @@ into the selected language. The user's message language is NOT the response-lang
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (err) {
     if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499 });
+    const billing = providerBillingFailure(err);
+    if (billing) return json(billing, { status: 402, headers: { 'Cache-Control': 'private, no-store' } });
     if (err instanceof OpenRouterHttpError && err.statusCode === 429) {
       const retryAfter = err.retryAfterSeconds;
       return json({ error: `${routing.provider === 'openai' ? 'OpenAI' : 'OpenRouter'} rate limit or quota reached. Try again later or check the provider limits in R&D Settings. Your board has not changed.`,

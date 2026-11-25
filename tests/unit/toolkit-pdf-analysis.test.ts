@@ -85,12 +85,12 @@ describe('bounded OpenRouter completion recovery', () => {
     assert.equal(result.text, 'Recovered'); assert.equal(calls.length, 2); assert.deepEqual(calls[0], calls[1]);
   });
   it('surfaces long provider cooldowns, quota and auth failures without another call or private details', async () => {
-    for (const status of [401, 402, 403, 429, 503]) {
+    for (const [status, retryAfter] of [[401, 120], [402, null], [403, 120], [429, 120], [503, 120]] as const) {
       let count = 0;
       const fetcher: typeof fetch = async () => { count++; return new Response('SECRET', { status, headers: { 'Retry-After': '120' } }); };
       await assert.rejects(openRouterCompleteWithMetadata([{ role: 'user', content: 'Hello' }], {}, config, fetcher), err => {
         assert.ok(err instanceof OpenRouterHttpError); assert.equal(err.statusCode, status);
-        assert.equal(err.retryAfterSeconds, 120); assert.doesNotMatch(err.message, /SECRET/); return true;
+        assert.equal(err.retryAfterSeconds, retryAfter); assert.doesNotMatch(err.message, /SECRET/); return true;
       });
       assert.equal(count, 1);
     }

@@ -4,7 +4,7 @@ import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { isUuid, signatureMatches, TOOLKIT_ASSET_BUCKET } from '$lib/server/toolkit/assets';
 import { toolkitMediaKind, toolkitMediaLimit, toolkitPdfEngine } from '$lib/server/toolkit/media-analysis';
 import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
-import { OpenRouterHttpError } from '$lib/server/ai/openrouter';
+import { OpenRouterHttpError, providerBillingFailure } from '$lib/server/ai/openrouter';
 import { analyzeToolkitMedia, PdfSourceError } from '$lib/server/toolkit/analyze-media';
 import { resolveToolkitModel, toolkitModelChoices } from '$lib/server/toolkit/ai-models';
 import {readActiveAiModels, readAiRouting} from '$lib/server/ai/active-provider';
@@ -124,6 +124,8 @@ ${responseLanguageInstruction(locale)}`;
       });
     }
     const detail = err instanceof Error ? err.message : '';
+    const billing = providerBillingFailure(err);
+    if (billing) return json(billing, { status: 402, headers: noStore });
     // Never expose upstream response bodies, stored filenames, credentials or prompts.
     // The OpenRouter client intentionally reports only the HTTP status.
     const upstreamStatus = err instanceof OpenRouterHttpError

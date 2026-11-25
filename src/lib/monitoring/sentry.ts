@@ -13,7 +13,6 @@ export function initSentry() {
     const dsn = publicEnv?.PUBLIC_SENTRY_DSN || (typeof process !== 'undefined' ? process.env?.SENTRY_DSN : undefined);
 
     if (!dsn) {
-        console.warn('Sentry DSN not found. Sentry integration is disabled.');
         return;
     }
 

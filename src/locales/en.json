@@ -1469,11 +1469,15 @@
           "new_password": "Enter new password (min. 8 characters)"
         }
       },
+      "delete": "Delete user",
+      "confirm_delete_title": "Permanently delete user",
       "messages": {
         "created": "User created successfully",
         "updated": "User updated successfully",
         "password_reset": "Password reset successfully",
         "deactivated": "User deactivated",
+        "deleted": "User permanently deleted",
+        "confirm_delete": "Permanently delete {name}? Their login and personal account data will be removed. Shared orders and production history will be kept. Their email and username can be used again. This cannot be undone.",
         "reactivated": "User activated",
         "confirm_deactivate": "Are you sure you want to deactivate {name}?",
         "load_error": "Error loading users",

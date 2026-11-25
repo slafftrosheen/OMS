@@ -5,10 +5,10 @@
 //   3. Persist assistant reply, update ai_runs.
 
 import type { RequestHandler } from '@sveltejs/kit';
-import { error as kitError, isHttpError } from '@sveltejs/kit';
+import { error as kitError, isHttpError, json } from '@sveltejs/kit';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { AILAB, OPENROUTER_MODEL } from '$lib/server/config';
-import { openRouterChat, parseToolArguments, type OpenRouterMessage } from '$lib/server/ai/openrouter';
+import { openRouterChat, parseToolArguments, providerBillingFailure, type OpenRouterMessage } from '$lib/server/ai/openrouter';
 import { chatHistoryMessages, persistChatMessage, type StoredChatMessage } from '$lib/server/ai/chat-history';
 import {
     listTools,
@@ -301,14 +301,16 @@ return async (event) => {
         latency_ms: Date.now() - startedAt.getTime()
     });
     } catch (err) {
+        const billing = providerBillingFailure(err);
         if (runId) {
             await db.from('ai_runs').update({
-                status: 'error', error: request.signal.aborted ? 'Request cancelled'
-                    : isHttpError(err, 503) ? 'Conversation persistence failed' : 'Provider or tool execution failed',
+                status: request.signal.aborted ? 'cancelled' : 'failed', error: request.signal.aborted ? 'Request cancelled'
+                    : billing ? billing.error : isHttpError(err, 503) ? 'Conversation persistence failed' : 'Provider or tool execution failed',
                 finished_at: new Date().toISOString()
             }).eq('id', runId);
         }
         if (request.signal.aborted) throw kitError(499, 'Request cancelled');
+        if (billing) return json(billing, { status: 402, headers: { 'Cache-Control': 'private, no-store' } });
         if (isHttpError(err, 503)) throw err;
         logger.error('[AI chat] inference run failed', { sessionId: sid, userId, kind: 'provider_or_tool' });
         throw kitError(502, 'AI provider or tool execution failed');

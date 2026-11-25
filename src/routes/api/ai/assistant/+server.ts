@@ -1,7 +1,7 @@
 import { error, json, isHttpError, type RequestHandler } from '@sveltejs/kit';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { listTools, executeTool, normalizeToolStation } from '$lib/server/ai/tools-registry';
-import { openRouterChat } from '$lib/server/ai/openrouter';
+import { openRouterChat, providerBillingFailure } from '$lib/server/ai/openrouter';
 import { screenAssistantRequest, selectScreenTools, runScreenAssistant, AssistantToolsUnsupported } from '$lib/server/ai/screen-assistant';
 
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -67,6 +67,8 @@ export function _createAssistantHandlers(dependencies = { listTools, executeTool
       });
       return json(result, { headers });
     } catch (err) {
+      const billing = providerBillingFailure(err);
+      if (billing) return json(billing, { status: 402, headers });
       if (isHttpError(err)) throw err;
       return json({ error: 'Assistant unavailable. Try again or continue working.' }, { status: 503, headers });
     }

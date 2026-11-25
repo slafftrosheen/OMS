@@ -3,7 +3,7 @@ import { error as svelteError, type RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { aiRateLimit, okOne, rateLimitIdentifier, requireAuth, validate } from '$lib/server/api/helpers';
 import { logger } from '$lib/server/logging/logger';
-import { openRouterComplete } from '$lib/server/ai/openrouter';
+import { openRouterComplete, providerBillingFailure } from '$lib/server/ai/openrouter';
 
 const AnalyzeOrderSchema = z.object({
     title: z.string().min(1),
@@ -47,6 +47,8 @@ export const POST: RequestHandler = async (event) => {
         logger.info('AI order analysis succeeded', { userId: user.id, title: input.title });
         return okOne({ analysis: parsed, raw });
     } catch (err) {
+        const billing = providerBillingFailure(err);
+        if (billing) throw svelteError(402, billing.error);
         logger.error('AI analysis endpoint error', err as Error, { userId: user.id });
         throw svelteError(503, 'AI analysis failed');
     }

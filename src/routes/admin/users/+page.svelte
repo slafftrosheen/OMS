@@ -289,24 +289,24 @@
 
   let confirmState = $state<ConfirmState>(emptyConfirm());
 
-  function deactivateUser(user: AdminUser) {
+  function deleteUser(user: AdminUser) {
     confirmState = {
       open: true,
-      title: $t('admin.users.confirm_deactivate_title', { default: 'Deactivate user' }),
-      body: $t('admin.users.messages.confirm_deactivate', {
+      title: $t('admin.users.confirm_delete_title'),
+      body: $t('admin.users.messages.confirm_delete', {
         values: { name: user.displayName },
-        default: 'Deactivate {name}? They will lose access to OMS until reactivated.'
       }),
       tone: 'danger',
-      confirmLabel: $t('actions.deactivate', { default: 'Deactivate' }),
+      confirmLabel: $t('admin.users.delete'),
       action: async () => {
         try {
           const res = await fetch(`${base}/api/users/${user.id}`, { method: 'DELETE' });
           if (res.ok) {
-            successMessage = $t('admin.users.messages.deactivated');
+            successMessage = $t('admin.users.messages.deleted');
             await loadUsers();
           } else {
-            error = $t('admin.users.messages.save_error');
+            const data = await res.json();
+            error = data.message || data.error || $t('admin.users.messages.save_error');
           }
         } catch (e) {
           error = 'Failed to connect to server';
@@ -459,13 +459,14 @@
                   <button class="btn-icon" title={$t('admin.users.reset_password')} aria-label={$t('admin.users.reset_password')} onclick={() => openPasswordModal(user)}>
                     <Key size={16} />
                   </button>
-                  {#if user.isActive}
-                    <button class="btn-icon btn-danger" title={$t('admin.users.status.inactive')} aria-label={$t('admin.users.status.inactive')} onclick={() => deactivateUser(user)}>
-                      <Trash2 size={16} />
-                    </button>
-                  {:else}
+                  {#if !user.isActive}
                     <button class="btn-icon btn-success" title={$t('admin.users.status.active')} aria-label={$t('admin.users.status.active')} onclick={() => reactivateUser(user)}>
                       <Check size={16} />
+                    </button>
+                  {/if}
+                  {#if user.id !== $currentUser?.id}
+                    <button class="btn-icon btn-danger" title={$t('admin.users.delete')} aria-label={$t('admin.users.delete')} onclick={() => deleteUser(user)}>
+                      <Trash2 size={16} />
                     </button>
                   {/if}
                 </td>

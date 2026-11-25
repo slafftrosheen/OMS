@@ -1,6 +1,6 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { json, error as svelteError } from '@sveltejs/kit';
-import { openRouterComplete } from '$lib/server/ai/openrouter';
+import { openRouterComplete, providerBillingFailure } from '$lib/server/ai/openrouter';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (!locals.supabase || !locals.user) {
@@ -86,6 +86,8 @@ ${spatialContext}`;
         
         return json({ reply: reply || "No response" });
     } catch (err: any) {
+        const billing = providerBillingFailure(err);
+        if (billing) return json(billing, { status: 402, headers: { 'Cache-Control': 'private, no-store' } });
         return json({ error: err.message }, { status: 500 });
     }
 };

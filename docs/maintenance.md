@@ -26,6 +26,38 @@ Tests/build must pass and `svelte-check` must have zero errors. Existing warning
 
 Review SQL, confirm the target database, back up where appropriate, and check the deployed role helper/policy meanings before any RLS or data migration. Build/restart never applies migrations implicitly.
 
+## User accounts
+
+Admin → Users → Delete permanently removes the Auth login, sessions, profile,
+preferences, station assignments and personal workforce entries. Shared orders,
+files and production history remain, with user references cleared. The deleted
+email and username can then be reused. Inactive accounts can also be deleted;
+inactivity by itself still reserves their identifiers.
+
+Deletion requires an active RD, Boss or HeadOfProduction account and cannot target
+the signed-in user. The server calls the service-role-only `oms_delete_user` RPC
+from migration `20261125000001_permanent_user_deletion.sql`. It performs cleanup
+in one transaction and rechecks the acting administrator in the database.
+On this self-hosted instance, apply that migration as `supabase_admin`: the
+affected tables have different owners, so the `postgres` role cannot alter all of them.
+User creation reports existing identifiers as conflicts and removes a newly
+created login if profile, station or preference setup fails.
+
+## AI provider diagnostics
+
+R&D Settings selects the active provider; saved OpenAI and OpenRouter keys stay
+in Vault when switching providers. The explicit provider probe checks a real
+request. Exhausted credits and billing limits produce an actionable HTTP 402
+response across AI and PDF tools; temporary rate limits retain HTTP 429 and
+their retry delay. Raw provider messages and credentials are never returned.
+Chat runs use the database statuses `failed` and `cancelled` when interrupted.
+
+For OpenRouter models without native JSON Schema support, set
+`OPENROUTER_ORDER_INTAKE_STRICT=false` and
+`OPENROUTER_ORDER_ASSISTANT_STRICT=false`. JSON compatibility mode includes the
+server-owned response schema in the prompt and retains local validation before
+any proposal reaches the form.
+
 ## Documentation hygiene
 
 Keep maintained architecture and operation instructions in README/agent guides. Do not check in temporary audit dumps, dated plans, session summaries, credentials, logs, or build artifacts. Historical migration/audit material must be clearly labeled as historical and revalidated against current code/schema before it is acted upon.

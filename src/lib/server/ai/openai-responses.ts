@@ -1,4 +1,5 @@
 import type { OpenRouterChatOptions, OpenRouterMessage } from './openrouter';
+import { BILLING_ERROR_TYPES, readProviderFailure } from './provider-errors';
 
 type Item = Record<string, unknown>;
 
@@ -121,11 +122,16 @@ function responseStream(body: ReadableStream<Uint8Array>, model: string) {
 /** Normalize Responses into the existing OMS chat transport and preserve safe failure metadata. */
 export async function openAiChatResponse(response: Response, model: string, stream: boolean): Promise<Response> {
   if (!response.ok) {
-    await response.body?.cancel().catch(() => {});
+    const payload = await readProviderFailure(response);
+    const code = payload?.error?.code;
+    const errorType = BILLING_ERROR_TYPES.some(type => type === code) ? code
+      : payload?.error?.type === 'insufficient_quota' ? 'insufficient_quota' : null;
     const headers = new Headers();
     const retryAfter = response.headers.get('Retry-After');
-    if (retryAfter) headers.set('Retry-After', retryAfter);
-    return new Response(null, { status: response.status, headers });
+    if (retryAfter && !errorType) headers.set('Retry-After', retryAfter);
+    return errorType ? Response.json({ error: { code: response.status,
+      metadata: { error_type: errorType }
+    } }, { status: response.status, headers }) : new Response(null, { status: response.status, headers });
   }
   if (stream) {
     if (!response.body) throw new Error('OpenAI returned an empty stream');

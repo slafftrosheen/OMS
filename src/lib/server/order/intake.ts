@@ -5,7 +5,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { matchesOrderFileSignature, readOrderStoredFile } from '$lib/server/files/order-storage';
 import { canEditDraft } from '$lib/server/order/draft-contract';
-import { openRouterCompleteWithMetadata, OPENROUTER_MODEL, OPENROUTER_VISION_MODEL, OpenRouterHttpError } from '$lib/server/ai/openrouter';
+import { openRouterCompleteWithMetadata, OPENROUTER_MODEL, OPENROUTER_VISION_MODEL, OpenRouterHttpError, providerBillingFailure } from '$lib/server/ai/openrouter';
 import { toolkitMediaContent, toolkitMediaKind, toolkitMediaLimit, extractedPdfEvidence } from '$lib/server/toolkit/media-analysis';
 import { normalizeIntakeProposals } from '$lib/order/intake-contract';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
@@ -40,6 +40,8 @@ class IntakeOutputError extends Error {
 }
 
 function intakeFailure(err: unknown, engine: string | null): never {
+  const billing = providerBillingFailure(err);
+  if (billing) throw error(402, billing.error);
   const providerStatus=err instanceof OpenRouterHttpError?err.statusCode:null;
   const providerType=err instanceof OpenRouterHttpError?err.errorType:null;
   console.error('[Orders] AI intake unavailable', {type:err instanceof Error?err.name:'unknown',providerStatus,providerType,engine,
@@ -326,7 +328,8 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
       schema:PRODUCTION_INTAKE_JSON_SCHEMA as unknown as Record<string,unknown>};
     let response: Awaited<ReturnType<typeof complete>>;
     try {
-      response = await complete(messages, {...options, ...(jsonMode ? {jsonMode:true} : {jsonSchema:strictSchema})});
+      response = await complete(messages, {...options, ...(jsonMode
+        ? {jsonMode:true,jsonModeSchema:strictSchema.schema} : {jsonSchema:strictSchema})});
     } catch (err) {
       // A no-route/schema error can occur even when this Vision model reads images.
       // Reuse the same model, parser and deadline. Paid/native PDF parsing stays single-pass.
@@ -334,7 +337,7 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
         (parserEngine === 'page-images' || parserEngine === 'cloudflare-ai');
       if (!allowFallback || !(err instanceof OpenRouterHttpError) || ![400, 404].includes(err.statusCode) ||
         (err.errorType !== null && !['invalid_request','not_found'].includes(err.errorType))) throw err;
-      response = await complete(messages, {...options, jsonMode:true});
+      response = await complete(messages, {...options, jsonMode:true,jsonModeSchema:strictSchema.schema});
     }
     if (response.finishReason === 'length') throw new IntakeOutputError('truncated');
     if (!response.text) throw new IntakeOutputError('empty');

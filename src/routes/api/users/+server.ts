@@ -3,6 +3,22 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isAdmin } from '$lib/server/auth/session';
 import { supabaseAdmin } from '$lib/server/supabase-admin';
+import { z } from 'zod';
+import { ROLE_ORDER, STATION_IDS } from '$lib/auth/types';
+
+const createUserSchema = z.object({
+  username: z.string().trim().min(1).max(128).transform(value => value.toLowerCase()),
+  displayName: z.string().trim().min(1).max(256),
+  email: z.string().trim().toLowerCase().email().nullish(),
+  password: z.string(),
+  role: z.string().refine(value => ROLE_ORDER.includes(value as any), 'Invalid role').optional(),
+  stations: z.array(z.object({
+    stationId: z.string().refine(value => STATION_IDS.includes(value as any), 'Invalid station'),
+    isHead: z.boolean().default(false)
+  })).optional()
+});
+
+const exactPattern = (value: string) => value.replace(/[\\%_]/g, '\\$&');
 
 /**
  * Validates password strength requirements
@@ -86,7 +102,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * @description POST /api/users - Creates a new user. This can be called by admins or for self-registration.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const data = await request.json();
+  const parsed = createUserSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return json({ error: 'Invalid user details: ' + parsed.error.issues.map(issue => issue.message).join(', ') }, { status: 400 });
+  }
+  const data = parsed.data;
 
   // Check if this is an admin request vs. self-registration
   const currentUser = locals.user;
@@ -118,12 +138,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       data.email = `${data.username}@example.com`;
   }
 
+  let createdUserId: string | undefined;
   try {
+    // Inactive accounts still reserve their identifiers until explicitly deleted.
+    // Check before Auth runs its profile trigger so a collision is a useful 409.
+    for (const [column, value] of [['username', data.username], ['email', data.email]]) {
+      const { data: existing, error: lookupError } = await supabaseAdmin
+        .from('profiles').select('id').ilike(column, exactPattern(value)).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing) return json({ error: 'Username/Email already exists. Delete the existing account before reusing it.' }, { status: 409 });
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
         user_metadata: {
             username: data.username,
+            display_name: data.displayName,
             full_name: data.displayName
         },
         email_confirm: true
@@ -131,11 +162,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     if (authError) throw authError;
     if (!authData.user) throw new Error('Failed to create user');
+    createdUserId = authData.user.id;
 
     const profileData = {
       id: authData.user.id,
       username: data.username,
+      email: data.email,
       display_name: data.displayName,
+      full_name: data.displayName,
       role: isSelfRegistration ? 'Operator' : (data.role || 'Operator'),
       is_active: true
     };
@@ -156,11 +190,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             is_head: s.isHead
         }));
         if (stationRecords.length > 0) {
-            await supabaseAdmin.from('user_stations').insert(stationRecords);
+            const { error: stationError } = await supabaseAdmin.from('user_stations').insert(stationRecords);
+            if (stationError) throw stationError;
         }
     }
 
-    await supabaseAdmin.from('user_preferences').upsert({ user_id: authData.user.id });
+    const { error: preferencesError } = await supabaseAdmin.from('user_preferences')
+      .upsert({ user_id: authData.user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+    if (preferencesError) throw preferencesError;
 
     return json({
       id: profile.id,
@@ -171,8 +208,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }, { status: 201 });
 
   } catch (err: any) {
+    // Auth and PostgREST use separate transactions. Compensate failed setup so
+    // retrying does not encounter an orphan login or a reserved username/email.
+    if (createdUserId) {
+      const { error: cleanupError } = await supabaseAdmin.auth.admin.deleteUser(createdUserId, false);
+      if (cleanupError) console.error('Failed to roll back incomplete user:', createdUserId, cleanupError);
+    }
     console.error('Failed to create user:', err);
-    if (err.message?.includes('already registered')) {
+    if (['email_exists', 'user_already_exists', '23505'].includes(err.code) || /already (registered|exists)/i.test(err.message || '')) {
          return json({ error: 'Username/Email already exists' }, { status: 409 });
     }
     return json({ error: 'Failed to create user: ' + err.message }, { status: 500 });

@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { OpenRouterHttpError } from '../../src/lib/server/ai/openrouter';
+import { OpenRouterHttpError, providerBillingFailure } from '../../src/lib/server/ai/openrouter';
 import { PdfSourceError } from '../../src/lib/server/ai/pdf-text';
 import { isHttpError } from '@sveltejs/kit';
 
@@ -10,16 +10,29 @@ import { isHttpError } from '@sveltejs/kit';
 const source = readFileSync('src/routes/api/toolkit/analyze-asset/+server.ts', 'utf8');
 const catchBody = source.slice(source.lastIndexOf('} catch (err) {') + '} catch (err) {'.length,
   source.lastIndexOf('\n  }'));
-const handleError = new Function('err', 'request', 'json', 'kind', 'noStore', 'console', 'OpenRouterHttpError', 'PdfSourceError', 'isHttpError', 'providerName', 'routing', catchBody);
+const handleError = new Function('err', 'request', 'json', 'kind', 'noStore', 'console', 'OpenRouterHttpError', 'PdfSourceError', 'isHttpError', 'providerName', 'routing', 'providerBillingFailure', catchBody);
 
 function responseFor(message: string | Error, aborted = false, provider: 'openrouter' | 'openai' = 'openrouter') {
   return handleError(typeof message === 'string' ? new Error(message) : message, { signal: { aborted } },
     (body: unknown, options: Parameters<typeof Response.json>[1]) => Response.json(body, options),
     'pdf', { 'Cache-Control': 'private, no-store' }, { error() {} }, OpenRouterHttpError, PdfSourceError, isHttpError,
-    provider === 'openai' ? 'OpenAI' : 'OpenRouter', { provider }) as Response;
+    provider === 'openai' ? 'OpenAI' : 'OpenRouter', { provider }, providerBillingFailure) as Response;
 }
 
 describe('Toolkit analysis provider error responses', () => {
+  it('identifies exhausted PDF analysis credits and spending limits without a retry delay', async () => {
+    for (const [type, code] of [['credit_balance_exhausted', 'PROVIDER_CREDITS_EXHAUSTED'],
+      ['project_spend_limit_exceeded', 'PROVIDER_SPEND_LIMIT'], ['insufficient_quota', 'PROVIDER_QUOTA_EXHAUSTED']] as const) {
+      const response = responseFor(new OpenRouterHttpError(429, null, type, 'openai'), false, 'openai');
+      const body = await response.json();
+      assert.equal(response.status, 402);
+      assert.equal(body.code, code);
+      assert.equal(body.source, 'openai');
+      assert.match(body.error, /OpenAI.*billing/i);
+      assert.equal(response.headers.get('Retry-After'), null);
+    }
+  });
+
   for (const [upstream, status, code] of [
     [400, 422, 'PROVIDER_REJECTED_DOCUMENT'],
     [422, 422, 'PROVIDER_REJECTED_DOCUMENT'],

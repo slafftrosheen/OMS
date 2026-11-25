@@ -19,6 +19,9 @@ function database() {
       if (table === 'ai_chat_sessions') return { data: { id: 'session', model: null, persona: null }, error: null };
       if (table === 'user_preferences') return { data: { locale: 'en' }, error: null };
       if (table === 'ai_runs') {
+        if (operation === 'update' && !['queued', 'running', 'done', 'failed', 'cancelled'].includes(value.status)) {
+          return { data: null, error: { code: '22P02', message: 'Invalid ai_run_status' } };
+        }
         state.runs.push({ operation, ...value });
         return { data: { id: 'run' }, error: null };
       }
@@ -60,6 +63,25 @@ function handler(replies: any[], requests: OpenRouterChatOptions[], allowed = [t
 }
 
 describe('Persisted chat tools and confirmed replies', () => {
+  it('returns an actionable billing error and records a failed run when OpenAI credits are exhausted', async () => {
+    const { db, state } = database();
+    const direct: OpenRouterClientConfig = { provider: 'openai', apiKey: 'fake-test-key',
+      baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-test', visionModel: 'gpt-test', timeoutMs: 5000 };
+    const post = _createMessageHandler({
+      openRouterChat: options => openRouterChat(options, direct, async () => Response.json({
+        error: { code: 'credit_balance_exhausted', type: 'insufficient_quota', message: 'private upstream details' }
+      }, { status: 429 })), listTools: async () => [], executeTool: async () => ({})
+    });
+    const response = await post(event(db, 'Hello'));
+    expect(response.status).toBe(402);
+    const body = await response.json();
+    expect(body.code).toBe('PROVIDER_CREDITS_EXHAUSTED');
+    expect(body.error).toMatch(/OpenAI.*credits.*billing/i);
+    expect(JSON.stringify(body)).not.toContain('private upstream details');
+    expect(state.runs.at(-1)).toMatchObject({ status: 'failed' });
+    expect(state.messages.map((message: any) => message.role)).toEqual(['user']);
+  });
+
   it('replays a second turn with complete evidence and no orphan native tool messages', async () => {
     const { db, state } = database(); const requests: OpenRouterChatOptions[] = [];
     const post = handler([toolReply, { content: 'Five LED strips remain.' }, { content: 'Order more strips.' }], requests);
@@ -117,7 +139,7 @@ describe('Persisted chat tools and confirmed replies', () => {
     await expect(handler([{ content: 'Useful reply' }], requests)(event(db))).rejects.toMatchObject({ status: 503 });
     expect(requests).toHaveLength(1); expect(state.messages).toHaveLength(1);
     expect(state.messages[0].role).toBe('user');
-    expect(state.runs.at(-1)).toMatchObject({ status: 'error', error: 'Conversation persistence failed' });
+    expect(state.runs.at(-1)).toMatchObject({ status: 'failed', error: 'Conversation persistence failed' });
   });
 
   it('stops the tool loop if a completed result cannot be persisted', async () => {
@@ -140,7 +162,7 @@ describe('Persisted chat tools and confirmed replies', () => {
     await expect(post(event(db, 'Check stock', controller.signal))).rejects.toMatchObject({ status: 499 });
     expect(calls).toBe(1); expect(tools).toBe(0);
     expect(state.messages.map((message: any) => message.role)).toEqual(['user']);
-    expect(state.runs.at(-1)).toMatchObject({ status: 'error', error: 'Request cancelled' });
+    expect(state.runs.at(-1)).toMatchObject({ status: 'cancelled', error: 'Request cancelled' });
   });
 });
 

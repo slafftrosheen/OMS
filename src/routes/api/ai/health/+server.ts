@@ -2,7 +2,7 @@
 // GET never sends a paid inference request; RD may explicitly POST to probe.
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { readAiRouting, isActiveAiConfigured, readActiveAiModels } from '$lib/server/ai/active-provider';
-import { openRouterChat } from '$lib/server/ai/openrouter';
+import { openRouterChat, providerBillingFailure } from '$lib/server/ai/openrouter';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
 
@@ -60,6 +60,9 @@ export const POST: RequestHandler = async ({ locals, request, url }) => {
         return json({ service, connectivity: 'ok', model,
             latencyMs: Date.now() - start, responseReceived: true }, { headers: noStore });
     } catch (err) {
+        const billing = providerBillingFailure(err);
+        if (billing) return json({ ...billing, service, connectivity: 'billing_required', latencyMs: Date.now() - start },
+          { status: 402, headers: noStore });
         console.error('[AI health] Provider probe failed', err instanceof Error ? err.name : 'unknown');
         return json({ service, connectivity: 'failed', latencyMs: Date.now() - start },
             { status: 503, headers: noStore });

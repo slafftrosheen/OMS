@@ -6,7 +6,7 @@ import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { canEditDraft, canEditConfirmedMetadata, DRAFT_EDIT_STATUSES } from '$lib/server/order/draft-contract';
-import { openRouterCompleteWithMetadata, OPENROUTER_MODEL } from '$lib/server/ai/openrouter';
+import { openRouterCompleteWithMetadata, OPENROUTER_MODEL, providerBillingFailure } from '$lib/server/ai/openrouter';
 import { responseLanguageInstruction, resolveResponseLocale } from '$lib/server/ai/response-language';
 import { PRODUCTION_STATIONS, READINESS_JSON_SCHEMA, readinessEvidenceSchema,
   deterministicReadiness, reconcileOrderMaterials, safeCount,
@@ -143,7 +143,7 @@ export const POST:RequestHandler=async event=>{
     ],{
       model,temperature:0.1,maxTokens:1800,timeoutMs:120_000,
       ...(process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'
-        ? {jsonMode:true}
+        ? {jsonMode:true,jsonModeSchema:READINESS_JSON_SCHEMA as unknown as Record<string,unknown>}
         : {jsonSchema:{name:'oms_production_readiness_v1',
           schema:READINESS_JSON_SCHEMA as unknown as Record<string,unknown>}})
     });
@@ -153,11 +153,12 @@ export const POST:RequestHandler=async event=>{
     const ai=parseReadinessModel(candidate);
     return json({...base,ai,model:response.model,aiWarning:null},{headers:cache});
   }catch(err){
+    const billing=providerBillingFailure(err);
     console.error('[Orders] Production AI unavailable',err instanceof Error?err.name:'unknown');
     // Deterministic diagnostics remain useful when OpenRouter or model
     // routing fails. Always expose explicit warning: NEVER claim AI passed.
     return json({...base,ai:null,model:null,
-      aiWarning:'AI planning is unavailable; this report includes deterministic checks only.'},
+      aiWarning:billing?.error ?? 'AI planning is unavailable; this report includes deterministic checks only.'},
       {headers:cache});
   }
 };

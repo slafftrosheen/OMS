@@ -5,7 +5,7 @@ import {json,error} from '@sveltejs/kit';
 import type {RequestHandler} from './$types';
 import {aiRateLimit,rateLimitIdentifier} from '$lib/server/api/helpers';
 import {DRAFT_EDIT_STATUSES,canEditDraft,canEditConfirmedMetadata} from '$lib/server/order/draft-contract';
-import {openRouterCompleteWithMetadata,OPENROUTER_MODEL} from '$lib/server/ai/openrouter';
+import {openRouterCompleteWithMetadata,OPENROUTER_MODEL,providerBillingFailure} from '$lib/server/ai/openrouter';
 import {responseLanguageInstruction,resolveResponseLocale} from '$lib/server/ai/response-language';
 import {orderAssistantRequest,ORDER_ASSISTANT_JSON_SCHEMA,
   validateOrderAssistantSuggestions} from '$lib/order/assistant-contract';
@@ -185,7 +185,7 @@ export const POST:RequestHandler=async event=>{
      maxTokens:input.mode==='propose'?2200:1400,timeoutMs:90000,
      ...(input.mode==='propose'
        ? (process.env.OPENROUTER_ORDER_ASSISTANT_STRICT==='false'
-         ?{jsonMode:true}
+         ?{jsonMode:true,jsonModeSchema:ORDER_ASSISTANT_JSON_SCHEMA as unknown as Record<string,unknown>}
          :{jsonSchema:{name:'oms_order_assistant_reply',
            schema:ORDER_ASSISTANT_JSON_SCHEMA as unknown as Record<string,unknown>}})
        :{})
@@ -204,6 +204,8 @@ export const POST:RequestHandler=async event=>{
      orderUpdatedAt:order.updated_at,technicalChecks:technical,
      provenance:'model-reported'},{headers});
  }catch(cause){
+   const billing=providerBillingFailure(cause);
+   if(billing)return json(billing,{status:402,headers});
    console.error('[Order assistant] OpenRouter failed',cause instanceof Error?cause.name:'unknown');
    throw error(503,'Order assistant unavailable. Check configured OpenRouter model or structured-output support.');
  }

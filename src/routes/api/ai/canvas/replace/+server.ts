@@ -13,7 +13,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { openRouterComplete } from '$lib/server/ai/openrouter';
+import { openRouterComplete, providerBillingFailure } from '$lib/server/ai/openrouter';
 
 const SYSTEM_PROMPT = `You are a CAD assistant. Convert the user's description and any provided
 geometry hints into a single Maker.js parametric model.
@@ -77,6 +77,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         return json(parsed);
     } catch (err: any) {
+        const billing = providerBillingFailure(err);
+        if (billing) return json(billing, { status: 402, headers: { 'Cache-Control': 'private, no-store' } });
         console.error('[/api/ai/canvas/replace] error:', err);
         return json({ error: err.message ?? 'AI unavailable' }, { status: 503 });
     }

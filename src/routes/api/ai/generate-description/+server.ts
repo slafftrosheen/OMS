@@ -2,7 +2,7 @@
 import { error as svelteError, type RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { aiRateLimit, okOne, rateLimitIdentifier, requireAuth, validate } from '$lib/server/api/helpers';
-import { openRouterComplete } from '$lib/server/ai/openrouter';
+import { openRouterComplete, providerBillingFailure } from '$lib/server/ai/openrouter';
 
 const GenerateDescriptionSchema = z.object({
     title: z.string().min(1),
@@ -34,6 +34,8 @@ export const POST: RequestHandler = async (event) => {
         const description = await openRouterComplete(messages, { temperature: 0.5, maxTokens: 400 });
         return okOne({ description });
     } catch (err) {
+        const billing = providerBillingFailure(err);
+        if (billing) throw svelteError(402, billing.error);
         console.error('[AI description] Provider failure', err instanceof Error ? err.name : 'unknown');
         throw svelteError(503, 'AI description generation is unavailable');
     }

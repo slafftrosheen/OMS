@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isAdmin } from '$lib/server/auth/session';
 import { supabaseAdmin } from '$lib/server/supabase-admin';
+import { z } from 'zod';
 
 /**
  * Validates password strength requirements (same policy as POST /api/users)
@@ -134,13 +135,21 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
         throw error(403, 'Admin access required');
     }
 
-    // Use supabaseAdmin to bypass RLS for deactivating users
-    const { error: err } = await supabaseAdmin.from('profiles').update({ is_active: false }).eq('id', id);
+    if (!z.string().uuid().safeParse(id).success) throw error(400, 'Invalid user ID');
+    if (id === currentUser.id) throw error(400, 'You cannot delete your own account');
+
+    // One database transaction removes Auth credentials/sessions, the profile
+    // and private rows, and releases references from shared production history.
+    const { data: deleted, error: err } = await supabaseAdmin.rpc('oms_delete_user', {
+      p_user_id: id,
+      p_actor_id: currentUser.id
+    });
 
     if (err) {
-        console.error('Failed to deactivate user:', err);
-        throw error(500, 'Failed to deactivate user');
+        console.error('Failed to delete user:', err);
+        throw error(err.code === '42501' ? 403 : 500, 'Failed to delete user');
     }
+    if (!deleted) throw error(404, 'User not found');
 
     return json({ success: true });
 };

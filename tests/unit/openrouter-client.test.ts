@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { openRouterChat, openRouterRequestBody, openRouterMessages, extractAssistantMessage, parseToolArguments, openRouterError, type OpenRouterClientConfig } from '../../src/lib/server/ai/openrouter';
+import { openRouterChat, openRouterRequestBody, openRouterMessages, extractAssistantMessage, parseToolArguments, openRouterError, OpenRouterHttpError, type OpenRouterClientConfig } from '../../src/lib/server/ai/openrouter';
 
 const config: OpenRouterClientConfig = {
   apiKey: 'test-key-for-unit-only',
@@ -10,6 +10,24 @@ const config: OpenRouterClientConfig = {
 };
 
 describe('OpenRouter chat client', () => {
+  it('keeps the response schema in the prompt when using JSON compatibility mode', async () => {
+    const result = await openRouterChat({ messages: [{ role: 'user', content: 'Suggest a title' }],
+      jsonMode: true, jsonModeSchema: { type: 'object', properties: {
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'] }
+      } }
+    }, config, async (_url, init) => {
+      const payload = JSON.parse(String(init?.body));
+      expect(payload.response_format).toEqual({ type: 'json_object' });
+      expect(payload.provider).toBeUndefined();
+      expect(payload.messages[0].role).toBe('system');
+      expect(payload.messages[0].content).toContain('"confidence"');
+      expect(payload.messages[0].content).toContain('["high","medium","low"]');
+      expect(payload.messages[1]).toEqual({ role: 'user', content: 'Suggest a title' });
+      return Response.json({ choices: [{ message: { content: '{"confidence":"high"}' } }] });
+    });
+    expect(extractAssistantMessage(await result.response.json()).content).toBe('{"confidence":"high"}');
+  });
+
   it('uses saved model selections for default callers while preserving explicit task models', () => {
     const selected = { ...config, defaultModel: 'chosen/text', visionModel: 'chosen/vision',
       modelDefaults: { textModel: 'previous/text', visionModel: 'previous/vision' } };
@@ -70,6 +88,28 @@ const direct: OpenRouterClientConfig = {
   ...config, provider: 'openai', defaultModel: 'gpt-6-luna', visionModel: 'gpt-6.1-terra'
 };
 describe('OpenAI API transport', () => {
+  it('preserves billing failures as safe typed errors instead of temporary rate limits', async () => {
+    for (const code of ['credit_balance_exhausted', 'insufficient_quota', 'project_spend_limit_exceeded',
+      'organization_spend_limit_exceeded', 'organization_usage_limit_exceeded']) {
+      let failure: any;
+      let calls = 0;
+      try {
+        await openRouterChat({ messages: [{ role: 'user', content: 'Hello' }] }, direct, async () => {
+          calls++;
+          return Response.json({ error: { code, type: 'insufficient_quota',
+            message: 'private-api-key private document text' } }, { status: 429 });
+        });
+      } catch (error) { failure = error; }
+      expect(failure instanceof OpenRouterHttpError).toBe(true);
+      expect(failure.statusCode).toBe(429);
+      expect(failure.errorType).toBe(code);
+      expect(failure.provider).toBe('openai');
+      expect(calls).toBe(1);
+      expect(JSON.stringify(failure)).not.toContain('private-api-key');
+      expect(String(failure)).not.toContain('private document');
+    }
+  });
+
   it('routes PDFs, images, structured schemas and paired tool calls to Responses', async () => {
     const fake: typeof fetch = async (url, init) => {
       expect(url).toBe('https://api.openai.com/v1/responses');

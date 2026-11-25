@@ -6,6 +6,7 @@ import {
 } from '$lib/server/config';
 import { readAiRouting, type AiRouting } from './active-provider';
 import { openAiChatResponse, openAiResponsesBody } from './openai-responses';
+import { BILLING_ERROR_TYPES, readProviderFailure } from './provider-errors';
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
 export interface OpenRouterMessage {
@@ -35,6 +36,8 @@ export interface OpenRouterChatOptions {
   /** OpenRouter server-tool budget; bounded to avoid accidental multi-search charges. */
   maxToolCalls?: number;
   jsonMode?: boolean;
+  /** Preserve the server-owned schema as instructions for JSON-only providers. */
+  jsonModeSchema?: Record<string, unknown>;
   /** Strict JSON Schema mode: route only through providers supporting response_format. */
   jsonSchema?: {name:string;schema:Record<string,unknown>};
 }
@@ -125,7 +128,11 @@ export function openRouterRequestBody(options: OpenRouterChatOptions, config = O
     : requested;
   return {
     model: selected || (vision ? config.visionModel : config.defaultModel),
-    messages: openRouterMessages(options.messages),
+    messages: openRouterMessages(options.jsonMode && options.jsonModeSchema
+      ? [{ role: 'system', content: 'Return one valid JSON object matching this response schema. '
+          + 'Use only the listed properties and value types. Do not include Markdown.\n'
+          + JSON.stringify(options.jsonModeSchema) }, ...options.messages]
+      : options.messages),
     ...(options.tools?.length ? { tools: options.tools, tool_choice: options.toolChoice ?? 'auto' } : {}),
     ...(options.plugins?.length ? { plugins: options.plugins } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
@@ -180,7 +187,20 @@ export async function openRouterChat(
       ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
       : AbortSignal.timeout(timeoutMs)
   });
-  return { model: String(body.model), response: direct ? await openAiChatResponse(response, body.model, body.stream) : response };
+  const normalized = direct ? await openAiChatResponse(response, body.model, body.stream) : response;
+  if (direct && !normalized.ok) {
+    // This body is already bounded and sanitized by openAiChatResponse.
+    const failure = await normalized.clone().json().catch(() => null);
+    const type = failure?.error?.metadata?.error_type;
+    if (BILLING_ERROR_TYPES.some(value => value === type)) {
+      await normalized.body?.cancel().catch(() => {});
+      throw new OpenRouterHttpError(normalized.status, null, type, 'openai');
+    }
+  } else if (!direct && normalized.status === 402) {
+    await normalized.body?.cancel().catch(() => {});
+    throw new OpenRouterHttpError(402, null, 'payment_required', 'openrouter');
+  }
+  return { model: String(body.model), response: normalized };
 }
 
 export function openRouterError(response: Response, text: string, credential = ''): Error {
@@ -225,7 +245,8 @@ export class OpenRouterHttpError extends Error {
   readonly statusCode: number;
   readonly retryAfterSeconds: number | null;
   readonly errorType: OpenRouterErrorType | null;
-  constructor(statusCode: number, retryAfter: string | null = null, errorType: unknown = null) {
+  constructor(statusCode: number, retryAfter: string | null = null, errorType: unknown = null,
+    readonly provider: 'openai' | 'openrouter' = 'openrouter') {
     super(`OpenRouter completion failed (HTTP ${statusCode})`);
     this.name = 'OpenRouterHttpError';
     this.statusCode = statusCode;
@@ -237,6 +258,7 @@ export class OpenRouterHttpError extends Error {
 // Only canonical codes may leave the provider boundary. Never retain the error
 // message, raw provider metadata, document excerpts, URLs or credential echoes.
 const OPENROUTER_ERROR_TYPES = [
+  ...BILLING_ERROR_TYPES,
   'context_length_exceeded', 'max_tokens_exceeded', 'token_limit_exceeded', 'string_too_long',
   'authentication', 'permission_denied', 'payment_required', 'rate_limit_exceeded',
   'provider_overloaded', 'provider_unavailable', 'invalid_request', 'invalid_prompt',
@@ -250,22 +272,20 @@ function safeOpenRouterErrorType(value: unknown): OpenRouterErrorType | null {
     ? value as OpenRouterErrorType : null;
 }
 
-/** Failure payloads sometimes contain an entire document. Bound reads before parsing. */
-async function readOpenRouterFailure(response: Response): Promise<unknown> {
-  if (!response.body) return null;
-  const reader = response.body.getReader(), decoder = new TextDecoder();
-  let text = '', bytes = 0;
-  try {
-    while (true) {
-      const part = await reader.read();
-      if (part.done) break;
-      bytes += part.value.byteLength;
-      if (bytes > 65_536) { await reader.cancel().catch(() => {}); return null; }
-      text += decoder.decode(part.value, {stream: true});
-    }
-    return JSON.parse(text + decoder.decode());
-  } catch { return null; }
-  finally { reader.releaseLock(); }
+export function providerBillingFailure(error: unknown) {
+  if (!(error instanceof OpenRouterHttpError)) return null;
+  const type = error.errorType;
+  if (!type || (!BILLING_ERROR_TYPES.some(value => value === type) && type !== 'payment_required')) return null;
+  const name = error.provider === 'openai' ? 'OpenAI' : 'OpenRouter';
+  const credits = type === 'credit_balance_exhausted' || type === 'payment_required';
+  const spendLimit = type === 'project_spend_limit_exceeded' || type === 'organization_spend_limit_exceeded';
+  return {
+    error: credits ? `${name} API credits are exhausted. Add credits in ${name} billing to resume AI features.`
+      : spendLimit ? `${name} API spending limit has been reached. Ask R&D to review the provider's billing limits.`
+      : `${name} API quota is exhausted. Ask R&D to review the provider's billing and usage limits.`,
+    code: credits ? 'PROVIDER_CREDITS_EXHAUSTED' : spendLimit ? 'PROVIDER_SPEND_LIMIT' : 'PROVIDER_QUOTA_EXHAUSTED',
+    source: error.provider, upstreamStatus: error.statusCode, retryAfter: null
+  };
 }
 
 function isTransientOpenRouterFailure(failure: OpenRouterHttpError): boolean {
@@ -292,7 +312,7 @@ export async function openRouterCompleteWithMetadata(
     model = result.model;
     const response = result.response;
     // Providers can also report a failed completion inside an HTTP 200 envelope.
-    data = response.ok ? await response.json() : await readOpenRouterFailure(response);
+    data = response.ok ? await response.json() : await readProviderFailure(response);
     signal.throwIfAborted();
     const choice = data?.choices?.[0];
     const upstreamError = data?.error ?? choice?.error ??

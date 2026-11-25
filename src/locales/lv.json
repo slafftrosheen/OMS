@@ -1469,11 +1469,15 @@
           "new_password": "Ievadiet jauno paroli (min. 8 rakstzīmes)"
         }
       },
+      "delete": "Dzēst lietotāju",
+      "confirm_delete_title": "Neatgriezeniski dzēst lietotāju",
       "messages": {
         "created": "Lietotājs veiksmīgi izveidots",
         "updated": "Lietotājs veiksmīgi atjaunināts",
         "password_reset": "Parole veiksmīgi atiestatīta",
         "deactivated": "Lietotājs deaktivizēts",
+        "deleted": "Lietotājs neatgriezeniski dzēsts",
+        "confirm_delete": "Neatgriezeniski dzēst {name}? Pieteikšanās un personīgie konta dati tiks dzēsti. Kopīgie pasūtījumi un ražošanas vēsture tiks saglabāti. E-pastu un lietotājvārdu varēs izmantot atkārtoti. Šo darbību nevar atsaukt.",
         "reactivated": "Lietotājs aktivizēts",
         "confirm_deactivate": "Vai tiešām vēlaties deaktivizēt lietotāju {name}?",
         "load_error": "Kļūda ielādējot lietotājus",

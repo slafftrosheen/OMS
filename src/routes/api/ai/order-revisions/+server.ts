@@ -8,7 +8,7 @@ import {aiRateLimit,rateLimitIdentifier} from '$lib/server/api/helpers';
 import {DRAFT_EDIT_STATUSES,canEditDraft,canEditConfirmedMetadata} from '$lib/server/order/draft-contract';
 import {loadRevisionFiles} from '$lib/server/order/revision-files';
 import {REVISION_JSON_SCHEMA,parseRevisionModel} from '$lib/order/revision-contract';
-import {openRouterCompleteWithMetadata,OPENROUTER_VISION_MODEL,OPENROUTER_MODEL} from '$lib/server/ai/openrouter';
+import {openRouterCompleteWithMetadata,OPENROUTER_VISION_MODEL,OPENROUTER_MODEL,providerBillingFailure} from '$lib/server/ai/openrouter';
 import {resolveResponseLocale,responseLanguageInstruction} from '$lib/server/ai/response-language';
 
 const input=z.object({orderId:z.string().uuid(),baselineFileId:z.string().uuid(),
@@ -82,7 +82,7 @@ Each file below is labeled in order; compare both, cite excerpts from each.`;
     ],{
       model,temperature:0.1,maxTokens:2400,timeoutMs:120000,
       ...(process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'
-        ? {jsonMode:true}
+        ? {jsonMode:true,jsonModeSchema:REVISION_JSON_SCHEMA as unknown as Record<string,unknown>}
         : {jsonSchema:{name:'oms_order_revision_v1',
           schema:REVISION_JSON_SCHEMA as unknown as Record<string,unknown>}}),
       ...(baseline.kind==='pdf'||revised.kind==='pdf'
@@ -94,6 +94,8 @@ Each file below is labeled in order; compare both, cite excerpts from each.`;
       model:response.model,orderUpdatedAt:order.updated_at,provenance:'model-reported'},
       {headers});
   }catch(err){
+    const billing=providerBillingFailure(err);
+    if(billing)return json(billing,{status:402,headers});
     console.error('[Orders] Revision compare unavailable',
       err instanceof Error?err.name:'unknown');
     throw error(503,'Revision comparison unavailable. Verify OpenRouter file and structured-output model support.');

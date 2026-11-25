@@ -33,7 +33,7 @@
   let aiSettingsError = $state('');
   let aiSettingsMessage = $state('');
   let providerTesting = $state(false);
-  let providerTest = $state<{ result: 'passed' | 'failed'; model?: string; latencyMs?: number; httpStatus?: number } | null>(null);
+  let providerTest = $state<{ result: 'passed' | 'failed'; model?: string; latencyMs?: number; httpStatus?: number; message?: string } | null>(null);
   type SettingsTab = 'general' | 'account' | 'ai' | 'telegram' | 'integrations';
   let activeSettingsTab = $state<SettingsTab>('general');
   let aiPolicy = $state<{ enabled: boolean; updatedAt: string | null; updatedBy: string | null } | null>(null);
@@ -107,6 +107,7 @@
         providerTest = { result: 'passed', model: payload.model, latencyMs: payload.latencyMs };
       } else {
         providerTest = { result: 'failed',
+          message: typeof payload?.error === 'string' ? payload.error : undefined,
           httpStatus: typeof payload?.providerStatus === 'number' ? payload.providerStatus : response.status };
       }
     } catch { providerTest = { result: 'failed' }; }
@@ -424,7 +425,7 @@
               </p>
             {:else if providerTest?.result === 'failed'}
               <p class="settings-error" role="alert">
-                {$t('settings.provider.probeFailed')}{#if providerTest.httpStatus} · HTTP {providerTest.httpStatus}{/if}
+                {#if providerTest.message}{providerTest.message}{:else}{$t('settings.provider.probeFailed')}{#if providerTest.httpStatus} · HTTP {providerTest.httpStatus}{/if}{/if}
               </p>
             {/if}
           </div>
