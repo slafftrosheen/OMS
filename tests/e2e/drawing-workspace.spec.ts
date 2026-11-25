@@ -3,6 +3,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 async function scene(page: Page) { return page.evaluate(() => (window as any).__drawingFixture.inspect()); }
+async function moveToEmptyDrawingArea(page: Page, mode: string) {
+  // The order template seeds its pockets on the first animation frame. Pan
+  // after they exist so an editable SVG drop lands outside every file pocket.
+  if (mode === 'order') await expect.poll(async () => (await scene(page)).shapes.some((s:any) => s.type === 'order-details')).toBe(true);
+  await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+}
 // Sample the actual painted edge. Selection indicators and DOM bounds can both
 // report a visible object even when its unselected outline has rasterized away.
 async function checkOverviewEdge(page: Page, id: string, zoom: number) {
@@ -41,7 +47,7 @@ for (const mode of ['idea', 'order']) {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}&text`);
     await expect(page.locator('.tl-canvas')).toBeVisible({ timeout: 20000 });
-    await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+    await moveToEmptyDrawingArea(page, mode);
     await page.locator('.drawing-viewport').evaluate(node => {
       const source = `<svg xmlns="http://www.w3.org/2000/svg" width="1200mm" height="500mm" viewBox="0 0 1200 500">
         <path fill="none" stroke="#333333" stroke-width="0.26" d="M10 10H1190V490H10Z"/>
@@ -92,7 +98,7 @@ for (const mode of ['idea', 'order']) {
     await expect(page.locator('.tl-canvas')).toBeVisible({timeout:20000});
     const zoom = page.locator('.drawing-zoom select');
     await expect(zoom.locator('option[value="artwork"]')).toBeDisabled();
-    await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+    await moveToEmptyDrawingArea(page, mode);
     await page.locator('.drawing-viewport').evaluate(node => {
       const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="40mm" viewBox="0 0 80 40"><path fill="none" stroke="#884422" stroke-width=".26" d="M0 0H80V40H0Z"/></svg>';
       const dataTransfer = new DataTransfer(), b = node.getBoundingClientRect();
@@ -131,6 +137,15 @@ for (const mode of ['idea', 'order']) {
     await expect.poll(async () => (await coverage()).fraction).toBeGreaterThan(.7);
     expect((await coverage()).centreError).toBeLessThan(2);
     expect((await scene(page)).shapes.find((s:any) => s.id===detail.id)).toEqual(detail);
+    if (mode === 'order') {
+      await page.locator('[data-drawing-menu="view"] > summary').click();
+      await page.locator('[data-command="previousView"]:visible').click();
+    } else await zoom.selectOption('previous');
+    await expect(zoom).toHaveValue('0.025');
+    const restored = await page.evaluate(id => (window as any).__drawingFixture.point(id,.5,0), detail.id);
+    expect(restored.x).toBeCloseTo(points.edge.x,4);
+    expect(restored.y).toBeCloseTo(points.edge.y,4);
+    expect((await scene(page)).selected).toEqual([detail.id]);
   });
 }
 

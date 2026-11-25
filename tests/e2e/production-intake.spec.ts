@@ -632,3 +632,32 @@ test('uses source thickness to verify the sheet even when only the material is a
  expect(CNC_FREZER.backMaterialId).toBe(thin.id);
  expect(CNC_FREZER.backThickness).toBe('');
 });
+
+test('saves the catalog film identity from a printed series and colour on the native new order', async ({page}) => {
+ const {writes} = await setupOrderEntry(page,'new');
+ const film = {id:'98bc2113-fbcf-47f2-a2b8-4b22a924558f',code:'034S',category:'VINYL_ORACAL',
+   name_en:'ORACAL® 8500 Orange',metadata:{series:'8500',colorCode:'034',hex:'#E05400'}};
+ await page.route('**/api/materials**', route=>route.fulfill({json:[{...film,metadata:{hex:'#E05400',colorCode:'034',series:'8500'}}]}));
+ await page.route('**/api/ai/order-intake', async route=>{
+   if (route.request().method()!=='POST') return route.fallback();
+   const req=route.request();
+   const data=await new Response(new Uint8Array(req.postDataBuffer()!),{headers:{'content-type':req.headers()['content-type']}}).formData();
+   const meta=JSON.parse(String(data.get('metadata')));
+   return route.fulfill({json:{proposals:[],profileSuggestions:[],missing:[],production:[
+     fact('faceFilm','ORA 8500/034',{reason:'workshop-match',material:film})],
+     fileId:meta.sourceId,profileIndex:meta.profileIndex,orderUpdatedAt:null}});
+ });
+ await page.locator('#clientName').fill('Test signs'); await page.locator('#deadline').fill('2099-11-25');
+ await page.locator('#new-order-intake > summary').click();
+ const chooser=page.waitForEvent('filechooser');
+ await page.getByRole('button',{name:'Upload & analyze PDF',exact:true}).click();
+ await (await chooser).setFiles(pngFile);
+ await page.getByRole('checkbox',{name:'Face film',exact:true}).check();
+ await page.getByRole('checkbox',{name:/I approve replacing/}).check();
+ await page.getByRole('button',{name:'Apply selected fields to form'}).click();
+ await expect(page.locator('#new-order-intake .apply-bar .success')).toBeVisible();
+ await page.getByRole('button',{name:'Save draft',exact:true}).click();
+ await expect.poll(()=>writes.filter(w=>w.path==='/api/draft-orders').length).toBe(1);
+ const payload=JSON.parse(writes.find(w=>w.path==='/api/draft-orders')!.body!);
+ expect(payload.profiles[0].configuration.FRONT).toMatchObject({face:true,faceFilm:'034S',faceFilmMaterialId:film.id,faceFilmHex:'#E05400'});
+});

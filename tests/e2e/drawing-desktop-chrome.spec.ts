@@ -67,13 +67,14 @@ for (const mode of ['idea', 'order']) {
     const point = { x: viewport.x + 40, y: viewport.y + viewport.height - 40 };
     await page.mouse.click(point.x, point.y);
     await page.keyboard.press('F6');
+    await expect.poll(async () => (await scene(page)).tool).toBe('cad-rectangle');
     await page.keyboard.press('F2');
     await expect.poll(async () => (await scene(page)).tool).toBe('zoom');
     await page.mouse.click(point.x, point.y);
-    await expect.poll(async () => (await scene(page)).tool).toBe('geo');
+    await expect.poll(async () => (await scene(page)).tool).toBe('cad-rectangle');
     await page.keyboard.press('F2');
     await page.keyboard.press('Escape');
-    await expect.poll(async () => (await scene(page)).tool).toBe('geo');
+    await expect.poll(async () => (await scene(page)).tool).toBe('cad-rectangle');
     await page.keyboard.press('z');
     await expect.poll(async () => (await scene(page)).tool).toBe('zoom');
     await page.keyboard.press('x');
@@ -373,6 +374,39 @@ test('motion plays with normal settings and stays still with reduced motion', as
   await page.keyboard.press('Escape');
   await page.getByTestId('drawing-properties-toggle').click();
   expect(await page.evaluate(() => document.querySelector('.drawing-docker')!.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length)).toBe(0);
+});
+
+test('Previous view restores a wheel gesture on its own page in read-only mode', async ({page}) => {
+  await open(page,'idea');
+  const zoom = page.locator('.drawing-zoom select');
+  await zoom.selectOption('0.1');
+  const centre = () => page.locator('.tl-canvas').evaluate(node => {
+    const b = node.getBoundingClientRect();
+    return (window as any).__drawingFixture.screenPoint({x:b.x+b.width/2,y:b.y+b.height/2});
+  });
+  const previousCentre = await centre();
+  await page.locator('.tl-canvas').evaluate(async node => {
+    const bounds = node.getBoundingClientRect();
+    for (let i=0;i<4;i++) {
+      node.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:-90,clientX:bounds.x+100,clientY:bounds.y+100}));
+      await new Promise(requestAnimationFrame);
+    }
+  });
+  await expect(zoom).toHaveValue('current');
+  const firstPage = (await scene(page)).page.id;
+  await page.locator('[data-drawing-menu="tools"] > summary').click();
+  await page.locator('[data-drawing-menu="tools"]').getByRole('button',{name:'Page setup',exact:true}).click();
+  await page.getByTestId('drawing-page-setup').getByRole('button',{name:'Add page'}).click();
+  await expect.poll(async () => (await scene(page)).page.id).not.toBe(firstPage);
+  await expect(zoom.locator('option[value="previous"]')).toBeDisabled();
+  await page.getByTestId('drawing-page-navigator').selectOption(firstPage);
+  await page.getByRole('button',{name:'Toggle read only'}).click();
+  await page.setViewportSize({width:1280,height:850});
+  await zoom.selectOption('previous');
+  await expect(zoom).toHaveValue('0.1');
+  const restored = await centre();
+  expect(restored.x).toBeCloseTo(previousCentre.x,3);
+  expect(restored.y).toBeCloseTo(previousCentre.y,3);
 });
 
 for (const mode of ['idea','order']) {

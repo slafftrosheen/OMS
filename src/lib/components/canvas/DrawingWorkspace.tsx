@@ -80,6 +80,7 @@ import { duplicateDrawingSelection } from './drawing-duplicate';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { DrawingPageNavigator } from './DrawingPageSetup';
 import { CanvasModeContext } from './canvas-mode';
+import { createDrawingViewHistory } from './drawing-camera';
 import { drawingPageBounds, fitDrawingPage, switchDrawingPage } from './drawing-pages';
 import { fitDrawingArtwork, isDrawingArtwork, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { exportDrawingArtwork } from './drawing-artwork-export';
@@ -591,6 +592,12 @@ export function DrawingChrome() {
   const nextImport = useRef(0);
   const multiplePages = useContext(CanvasModeContext) === 'toolkit';
   const pages = useValue('drawing page list', () => editor.getPages(), [editor]);
+  const viewHistory = useMemo(() => createDrawingViewHistory(editor), [editor]);
+  const hasPreviousView = useValue('can restore previous view', viewHistory.available, [viewHistory]);
+  useEffect(() => {
+    const root = context?.root.current;
+    if (root) return viewHistory.listen(root);
+  }, [viewHistory, context?.root]);
   const hasArtwork = useValue('drawing contains artwork', () => editor.getCurrentPageShapesSorted().some(shape => shape.opacity > 0 && isDrawingArtwork(shape)), [editor]);
   const pageBounds = useValue('drawing page for export', () => drawingPageBounds(editor), [editor]);
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
@@ -1285,6 +1292,7 @@ export function DrawingChrome() {
         editor.focus();
       });
       case 'zoom-out': return make(true, () => command('zoom-out'));
+      case 'previousView': return make(hasPreviousView, viewHistory.restore);
       case 'fitArtwork': return make(hasArtwork, () => { if (fitDrawingArtwork(editor)) return true; setNotice(label('noVisibleArtwork')); return false; });
       case 'fitPage': return make(!!pageBounds, () => { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); });
       case 'fullscreen': return make(true, toggleFullscreen, context!.fullscreen);
@@ -1744,11 +1752,12 @@ export function DrawingChrome() {
       <button type="button" className="drawing-snap-options-shortcut" onClick={() => setPanel('snap')} aria-pressed={panel === 'snap'} data-testid="drawing-status-snap-options">{snapLabel('open')}</button>
       <div className="drawing-zoom" aria-label={label('zoom')} title={label('zoomWheel')}>
         <ToolButton label={label('zoomOut')} onClick={() => command('zoom-out')}>−</ToolButton>
-        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'artwork') commandRef.current('fitArtwork'); else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else {
+        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'previous') commandRef.current('previousView'); else if (value === 'artwork') commandRef.current('fitArtwork'); else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else {
           const center = editor.getViewportPageBounds().center, viewport = editor.getViewportScreenBounds();
           const z = Number(value);
           editor.setCamera({ x: viewport.w / (2 * z) - center.x, y: viewport.h / (2 * z) - center.y, z });
         } }}>
+          <option value="previous" disabled={!hasPreviousView}>{words.commands.previousView}</option>
           <option value="artwork" disabled={!hasArtwork}>{words.commands.fitArtwork}</option>
           {pageBounds && <option value="page">{label('pageFit')}</option>}
           <option value="fit" disabled={!controls.hasShapes}>{actionLabel('fit')}</option><option value="selection" disabled={!controls.canFitSelection}>{actionLabel('fit-selection')}</option>

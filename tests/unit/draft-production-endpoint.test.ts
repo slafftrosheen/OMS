@@ -55,7 +55,8 @@ function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=fals
     const data = [
       {id:'33333333-3333-4333-8333-333333333333',code:'REAL_PLEXI',category:'ACRYLIC_XT',name_en:'Plexi actual',metadata:{model:'5N870'}},
       {id:'00000000-1111-4111-8111-000000000002',code:'WORKSHOP_ALU_SHEET_1500X3000',category:'ALU_SHEET',name_en:'Aluminium sheet',thickness_options:[3],metadata:{product_form:'sheet'}},
-      {id:'00000000-1111-4111-8111-000000000003',code:'RAL_9010',category:'PAINT_RAL',name_en:'Pure white',metadata:{hex:'#F1ECE1'}}
+      {id:'00000000-1111-4111-8111-000000000003',code:'RAL_9010',category:'PAINT_RAL',name_en:'Pure white',metadata:{hex:'#F1ECE1'}},
+      {id:'00000000-1111-4111-8111-000000000004',code:'010S',category:'VINYL_ORACAL',name_en:'ORACAL® 8500 White',metadata:{series:'8500',colorCode:'010'}}
     ];
     return {count:data.length,data,error:null};
    }
@@ -98,14 +99,15 @@ describe('production intake actual handler with a provider boundary double',()=>
   expect(sample.sent().messages[1].content[1].file.file_data).toContain('data:application/pdf;base64,');
  });
  it('maps shorthand from the provider response to the actual sheet and paint before sending the review', async () => {
-  const source = {evidence:'Back ALU 3 mm, paint 9010',page:1,part:'Logo',confidence:'high'};
+  const source = {evidence:'Back ALU 3 mm, paint 9010, face film ORA 8500/010',page:1,part:'Logo',confidence:'high'};
   const sample = intakeEvent({output:{...emptyModel,production:[
-    {...source,target:'backMaterial',value:'ALU 3 mm'}, {...source,target:'backPaint',value:'9010'}
+    {...source,target:'backMaterial',value:'ALU 3 mm'}, {...source,target:'backPaint',value:'9010'},
+    {...source,target:'faceFilm',value:'ORA 8500/010'}
   ]}});
   const result = await (await sample.handler(sample.e)).json();
   assert.deepEqual(result.production.map((r:any)=>[r.status,r.value,r.material?.code,r.evidence]), [
     ['ready','ALU 3 mm','WORKSHOP_ALU_SHEET_1500X3000',source.evidence], ['ready','9010','RAL_9010',source.evidence],
-    ['ready','3 mm',undefined,source.evidence]
+    ['ready','ORA 8500/010','010S',source.evidence], ['ready','3 mm',undefined,source.evidence]
   ]);
  });
  it('preserves extracted details when the catalog is unavailable and skips it for non-material facts', async () => {

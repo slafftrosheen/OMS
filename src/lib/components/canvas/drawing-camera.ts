@@ -1,4 +1,4 @@
-import type { Editor, TLCameraOptions } from '@tldraw/tldraw';
+import { atom, type Editor, type TLCameraOptions, type TLPageId } from '@tldraw/tldraw';
 
 // CAD imports are in drawing units and can span several hundred metres.
 export const DRAWING_CAMERA_OPTIONS: Partial<TLCameraOptions> = {
@@ -11,6 +11,71 @@ export function fitDrawingSelection(editor: Editor): boolean {
   if (!bounds) return false;
   editor.zoomToBounds(bounds);
   return true;
+}
+
+type DrawingView = { page: TLPageId; x: number; y: number; zoom: number };
+const MAX_DRAWING_VIEWS = 24;
+
+/** Camera-only session history. Save the page-space centre so opening a docker
+ * or resizing the window before returning still centres the same detail. */
+export function createDrawingViewHistory(editor: Editor) {
+  const views = atom<DrawingView[]>('previous drawing views', []);
+  let restoring = false;
+  const lastIndex = () => {
+    const page = editor.getCurrentPageId();
+    return views.get().findLastIndex(view => view.page === page);
+  };
+  const canMove = () => !editor.getCameraOptions().isLocked && !editor.getInstanceState().followingUserId;
+  return {
+    available: () => canMove() && lastIndex() >= 0,
+    listen(root: HTMLElement) {
+      let lastMove = -Infinity, lastWheel = -Infinity, lastPage: TLPageId | undefined;
+      const gap = 250;
+      const begin = () => { lastMove = lastWheel = -Infinity; };
+      const wheel = () => {
+        const now = performance.now();
+        if (now - lastWheel > gap) lastMove = -Infinity;
+        lastWheel = now;
+      };
+      // Consecutive frames of a pan, wheel gesture or zoom animation are one
+      // visit. Discrete control presses start a new visit even when rapid.
+      root.addEventListener('pointerdown', begin, true);
+      root.addEventListener('keydown', begin, true);
+      root.addEventListener('change', begin, true);
+      root.addEventListener('wheel', wheel, true);
+      const stop = editor.sideEffects.registerAfterChangeHandler('camera', (before, after, source) => {
+        if (source !== 'user' || before.id !== editor.getCamera().id || editor.getInstanceState().followingUserId ||
+            before.x === after.x && before.y === after.y && before.z === after.z) return;
+        if (restoring) { begin(); return; }
+        const page = editor.getCurrentPageId(), now = performance.now();
+        if (page !== lastPage || lastMove === -Infinity || (!editor.inputs.isPointing && now - lastMove > gap)) {
+          const { w, h } = editor.getViewportScreenBounds();
+          const view = { page, x: w / (2 * before.z) - before.x, y: h / (2 * before.z) - before.y, zoom: before.z };
+          views.set([...views.get(), view].slice(-MAX_DRAWING_VIEWS));
+        }
+        lastPage = page;
+        lastMove = now;
+      });
+      return () => {
+        stop();
+        root.removeEventListener('pointerdown', begin, true);
+        root.removeEventListener('keydown', begin, true);
+        root.removeEventListener('change', begin, true);
+        root.removeEventListener('wheel', wheel, true);
+      };
+    },
+    restore() {
+      const index = lastIndex();
+      if (index < 0 || !canMove()) return false;
+      const previous = views.get()[index], { w, h } = editor.getViewportScreenBounds();
+      restoring = true;
+      try {
+        editor.setCamera({ x: w / (2 * previous.zoom) - previous.x, y: h / (2 * previous.zoom) - previous.y, z: previous.zoom });
+        views.set(views.get().filter((_, i) => i !== index));
+      } finally { restoring = false; }
+      return true;
+    }
+  };
 }
 
 type WheelStep = { x: number; y: number; dx: number; dy: number; pan: boolean };

@@ -44,16 +44,72 @@ describe('production shorthand across review, application and manual search', ()
     const gloss = {...paint, metadata:{...paint.metadata, finish:'gloss'}};
     const matt = {...paint, id:7, code:'RAL_9010_MATT', metadata:{hex:'#F1ECE1', finish:'matt'}};
     const finishes = [gloss, matt];
-    for (const value of ['RAL 9010 matt', '9010 matte', '9010 матовый', '9010 matēts']) {
+    for (const value of ['RAL 9010 matt', '9010 matte', '9010 матовый', '9010 matēts', 'матовая РАЛ-9010', 'RAL 9010 (matte)', 'matēta 9010']) {
       const [review] = reviewProductionFacts([fact('backPaint', value)], finishes);
       assert.equal(review.material?.id, matt.id);
     }
     const [review] = reviewProductionFacts([fact('backPaint','9010')], finishes);
     assert.equal(review.reason, 'ambiguous-match');
     assert.equal(reviewProductionFacts([fact('backPaint','9010 satin')], finishes)[0].material, null);
+    assert.equal(reviewProductionFacts([fact('backPaint','9010 matte')],[{...gloss,name_en:'9010 matte'}])[0].material,null);
     const current = [{ configuration: {PAINTING:{backMaterialId:gloss.id}} }];
     const choice = reviewProductionFacts([fact('backPaint','9010 matte')], finishes);
     assert.throws(()=>applyProductionFacts(current,current,0,choice,false,finishes),/replaceRequired/);
+  });
+
+  it('uses the printed film series and colour for review, picker search, recheck and draft fields', () => {
+    const vinyl = {id:20,category:'VINYL_ORACAL',code:'010S',name_en:'ORACAL® 8500 White',metadata:{series:'8500',colorCode:'010',hex:'#E7E4E5'}};
+    const otherSeries = {...vinyl,id:21,code:'010G',name_en:'ORACAL 651 White',metadata:{...vinyl.metadata,series:'651'}};
+    const otherColour = {...vinyl,id:22,code:'025S',name_en:'ORACAL® 8500 Yellow',metadata:{...vinyl.metadata,colorCode:'025'}};
+    const films = [otherSeries,otherColour,vinyl];
+    for (const text of ['ORA 8500/010','ORACAL® 8500-010','8500_010','Оракал 8500 010','8500/010S']) {
+      const [review] = reviewProductionFacts([fact('faceFilm',text)],films);
+      assert.equal(review.material?.id,vinyl.id);
+      assert.deepEqual(getMaterialCatalogView(films,'',text).groups.flatMap(g=>g.materials),[vinyl]);
+      const profiles = [{configuration:{}}];
+      const [saved] = applyProductionFacts<Record<string,any>>(profiles,profiles,0,recheckProductionSelection([review],films),false);
+      assert.equal(saved.configuration.FRONT.faceFilm,'010S');
+      assert.equal(saved.configuration.FRONT.faceFilmMaterialId,vinyl.id);
+      assert.equal(saved.configuration.FRONT.face,true);
+    }
+    const duplicates = [...films,{...vinyl,id:23,code:'OTHER_FINISH'}];
+    const [choice] = reviewProductionFacts([fact('sidesFilm','8500/010')],duplicates);
+    assert.deepEqual(choice.alternatives?.map(m=>m.id),[20,23]);
+    for (const term of ['8500', '8500/10', '8500/010G', '8500/010 or 025', '8500/010 matte'])
+      assert.equal(reviewProductionFacts([fact('backFilm',term)],films)[0].material,null);
+    assert.equal(reviewProductionFacts([fact('backPaint','8500/010')],films)[0].material,null);
+    const legacy = {...vinyl,code:'ORACAL_8500_010',metadata:{}};
+    assert.equal(reviewProductionFacts([fact('backFilm','8500/010')],[legacy])[0].material?.code,legacy.code);
+    const [review] = reviewProductionFacts([fact('backFilm','8500/010')],[vinyl]);
+    const fromDb = {...vinyl,metadata:{hex:'#E7E4E5',colorCode:'010',series:'8500'}};
+    assert.equal(recheckProductionSelection([review],[fromDb])[0].material?.id,vinyl.id);
+    assert.throws(()=>recheckProductionSelection([review],[{...fromDb,metadata:{...fromDb.metadata,hex:'#000000'}}]),/catalogChanged/);
+  });
+
+  it('recognises the same saved RAL paint regardless of JSON key order, code spelling or hex case', () => {
+    const old = {hex:'#f1ece1',code:'RAL-9010',system:'RAL'};
+    const current = [{configuration:{PAINTING:{back:true,backColor:old}}}];
+    const reviews = reviewProductionFacts([fact('backPaint','РАЛ 9010')],catalog);
+    const [saved] = applyProductionFacts<Record<string,any>>(current,current,0,reviews,false,catalog);
+    assert.deepEqual(saved.configuration.PAINTING.backColor,old);
+    assert.equal(saved.configuration.PAINTING.backMaterialId,paint.id);
+    for (const different of [{...old,system:'CUSTOM'}, {...old,hex:'#000001'}, {...old,catalogCode:'OTHER_FINISH'}]) {
+      const profiles=[{configuration:{PAINTING:{back:true,backColor:different}}}];
+      assert.throws(()=>applyProductionFacts(profiles,profiles,0,reviews,false,catalog),/replaceRequired/);
+    }
+  });
+
+  it('uses a labelled RAL name with a supplier SKU and requires a single colour across translations', () => {
+    const supplier = {...paint,code:'SUPPLIER_WHITE',name_lv:'RAL 9010 Tīrs balts',metadata:{hex:'#F1ECE1'}};
+    const [review] = reviewProductionFacts([fact('facePaint','9010')],[supplier]);
+    assert.equal(review.material?.id,supplier.id);
+    const saved = applyProductionFacts<Record<string,any>>([{}],[{}],0,[review],false);
+    assert.equal(paintMaterialValue(saved[0].configuration.PAINTING.faceColor),supplier.code);
+    for (const name_ru of ['РАЛ 9016 Белый','РАЛ 9010/9016']) {
+      assert.equal(reviewProductionFacts([fact('facePaint','9010')],[{...supplier,name_ru}])[0].material,null);
+    }
+    const matte = {...supplier,code:'RAL_9010_MATT'};
+    assert.equal(reviewProductionFacts([fact('facePaint','матовый РАЛ 9010')],[supplier,matte])[0].material?.code,matte.code);
   });
 
   it('applies matched stock, its allowed thickness, and the actual catalog paint to native fields', () => {

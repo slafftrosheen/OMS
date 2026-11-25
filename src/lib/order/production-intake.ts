@@ -4,11 +4,11 @@ import {z} from 'zod';
 import {MAX_PDF_PAGE_NUMBER} from '$lib/pdf/page-range';
 import {INTAKE_JSON_SCHEMA, intakeModelSchema, type IntakeProposal, type IntakeField} from './intake-contract';
 import {filterProfileMaterials,isProfilePrintMaterial,PROFILE_MATERIAL_CATEGORIES,type ProfileMaterialRole} from '$lib/profiles/material-roles';
-import {matchesWorkshopTerm, parseWorkshopTerm} from '$lib/profiles/material-terms';
+import {matchesWorkshopTerm, materialRalCode, materialRalFinish, parseWorkshopTerm} from '$lib/profiles/material-terms';
 import type {CatalogMaterial} from '$lib/profiles/material-catalog';
 import {normalizeThicknessValue} from '$lib/materials/thickness-options';
 import {readFaceMaterials, withFaceMaterials} from '$lib/profiles/face-materials';
-import {applyPaintMaterialSelection} from '$lib/profiles/helpers';
+import {applyPaintMaterialSelection, paintMaterialValue} from '$lib/profiles/helpers';
 
 export const PRODUCTION_TARGETS=[
   'faceMaterial','backMaterial','sidesMaterial','frameMaterial',
@@ -53,7 +53,13 @@ export function sameIntakeMaterial(a:IntakeMaterial|null,b:IntakeMaterial|null):
     name_ru:m.name_ru??null,name_lv:m.name_lv??null,
     thickness_options:m.thickness_options??null,metadata:m.metadata??{}
   }:null;
-  return JSON.stringify(snapshot(a))===JSON.stringify(snapshot(b));
+  // The review response and the fresh JSONB catalog read can serialize object
+  // keys in different orders. Retain array order and compare all field values.
+  const sortedKeys = (_key: string, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
+      : value;
+  return JSON.stringify(snapshot(a),sortedKeys)===JSON.stringify(snapshot(b),sortedKeys);
 }
 type RecordValue=Record<string,any>;
 const record=(v:unknown):RecordValue=>v!==null&&typeof v==='object'&&!Array.isArray(v)?v:{};
@@ -129,7 +135,12 @@ function reviewMaterial(fact: ProductionFact, catalog: IntakeMaterial[] | null, 
   const exact = eligible.filter(m => {
     // A bare paint number is a RAL request. A Pantone SKU or alias with the
     // same digits must not take precedence over a recorded RAL identity.
-    if (paintTerm && m.category !== 'PAINT_RAL') return false;
+    if (paintTerm && term && 'ral' in term) {
+      const recorded = materialRalCode(m);
+      if (m.category !== 'PAINT_RAL' || (recorded && recorded !== term.ral)) return false;
+      const finish = term.finish && materialRalFinish(m);
+      if (finish && finish !== term.finish) return false;
+    }
     const meta = m.metadata ?? {};
     return [m.code, m.name_en, m.name_ru, m.name_lv, meta.model, meta.manufacturer_part_number,
       ...(Array.isArray(meta.intake_aliases) ? meta.intake_aliases : [])].some(id => value && key(id) === value);
@@ -139,6 +150,7 @@ function reviewMaterial(fact: ProductionFact, catalog: IntakeMaterial[] | null, 
   // RAL_9010. Include every matching finish before deciding uniqueness.
   let matches = exact;
   if (paintTerm) matches = [...new Set([...exact, ...shorthand])];
+  else if (term && 'series' in term && fact.target.endsWith('Film')) matches = shorthand;
   else if (term && 'family' in term && fact.target.endsWith('Material')) matches = shorthand;
   if (!matches.length) {
     if (term && 'family' in term && term.thicknessMm !== undefined && thicknessTargets[fact.target]) {
@@ -233,8 +245,11 @@ export function applyProductionFacts<T extends RecordValue>(
       const part=target.replace('Paint','');
       const color=applyPaintMaterialSelection({value:m.code,hex:m.metadata?.hex??'',material:m});
       const values=section('PAINTING');
-      if(JSON.stringify(values[part+'Color']??{})!==JSON.stringify(color)){
-        const old=record(values[part+'Color']);
+      const old=record(values[part+'Color']);
+      const samePaint = paintMaterialValue(old) === paintMaterialValue(color)
+        && String(old.system || 'RAL').toUpperCase() === color.system.toUpperCase()
+        && String(old.hex ?? '').toLowerCase() === color.hex.toLowerCase();
+      if(!samePaint){
         if((old.code||old.hex)&&!replace)throw new ProductionIntakeError('replaceRequired');
         values[part+'Color']=color;
       }

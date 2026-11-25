@@ -122,7 +122,8 @@ width,height,facePrint,backPrint,sidesPrint,signType,psuType,psuMounting,cableLe
 quantity,ledSpec,psuSpec,cableSpec,frameSpec,productionNotes,customerReference,clientAddress.
 Use the product wording actually printed, including workshop shorthand. For example,
 "back: ALU 3 mm" yields backMaterial "ALU" and backThickness "3 mm";
-"sides paint: 9010" yields sidesPaint "9010". Preserve explicit grades, finishes,
+"sides paint: 9010" yields sidesPaint "9010"; "face film: ORA 8500/010" yields
+faceFilm "ORA 8500/010", preserving the series and the leading zero. Preserve explicit grades, finishes,
 colour systems and qualifiers. Emit a paint target only when the source assigns
 the colour to paint. Never guess a catalog code or material ID.
 Generic 6500K/regular PSU/12V cable belong in ledSpec/psuSpec/cableSpec, not model targets.
