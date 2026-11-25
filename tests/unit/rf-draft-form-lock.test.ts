@@ -18,10 +18,12 @@ import { resolve } from 'node:path';
  *   restore the file selector. Relative to the earliest available 35dd971,
  *   this is the new-order page's only markup change. Its previous expected
  *   hash was already stale at 35dd971; do not treat it as a working baseline.
+ * - 47d6d95 retained the selected catalog IDs for native material pickers
+ *   and supplied catalog thickness options when a saved row lacks them.
  * The two order sheet components retain their original hashes.
  */
 const LOCKED: Record<string, string> = {
-  'src/lib/profiles/components/Profile7stVisual.svelte': '4b166a28bb6aeed31b71e14d5d7f1664a19fe0473b03e29cbeeaf8ab2828c9a9',
+  'src/lib/profiles/components/Profile7stVisual.svelte': '781feb1c297673bd7414ea8c7e15fcc963ac951d806536dc2b42194be74afe3c',
   'src/lib/order/OrderProfileSheet.svelte': '2a23515638eceb6fcbef982b14989254d14f80196b79edbc24f233d9615def92',
   'src/lib/order/OrderNativeProfileForm.svelte': '93f274c23c8c645bceb6131a62588c16bdca2b21e2472d96cf4240e59cdb3531',
   'src/routes/orders/new/+page.svelte': '6468fa57a071c6f70e6fd4c831f55fc5fa1a67a86ea46609b284e1fcdd8202d0',

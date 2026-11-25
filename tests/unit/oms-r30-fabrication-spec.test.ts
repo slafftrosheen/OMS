@@ -83,7 +83,9 @@ describe('OMS-R30 historical fabrication data compatibility (R31 restored standa
    const saved=read('src/routes/orders/[id]/edit/+page.svelte');
    const original=read('src/lib/profiles/components/Profile7stVisual.svelte');
    expect(newly).toContain('<Profile7stVisual');
-   expect(original).toContain('bind:value={configuration.BENDER.depth}');
+   expect(original).toContain('{@render benderFields(configuration.BENDER, formId)}');
+   const bender = original.split('{#snippet benderFields(')[1]?.split('\n{#snippet ')[0] ?? '';
+   expect(bender).toContain('bind:value={section.depth}');
    expect(newly).not.toContain('<ProfileFabricationSpec');
    expect(saved).not.toContain('<ProfileFabricationSpec');
    expect(newly).not.toContain('invalidSpecInputs');
