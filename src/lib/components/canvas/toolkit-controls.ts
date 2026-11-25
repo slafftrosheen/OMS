@@ -1,3 +1,4 @@
+import { fitDrawingSelection } from './drawing-camera';
 import type { Editor } from '@tldraw/tldraw';
 import { duplicateDrawingSelection } from './drawing-duplicate';
 
@@ -95,7 +96,7 @@ export function applyToolkitToolbarAction(editor: Editor | null, action: string)
   if (!editor) return false;
   const state = captureToolkitControls(editor);
   if (action === 'fit' && state.hasShapes) editor.zoomToFit();
-  else if (action === 'fit-selection' && state.canFitSelection) editor.zoomToSelection();
+  else if (action === 'fit-selection' && state.canFitSelection) fitDrawingSelection(editor);
   else if (action === 'zoom-reset') editor.resetZoom();
   else if (action === 'undo' && state.canUndo) editor.undo();
   else if (action === 'redo' && state.canRedo) editor.redo();

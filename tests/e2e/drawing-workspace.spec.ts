@@ -85,6 +85,55 @@ for (const mode of ['idea', 'order']) {
   });
 }
 
+for (const mode of ['idea', 'order']) {
+  test(`${mode} fits artwork separately from the order layout and zooms into a picked import`, async ({ page }) => {
+    await page.setViewportSize({ width:1440, height:950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.locator('.tl-canvas')).toBeVisible({timeout:20000});
+    const zoom = page.locator('.drawing-zoom select');
+    await expect(zoom.locator('option[value="artwork"]')).toBeDisabled();
+    await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+    await page.locator('.drawing-viewport').evaluate(node => {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="40mm" viewBox="0 0 80 40"><path fill="none" stroke="#884422" stroke-width=".26" d="M0 0H80V40H0Z"/></svg>';
+      const dataTransfer = new DataTransfer(), b = node.getBoundingClientRect();
+      dataTransfer.items.add(new File([svg], 'letter-outline.svg', {type:'image/svg+xml'}));
+      node.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer,clientX:b.x+b.width/2,clientY:b.y+b.height/2}));
+    });
+    const importer = page.getByTestId('vector-import');
+    await importer.getByRole('button',{name:/preview/i}).click();
+    await importer.getByTestId('vector-apply').click();
+    const detail = (await scene(page)).shapes.find((s:any) => s.meta.omsVectorPaint?.stroke === '#884422');
+    expect(detail.type).toBe('cad-bezier');
+    const coverage = () => page.locator('.tl-canvas').evaluate((node,id) => {
+      const b = node.getBoundingClientRect(), f = (window as any).__drawingFixture;
+      const start = f.point(id,0,0), end = f.point(id,1,1);
+      return {
+        fraction:Math.max((end.x-start.x)/b.width,(end.y-start.y)/b.height),
+        centreError:Math.hypot((start.x+end.x)/2-b.x-b.width/2,(start.y+end.y)/2-b.y-b.height/2)
+      };
+    }, detail.id);
+    if (mode === 'order') {
+      await page.locator('[data-drawing-menu="view"] > summary').click();
+      await page.locator('[data-command="fitArtwork"]:visible').click();
+    } else await zoom.selectOption('artwork');
+    await expect.poll(async () => (await coverage()).centreError).toBeLessThan(2);
+    expect((await coverage()).fraction).toBeGreaterThan(.7);
+    await zoom.selectOption('0.025');
+    const points = await page.evaluate(id => {
+      const f = (window as any).__drawingFixture, edge = f.point(id,.5,0);
+      return {edge,empty:{x:edge.x+60,y:edge.y+60}};
+    }, detail.id);
+    await page.mouse.click(points.empty.x,points.empty.y);
+    await expect.poll(async () => (await scene(page)).selected).toEqual([]);
+    await page.mouse.click(points.edge.x,points.edge.y);
+    await expect.poll(async () => (await scene(page)).selected).toEqual([detail.id]);
+    await page.keyboard.press('Shift+F2');
+    await expect.poll(async () => (await coverage()).fraction).toBeGreaterThan(.7);
+    expect((await coverage()).centreError).toBeLessThan(2);
+    expect((await scene(page)).shapes.find((s:any) => s.id===detail.id)).toEqual(detail);
+  });
+}
+
 async function drawRectangle(page: Page) {
   await page.getByTestId('drawing-tool-rectangle').click();
   const canvas = await page.locator('.drawing-viewport').boundingBox();

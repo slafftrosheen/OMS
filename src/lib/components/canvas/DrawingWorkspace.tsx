@@ -81,7 +81,7 @@ import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { DrawingPageNavigator } from './DrawingPageSetup';
 import { CanvasModeContext } from './canvas-mode';
 import { drawingPageBounds, fitDrawingPage, switchDrawingPage } from './drawing-pages';
-import { planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { fitDrawingArtwork, isDrawingArtwork, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { exportDrawingArtwork } from './drawing-artwork-export';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
 import { applyArrangePlan, arrangementRoots, prepareArrangePlan, type ArrangeOptions } from './drawing-arrange';
@@ -591,6 +591,7 @@ export function DrawingChrome() {
   const nextImport = useRef(0);
   const multiplePages = useContext(CanvasModeContext) === 'toolkit';
   const pages = useValue('drawing page list', () => editor.getPages(), [editor]);
+  const hasArtwork = useValue('drawing contains artwork', () => editor.getCurrentPageShapesSorted().some(shape => shape.opacity > 0 && isDrawingArtwork(shape)), [editor]);
   const pageBounds = useValue('drawing page for export', () => drawingPageBounds(editor), [editor]);
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
   const [cadAnchor, setCadAnchor] = useState<CadAnchor>('bottom-left');
@@ -1284,6 +1285,7 @@ export function DrawingChrome() {
         editor.focus();
       });
       case 'zoom-out': return make(true, () => command('zoom-out'));
+      case 'fitArtwork': return make(hasArtwork, () => { if (fitDrawingArtwork(editor)) return true; setNotice(label('noVisibleArtwork')); return false; });
       case 'fitPage': return make(!!pageBounds, () => { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); });
       case 'fullscreen': return make(true, toggleFullscreen, context!.fullscreen);
       case 'rulers': return make(true, () => context!.setRulers(!context!.rulers), context!.rulers);
@@ -1742,11 +1744,12 @@ export function DrawingChrome() {
       <button type="button" className="drawing-snap-options-shortcut" onClick={() => setPanel('snap')} aria-pressed={panel === 'snap'} data-testid="drawing-status-snap-options">{snapLabel('open')}</button>
       <div className="drawing-zoom" aria-label={label('zoom')} title={label('zoomWheel')}>
         <ToolButton label={label('zoomOut')} onClick={() => command('zoom-out')}>−</ToolButton>
-        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else {
+        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'artwork') commandRef.current('fitArtwork'); else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else {
           const center = editor.getViewportPageBounds().center, viewport = editor.getViewportScreenBounds();
           const z = Number(value);
           editor.setCamera({ x: viewport.w / (2 * z) - center.x, y: viewport.h / (2 * z) - center.y, z });
         } }}>
+          <option value="artwork" disabled={!hasArtwork}>{words.commands.fitArtwork}</option>
           {pageBounds && <option value="page">{label('pageFit')}</option>}
           <option value="fit" disabled={!controls.hasShapes}>{actionLabel('fit')}</option><option value="selection" disabled={!controls.canFitSelection}>{actionLabel('fit-selection')}</option>
         </DrawingZoomOptions>

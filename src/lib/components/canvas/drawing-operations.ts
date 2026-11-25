@@ -296,28 +296,45 @@ function drawingExportBounds(editor: Editor, shape: TLShape): Box | undefined {
   return bounds;
 }
 
-export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options: DrawingExportOptions): Result<DrawingExportPlan> {
-  if (!['selected', 'all', 'page'].includes(options.scope) || ![1, 2, 4].includes(options.scale) || typeof options.background !== 'boolean' ||
-      options.scope !== 'page' && (!Number.isFinite(options.padding) || options.padding < 0 || options.padding > 1000)) return { ok: false, error: 'invalidOptions' };
-  const page = options.scope === 'page' ? drawingPageBounds(editor) : null;
-  if (options.scope === 'page' && !page) return { ok: false, error: 'pageNeedsSize' };
-  const candidates = options.scope === 'selected' ? [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])] : [...editor.getCurrentPageShapeIds()];
+export function isDrawingArtwork(shape: TLShape): boolean {
+  return ARTWORK_TYPES.has(shape.type);
+}
+
+function collectArtwork(editor: Editor, candidates: Iterable<TLShapeId>, page?: Box | null) {
   const ids: TLShapeId[] = [];
   let omitted = 0;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const id of candidates) {
     const shape = editor.getShape(id);
     if (!shape) continue;
-    if (!ARTWORK_TYPES.has(shape.type)) { if (shape.type !== 'group') omitted++; continue; }
+    if (!isDrawingArtwork(shape)) { if (shape.type !== 'group') omitted++; continue; }
     const bounds = drawingExportBounds(editor, shape);
     if (!bounds) continue;
     if (page && (bounds.maxX < page.minX || bounds.minX > page.maxX || bounds.maxY < page.minY || bounds.minY > page.maxY)) continue;
     ids.push(id); minX = Math.min(minX, bounds.x); minY = Math.min(minY, bounds.y);
     maxX = Math.max(maxX, bounds.x + bounds.w); maxY = Math.max(maxY, bounds.y + bounds.h);
   }
-  if (!ids.length) return { ok: false, error: 'exportEmpty' };
+  return { ids, omitted, extents: ids.length ? new Box(minX, minY, maxX - minX, maxY - minY) : null };
+}
+
+export function fitDrawingArtwork(editor: Editor): boolean {
+  const { extents } = collectArtwork(editor, editor.getCurrentPageShapeIds());
+  if (!extents) return false;
+  editor.zoomToBounds(extents);
+  return true;
+}
+
+export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options: DrawingExportOptions): Result<DrawingExportPlan> {
+  if (!['selected', 'all', 'page'].includes(options.scope) || ![1, 2, 4].includes(options.scale) || typeof options.background !== 'boolean' ||
+      options.scope !== 'page' && (!Number.isFinite(options.padding) || options.padding < 0 || options.padding > 1000)) return { ok: false, error: 'invalidOptions' };
+  const page = options.scope === 'page' ? drawingPageBounds(editor) : null;
+  if (options.scope === 'page' && !page) return { ok: false, error: 'pageNeedsSize' };
+  const candidates = options.scope === 'selected' ? [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])] : [...editor.getCurrentPageShapeIds()];
+  const { ids, omitted, extents } = collectArtwork(editor, candidates, page);
+  if (!extents) return { ok: false, error: 'exportEmpty' };
   const scale = format === 'png' ? options.scale : 1;
-  const bounds = page ? { x: page.x, y: page.y, w: page.w, h: page.h } : { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  const { x, y, w, h } = page ?? extents;
+  const bounds = { x, y, w, h };
   const padding = page ? 0 : options.padding;
   const width = Math.ceil((bounds.w + padding * 2) * scale);
   const height = Math.ceil((bounds.h + padding * 2) * scale);

@@ -27,7 +27,7 @@ function fixture(shapes: Shape[], selected = shapes.map(shape => shape.id)) {
     getCanUndo: () => true, getCanRedo: () => false,
     complete: record('complete'),
     setCurrentTool: (tool: string) => { state.tool = tool; record('tool')(tool); },
-    zoomToFit: record('fit'), zoomToSelection: record('fit-selection'), resetZoom: record('zoom-reset'),
+    zoomToFit: record('fit'), getSelectionPageBounds: () => ({x:0,y:0,w:10,h:10}), zoomToBounds: record('fit-selection'), resetZoom: record('zoom-reset'),
     undo: record('undo'), redo: record('redo'), mark: record('mark'), bailToMark: record('bail'),
     run: (operation: () => void) => operation(), focus: record('focus'),
     duplicateShapes: record('duplicate'), deleteShapes: record('delete'), bringToFront: record('front'),

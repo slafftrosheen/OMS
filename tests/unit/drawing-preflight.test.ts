@@ -26,7 +26,7 @@ function fixture(items:any[]){
    const local=(p:any)=>({x:s.x+p.x*Math.cos(r)-p.y*Math.sin(r),y:s.y+p.x*Math.sin(r)+p.y*Math.cos(r)});
    return {applyToPoint:(p:any)=>parent?editor.getShapePageTransform(parent).applyToPoint(local(p)):local(p),rotation:()=>r+(parent?editor.getShapePageTransform(parent).rotation():0)};
   },
-  complete(){},setCurrentTool(){},zoomToSelection:()=>{zoomed=true;},
+  complete(){},setCurrentTool(){},getSelectionPageBounds:()=>selected.length ? {x:0,y:0,w:100,h:50} : undefined,
   zoomToBounds:(bounds:{x:number;y:number;w:number;h:number})=>{zoomed=true;const {x,y,w,h}=bounds;focusedBounds={x,y,w,h};},
   updateShapes:()=>{throw new Error('Must not edit');},deleteShapes:()=>{throw new Error('Must not delete');},
  };

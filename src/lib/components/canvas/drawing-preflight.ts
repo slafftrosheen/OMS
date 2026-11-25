@@ -1,3 +1,4 @@
+import { fitDrawingSelection } from './drawing-camera';
 import { atom, Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { contourSegments, mapContours, type CadContour } from './cad-curves';
 import { shapeCadContours } from './cad-editing';
@@ -185,7 +186,7 @@ export function locatePreflightIssue(editor:Editor,report:DrawingPreflight,index
       Math.abs(from.x - to.x) + padding * 2, Math.abs(from.y - to.y) + padding * 2,
     ));
     drawingPreflightHighlight(editor).set({ pageId: report.pageId, revision: report.revision, segment: issue.sharedSegment });
-  } else editor.zoomToSelection();
+  } else fitDrawingSelection(editor);
   return true;
 }
 

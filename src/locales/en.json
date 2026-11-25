@@ -4002,6 +4002,7 @@
       "workshop-match": "Workshop shorthand matched one catalog product. Confirm the proposed material.",
       "exact-match": "Exact catalog identity; review suitability.",
       "source-value": "Source value; requires review.",
+      "stock-thickness-unavailable": "The catalog has this sheet material, but no product lists the requested thickness.",
       "no-exact-match": "No exact catalog match. Select manually.",
       "catalog-unavailable": "The material catalog is unavailable. Review the source value and retry matching later.",
       "ambiguous-match": "Multiple catalog matches. Select manually.",

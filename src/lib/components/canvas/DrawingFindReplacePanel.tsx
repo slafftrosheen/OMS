@@ -1,3 +1,4 @@
+import { fitDrawingSelection } from './drawing-camera';
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, useValue, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import { applyDrawingTextReplacement, drawingTextSearchRevision, prepareDrawingTextSearch,
@@ -77,7 +78,7 @@ export function DrawingFindReplacePanel({ focusRequest = 0 }: { focusRequest?: n
               if (!shape || plan.revision !== drawingTextSearchRevision(editor)) return;
               editor.complete(); editor.setCurrentTool('select');
               if (plan.revision !== drawingTextSearchRevision(editor)) return;
-              editor.setSelectedShapes([match.id]); editor.zoomToSelection(); editor.focus();
+              editor.setSelectedShapes([match.id]); fitDrawingSelection(editor); editor.focus();
             }}>{t('locate')}</button>
             <p className="drawing-help">{match.occurrences} {t('matches')}{match.protected ? ' · ' + t('locked') : ''}</p>
             <p className="drawing-help"><strong>{t('before')}:</strong> <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{excerpt(match.before) || t('emptyText')}</span></p>

@@ -1,3 +1,4 @@
+import { fitDrawingSelection } from './drawing-camera';
 import { isProductionLayerHidden, isProductionLayerProtected } from './cad-production-layers';
 import { useCadText } from './cad-copy';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -120,7 +121,7 @@ export function DrawingObjectsPanel({ focusRequest = 0, layerFocusRequest = 0 }:
           style={{ paddingInlineStart: Math.min(row.depth, 8) * 12 + 3 }} data-testid="drawing-object-row"
           onFocus={() => setFocused(shape.id)} onKeyDown={event => onTreeKey(event, row)}
           onClick={event => { select(shape.id, { toggle: event.ctrlKey || event.metaKey, range: event.shiftKey }); focusRow(shape.id); }}
-          onDoubleClick={() => { if (!hiddenByLayer) { select(shape.id); editor.zoomToSelection(); } }}>
+          onDoubleClick={() => { if (!hiddenByLayer) { select(shape.id); fitDrawingSelection(editor); } }}>
           {row.children ? <button type="button" tabIndex={-1} className="drawing-tree-expander" disabled={!!search.trim()} aria-label={t(row.expanded ? 'collapse' : 'expand')} onClick={event => { event.stopPropagation(); toggle(shape.id); }} onDoubleClick={event => event.stopPropagation()}><TreeIcon kind={row.expanded ? 'expanded' : 'collapsed'} /></button> : <span className="drawing-tree-expander" />}
           <TreeIcon kind={shape.type === 'group' || row.children ? 'group' : shape.type === 'text' ? 'text' : shape.type === 'image' || shape.type === 'document' ? 'file' : 'object'} />
           <span className="drawing-tree-name" title={name}>{name}</span>{hiddenByLayer && <small>{label('productionHiddenObject')}</small>}{row.children > 0 && <span className="drawing-tree-count" aria-hidden="true">{row.children}</span>}
@@ -152,7 +153,7 @@ export function DrawingObjectsPanel({ focusRequest = 0, layerFocusRequest = 0 }:
       {!orderTargets.length && <p className="drawing-help">{t('noReference')}</p>}
     </details>
     {single && <>
-      <div className="drawing-tree-actions"><button type="button" disabled={renameDisabled} onClick={() => setRenaming(value => !value)}>{t('rename')}</button><button type="button" disabled={state.readonly || isProductionLayerProtected(single) || state.locked.has(single.parentId as TLShapeId)} onClick={() => setFailed(!toggleDrawingObjectLock(editor, single.id))}>{t(single.isLocked ? 'unlock' : 'lock')}</button><button type="button" onClick={() => editor.zoomToSelection()}>{t('locate')}</button></div>
+      <div className="drawing-tree-actions"><button type="button" disabled={renameDisabled} onClick={() => setRenaming(value => !value)}>{t('rename')}</button><button type="button" disabled={state.readonly || isProductionLayerProtected(single) || state.locked.has(single.parentId as TLShapeId)} onClick={() => setFailed(!toggleDrawingObjectLock(editor, single.id))}>{t(single.isLocked ? 'unlock' : 'lock')}</button><button type="button" onClick={() => fitDrawingSelection(editor)}>{t('locate')}</button></div>
       {renaming && <form className="drawing-object-name" onSubmit={event => { event.preventDefault(); const ok = renameDrawingObject(editor, single.id, draft); setFailed(!ok); if (ok) setRenaming(false); }}>
         <label><span>{t('name')}</span><input ref={nameRef} disabled={renameDisabled} maxLength={80} value={draft} placeholder={drawingObjectName(single)} onChange={event => { setDraft(event.target.value); setFailed(false); }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(false); focusRow(single.id); } }} /></label>
         <button type="submit" disabled={renameDisabled}>{t('applyName')}</button><p className="drawing-help">{t('renameHint')}</p>

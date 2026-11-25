@@ -1,7 +1,7 @@
 import type { CatalogMaterial } from './material-catalog';
 import { getAluminiumForm } from './material-roles';
 
-type Material = Pick<CatalogMaterial, 'category' | 'code' | 'metadata' | 'name_en' | 'name_ru' | 'name_lv'>;
+type Material = Pick<CatalogMaterial, 'category' | 'code' | 'metadata' | 'thickness_options' | 'name_en' | 'name_ru' | 'name_lv'>;
 
 /** A complete RAL Classic designation. Numbers inside product names, film
  * codes, measurements and qualified finishes are different source facts. */
@@ -37,7 +37,7 @@ const finishTerms: Record<string, string[]> = {
 const finishes = new Map(Object.entries(finishTerms).flatMap(([finish, terms]) =>
   terms.map(term => [familyKey(term), finish] as const)));
 
-type WorkshopTerm = { family: string } | { ral: string; finish?: string };
+type WorkshopTerm = { family: string; thicknessMm?: number } | { ral: string; finish?: string };
 
 /** Accept only complete terms. Unknown grades, finishes and measurements
  * remain attached to their source value for a staff decision. */
@@ -45,6 +45,17 @@ export function parseWorkshopTerm(query: string): WorkshopTerm | undefined {
   const value = familyKey(query);
   const family = families.get(value);
   if (family) return { family };
+  // Parse the untouched separators first so ranges, signs, alloys and panel
+  // dimensions cannot turn into a single positive stock thickness.
+  const raw = query.normalize('NFKC').trim();
+  const trailing = /^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:mm|мм)$/iu.exec(raw);
+  const leading = /^(\d+(?:[.,]\d+)?)\s*(?:mm|мм)\s+(.+)$/iu.exec(raw);
+  if (trailing || leading) {
+    const material = trailing ? trailing[1] : leading![2];
+    const stock = families.get(familyKey(material));
+    const thicknessMm = Number((trailing ? trailing[2] : leading![1]).replace(',', '.'));
+    if (stock && thicknessMm > 0 && Number.isFinite(thicknessMm)) return { family: stock, thicknessMm };
+  }
   const paint = /^(?:ral *)?(\d{4})(?: (.+))?$/.exec(value);
   if (!paint) return;
   if (!paint[2]) return { ral: paint[1] };
@@ -54,6 +65,7 @@ export function parseWorkshopTerm(query: string): WorkshopTerm | undefined {
 
 export function matchesWorkshopTerm(material: Material, term: WorkshopTerm): boolean {
   if ('family' in term) {
+    if (term.thicknessMm !== undefined && !material.thickness_options?.includes(term.thicknessMm)) return false;
     return term.family === 'ALU_SHEET' ? getAluminiumForm(material) === 'sheet' : material.category === term.family;
   }
   if (materialRalCode(material) !== term.ral) return false;

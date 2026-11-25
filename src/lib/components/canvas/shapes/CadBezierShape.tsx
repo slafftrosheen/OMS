@@ -105,13 +105,20 @@ function flattenForPicking(contours: CadContour[]) {
     }
   }
 }
-function inCurveClips(point: Vec, clips: CurveClip[]) {
+function inCurveClips(point: Vec, clips: CurveClip[], tolerance = 0) {
+  const epsilon = Math.max(tolerance, 1e-9, 8 * Number.EPSILON * Math.max(Math.abs(point.x), Math.abs(point.y)));
   return clips.every((c) => {
     let winding = 0;
     for (const ps of c.points)
       for (let i = 0; i < ps.length; i++) {
         const a = ps[i], b = ps[(i + 1) % ps.length];
         const side = (b.x - a.x) * (point.y - a.y) - (point.x - a.x) * (b.y - a.y);
+        // Clipping includes its boundary. Account for roundoff in the
+        // page-to-shape transform, including the horizontal and lower edges.
+        const dx = b.x - a.x, dy = b.y - a.y;
+        if ((dx || dy) && point.x >= Math.min(a.x,b.x) - epsilon && point.x <= Math.max(a.x,b.x) + epsilon &&
+            point.y >= Math.min(a.y,b.y) - epsilon && point.y <= Math.max(a.y,b.y) + epsilon &&
+            Math.abs(side) <= epsilon * (Math.abs(dx) + Math.abs(dy))) return true;
         if (a.y <= point.y && b.y > point.y && side > 0) winding++;
         if (a.y > point.y && b.y <= point.y && side < 0) winding--;
       }
@@ -121,23 +128,28 @@ function inCurveClips(point: Vec, clips: CurveClip[]) {
 function curveClips(paint: VectorPaint): CurveClip[] {
   return (paint.clips ?? []).map(c => ({ points: flattenForPicking(c.contours), fillRule: c.fillRule }));
 }
-type StrokePick = { radius: number; visible: boolean; inClips: (point: Vec) => boolean };
+type StrokePick = { radius: number; visible: boolean; inClips: (point: Vec, tolerance?: number) => boolean };
 function strokePick(paint: VectorPaint, opacity: number, loadClips = () => curveClips(paint)): StrokePick | null {
   if (paint.fill !== 'none' || paint.gradient || paint.raster) return null;
   // Dashes are a visual style. Pick the continuous path so thin or dashed
   // production outlines remain selectable anywhere near their geometry.
   let masks: CurveClip[] | undefined;
-  let x = NaN, y = NaN, included = false;
+  const exact = {x:NaN, y:NaN, tolerance:NaN, included:false};
+  const padded = {...exact};
   return { radius: paint.strokeWidth / 2, visible: paint.stroke !== 'none' && paint.strokeWidth > 0 && paint.strokeOpacity > 0 && opacity > 0,
-    inClips(point) {
+    inClips(point, tolerance = 0) {
       // Native Group2d picking asks every contour about the same point. Reuse
       // one mask test instead of repeating a compound clip for every branch.
-      if (point.x !== x || point.y !== y) { x = point.x; y = point.y; included = inCurveClips(point, masks ??= loadClips()); }
-      return included;
+      const cache = tolerance ? padded : exact;
+      if (point.x !== cache.x || point.y !== cache.y || tolerance !== cache.tolerance) {
+        cache.x = point.x; cache.y = point.y; cache.tolerance = tolerance;
+        cache.included = inCurveClips(point, masks ??= loadClips(), tolerance);
+      }
+      return cache.included;
     } };
 }
 class StrokePolyline extends Polyline2d {
-  constructor(private loadPoints: () => Vec[], private strokeHit: () => StrokePick | null) { super({ points: [] }); }
+  constructor(private loadPoints: () => Vec[], private strokeHit: () => StrokePick | null, private zoom: () => number) { super({ points: [] }); }
   override getVertices() { return this.points = this.loadPoints(); }
   override distanceToPoint(point: Vec, hitInside = false) {
     const stroke = this.strokeHit();
@@ -145,8 +157,14 @@ class StrokePolyline extends Polyline2d {
     // hollow group that encloses the viewport. Only the stroke is pickable.
     this.isFilled = !!stroke;
     if (!stroke) return super.distanceToPoint(point, hitInside);
-    if (!stroke.visible || !stroke.inClips(point)) return Infinity;
-    return super.distanceToPoint(point, false) - stroke.radius;
+    if (!stroke.visible) return Infinity;
+    if (stroke.inClips(point)) return super.distanceToPoint(point, false) - stroke.radius;
+    // Pointer coordinates resolve to screen pixels. At overview zoom a
+    // fraction of a pixel can put the pointer outside a visible clipped edge.
+    const halfPixel = 0.5 / this.zoom();
+    if (!stroke.inClips(point, halfPixel)) return Infinity;
+    const nearest = this.nearestPoint(point), distance = point.dist(nearest);
+    return distance <= halfPixel && stroke.inClips(nearest) ? distance - stroke.radius : Infinity;
   }
   override hitTestPoint(point: Vec, margin = 0, hitInside = false) {
     return this.strokeHit() ? this.distanceToPoint(point, false) <= margin : super.hitTestPoint(point, margin, hitInside);
@@ -266,7 +284,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
       shapeContours.map((contour, i) => new StrokePolyline(() => {
         const vertices = (points ??= flattenForPicking(shapeContours))[i];
         return (contour.closed ? [...vertices, vertices[0]] : vertices).map(point => new Vec(point.x, point.y));
-      }, strokeHit)),
+      }, strokeHit, () => this.editor.getZoomLevel())),
       shape.props.fillRule,
       paint.fill !== "none" || !!paint.raster || !!paint.gradient,
       loadClips,

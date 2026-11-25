@@ -6,6 +6,7 @@ import {INTAKE_JSON_SCHEMA, intakeModelSchema, type IntakeProposal, type IntakeF
 import {filterProfileMaterials,isProfilePrintMaterial,PROFILE_MATERIAL_CATEGORIES,type ProfileMaterialRole} from '$lib/profiles/material-roles';
 import {matchesWorkshopTerm, parseWorkshopTerm} from '$lib/profiles/material-terms';
 import type {CatalogMaterial} from '$lib/profiles/material-catalog';
+import {normalizeThicknessValue} from '$lib/materials/thickness-options';
 import {readFaceMaterials, withFaceMaterials} from '$lib/profiles/face-materials';
 import {applyPaintMaterialSelection} from '$lib/profiles/helpers';
 
@@ -42,7 +43,7 @@ export const PRODUCTION_INTAKE_JSON_SCHEMA={
 export type IntakeMaterial=Omit<CatalogMaterial,'id'> & {id:string|number};
 export type ProductionReview=ProductionFact & {
   status:'ready'|'unresolved';
-  reason:'exact-match'|'workshop-match'|'source-value'|'no-exact-match'|'catalog-unavailable'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
+  reason:'exact-match'|'workshop-match'|'source-value'|'no-exact-match'|'stock-thickness-unavailable'|'catalog-unavailable'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
   material:IntakeMaterial|null;
   alternatives?:IntakeMaterial[];
 };
@@ -93,12 +94,37 @@ function candidates(target:ProductionFact['target'],catalog:IntakeMaterial[]):In
   return picker.role?filterProfileMaterials(catalog as CatalogMaterial[],picker.role) as IntakeMaterial[]
     :catalog.filter(m=>picker.categories.includes(m.category));
 }
-function reviewMaterial(fact: ProductionFact, catalog: IntakeMaterial[] | null): ProductionReview {
+const thicknessTargets: Partial<Record<ProductionFact['target'], ProductionFact['target']>> = {faceMaterial:'faceThickness', backMaterial:'backThickness', sidesMaterial:'sidesThickness'};
+function relatedThickness(material: ProductionFact, other: ProductionFact) {
+  return other.target === thicknessTargets[material.target] && other.page === material.page && key(other.part) === key(material.part);
+}
+
+/** One combined source phrase can supply two independently reviewable fields. */
+function expandSheetThicknesses(facts: ProductionFact[]): ProductionFact[] {
+  const expanded = [...facts];
+  for (const fact of facts) {
+    const target = thicknessTargets[fact.target];
+    const term = target && parseWorkshopTerm(fact.value);
+    if (!target || !term || !('family' in term) || term.thicknessMm === undefined) continue;
+    if (!expanded.some(other => relatedThickness(fact, other) && millimeters(other.value) === term.thicknessMm))
+      expanded.push({ ...fact, target, value: `${term.thicknessMm} mm` });
+  }
+  return expanded;
+}
+
+function reviewMaterial(fact: ProductionFact, catalog: IntakeMaterial[] | null, context: ProductionFact[]): ProductionReview {
   const review: ProductionReview = { ...fact, status: 'unresolved', reason: 'catalog-unavailable', material: null };
   if (!catalog) return review;
   const eligible = candidates(fact.target, catalog);
   const value = key(fact.value);
-  const term = parseWorkshopTerm(fact.value);
+  let term = parseWorkshopTerm(fact.value);
+  if (term && 'family' in term && thicknessTargets[fact.target]) {
+    const gauges = new Set(context.filter(other => relatedThickness(fact, other)).map(other => millimeters(other.value)));
+    if (term.thicknessMm !== undefined) gauges.add(term.thicknessMm);
+    if (gauges.size > 1) return { ...review, reason:'conflicting-values' };
+    const [thicknessMm] = gauges;
+    if (thicknessMm) term = { ...term, thicknessMm };
+  }
   const paintTerm = term && 'ral' in term && fact.target.endsWith('Paint');
   const exact = eligible.filter(m => {
     // A bare paint number is a RAL request. A Pantone SKU or alias with the
@@ -114,20 +140,33 @@ function reviewMaterial(fact: ProductionFact, catalog: IntakeMaterial[] | null):
   let matches = exact;
   if (paintTerm) matches = [...new Set([...exact, ...shorthand])];
   else if (term && 'family' in term && fact.target.endsWith('Material')) matches = shorthand;
-  if (!matches.length) return { ...review, reason: 'no-exact-match' };
+  if (!matches.length) {
+    if (term && 'family' in term && term.thicknessMm !== undefined && thicknessTargets[fact.target]) {
+      const family = { family: term.family };
+      if (eligible.some(m => matchesWorkshopTerm(m, family))) return { ...review, reason:'stock-thickness-unavailable' };
+    }
+    return { ...review, reason:'no-exact-match' };
+  }
   if (matches.length > 1) return { ...review, reason: 'ambiguous-match', alternatives: matches.slice(0, 5) };
   return { ...review, status: 'ready', reason: exact.includes(matches[0]) ? 'exact-match' : 'workshop-match', material: matches[0] };
 }
 
+function reviewFact(fact: ProductionFact, catalog: IntakeMaterial[] | null, context: ProductionFact[]): ProductionReview {
+  if (materialTargets.has(fact.target)) return reviewMaterial(fact, catalog, context);
+  return normalizedValue(fact) ? { ...fact, status:'ready', reason:'source-value', material:null }
+    : { ...fact, status:'unresolved', reason:'invalid-value', material:null };
+}
+
 export function reviewProductionFacts(raw:unknown[],catalog:IntakeMaterial[] | null):ProductionReview[]{
-  const facts=z.array(productionFactSchema).max(50).parse(raw);
+  const facts=expandSheetThicknesses(z.array(productionFactSchema).max(50).parse(raw));
   const identities = new Map<ProductionFact['target'], Set<string>>();
   const reviews = facts.map((f): ProductionReview => {
-    const review: ProductionReview = materialTargets.has(f.target) ? reviewMaterial(f, catalog)
-      : normalizedValue(f) ? { ...f, status:'ready', reason:'source-value', material:null }
-      : { ...f, status:'unresolved', reason:'invalid-value', material:null };
+    const review = reviewFact(f, catalog, facts);
     const term = materialTargets.has(f.target) ? parseWorkshopTerm(f.value) : undefined;
-    const identity = review.material ? `id:${review.material.id}` : `source:${term ? JSON.stringify(term) : key(f.value)}`;
+    const normalized = normalizedValue(f);
+    let source: string | number = typeof normalized === 'number' ? normalized : key(f.value);
+    if (term) source = 'family' in term ? term.family : JSON.stringify(term);
+    const identity = review.material ? `id:${review.material.id}` : `source:${source}`;
     const values = identities.get(f.target) ?? new Set<string>();
     values.add(identity);
     identities.set(f.target, values);
@@ -138,9 +177,9 @@ export function reviewProductionFacts(raw:unknown[],catalog:IntakeMaterial[] | n
     : review);
 }
 function millimeters(value:string):number|null{
-  const match=/^(\d+(?:[.,]\d+)?)\s*(mm|cm|m)$/i.exec(value);
+  const match=/^(\d+(?:[.,]\d+)?)\s*(mm|мм|cm|m)$/i.exec(value);
   if(!match)return null;
-  const number=Number(match[1].replace(',','.'))*({mm:1,cm:10,m:1000}[match[2].toLowerCase()]??0);
+  const number=Number(match[1].replace(',','.'))*({mm:1,мм:1,cm:10,m:1000}[match[2].toLowerCase()]??0);
   return Number.isFinite(number)&&number>0&&number<=100000?Math.round(number*1000)/1000:null;
 }
 function normalizedValue(f:ProductionFact):string|number|boolean|null{
@@ -259,18 +298,22 @@ export function applyProductionFacts<T extends RecordValue>(
           throw new ProductionIntakeError('thicknessUnavailable');
         return matches[0];
       };
+      const saveThickness = (fields: RecordValue, key: string) => {
+        const thickness = `${value}mm`;
+        if (normalizeThicknessValue(fields[key]) !== thickness) set(fields,key,thickness,replace);
+      };
       if(part==='face'){
         const rows=readFaceMaterials(values);
         if(rows.length!==1||!rows[0].value)throw new ProductionIntakeError('materialRequired');
         const material=materialFor(rows[0].value,rows[0].materialId);
         rows[0].thicknessOptions=material.thickness_options;
-        set(rows[0],'thickness',`${value}mm`,replace);
+        saveThickness(rows[0],'thickness');
         Object.assign(values,withFaceMaterials(values,rows));
       }else{
         if(!values[part])throw new ProductionIntakeError('materialRequired');
         const material=materialFor(values[part],values[part+'MaterialId']);
         values[part+'ThicknessOptions']=material.thickness_options;
-        write(name,f.target,`${value}mm`);
+        saveThickness(values,f.target);
       }
     }else if(f.target.endsWith('Print')){
       if(value==='true')write('FRONT',f.target.replace('Print',''),true);
@@ -328,12 +371,15 @@ export function resolveManualProductionMaterial(review:ProductionReview,catalog:
   if(matches.length!==1)throw new ProductionIntakeError('catalogChanged');
   return {...sourceFact(review),status:'ready',reason:'manual-selection',material:matches[0]};
 }
-export function recheckProductionSelection(reviews:ProductionReview[],catalog:IntakeMaterial[]):ProductionReview[]{
+export function recheckProductionSelection(reviews:ProductionReview[],catalog:IntakeMaterial[],context:ProductionReview[]=reviews):ProductionReview[]{
   if(getProductionSelectionConflicts(reviews).length)throw new ProductionIntakeError('conflictingChoices');
-  const automatic=reviewProductionFacts(reviews.map(sourceFact),catalog);
-  return reviews.map((review,index)=>{
+  // A deselected thickness still describes the source stock. Use it to
+  // verify the match, while applying only individually approved fields.
+  return reviews.map(review=>{
+    const fact=productionFactSchema.parse(sourceFact(review));
+    if(review.status!=='ready')throw new ProductionIntakeError('invalidChoice');
     const fresh=review.reason==='manual-selection'
-      ?resolveManualProductionMaterial(review,catalog,review.material?.id??''):automatic[index];
+      ?resolveManualProductionMaterial(review,catalog,review.material?.id??''):reviewFact(fact,catalog,context);
     if(fresh.status!=='ready'||!sameIntakeMaterial(review.material,fresh.material))
       throw new ProductionIntakeError('catalogChanged');
     return fresh;

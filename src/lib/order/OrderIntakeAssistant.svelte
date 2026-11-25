@@ -357,7 +357,7 @@
         const catalogResponse=await scopedFetch('/api/materials?intake=true',{cache:'no-store'});
         if(!catalogResponse.ok)throw new Error($t('orderIntake.catalogChanged'));
         const catalog=await catalogResponse.json();
-        const rechecked=recheckProductionSelection(profileFacts,catalog);
+        const rechecked=recheckProductionSelection(profileFacts,catalog,analysis.production);
         const baseline=JSON.parse(baseState).profiles??[];
         nextProfiles=applyProductionFacts((current.profiles??[]) as Record<string,unknown>[],baseline,index,rechecked,replace,catalog);
       }

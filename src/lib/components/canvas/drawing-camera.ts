@@ -6,6 +6,13 @@ export const DRAWING_CAMERA_OPTIONS: Partial<TLCameraOptions> = {
   zoomSteps: [.00005, .0001, .00025, .0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2, 4, 8],
 };
 
+export function fitDrawingSelection(editor: Editor): boolean {
+  const bounds = editor.getSelectionPageBounds();
+  if (!bounds) return false;
+  editor.zoomToBounds(bounds);
+  return true;
+}
+
 type WheelStep = { x: number; y: number; dx: number; dy: number; pan: boolean };
 const nativeScroll = 'input,textarea,select,button,a[href],iframe,video,[contenteditable]:not([contenteditable="false"]),[data-drawing-native-wheel]';
 

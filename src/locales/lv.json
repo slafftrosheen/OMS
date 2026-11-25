@@ -4002,6 +4002,7 @@
       "workshop-match": "Pēc rasējuma apzīmējuma atrasta viena kataloga pozīcija. Pārbaudiet piedāvāto materiālu.",
       "exact-match": "Precīza kataloga atbilstība; pārbaudiet piemērotību.",
       "source-value": "Vērtība no avota; jāpārskata.",
+      "stock-thickness-unavailable": "Šis lokšņu materiāls ir katalogā, taču nevienam produktam nav norādīts prasītais biezums.",
       "no-exact-match": "Nav precīzas atbilstības katalogā. Izvēlieties manuāli.",
       "catalog-unavailable": "Materiālu katalogs nav pieejams. Pārbaudiet avota vērtību un vēlāk mēģiniet atrast atbilstību.",
       "ambiguous-match": "Vairākas atbilstības katalogā. Izvēlieties manuāli.",

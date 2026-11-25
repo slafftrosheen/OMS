@@ -138,6 +138,18 @@ describe('round centerline stroke picking', () => {
     near(geometry.bounds.h, 0);
   }));
 
+  it('picks a visible clipped outline from either side of its painted screen pixel at overview zoom', async () => harness(h => {
+    const {editor, create, contour, rectangle, pick, margin} = h;
+    const clips = [{contours:[rectangle(0,0,400,160)],fillRule:'nonzero'}];
+    const shape = create([contour([[0,0],[400,0]])], {clips, strokeWidth:1});
+    editor.setCamera({x:0,y:0,z:.025});
+    const z = editor.getZoomLevel();
+    assert.equal(pick(shape,[200,-.4/z],{margin:margin()})?.id,shape.id);
+    assert.equal(pick(shape,[200,-.7/z],{margin:margin()}),undefined);
+    const hidden = create([contour([[0,-2],[400,-2]])], {clips, strokeWidth:1});
+    assert.equal(pick(hidden,[200,-2],{margin:margin()}),undefined);
+  }));
+
   it('updates cached picking after real Outline width edits, Undo/Redo and invisible stroke or shape opacity', async () => harness(h => {
     const { editor, create, pick, paint, outline, cad, measurements } = h;
     const shape = create(), geometry = editor.getShapeGeometry(shape), originalProps = structuredClone(shape.props);

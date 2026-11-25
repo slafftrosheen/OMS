@@ -72,6 +72,52 @@ describe('production shorthand across review, application and manual search', ()
     assert.equal(paintMaterialValue(tinted.configuration.PAINTING.backColor),variant.code);
   });
 
+  it('uses evidenced gauges to distinguish sheet products and keeps thickness separately approvable', () => {
+    const thin = {...sheet,id:11,thickness_options:[0.5,1.5]};
+    const thick = {...sheet,id:12,thickness_options:[3,5]};
+    const stock = [thin,thick];
+    const current = [{configuration:{}}];
+    for (const value of ['ALU 1,5 mm', '1.5mm aluminium sheet', 'алюминий 1,5 мм']) {
+      const reviews = reviewProductionFacts([fact('backMaterial',value)],stock);
+      assert.deepEqual(reviews.map(r=>[r.target,r.status]),[['backMaterial','ready'],['backThickness','ready']]);
+      assert.equal(reviews[0].value,value);
+      assert.equal(reviews[0].material?.id,thin.id);
+      assert.equal(reviews[1].evidence,reviews[0].evidence);
+      assert.deepEqual(getMaterialCatalogView(stock,'',value).groups[0].materials,[thin]);
+      const [profile] = applyProductionFacts<Record<string,any>>(current,current,0,recheckProductionSelection(reviews,stock),false,stock);
+      assert.equal(profile.configuration.CNC_FREZER.backThickness,'1.5mm');
+    }
+    const reviews = reviewProductionFacts([fact('backMaterial','ALU'),fact('backThickness','0.3 cm')],stock);
+    const selected = recheckProductionSelection([reviews[0]],stock,reviews);
+    assert.equal(selected[0].material?.id,thick.id);
+    const [profile] = applyProductionFacts<Record<string,any>>(current,current,0,selected,false,stock);
+    assert.equal(profile.configuration.CNC_FREZER.backThickness,'');
+    const legacy = [{configuration:{CNC_FREZER:{back:thick.name_en,backMaterialId:thick.id,backThickness:'3'}}}];
+    const [same] = applyProductionFacts(legacy,legacy,0,reviews,false,stock);
+    assert.equal(same.configuration.CNC_FREZER.backThickness,'3');
+    assert.throws(()=>recheckProductionSelection([reviews[0]],[...stock,{...thick,id:13}],reviews),/catalogChanged/);
+  });
+
+  it('keeps competing stock and contradictory dimensions visible and never borrows a gauge from another part', () => {
+    const thin = {...sheet,id:11,thickness_options:[1.5,3]};
+    const thick = {...sheet,id:12,thickness_options:[3,5]};
+    const stock = [thin,thick];
+    const combined = fact('backMaterial','ALU 3 mm');
+    const both = reviewProductionFacts([combined,fact('backThickness','0.3 cm')],stock);
+    assert.equal(both.length,2);
+    assert.deepEqual(both[0].alternatives?.map(m=>m.id),[11,12]);
+    assert.equal(reviewProductionFacts([fact('backMaterial','ALU 6 mm')],stock)[0].reason,'stock-thickness-unavailable');
+    const conflict = reviewProductionFacts([combined,fact('backThickness','5 mm')],stock);
+    assert.ok(conflict.every(r=>r.reason==='conflicting-values'));
+    for (const unrelated of [{part:'Other'},{page:1},{target:'sidesThickness'}]) {
+      assert.equal(reviewProductionFacts([fact('backMaterial','ALU'),{...fact('backThickness','5 mm'),...unrelated}],stock)[0].reason,'ambiguous-match');
+    }
+    for (const value of ['ALU -3 mm','ALU 1–3 mm','ALU 1500 × 3000 mm','ALU 3','ALU 6061 3 mm']) {
+      const reviews = reviewProductionFacts([fact('backMaterial',value)],stock);
+      assert.equal(reviews.length,1);assert.equal(reviews[0].status,'unresolved');
+    }
+  });
+
   it('updates identity on a manual change and protects existing drafts with a stale material ID', () => {
     const old = {id:'face-1', value:'Old material', materialId:99};
     const chosen = applyProfileMaterialSelection(old,{value:sheet.name_en,material:sheet,hex:''});

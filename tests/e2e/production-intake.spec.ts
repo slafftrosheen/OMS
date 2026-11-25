@@ -617,3 +617,18 @@ test('reviews workshop ALU and chooses between matching RAL finishes before fill
  expect(configuration.PAINTING.backMaterialId).toBe(matte.id);
  expect(configuration.PAINTING.backColor.code).toBe('9010');
 });
+
+test('uses source thickness to verify the sheet even when only the material is approved', async ({page}) => {
+ const thin = {id:'thin',code:'SHEET_THIN',category:'ALU_SHEET',name_en:'Aluminium 0.5–1.5',thickness_options:[0.5,1.5],metadata:{product_form:'sheet'}};
+ const thick = {...thin,id:'thick',code:'SHEET_THICK',name_en:'Aluminium 3–5',thickness_options:[3,5]};
+ await setup(page,[fact('backMaterial','ALU',{material:thin,reason:'workshop-match'}),fact('backThickness','1.5 mm')]);
+ await page.route('**/api/materials?intake=true',r=>r.fulfill({json:[thin,thick]}));
+ await analyze(page);
+ await page.getByRole('checkbox',{name:'Back material',exact:true}).check();
+ await expect(page.getByRole('checkbox',{name:'Back thickness',exact:true})).not.toBeChecked();
+ await page.getByRole('button',{name:'Apply selected fields to form'}).click();
+ await expect(page.getByTestId('applied')).toHaveText('1');
+ const {CNC_FREZER} = JSON.parse(await page.getByTestId('current').innerText()).profiles[0].configuration;
+ expect(CNC_FREZER.backMaterialId).toBe(thin.id);
+ expect(CNC_FREZER.backThickness).toBe('');
+});
