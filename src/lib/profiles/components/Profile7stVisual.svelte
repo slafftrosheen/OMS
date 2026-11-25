@@ -115,6 +115,7 @@
     FRONT: {
       face: boolean;
       faceFilm: string;
+      faceFilmMaterialId?: string | number;
       faceFilmHex?: string;
       faceFilmShort?: string;
       faceFilmCategory?: string;
@@ -122,6 +123,7 @@
       facePrint?: boolean;
       back: boolean;
       backFilm: string;
+      backFilmMaterialId?: string | number;
       backFilmHex?: string;
       backFilmShort?: string;
       backFilmCategory?: string;
@@ -129,6 +131,7 @@
       backPrint?: boolean;
       sides: boolean;
       sidesFilm: string;
+      sidesFilmMaterialId?: string | number;
       sidesFilmHex?: string;
       sidesFilmShort?: string;
       sidesFilmCategory?: string;
@@ -140,15 +143,19 @@
     PAINTING: {
       face: boolean;
       faceColor: ColorValue;
+      faceMaterialId?: string | number;
       faceCustom?: string;
       sides: boolean;
       sidesColor: ColorValue;
+      sidesMaterialId?: string | number;
       sidesCustom?: string;
       back: boolean;
       backColor: ColorValue;
+      backMaterialId?: string | number;
       backCustom?: string;
       frame: boolean;
       frameColor: ColorValue;
+      frameMaterialId?: string | number;
       frameCustom?: string;
       notes?: string;
     };
@@ -156,6 +163,7 @@
     ASSEMBLING: {
       led: boolean;
       ledModule: string;
+      ledModuleMaterialId?: string | number;
       ledModuleHex?: string;
       ledModuleShort?: string;
       ledModuleCategory?: string;
@@ -163,6 +171,7 @@
 
       psu: boolean;
       psuModel: string;
+      psuModelMaterialId?: string | number;
       psuModelShort?: string;
       psuModelCategory?: string;
       psuType: "regular" | "dimmable";
@@ -170,6 +179,7 @@
 
       cables: boolean;
       cableType: string;
+      cableTypeMaterialId?: string | number;
       cableTypeShort?: string;
       cableTypeCategory?: string;
       cablesLength: string;
@@ -441,7 +451,7 @@
       process: section.backProcess,
     }, data, "ALU");
     Object.assign(section, {
-      back: entry.value, backHex: entry.hex, backShort: entry.shortName,
+      back: entry.value, backMaterialId: entry.materialId, backHex: entry.hex, backShort: entry.shortName,
       backThickness: entry.thickness, backCategory: entry.category,
       backProcess: entry.process,
       backThicknessOptions: entry.thicknessOptions,
@@ -457,7 +467,7 @@
       category: section.sidesCategory,
     }, data, "ALU");
     Object.assign(section, {
-      sides: entry.value, sidesHex: entry.hex, sidesShort: entry.shortName,
+      sides: entry.value, sidesMaterialId: entry.materialId, sidesHex: entry.hex, sidesShort: entry.shortName,
       sidesThickness: entry.thickness, sidesCategory: entry.category,
       sidesThicknessOptions: entry.thicknessOptions,
     });
@@ -472,7 +482,7 @@
       category: section.frameMaterialCategory,
     }, data, "ALU");
     Object.assign(section, {
-      frameMaterial: entry.value, frameMaterialHex: entry.hex, frameMaterialShort: entry.shortName,
+      frameMaterial: entry.value, frameMaterialMaterialId: entry.materialId, frameMaterialHex: entry.hex, frameMaterialShort: entry.shortName,
       frameThickness: entry.thickness, frameMaterialCategory: entry.category,
       frameThicknessOptions: entry.thicknessOptions,
       frameDimensions: withFrameThickness(section.frameDimensions, entry.thickness),
@@ -699,7 +709,7 @@
                 <MaterialThicknessSelect
                   bind:value={material.thickness}
                   materialType={material.category || material.value}
-                  thicknessOptions={material.thicknessOptions}
+                  thicknessOptions={material.thicknessOptions ?? selectedMaterial?.thickness_options}
                   autoSelectLowest={false}
                   label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
                   {readonly}
@@ -743,7 +753,7 @@
             <MaterialThicknessSelect
               bind:value={section.backThickness}
               materialType={section.backCategory || section.back}
-              thicknessOptions={section.backThicknessOptions}
+              thicknessOptions={section.backThicknessOptions ?? selectedMaterial?.thickness_options}
               autoSelectLowest={false}
               label={`BACK · ${$t('materialThickness.select')}`}
               {readonly}
@@ -815,12 +825,12 @@
         {readonly}
         onchange={(data) => selectSidesMaterial(section, data)}
       >
-        {#snippet editorDetails(_selectedMaterial, complete)}
+        {#snippet editorDetails(selectedMaterial, complete)}
           {#if section.sides}
             <MaterialThicknessSelect
               bind:value={section.sidesThickness}
               materialType={section.sidesCategory || section.sides}
-              thicknessOptions={section.sidesThicknessOptions}
+              thicknessOptions={section.sidesThicknessOptions ?? selectedMaterial?.thickness_options}
               autoSelectLowest={false}
               label={`SIDES · ${$t('materialThickness.select')}`}
               {readonly}
@@ -888,6 +898,7 @@
             allowCustom={true}
             {readonly}
             onchange={(data) => {
+              section[`${part}FilmMaterialId`] = data.material?.id;
               section[`${part}FilmHex`] = data.hex;
               section[`${part}FilmCategory`] = data.material?.category || "";
               section[`${part}FilmShort`] = extractShortName(
@@ -952,6 +963,7 @@
             {readonly}
             onchange={(data) => {
               section[`${item.key}Color`] = applyPaintMaterialSelection(data);
+              section[`${item.key}MaterialId`] = data.material?.id;
               emit();
             }}
           >
@@ -1013,6 +1025,7 @@
             {readonly}
             onchange={(data) => {
               section.ledModuleHex = data.hex;
+              section.ledModuleMaterialId = data.material?.id;
               section.ledModuleCategory = data.material?.category || "";
               section.ledModuleShort = extractShortName(
                 data,
@@ -1087,6 +1100,7 @@
             showColor={false}
             {readonly}
             onchange={(data) => {
+              section.psuModelMaterialId = data.material?.id;
               section.psuModelCategory = data.material?.category || "";
               section.psuModelShort = extractShortName(
                 data,
@@ -1146,6 +1160,7 @@
             showColor={false}
             {readonly}
             onchange={(data) => {
+              section.cableTypeMaterialId = data.material?.id;
               section.cableTypeCategory = data.material?.category || "";
               section.cableTypeShort = extractShortName(
                 data,
@@ -1246,12 +1261,12 @@
             {readonly}
             onchange={(data) => selectFrameMaterial(section, data)}
           >
-            {#snippet editorDetails(_selectedMaterial, complete)}
+            {#snippet editorDetails(selectedMaterial, complete)}
               {#if section.frameMaterial}
                 <MaterialThicknessSelect
                   bind:value={section.frameThickness}
                   materialType={section.frameMaterialCategory || section.frameMaterial}
-                  thicknessOptions={section.frameThicknessOptions}
+                  thicknessOptions={section.frameThicknessOptions ?? selectedMaterial?.thickness_options}
                   autoSelectLowest={false}
                   label={`FRAME · ${$t('materialThickness.select')}`}
                   {readonly}

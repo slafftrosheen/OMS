@@ -6,6 +6,7 @@ import { isProfilePrintMaterial } from './material-roles';
 export interface FaceMaterialSelection {
   id: string;
   name?: string;
+  materialId?: string | number;
   value: string;
   thickness?: string;
   hex?: string;
@@ -110,6 +111,7 @@ export interface ProfileMaterialChange {
   hex: string;
   shortName?: string;
   material: {
+    id?: string | number;
     code?: string;
     name_en?: string;
     category?: string;
@@ -135,7 +137,7 @@ export function applyProfileMaterialSelection(
       (missingCatalogOptions && previous.category === selection.material?.category)
       ? previous.thickness ?? '' : '';
   return {
-    ...previous, value: selection.value, thickness,
+    ...previous, value: selection.value, materialId: selection.material?.id, thickness,
     hex: selection.hex, shortName: selection.value ? extractShortName(selection, fallbackCategory) : '',
     category: selection.material?.category ?? '', process: printedPart ? '3D_PRINT' : undefined,
     thicknessOptions: missingCatalogOptions ? undefined : options

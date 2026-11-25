@@ -3999,6 +3999,7 @@
       "framePaint": "Frame paint"
     },
     "reasons": {
+      "workshop-match": "Workshop shorthand matched one catalog product. Confirm the proposed material.",
       "exact-match": "Exact catalog identity; review suitability.",
       "source-value": "Source value; requires review.",
       "no-exact-match": "No exact catalog match. Select manually.",

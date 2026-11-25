@@ -406,10 +406,12 @@ function DrawingStatusCursor({ settings, label }: { settings: CadSettings | null
 function DrawingZoomOptions({ label, children, onChange }: { label: string; children: ReactNode; onChange: (value: string) => void }) {
   const editor = useEditor();
   const zoom = useValue('Drawing zoom percentage', () => editor.getZoomLevel(), [editor]);
-  const percent = zoom * 100;
-  return <select aria-label={label} value="current" onChange={event => onChange(event.target.value)}>
-    <option value="current" disabled>{percent < 1 ? Number(percent.toPrecision(3)) : Math.round(percent)}%</option>
-    {[.01, .05, .1, .25, .5, 1, 2, 4].map(value => <option key={value} value={value}>{value * 100}%</option>)}
+  const steps = editor.getCameraOptions().zoomSteps.map(step => step * editor.getBaseZoom());
+  const percent = (factor: number) => Number((factor * 100).toPrecision(4));
+  const preset = steps.find(step => Math.abs(step - zoom) <= step * 1e-9);
+  return <select aria-label={label} value={preset ?? 'current'} onChange={event => onChange(event.target.value)}>
+    {preset === undefined && <option value="current" disabled>{percent(zoom)}%</option>}
+    {steps.map(value => <option key={value} value={value}>{percent(value)}%</option>)}
     {children}
   </select>;
 }
@@ -1740,7 +1742,11 @@ export function DrawingChrome() {
       <button type="button" className="drawing-snap-options-shortcut" onClick={() => setPanel('snap')} aria-pressed={panel === 'snap'} data-testid="drawing-status-snap-options">{snapLabel('open')}</button>
       <div className="drawing-zoom" aria-label={label('zoom')} title={label('zoomWheel')}>
         <ToolButton label={label('zoomOut')} onClick={() => command('zoom-out')}>−</ToolButton>
-        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else { editor.setCamera({ ...editor.getCamera(), z: Number(value) }); } }}>
+        <DrawingZoomOptions label={label('zoom')} onChange={value => { if (value === 'page') { if (!fitDrawingPage(editor)) setNotice(label('changedFailed')); } else if (value === 'fit') command('fit'); else if (value === 'selection') command('fit-selection'); else {
+          const center = editor.getViewportPageBounds().center, viewport = editor.getViewportScreenBounds();
+          const z = Number(value);
+          editor.setCamera({ x: viewport.w / (2 * z) - center.x, y: viewport.h / (2 * z) - center.y, z });
+        } }}>
           {pageBounds && <option value="page">{label('pageFit')}</option>}
           <option value="fit" disabled={!controls.hasShapes}>{actionLabel('fit')}</option><option value="selection" disabled={!controls.canFitSelection}>{actionLabel('fit-selection')}</option>
         </DrawingZoomOptions>

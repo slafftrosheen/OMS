@@ -17,6 +17,7 @@
   import {
     buildMaterialCatalogUrl,
     getMaterialCatalogView,
+    localizedMaterialName,
     materialCatalog,
     MATERIAL_CATEGORY_LABELS,
     type CatalogMaterial as Material
@@ -165,9 +166,6 @@
     });
   }
 
-  function materialName(material: Material): string {
-    return ($locale === "ru" ? material.name_ru : $locale === "lv" ? material.name_lv : "") || material.name_en || material.code;
-  }
 
   const specificationPriority: MaterialSpecificationKey[] = [
     "voltage", "ratedVoltage", "power", "powerPerMetre", "maxPowerPerMetre", "series", "ledType",
@@ -584,7 +582,7 @@
                     <span class="color-dot" style:background-color={materialSwatch(material.metadata?.hex)}></span>
                   {/if}
                   <span class="option-details">
-                    <span class="option-name">{materialName(material)}</span>
+                    <span class="option-name">{localizedMaterialName(material,$locale)}</span>
                     {#if material.thickness_options?.length}
                       <span class="option-thickness">{material.thickness_options.join(" / ")} mm</span>
                     {/if}

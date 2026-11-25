@@ -43,7 +43,7 @@ function recordedForm(value: unknown): AluminiumForm | undefined {
 }
 
 /** Resolve only form, never alloy, dimensions or structural suitability. */
-export function getAluminiumForm(material: CatalogMaterial): AluminiumForm | undefined {
+export function getAluminiumForm(material: Pick<CatalogMaterial, 'category' | 'code' | 'metadata' | 'name_en' | 'name_ru' | 'name_lv'>): AluminiumForm | undefined {
   if (!/^ALU(?:MIN(?:I)?UM)?(?:_|$)/i.test(material.category)) return undefined;
   const metadata = material.metadata || {};
   for (const field of ['product_form', 'form', 'type']) {

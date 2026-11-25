@@ -374,3 +374,41 @@ test('motion plays with normal settings and stays still with reduced motion', as
   await page.getByTestId('drawing-properties-toggle').click();
   expect(await page.evaluate(() => document.querySelector('.drawing-docker')!.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length)).toBe(0);
 });
+
+for (const mode of ['idea','order']) {
+  test(`${mode} centres overview zoom and uses the order catalog for fill and outline`, async ({page}) => {
+    await page.route('**/api/materials?**',route=>route.fulfill({json:[{
+      id: 'swatch-9010', category:'PAINT_RAL', code:'RAL_9010', name_en:'RAL 9010 Pure white', metadata:{hex:'#F1ECE1'}
+    }]}));
+    await page.setViewportSize({width:1440,height:950});
+    await page.goto(`/drawing-workspace.html?mode=${mode}&corel-editing`);
+    await expect(page.locator('.tl-canvas')).toBeVisible({timeout:20000});
+    await page.getByRole('button',{name:'Load Corel editing example'}).click();
+    const zoom=page.locator('.drawing-zoom select');
+    const center=()=>page.locator('.tl-canvas').evaluate(node=>{
+      const b=node.getBoundingClientRect();
+      return (window as any).__drawingFixture.screenPoint({x:b.x+b.width/2,y:b.y+b.height/2});
+    });
+    const before=await center();
+    for(const value of ['0.025','8','1']){
+      await zoom.selectOption(value);await expect(zoom).toHaveValue(value);
+      const after=await center();expect(after.x).toBeCloseTo(before.x,3);expect(after.y).toBeCloseTo(before.y,3);
+    }
+    const point=await page.evaluate(()=>(window as any).__drawingFixture.point('shape:corel-a',.05,.2));
+    await page.mouse.click(point.x,point.y);
+    await expect.poll(async()=>(await scene(page)).selected).toEqual(['shape:corel-a']);
+    for(const kind of ['fill','outline']){
+      await page.getByTestId('drawing-status-'+kind).click();
+      const panel=page.getByTestId(kind==='fill'?'vector-paint':'drawing-outline-pen');
+      await panel.getByText('Catalog paint',{exact:true}).click();
+      await panel.getByRole('searchbox').fill(kind==='fill'?'RAL9010':'9010');
+      await panel.getByRole('button',{name:'RAL 9010 Pure white'}).click();
+      await panel.getByRole('button',{name:kind==='fill'?'Apply fill':/Apply (?:outline )?colou?r/i,exact:kind==='fill'}).click();
+      const field=kind==='fill'?'fill':'stroke';
+      await expect.poll(async()=>(await scene(page)).shapes.find((s:any)=>s.id==='shape:corel-a').meta.omsVectorPaint[field].toUpperCase()).toBe('#F1ECE1');
+    }
+    await page.getByTestId('drawing-undo').click();
+    const paint=(await scene(page)).shapes.find((s:any)=>s.id==='shape:corel-a').meta.omsVectorPaint;
+    expect(paint.stroke).toBe('#172554');expect(paint.fill.toUpperCase()).toBe('#F1ECE1');
+  });
+}

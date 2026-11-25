@@ -175,6 +175,12 @@
 .drawing-status-text { flex: 1; min-width: 0; color: var(--ink-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawing-keyboard-hint { font-size: 10px; color: var(--ink-tertiary); white-space: nowrap; }
 .drawing-status > button { font-size: 11px; white-space: nowrap; padding: 4px 8px; min-height: 28px; border: 1px solid var(--border); background: transparent; border-radius: 2px; }
+.drawing-paint-catalog { grid-column: 1 / -1; min-width: 0; }
+.drawing-paint-catalog > summary { cursor: pointer; }
+.drawing-paint-catalog input { width: 100%; margin-block: 4px; }
+.drawing-paint-swatches { display: grid; max-height: 9rem; overflow-y: auto; }
+.drawing-paint-swatches button { display: flex; align-items: center; gap: 6px; text-align: start; }
+.drawing-paint-swatches span { width: 1em; height: 1em; flex: none; border: 1px solid var(--border); }
 .drawing-zoom { display: flex; align-items: center; flex: none; }
 .drawing-zoom select { min-width: 72px; max-width: 120px; height: 28px; border: 1px solid var(--border); background: var(--bg-0); border-radius: 2px; padding: 0 4px; }
 @container (max-width: 880px) {

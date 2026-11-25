@@ -605,14 +605,12 @@ test('BACK, SIDES and FRAME use independent catalog thickness selectors and surv
   expect(saved.ASSEMBLING.frameDimensions).toBe('40x40x3');
   const edits = await page.getByTestId('change-count').innerText();
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
-  for (const field of [back, sides, frame]) {
+  for (const [field, thickness] of [[back, '4mm'], [sides, '1.5mm'], [frame, '3mm']] as const) {
     await expect(field.locator('[data-material-badge]')).toHaveCount(1);
     await expect(field.locator('.thickness-select')).toHaveCount(0);
     await openEditor(field);
+    await expect(field.locator('.thickness-select')).toHaveValue(thickness);
   }
-  await expect(page.getByLabel('BACK · Select thickness', { exact: true })).toHaveValue('4mm');
-  await expect(page.getByLabel('SIDES · Select thickness', { exact: true })).toHaveValue('1.5mm');
-  await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toHaveValue('3mm');
   await expect(page.getByTestId('change-count')).toHaveText(edits);
 });
 
@@ -626,6 +624,7 @@ test('BACK offers GS and sheet thicknesses while flatstock and profiles belong t
   await back.locator('.thickness-select').selectOption('5mm');
   expect((await savedConfiguration(page)).CNC_FREZER).toMatchObject({ backCategory: 'ACRYLIC_GS', backThickness: '5mm' });
 
+  await openEditor(back);
   await back.locator('.select-trigger').click();
   await back.getByRole('button', { name: /Aluminum sheets/ }).click();
   await expect(back.locator('.option')).toHaveCount(1);
@@ -649,8 +648,8 @@ test('BACK offers GS and sheet thicknesses while flatstock and profiles belong t
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
   await expect(back.locator('[data-material-badge]')).toHaveText('ALU /15mm');
   await openEditor(back);
-  await openEditor(frame);
   await expect(back.locator('.thickness-select')).toHaveValue('15mm');
+  await openEditor(frame);
   await expect(frame.locator('.select-trigger .value-category')).toHaveText('Aluminium flatstock');
   await expect(frame.locator('.thickness-select')).toHaveValue('3mm');
   expect((await savedConfiguration(page)).CNC_FREZER.back).toBe('Aluminium sheet 1500 × 3000 mm');

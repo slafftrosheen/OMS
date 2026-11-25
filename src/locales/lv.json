@@ -3999,6 +3999,7 @@
       "framePaint": "Rāmja krāsa"
     },
     "reasons": {
+      "workshop-match": "Pēc rasējuma apzīmējuma atrasta viena kataloga pozīcija. Pārbaudiet piedāvāto materiālu.",
       "exact-match": "Precīza kataloga atbilstība; pārbaudiet piemērotību.",
       "source-value": "Vērtība no avota; jāpārskata.",
       "no-exact-match": "Nav precīzas atbilstības katalogā. Izvēlieties manuāli.",

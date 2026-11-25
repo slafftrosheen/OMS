@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { base } from '$app/paths';
-  import { t } from 'svelte-i18n';
+  import { locale, t } from 'svelte-i18n';
+  import { localizedMaterialName } from '$lib/profiles/material-catalog';
   import { MAX_PDF_PAGE_NUMBER, MAX_VISUAL_PDF_PAGES, parsePdfPageRange, type PdfPageScope } from '$lib/pdf/page-range';
   import { proposalsToPatch, proposalMatchesCurrent, type IntakeProposal, type IntakeResponse } from './intake-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged,announceOrderFilesChanged} from './order-files-client';
@@ -109,7 +110,7 @@
     JSON.stringify(current)!==baseState
   ));
   let production=$derived((analysis?.production??[]).map((p,i)=>manualSelections[i]??p));
-  let attentionCount=$derived((analysis?.proposals.filter(p=>p.confidence!=='high').length??0)+production.filter(p=>p.status!=='ready'||p.confidence!=='high'||p.reason==='manual-selection').length+(analysis?.orderConflicts?.length??0));
+  let attentionCount=$derived((analysis?.proposals.filter(p=>p.confidence!=='high').length??0)+production.filter(p=>needsMaterialReview(p)||p.confidence!=='high').length+(analysis?.orderConflicts?.length??0));
   let choiceCount=$derived((analysis?.proposals.length??0)+production.length+(analysis?.orderConflicts?.length??0));
   let acceptedCount=$derived((analysis?.proposals.filter((p,i)=>
     approvals[i]===true && !isUnchanged(p)).length??0)+
@@ -140,6 +141,9 @@
     replacementApproved=false;problem='';
   }
   function clearApprovals(){approvals={};productionApprovals={};replacementApproved=false;}
+  function needsMaterialReview(p:ProductionReview){
+    return p.status!=='ready'||p.reason==='manual-selection'||p.reason==='workshop-match';
+  }
   function visible(confidence:string,selected:boolean,unresolved=false){
     return reviewFilter==='selected'?selected:reviewFilter==='attention'?unresolved||confidence!=='high':true;
   }
@@ -480,10 +484,10 @@
         </article>
       {/if}{/each}
     {/if}
-    {#if production.some((p,i)=>visible(p.confidence,productionApprovals[i]===true,p.status!=='ready'||p.reason==='manual-selection'))}
+    {#if production.some((p,i)=>visible(p.confidence,productionApprovals[i]===true,needsMaterialReview(p)))}
       <h4>{$t('orderIntake.production')}</h4>
       <p class="hint">{$t('orderIntake.productionHint')}</p>
-      {#each production as p,i (`${p.target}-${i}`)}{#if visible(p.confidence,productionApprovals[i]===true,p.status!=='ready'||p.reason==='manual-selection')}
+      {#each production as p,i (`${p.target}-${i}`)}{#if visible(p.confidence,productionApprovals[i]===true,needsMaterialReview(p))}
         {@const picker=getProductionMaterialPicker(p.target)}
         <article class="review-row" class:unresolved={p.status!=='ready'}><div class="review-head">
           <label class="choice"><input id={`${sectionId}-production-${i}`} type="checkbox" checked={productionApprovals[i]===true} onchange={e=>approve(i,e.currentTarget.checked,'production')}
@@ -491,11 +495,19 @@
           <span class="confidence">{$t('orderAssistant.confidence.'+p.confidence)}</span></div>
           {#if p.part}<p class="hint">{p.part}</p>{/if}
           <div class="comparison"><div><span class="caption">{$t('orderIntake.current')}</span><p>{productionCurrentValue(p,current,profileIndex)||'—'}</p></div>
-            <div><span class="caption">{$t('orderIntake.proposed')}</span><p class="proposed">{p.material?.name_en??p.value}</p>
+            <div><span class="caption">{$t('orderIntake.proposed')}</span><p class="proposed">{p.material ? localizedMaterialName(p.material,$locale) : p.value}</p>
               {#if p.material}<p class="hint">{p.material.code}</p>{/if}</div></div>
           <p class="reason" class:warning-text={p.status!=='ready'}>{$t('productionIntake.reasons.'+p.reason)}</p>
           {#if profileIndex===null&&!isOrderProductionFact(p)}<p class="hint">{$t('orderIntake.chooseSavedProfile')}</p>{/if}
           {#if picker&&!['conflicting-values','invalid-value'].includes(p.reason)&&!applied}
+            {#if p.alternatives?.length && editingMaterial!==i}
+              <div class="material-alternatives">
+                {#each p.alternatives as candidate (candidate.id)}
+                  <button type="button" class="text-button" disabled={!editable||analysisStale||applying}
+                    onclick={()=>chooseMaterial(i,candidate)}>{localizedMaterialName(candidate,$locale)} · {candidate.code}</button>
+                {/each}
+              </div>
+            {/if}
             {#if editingMaterial===i}
               <div class="material-editor"><p class="hint">{$t('orderIntake.manualMaterialHint')}</p>
                 <MaterialSelect categories={picker.categories} materialRole={picker.role} value={p.material?.code??''}
@@ -544,6 +556,7 @@
  select,button,input{font:inherit;max-width:100%;min-width:0}select,button{padding:var(--space-sm);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-1);color:var(--ink-primary);min-height:40px}
  button{font-weight:550;cursor:pointer}button:hover:not(:disabled){background:var(--bg-2)}button:disabled{opacity:.55;cursor:not-allowed}
  button.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}button.primary:hover:not(:disabled){background:var(--brand-hover,var(--brand))}
+ .material-alternatives{display:grid;gap:2px}.material-alternatives button{overflow-wrap:anywhere}
  .text-button{background:transparent;border:0;min-height:36px;padding:4px 0;color:var(--link);text-align:left}
  .actions,.filters{display:flex;gap:var(--space-sm);flex-wrap:wrap}.filters{gap:var(--space-xs)}.filters button{flex:1;font-size:var(--text-xs);min-height:36px;white-space:normal}.filters button[aria-pressed='true']{border-color:var(--ink-primary);background:var(--bg-2);color:var(--ink-primary)}
  .check,.choice{display:flex;gap:var(--space-sm);align-items:flex-start}.choice{align-items:center;min-height:32px}.check{min-height:32px}.check input,.choice input{flex-shrink:0;margin-top:4px}.choice input{margin-top:0}

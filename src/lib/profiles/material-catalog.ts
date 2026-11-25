@@ -1,3 +1,5 @@
+import { matchesWorkshopTerm, parseWorkshopTerm } from './material-terms';
+
 /** Shared catalog data for the native profile pickers. Loading never changes a saved selection. */
 export interface CatalogMaterial {
   id: number;
@@ -16,6 +18,11 @@ export interface CatalogMaterial {
     brand?: string;
     [key: string]: unknown;
   };
+}
+
+export function localizedMaterialName(material: Pick<CatalogMaterial, 'code' | 'name_en' | 'name_ru' | 'name_lv'>, locale?: string | null) {
+  const name = locale?.startsWith('ru') ? material.name_ru : locale?.startsWith('lv') ? material.name_lv : '';
+  return name || material.name_en || material.code;
 }
 
 export const MATERIAL_CATEGORY_LABELS: Record<string, string> = {
@@ -65,13 +72,14 @@ export function getMaterialCatalogView(
   const categories = [...counts].sort(([a], [b]) => a.localeCompare(b))
     .map(([category, count]) => ({ category, count }));
   const query = search.trim().toLocaleLowerCase();
+  const term = parseWorkshopTerm(query);
   const matching = query
     ? materials.filter((material) => [
         material.name_en, material.name_ru, material.name_lv, material.code,
         material.category, MATERIAL_CATEGORY_LABELS[material.category], localizedCategoryLabels[material.category],
         material.metadata?.brand, material.metadata?.model, material.metadata?.manufacturer_part_number,
         material.metadata?.short_name, material.metadata?.colorCode
-      ].some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(query)))
+      ].some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(query)) || (term && matchesWorkshopTerm(material, term)))
     : category ? materials.filter((material) => material.category === category) : [];
   const grouped = new Map<string, CatalogMaterial[]>();
   for (const material of matching) {

@@ -120,7 +120,11 @@ Targets: faceMaterial,backMaterial,sidesMaterial,frameMaterial,faceFilm,backFilm
 sidesFilm,facePaint,backPaint,sidesPaint,framePaint,ledModule,psuModel,cableType,depth,faceThickness,backThickness,sidesThickness,
 width,height,facePrint,backPrint,sidesPrint,signType,psuType,psuMounting,cableLength,
 quantity,ledSpec,psuSpec,cableSpec,frameSpec,productionNotes,customerReference,clientAddress.
-Use complete source product identities, NEVER material IDs or guessed catalog codes.
+Use the product wording actually printed, including workshop shorthand. For example,
+"back: ALU 3 mm" yields backMaterial "ALU" and backThickness "3 mm";
+"sides paint: 9010" yields sidesPaint "9010". Preserve explicit grades, finishes,
+colour systems and qualifiers. Emit a paint target only when the source assigns
+the colour to paint. Never guess a catalog code or material ID.
 Generic 6500K/regular PSU/12V cable belong in ledSpec/psuSpec/cableSpec, not model targets.
 CableLength is ONLY the main mains/supply cable; per-letter DC cables stay in cableSpec.
 Dimensions MUST include explicit mm/cm/m units; do not turn a range into one number.

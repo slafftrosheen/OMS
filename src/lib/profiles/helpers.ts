@@ -1,3 +1,4 @@
+import { materialRalCode, ralClassicCode } from './material-terms';
 import { swatchTextColor } from './components/fields/swatch-contrast';
 
 /**
@@ -12,6 +13,7 @@ export interface ColorValue {
     system: string;
     code: string;
     hex: string;
+    catalogCode?: string;
 }
 
 export const defaultColor: ColorValue = { system: '', code: '', hex: '' };
@@ -84,8 +86,8 @@ export function paintMaterialValue(color: Partial<ColorValue> | undefined): stri
     if (system === 'CUSTOM') return color?.code || '';
     if (system === 'PANTONE') return `PANTONE_${code.replace(/^PANTONE[_\s-]+/i, '')}`;
     if (system === 'RAL' || !system) {
-        const ralCode = code.replace(/^RAL[_\s-]+/i, '');
-        if (/^\d{4}$/.test(ralCode)) return `RAL_${ralCode}`;
+        const ralCode = ralClassicCode(code);
+        if (ralCode) return nonempty(color?.catalogCode) || `RAL_${ralCode}`;
     }
     return color?.code || '';
 }
@@ -96,9 +98,12 @@ export function applyPaintMaterialSelection(data: {
 }): ColorValue {
     if (!data.value) return { ...defaultColor };
     if (data.material) {
+        const material = data.material;
+        const ral = material.category === 'PAINT_RAL' ? materialRalCode({ ...material, category: material.category }) : undefined;
         return {
+            ...(ral && material.code && material.code !== `RAL_${ral}` ? { catalogCode: material.code } : {}),
             system: data.material.category === 'PAINT_PANTONE' ? 'Pantone' : 'RAL',
-            code: (data.material.code || data.value).replace(/^(?:RAL|PANTONE)[_\s-]+/i, ''),
+            code: ral ?? (material.code || data.value).replace(/^(?:RAL|PANTONE)[_\s-]+/i, ''),
             hex: data.hex || ''
         };
     }

@@ -1,3 +1,4 @@
+import { DrawingPaintCatalog } from './DrawingPaintCatalog';
 import React,{useEffect,useId,useRef,useState,type ReactNode} from 'react';
 import {useEditor,useValue} from '@tldraw/tldraw';
 import {canvasLengthToUnit,cadMmPerPixel,unitMm,type CadSettings} from './cad-settings';
@@ -110,6 +111,7 @@ export function OutlinePenPanel({settings,revision,disabled,focusSequence,focusC
    {field('stroke',<>
     <div className="drawing-vector-paint-row"><input ref={colorInput} type="color" aria-label={t('stroke')} value={draft.stroke==='none'?'#000000':draft.stroke} onChange={event=>edit('stroke',event.target.value)}/>
       <label><input type="checkbox" checked={draft.stroke==='none'} onChange={event=>edit('stroke',event.target.checked?'none':'#000000')}/>{t('none')}</label></div>
+    <DrawingPaintCatalog onChoose={hex=>edit('stroke',hex)} />
     <button type="button" disabled={!checked.includes('stroke')} onClick={()=>applyField('stroke', {stroke:draft.stroke})}>{t('applyColor')}</button>
    </>)}
    {field('strokeWidth',<>

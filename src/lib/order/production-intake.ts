@@ -4,6 +4,7 @@ import {z} from 'zod';
 import {MAX_PDF_PAGE_NUMBER} from '$lib/pdf/page-range';
 import {INTAKE_JSON_SCHEMA, intakeModelSchema, type IntakeProposal, type IntakeField} from './intake-contract';
 import {filterProfileMaterials,isProfilePrintMaterial,PROFILE_MATERIAL_CATEGORIES,type ProfileMaterialRole} from '$lib/profiles/material-roles';
+import {matchesWorkshopTerm, parseWorkshopTerm} from '$lib/profiles/material-terms';
 import type {CatalogMaterial} from '$lib/profiles/material-catalog';
 import {readFaceMaterials, withFaceMaterials} from '$lib/profiles/face-materials';
 import {applyPaintMaterialSelection} from '$lib/profiles/helpers';
@@ -41,8 +42,9 @@ export const PRODUCTION_INTAKE_JSON_SCHEMA={
 export type IntakeMaterial=Omit<CatalogMaterial,'id'> & {id:string|number};
 export type ProductionReview=ProductionFact & {
   status:'ready'|'unresolved';
-  reason:'exact-match'|'source-value'|'no-exact-match'|'catalog-unavailable'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
+  reason:'exact-match'|'workshop-match'|'source-value'|'no-exact-match'|'catalog-unavailable'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
   material:IntakeMaterial|null;
+  alternatives?:IntakeMaterial[];
 };
 export function sameIntakeMaterial(a:IntakeMaterial|null,b:IntakeMaterial|null):boolean{
   const snapshot=(m:IntakeMaterial|null)=>m?{
@@ -91,29 +93,49 @@ function candidates(target:ProductionFact['target'],catalog:IntakeMaterial[]):In
   return picker.role?filterProfileMaterials(catalog as CatalogMaterial[],picker.role) as IntakeMaterial[]
     :catalog.filter(m=>picker.categories.includes(m.category));
 }
-/** No fuzzy ranking or color/voltage equivalence. Only complete recorded
- * identities (or explicit catalog aliases) count as a match. */
+function reviewMaterial(fact: ProductionFact, catalog: IntakeMaterial[] | null): ProductionReview {
+  const review: ProductionReview = { ...fact, status: 'unresolved', reason: 'catalog-unavailable', material: null };
+  if (!catalog) return review;
+  const eligible = candidates(fact.target, catalog);
+  const value = key(fact.value);
+  const term = parseWorkshopTerm(fact.value);
+  const paintTerm = term && 'ral' in term && fact.target.endsWith('Paint');
+  const exact = eligible.filter(m => {
+    // A bare paint number is a RAL request. A Pantone SKU or alias with the
+    // same digits must not take precedence over a recorded RAL identity.
+    if (paintTerm && m.category !== 'PAINT_RAL') return false;
+    const meta = m.metadata ?? {};
+    return [m.code, m.name_en, m.name_ru, m.name_lv, meta.model, meta.manufacturer_part_number,
+      ...(Array.isArray(meta.intake_aliases) ? meta.intake_aliases : [])].some(id => value && key(id) === value);
+  });
+  const shorthand = term ? eligible.filter(m => matchesWorkshopTerm(m, term)) : [];
+  // Colour codes can identify several finishes even if one SKU is literally
+  // RAL_9010. Include every matching finish before deciding uniqueness.
+  let matches = exact;
+  if (paintTerm) matches = [...new Set([...exact, ...shorthand])];
+  else if (term && 'family' in term && fact.target.endsWith('Material')) matches = shorthand;
+  if (!matches.length) return { ...review, reason: 'no-exact-match' };
+  if (matches.length > 1) return { ...review, reason: 'ambiguous-match', alternatives: matches.slice(0, 5) };
+  return { ...review, status: 'ready', reason: exact.includes(matches[0]) ? 'exact-match' : 'workshop-match', material: matches[0] };
+}
+
 export function reviewProductionFacts(raw:unknown[],catalog:IntakeMaterial[] | null):ProductionReview[]{
   const facts=z.array(productionFactSchema).max(50).parse(raw);
-  return facts.map(f=>{
-    const review:ProductionReview={...f,status:'ready',reason:'source-value',material:null};
-    if(facts.some(other=>other.target===f.target && key(other.value)!==key(f.value)))
-      return {...review,status:'unresolved',reason:'conflicting-values'};
-    if(materialTargets.has(f.target)){
-      if (catalog === null) return {...review,status:'unresolved',reason:'catalog-unavailable'};
-      const matches=candidates(f.target,catalog).filter(m=>{
-        const meta=m.metadata??{};
-        const identities=[m.code,m.name_en,m.name_ru,m.name_lv,meta.model,meta.manufacturer_part_number,
-          ...(Array.isArray(meta.intake_aliases)?meta.intake_aliases:[])];
-        return identities.some(id=>key(id)!==''&&key(id)===key(f.value));
-      });
-      if(matches.length!==1) return {...review,status:'unresolved',
-        reason:matches.length?'ambiguous-match':'no-exact-match'};
-      return {...review,reason:'exact-match',material:matches[0]};
-    }
-    if(!normalizedValue(f))return {...review,status:'unresolved',reason:'invalid-value'};
+  const identities = new Map<ProductionFact['target'], Set<string>>();
+  const reviews = facts.map((f): ProductionReview => {
+    const review: ProductionReview = materialTargets.has(f.target) ? reviewMaterial(f, catalog)
+      : normalizedValue(f) ? { ...f, status:'ready', reason:'source-value', material:null }
+      : { ...f, status:'unresolved', reason:'invalid-value', material:null };
+    const term = materialTargets.has(f.target) ? parseWorkshopTerm(f.value) : undefined;
+    const identity = review.material ? `id:${review.material.id}` : `source:${term ? JSON.stringify(term) : key(f.value)}`;
+    const values = identities.get(f.target) ?? new Set<string>();
+    values.add(identity);
+    identities.set(f.target, values);
     return review;
   });
+  return reviews.map(review => identities.get(review.target)!.size > 1
+    ? { ...sourceFact(review), status:'unresolved', reason:'conflicting-values', material:null }
+    : review);
 }
 function millimeters(value:string):number|null{
   const match=/^(\d+(?:[.,]\d+)?)\s*(mm|cm|m)$/i.exec(value);
@@ -133,6 +155,9 @@ function normalizedValue(f:ProductionFact):string|number|boolean|null{
   if(f.target==='psuType')return ['regular','dimmable'].includes(f.value)?f.value:null;
   if(f.target==='customerReference' && /^(?:PO[- ]*)?(?:x+|tbd|unknown|n\/?a)$/i.test(f.value))return null;
   return f.value;
+}
+function alreadySelected(value: unknown, id: unknown, material: IntakeMaterial): boolean {
+  return (id == null || id === '' || id === material.id) && (value === material.code || value === material.name_en);
 }
 function append(values:RecordValue,field:string,line:string){
   const old=typeof values[field]==='string'?values[field]:'';
@@ -175,16 +200,16 @@ export function applyProductionFacts<T extends RecordValue>(
         values[part+'Color']=color;
       }
       write('PAINTING',part,true);
-      values[part+'MaterialId']=m.id;
+      set(values,part+'MaterialId',m.id,replace);
     }else if(target==='faceMaterial'){
       const cnc=section('CNC_FREZER'),rows=readFaceMaterials(cnc);
-      if(rows.some(r=>r.value && r.value!==m.code)&&!replace)throw new ProductionIntakeError('replaceRequired');
+      if(rows.some(r=>r.value && !alreadySelected(r.value,r.materialId,m))&&!replace)throw new ProductionIntakeError('replaceRequired');
       if(rows.filter(r=>r.value).length>1)throw new ProductionIntakeError('multipleFaceMaterials');
       const old=rows[0]??{id:'face-material-1',value:''};
       Object.assign(cnc,withFaceMaterials(cnc,[{...old,value:m.code,materialId:m.id,
         category:m.category,hex:m.metadata?.hex??'',shortName:m.name_en,
         process:isProfilePrintMaterial(m.category)?'3D_PRINT':undefined,
-        thickness:old.value===m.code?old.thickness:'',thicknessOptions:m.thickness_options}]));
+        thickness:alreadySelected(old.value,old.materialId,m)?old.thickness:'',thicknessOptions:m.thickness_options}]));
     }else{
       const mapping:Record<string,[string,string,string?]>={
         backMaterial:['CNC_FREZER','back'],sidesMaterial:['BENDER','sides'],frameMaterial:['ASSEMBLING','frameMaterial','frame'],
@@ -192,22 +217,24 @@ export function applyProductionFacts<T extends RecordValue>(
         ledModule:['ASSEMBLING','ledModule','led'],psuModel:['ASSEMBLING','psuModel','psu'],cableType:['ASSEMBLING','cableType','cables']
       };
       const [name,field,toggle]=mapping[target];
-      write(name,field,m.code);
+      const values=section(name);
+      const same=alreadySelected(values[field],values[field+'MaterialId'],m);
+      if(same)values[field]=m.code;
+      else write(name,field,m.code);
       // Enabling an explicitly disabled production step is also a replacement.
       if(toggle)write(name,toggle,true);
-      const values=section(name);
-      values[field+'MaterialId']=m.id;
+      set(values,field+'MaterialId',m.id,replace);
       values[field+'Category']=m.category;
       values[field+'Short']=m.name_en;
-      if(m.metadata?.hex)values[field+'Hex']=m.metadata.hex;
+      if(m.metadata?.hex || field+'Hex' in values)values[field+'Hex']=m.metadata?.hex??'';
       if(target==='backMaterial'||target==='sidesMaterial'){
         if(target==='backMaterial')values.backProcess=isProfilePrintMaterial(m.category)?'3D_PRINT':undefined;
         values[field+'ThicknessOptions']=m.thickness_options;
-        if(current[index].configuration?.[name]?.[field]!==m.code)values[field+'Thickness']='';
+        if(!same)values[field+'Thickness']='';
       }
       if(target==='frameMaterial'){
         values.frameThicknessOptions=m.thickness_options;
-        if(current[index].configuration?.ASSEMBLING?.frameMaterial!==m.code)values.frameThickness='';
+        if(!same)values.frameThickness='';
       }
     }
   }

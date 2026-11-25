@@ -1,3 +1,4 @@
+import { DrawingPaintCatalog } from './DrawingPaintCatalog';
 import { readVectorDrawingFile } from "./cad-vector-import-client";
 import { drawingFileKind, VECTOR_FILE_ACCEPT } from "./drawing-file-types";
 import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fill';
@@ -669,7 +670,7 @@ export function CornerControls({ settings, revision, disabled, focusSequence, me
   );
 }
 export function VectorPaintControls({ settings, revision, disabled, focusSequence, gradientFocusSequence }: Props & { gradientFocusSequence?: number }) {
-  const editor = useEditor(), t = useSolidFillText();
+  const editor = useEditor(), { t } = useSolidFillText();
   const section = useRef<HTMLDetailsElement>(null);
   const source = useValue('solid CAD fill', () => drawingSolidFillSource(editor), [editor]);
   const signature = source?.signature ?? '';
@@ -688,14 +689,18 @@ export function VectorPaintControls({ settings, revision, disabled, focusSequenc
     section.current.scrollIntoView({block:'nearest'});
     section.current.querySelector('summary')?.focus();
   }, [focusSequence]);
+  function chooseFill(hex:string) {
+    setFill(hex);setNone(false);setDirty(true);setResult(null);
+  }
   return <details className="drawing-cad-section" open data-testid="vector-paint" ref={section}>
     <summary>{t('title')}</summary>
     <p className="drawing-help">{t('help')}</p>
     <fieldset className="drawing-cad-fields" disabled={disabled || !source || loadedSignature !== signature}>
       <div className="drawing-cad-field"><span>{t('colour')}</span><div className="drawing-vector-paint-row">
-        <input type="color" aria-label={t('colour')} value={fill} onChange={event=>{setFill(event.target.value);setNone(false);setDirty(true);setResult(null);}}/>
+        <input type="color" aria-label={t('colour')} value={fill} onChange={event=>chooseFill(event.target.value)}/>
         <label><input type="checkbox" checked={none} onChange={event=>{setNone(event.target.checked);setDirty(true);setResult(null);}}/>{t('none')}</label>
       </div></div>
+      <DrawingPaintCatalog onChoose={chooseFill} />
       <button type="button" disabled={!dirty} onClick={()=>{
         if (!source || loadedSignature !== signature || disabled) return;
         const success=applyDrawingSolidFill(editor,source.shape.id,signature,none?'none':fill);

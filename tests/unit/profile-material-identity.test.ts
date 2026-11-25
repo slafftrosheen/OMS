@@ -52,12 +52,12 @@ describe('profile material identity', () => {
 
   it('clears a material and its dependent metadata without altering another saved field', () => {
     const previous = {
-      id: 'back', value: 'Aluminium sheet', category: 'ALU_SHEET',
+      id: 'back', value: 'Aluminium sheet', materialId: 42, category: 'ALU_SHEET',
       thickness: '2mm', thicknessOptions: [1, 2, 3], hex: '#abcdef', shortName: 'ALU',
       legacyNote: 'Keep this instruction'
     };
     expect(applyProfileMaterialSelection(previous, { value: '', hex: '', material: null }, 'ALU')).toEqual({
-      ...previous, value: '', category: '', process: undefined,
+      ...previous, value: '', materialId: undefined, category: '', process: undefined,
       thickness: '', thicknessOptions: [], hex: '', shortName: ''
     });
     expect(previous.value).toBe('Aluminium sheet');

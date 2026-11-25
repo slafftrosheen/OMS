@@ -265,6 +265,7 @@ test('preset dialogs contain keyboard focus and saving a preset keeps order acti
  await dialog.getByRole('button',{name:'Save preset',exact:true}).click();
  await expect(dialog).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Submit for review',exact:true})).toBeEnabled();
+ await page.locator('.creation-more > summary').click();
  await expect(page.getByRole('button',{name:'Save & analyze PDF',exact:true})).toBeEnabled();
  expect(observed.writes).toEqual([]);
 });
@@ -594,4 +595,25 @@ test('new-order recovery preserves partial uploads, serializes deletion and prot
  expect(writes.filter(write=>write.path==='/api/files/upload'&&write.body.includes('filename="Attached.png"')).length).toBe(1);
  await leave.click();await expect(page.getByTestId('new-order-navigation')).toHaveText('true');
  expect(errors).toEqual([]);
+});
+
+test('reviews workshop ALU and chooses between matching RAL finishes before filling the native profile',async({page})=>{
+ const sheet={id:'alu-sheet',category:'ALU_SHEET',code:'WORKSHOP_ALU_SHEET_1500X3000',name_en:'Aluminium sheet · 1500 × 3000 mm',metadata:{product_form:'sheet'}};
+ const gloss={id:'ral-gloss',category:'PAINT_RAL',code:'RAL_9010',name_en:'Pure white gloss',metadata:{ralCode:'9010',hex:'#F1ECE1'}};
+ const matte={...gloss,id:'ral-matte',code:'RAL_9010_MATT',name_en:'Pure white matt'};
+ await setup(page,[fact('backMaterial','ALU',{material:sheet,reason:'workshop-match',confidence:'high'}),
+   fact('backPaint','9010',{status:'unresolved',reason:'ambiguous-match',alternatives:[gloss,matte]})]);
+ await page.route('**/api/materials?intake=true',r=>r.fulfill({json:[sheet,gloss,matte]}));
+ await analyze(page);
+ await page.getByRole('button',{name:'Needs attention',exact:true}).click();
+ const material=page.getByRole('checkbox',{name:'Back material',exact:true}), paint=page.getByRole('checkbox',{name:'Back paint',exact:true});
+ await expect(material).toBeEnabled();await expect(paint).toBeDisabled();
+ await page.getByRole('button',{name:/Pure white matt · RAL_9010_MATT/}).click();
+ await material.check();await paint.check();
+ await page.getByRole('button',{name:'Apply selected fields to form'}).click();
+ await expect(page.getByTestId('applied')).toHaveText('1');
+ const configuration=JSON.parse(await page.getByTestId('current').innerText()).profiles[0].configuration;
+ expect(configuration.CNC_FREZER.backMaterialId).toBe(sheet.id);
+ expect(configuration.PAINTING.backMaterialId).toBe(matte.id);
+ expect(configuration.PAINTING.backColor.code).toBe('9010');
 });
