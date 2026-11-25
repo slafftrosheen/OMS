@@ -1,8 +1,9 @@
 <script lang="ts">
   import { modalDialog } from '$lib/ui/modal-dialog';
-  import { workspaceUrl } from '$lib/order/workspace-navigation';
+  import { orderDetailUrl, workspaceUrl } from '$lib/order/workspace-navigation';
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
+  import { page } from '$app/state';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
@@ -50,27 +51,46 @@
   let canReview = $derived(can($currentUser, 'reviewQueue'));
   let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
 
-  onMount(async () => {
-    if (!canReview) {
-      goto(`${base}/orders`);
-      return;
-    }
-    await load();
+  const requestedOrder = $derived(page.url.searchParams.get('order')?.toLowerCase() ?? null);
+  let contextVersion = 0;
+  let listRequest: AbortController | null = null;
+
+  $effect(() => {
+    const actor = $currentUser?.id, role = $currentUser?.role, target = requestedOrder;
+    const allowed = canReview;
+    return untrack(() => {
+      orders=[]; error=''; loading=true;
+      confirming=false; rejecting=false; closeConfirm(); clearReject();
+      if (actor && role && allowed) void load(target);
+      else void goto(`${base}/orders`);
+      return () => { contextVersion++; confirmLoadSequence++; listRequest?.abort(); };
+    });
   });
 
-  async function load() {
+  async function load(target = requestedOrder) {
+    if (!canReview) return;
+    listRequest?.abort();
+    const request = new AbortController();
+    listRequest = request;
     loading = true;
     error = '';
     try {
-      const res = await fetch(`${base}/api/orders/pending-review`);
+      const query = target === null ? '' : `?order=${encodeURIComponent(target)}`;
+      const res = await fetch(`${base}/api/orders/pending-review${query}`, {
+        cache:'no-store', signal:request.signal
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      orders = Array.isArray(data) ? data : [];
-    } catch (err: any) {
-      console.error('Failed to load pending review orders:', err);
-      error = err?.message ?? 'Failed to load';
+      if (request.signal.aborted) return;
+      if (!Array.isArray(data) || data.some(order => !order?.id || (target !== null && order.id !== target)))
+        throw new Error($t('orders.review.loadFailed'));
+      orders = data;
+    } catch {
+      if (request.signal.aborted) return;
+      orders=[];
+      error = $t('orders.review.loadFailed');
     } finally {
-      loading = false;
+      if (!request.signal.aborted) loading = false;
     }
   }
 
@@ -94,7 +114,7 @@
       if(!response.ok)throw new Error($t('orderWorkspace.confirmReloadRequired'));
       const latest=await response.json();
       if(sequence!==confirmLoadSequence||confirmTarget?.id!==order.id)return;
-      if(!['DRAFT','draft','PENDING_REVIEW'].includes(latest.status) ||
+      if(latest.id !== order.id || !['DRAFT','draft','PENDING_REVIEW'].includes(latest.status) ||
          typeof latest.updatedAt!=='string')
         throw new Error($t('orderWorkspace.confirmReloadRequired'));
       if(!Array.isArray(latest.files))
@@ -135,6 +155,7 @@
         ?'orderWorkspace.confirmFilesMissing':'orderWorkspace.confirmReloadRequired');
       return;
     }
+    const context = contextVersion;
     confirming = true;
     confirmError = '';
     try {
@@ -146,6 +167,7 @@
         }),
       });
       const payload = await res.json().catch(() => ({}));
+      if (context !== contextVersion) return;
       if (!res.ok) {
         if (res.status===409||res.status===428) {
           confirmRevision=null;
@@ -163,9 +185,9 @@
       confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];
       await load();
     } catch (err: any) {
-      confirmError = err?.message ?? 'Failed to confirm';
+      if (context === contextVersion) confirmError = err?.message ?? 'Failed to confirm';
     } finally {
-      confirming = false;
+      if (context === contextVersion) confirming = false;
     }
   }
 
@@ -185,6 +207,7 @@
 
   async function submitReject() {
     if (!rejectTarget || !rejectReason.trim() || rejecting) return;
+    const context = contextVersion;
     rejecting = true;
     try {
       const res = await fetch(`${base}/api/draft-orders/${rejectTarget.id}/reject`, {
@@ -192,19 +215,20 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectReason.trim() }),
       });
+      if (context !== contextVersion) return;
       if (!res.ok) {
         const p = await res.json().catch(() => ({}));
-        notifications.error(p?.message ?? $t('orders.review.rejectFailed'));
+        if (context !== contextVersion) return;
+        notifications.error(p?.error ?? p?.message ?? $t('orders.review.rejectFailed'));
         return;
       }
       notifications.success($t('orders.review.rejected'));
       clearReject();
       await load();
     } catch (err) {
-      console.error(err);
-      notifications.error($t('orders.review.rejectFailed'));
+      if (context === contextVersion) notifications.error($t('orders.review.rejectFailed'));
     } finally {
-      rejecting = false;
+      if (context === contextVersion) rejecting = false;
     }
   }
 
@@ -237,17 +261,14 @@
         })}
       </p>
     </div>
-    <Button variant="secondary" onclick={load} disabled={loading}>
+    <Button variant="secondary" onclick={() => void load()} disabled={loading}>
       <Icon name="refresh-cw" size="sm" />
       {$t('actions.refresh', { default: 'Refresh' })}
     </Button>
   </header>
 
-  {#if error}
-    <div class="banner error" role="alert">
-      <Icon name="alert-circle" size="sm" />
-      <span>{error}</span>
-    </div>
+  {#if requestedOrder !== null}
+    <a class="review-drawing" href={`${base}/orders/review`}>{$t('orders.review.allDrafts')}</a>
   {/if}
 
   {#if loading}
@@ -259,7 +280,12 @@
     <div class="empty" role="alert">
       <Icon name="alert-circle" size="lg" />
       <p>{$t('orders.review.loadFailed')}</p>
-      <Button variant="secondary" onclick={load}>{$t('common.retry')}</Button>
+      <Button variant="secondary" onclick={() => void load()}>{$t('common.retry')}</Button>
+    </div>
+  {:else if orders.length === 0 && requestedOrder}
+    <div class="empty" role="status">
+      <p>{$t('orders.review.noLongerQueued')}</p>
+      <a class="review-drawing" href={base+orderDetailUrl(requestedOrder)}>{$t('productionPacket.fullOrder')}</a>
     </div>
   {:else if orders.length === 0}
     <div class="empty">

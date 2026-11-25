@@ -24,5 +24,8 @@ export function replaceState(url: string | URL, state: Record<string, unknown>) 
 
 export function pushState(url: string | URL, state: Record<string, unknown>) {
   window.history.pushState(state, '', url);
-  page.url = new URL(url, window.location.origin);
+  page.state = state;
 }
+
+// SvelteKit shallow entries update page.state. The route URL belongs to the last full navigation.
+if (typeof window !== 'undefined') window.addEventListener('popstate', event => { page.state = event.state ?? {}; });

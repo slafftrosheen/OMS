@@ -108,6 +108,7 @@
       {/if}
       <button
         class="notif-action-btn"
+        disabled={!allItems.some(item => item.read)}
         onclick={handleClearRead}
         aria-label={$t('notifications.clear_read', { default: 'Clear read' })}
         title={$t('notifications.clear_read', { default: 'Clear read' })}
@@ -120,17 +121,17 @@
   <!-- Filters -->
   <div class="notif-filters">
     <div class="notif-tabs">
-      <button class="notif-tab" class:active={filter === 'all'}    onclick={() => filter = 'all'}>
+      <button class="notif-tab" class:active={filter === 'all'} aria-pressed={filter === 'all'}    onclick={() => filter = 'all'}>
         {$t('notifications.filter.all', { default: 'All' })} ({allItems.length})
       </button>
-      <button class="notif-tab" class:active={filter === 'unread'} onclick={() => filter = 'unread'}>
+      <button class="notif-tab" class:active={filter === 'unread'} aria-pressed={filter === 'unread'} onclick={() => filter = 'unread'}>
         {$t('notifications.filter.unread', { default: 'Unread' })} ({unreadCount})
       </button>
-      <button class="notif-tab" class:active={filter === 'read'}   onclick={() => filter = 'read'}>
-        {$t('notifications.filter.read', { default: 'Read' })} ({allItems.length - unreadCount})
+      <button class="notif-tab" class:active={filter === 'read'} aria-pressed={filter === 'read'}   onclick={() => filter = 'read'}>
+        {$t('notifications.filter.read', { default: 'Read' })} ({allItems.filter(item => item.read).length})
       </button>
     </div>
-    <select class="notif-type-select" bind:value={typeFilter}>
+    <select class="notif-type-select" aria-label={$t('notifications.filter.type_all')} bind:value={typeFilter}>
       <option value="all"       >{$t('notifications.filter.type_all',  { default: 'All Types' })}</option>
       <option value="order"     >{$t('notifications.filter.orders',    { default: 'Orders' })}</option>
       <option value="chat"      >{$t('notifications.filter.messages',  { default: 'Messages' })}</option>
@@ -151,10 +152,15 @@
         <p>{$t('notifications.loading', { default: 'Loading notifications…' })}</p>
       </div>
     {:else if filteredNotifications.length === 0 && !storeState.error}
-      <div class="notif-state">
+      <div class="notif-state" role="status">
         <BellRing size={48} class="notif-state__icon" />
-        <p class="notif-state__title">{$t('notifications.no_notifs', { default: 'No notifications' })}</p>
-        <p class="notif-state__sub">{$t('notifications.caught_up', { default: "You're all caught up!" })}</p>
+        {#if filter !== 'all' || typeFilter !== 'all'}
+          <p class="notif-state__title">{$t('notifications.noMatches')}</p>
+          <button type="button" class="notif-action-btn" onclick={() => {filter='all'; typeFilter='all';}}>{$t('notifications.resetFilters')}</button>
+        {:else}
+          <p class="notif-state__title">{$t('notifications.no_notifs', { default: 'No notifications' })}</p>
+          <p class="notif-state__sub">{$t('notifications.caught_up', { default: "You're all caught up!" })}</p>
+        {/if}
       </div>
     {:else}
       {#each filteredNotifications as n (n.id)}

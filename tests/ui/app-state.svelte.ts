@@ -5,5 +5,6 @@ export const page = $state({
   status: 200,
   error: null,
   data: {} as Record<string, unknown>,
+  state: {} as App.PageState,
   form: null
 });

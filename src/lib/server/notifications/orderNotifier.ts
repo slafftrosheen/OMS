@@ -9,6 +9,7 @@
 // raised, so a flaky notify path can't break the lifecycle transition.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { orderReviewUrl } from '../../order/workspace-navigation';
 import { publishNotifications } from './publish';
 
 type Sb = SupabaseClient<any, any, any>;
@@ -52,7 +53,7 @@ export async function notifyDraftCreated(
       notification_type: 'order_pending_review',
       title: 'New draft order',
       message: `${ref} for ${client} is awaiting review`,
-      link: `/orders/${orderId}`,
+      link: orderReviewUrl(orderId),
       source_type: 'order',
       source_id: orderId,
     }));

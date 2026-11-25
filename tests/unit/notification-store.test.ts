@@ -67,6 +67,16 @@ describe('notification row normalization', () => {
       notification_type: 'order_confirmed', reference_id: 'order-a', link: '/orders/order-a' });
   });
 
+  it('upgrades the original pending-review order link while preserving explicit destinations', () => {
+    const normalize = (fields: Record<string, unknown>) =>
+      normalizeNotification(row('pending', {notification_type:'order_pending_review', ...fields}))?.link;
+    expect(normalize({})).toBe('/orders/review?order=order-a');
+    expect(normalize({link:'/orders/order-b'})).toBe('/orders/order-b');
+    expect(normalize({link:'/orders/order-a?tab=chat'})).toBe('/orders/order-a?tab=chat');
+    expect(normalize({source_type:'chat'})).toBe('/orders/order-a');
+    expect(normalize({link:'//elsewhere.test'})).toBeNull();
+  });
+
   it('excludes dismissed or malformed rows and unsafe navigation targets', () => {
     expect(normalizeNotification(row('n1', { is_dismissed: true }))).toBeNull();
     expect(normalizeNotification({ title: 'missing identity' })).toBeNull();

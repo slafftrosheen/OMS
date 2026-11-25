@@ -2,6 +2,7 @@
   import {onDestroy, untrack} from 'svelte';
   import {t} from 'svelte-i18n';
   import {base} from '$app/paths';
+  import {orderDetailUrl,workspaceUrl} from '$lib/order/workspace-navigation';
   import OrderProfileSheet from '$lib/order/OrderProfileSheet.svelte';
   import {orderSheetAccountKey, readOrderSheetSnapshot, type OrderSheetSnapshot} from '$lib/order/order-sheet';
   import {currentUser} from '$lib/auth/authState.svelte';
@@ -145,6 +146,11 @@
       · {order.clientName??'—'}
       · {$t('productionPacket.deadline')}: {order.deadline??'—'}
     </p>
+    <nav class="packet-links" aria-label={$t('orderSheet.supportTitle')}>
+      <a class="order-link" href={base+workspaceUrl(order.id,'canvas')}>{$t('orderWorkspace.sections.canvas')}</a>
+      <a class="order-link" href={base+orderDetailUrl(order.id,'files')}>{$t('orderWorkspace.sections.files')}</a>
+      <a class="order-link" href={base+orderDetailUrl(order.id,'consumption')}>{$t('orderDetail.tabs.consumption')}</a>
+    </nav>
     {#key `${loadedAccount}:${order.id}:${order.updatedAt}`}
       <OrderProfileSheet profiles={order.profiles} />
     {/key}
@@ -199,6 +205,7 @@
   .packet-heading p,.muted{color:var(--muted);font-size:.81rem;margin:.3rem 0}
   .packet-heading button{min-width:44px;min-height:44px}
   .packet h3{margin:.7rem 0 0;font-size:1rem}
+  .packet-links{display:flex;gap:.5rem;flex-wrap:wrap}
   .packet-status{border:1px solid var(--border);border-radius:10px;padding:.75rem;
     overflow-wrap:anywhere}
   .packet-status{background:var(--bg-2)}

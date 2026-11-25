@@ -1,3 +1,5 @@
+import {orderDetailUrl, orderReviewUrl} from '../order/workspace-navigation';
+
 /** The UI view of the canonical notifications table. */
 export interface Notification {
   id: string;
@@ -33,6 +35,8 @@ export function normalizeNotification(value: unknown): Notification | null {
   if (typeof row.id !== 'string' || !row.id || typeof row.user_id !== 'string' || !row.user_id || row.is_dismissed === true) return null;
   const type = typeof row.notification_type === 'string' ? row.notification_type : typeof row.type === 'string' ? row.type : 'info';
   const source = typeof row.source_type === 'string' ? row.source_type : typeof row.reference_type === 'string' ? row.reference_type : '';
+  const referenceId = typeof row.source_id === 'string' ? row.source_id : typeof row.reference_id === 'string' ? row.reference_id : undefined;
+  const link = notificationLink(row.link);
   return {
     id: row.id,
     user_id: row.user_id,
@@ -41,9 +45,10 @@ export function normalizeNotification(value: unknown): Notification | null {
     type: type.toUpperCase(),
     notification_type: type,
     category: categoryFor(type, source.toLowerCase()),
-    reference_id: typeof row.source_id === 'string' ? row.source_id : typeof row.reference_id === 'string' ? row.reference_id : undefined,
+    reference_id: referenceId,
     reference_type: source || undefined,
-    link: notificationLink(row.link),
+    link: type === 'order_pending_review' && source === 'order' && referenceId && link === orderDetailUrl(referenceId)
+      ? orderReviewUrl(referenceId) : link,
     read: typeof row.is_read === 'boolean' ? row.is_read : row.read === true,
     created_at: typeof row.created_at === 'string' ? row.created_at : ''
   };

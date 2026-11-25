@@ -88,7 +88,8 @@
 {#snippet itemContent(item: any)}
   <span class="rf-notif__item-text">
     {#if !item.ephemeral}<SemanticBadge badge={notificationBadge(item)} />{/if}
-    <span>{item.text}</span>
+    <span class="notice-title">{item.text}</span>
+    {#if item.message && item.message !== item.text}<span class="notice-message">{item.message}</span>{/if}
   </span>
   {#if item.time}
     <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
@@ -361,6 +362,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .notice-title,.notice-message {white-space:normal;overflow-wrap:anywhere;}
+  .notice-message {color:var(--ink-secondary);font-size:var(--text-xs);display:-webkit-box;line-clamp:2;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .rf-notif__item.unread .rf-notif__item-text { color: var(--ink-primary); font-weight: 500; }
   .rf-notif__item-time {
     font-size: var(--text-xs);

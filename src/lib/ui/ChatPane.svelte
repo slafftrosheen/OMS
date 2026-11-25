@@ -13,9 +13,11 @@
   import type { StationTag, ReworkReason } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
+  import type { Room } from '$lib/chat/types';
+  let { fixedRoom }: { fixedRoom?: Room } = $props();
   let activeRoomId = $state('general');
   let scroller: HTMLDivElement | null = $state(null);
-  let activeRoom = $derived($rooms.find((room) => room.id === activeRoomId) || $rooms[0]);
+  let activeRoom = $derived(fixedRoom ?? $rooms.find((room) => room.id === activeRoomId) ?? $rooms[0]);
   let history = $derived(activeRoom ? $roomHistory[activeRoom.id] : undefined);
   let activeDraft = $derived(activeRoom ? roomDraftSession.drafts[activeRoom.id] : undefined);
 
@@ -24,7 +26,7 @@
   });
 
   let roomMessages = $derived($messages.filter((message) => message.roomId === activeRoom?.id));
-  $effect(() => { const owner = $currentUser?.id; if (owner) untrack(() => { void loadRooms(); }); });
+  $effect(() => { const owner = $currentUser?.id; if (owner && !fixedRoom) untrack(() => { void loadRooms(); }); });
   $effect(() => { const owner = $currentUser?.id, room = activeRoom?.id; if (owner && room) untrack(() => { roomDraftSession.ensure(owner, room); void loadMessages(room); }); });
 
   function formatTime(iso: string) {
@@ -91,36 +93,38 @@
   }
 </script>
 
-<div class="rf-panel chat-panel">
-  <header class="chat-header">
-    <div class="chat-header__intro">
-      <div class="chat-title">{$t('chat.title')}</div>
-      {#if $currentUser}
-        <div class="chat-current">
-          <span class="chat-avatar" aria-hidden="true">{avatarInitial($currentUser.id)}</span>
-          <div class="chat-current__info">
-            <strong>{$currentUser.displayName}</strong>
-            {#if getUserStation($currentUser.stations)}
-              <StationBadge station={getUserStation($currentUser.stations)} size="sm" tone="highlight" />
-            {/if}
+<div class="rf-panel chat-panel" class:station-pane={!!fixedRoom}>
+  {#if !fixedRoom}
+    <header class="chat-header">
+      <div class="chat-header__intro">
+        <div class="chat-title">{$t('chat.title')}</div>
+        {#if $currentUser}
+          <div class="chat-current">
+            <span class="chat-avatar" aria-hidden="true">{avatarInitial($currentUser.id)}</span>
+            <div class="chat-current__info">
+              <strong>{$currentUser.displayName}</strong>
+              {#if getUserStation($currentUser.stations)}
+                <StationBadge station={getUserStation($currentUser.stations)} size="sm" tone="highlight" />
+              {/if}
+            </div>
           </div>
-        </div>
-      {/if}
-    </div>
-    <nav class="rooms" aria-label={$t('chat.rooms')}>
-      {#each $rooms as room (room.id)}
-        <button
-          type="button"
-          class="tag"
-          class:is-active={room.id === activeRoomId}
-          aria-current={room.id === activeRoom?.id ? 'page' : undefined}
-          onclick={() => selectRoom(room.id)}
-        >
-          {room.name}
-        </button>
-      {/each}
-    </nav>
-  </header>
+        {/if}
+      </div>
+      <nav class="rooms" aria-label={$t('chat.rooms')}>
+        {#each $rooms as room (room.id)}
+          <button
+            type="button"
+            class="tag"
+            class:is-active={room.id === activeRoomId}
+            aria-current={room.id === activeRoom?.id ? 'page' : undefined}
+            onclick={() => selectRoom(room.id)}
+          >
+            {room.name}
+          </button>
+        {/each}
+      </nav>
+    </header>
+  {/if}
 
   <div
     class="rf-scroll messages"
@@ -211,6 +215,8 @@
 
 <style>
   .chat-panel{ gap:var(--space-lg); padding:var(--space-lg) }
+  .station-pane { display:flex; flex:1; flex-direction:column; min-height:0; overflow:auto; gap:var(--space-sm); }
+  .station-pane .messages { flex:1 1 auto; min-height:6rem; overflow-y:auto; align-content:start; }
   .chat-header{ display:grid; gap:var(--space-lg) }
   .chat-header__intro{ display:flex; justify-content:space-between; align-items:center; gap:var(--space-md); flex-wrap:wrap }
   .chat-title{ font-weight:800; font-size:1.05rem }

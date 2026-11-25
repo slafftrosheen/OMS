@@ -11,6 +11,10 @@ declare global {
       getSession: () => Promise<Session | null>;
       user: import('$lib/server/auth/session').SessionUser | null;
     }
+    interface PageState {
+      orderTab?: import('$lib/order/workspace-navigation').OrderDetailTab;
+      orderSection?: import('$lib/order/workspace-navigation').WorkspaceSection;
+    }
     // interface PageData {}
     // interface Error {}
     // interface Platform {}

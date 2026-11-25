@@ -88,6 +88,8 @@
   },
   "orders": {
     "review": {
+      "allDrafts": "Visi pasūtījumi pārskatīšanai",
+      "noLongerQueued": "Šī pasūtījuma vairs nav pārskatīšanas rindā.",
       "rejected": "Pasūtījums noraidīts",
       "rejectFailed": "Neizdevās noraidīt pasūtījumu. Mēģiniet vēlreiz.",
       "title": "Apstiprināšanas rinda",
@@ -1014,6 +1016,8 @@
     "add_stock": "Pievienot krājumus"
   },
   "notifications": {
+    "noMatches": "Nav paziņojumu, kas atbilst šiem filtriem.",
+    "resetFilters": "Notīrīt filtrus",
     "title": "Paziņojumi",
     "empty": "Pagaidām paziņojumu nav.",
     "loading": "Ielādē paziņojumus…",
@@ -2918,6 +2922,9 @@
     "station_head_title": "Stacijas vadītājs"
   },
   "stationView": {
+    "station_chat": "Iecirkņa čats",
+    "chatLoading": "Atver iecirkņa čatu…",
+    "chatUnavailable": "Neizdevās atvērt šī iecirkņa čatu.",
     "readyForDispatch": "Ražošana pabeigta. Norīkojiet iekraušanu un nosūtīšanu pasūtījumā vai kalendārā.",
     "loadingCalendar": "Iekraušanas kalendārs",
     "workstation": "Darba stacija",

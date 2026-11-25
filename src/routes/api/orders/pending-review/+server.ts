@@ -11,7 +11,7 @@ import type { RequestHandler } from './$types';
 
 const PRIVILEGED_ROLES = new Set(['RD', 'Boss', 'HeadOfProduction']);
 
-export const GET: RequestHandler = async ({ locals }) => {
+export const GET: RequestHandler = async ({ locals, url }) => {
   const session = await locals.getSession();
   if (!session) {
     return json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,9 +26,13 @@ export const GET: RequestHandler = async ({ locals }) => {
     return json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { data, error } = await locals.supabase
-    .from('orders_pending_review')
-    .select('*')
+  const orderId = url.searchParams.get('order');
+  if (orderId !== null && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(orderId))
+    return json({ error: 'Invalid order ID' }, { status: 400 });
+
+  let query = locals.supabase.from('orders_pending_review').select('*');
+  if (orderId) query = query.eq('id', orderId);
+  const { data, error } = await query
     .order('priority', { ascending: false })
     .order('due_date', { ascending: true })
     .order('created_at', { ascending: true });
@@ -38,5 +42,5 @@ export const GET: RequestHandler = async ({ locals }) => {
     return json({ error: 'Failed to load review queue' }, { status: 500 });
   }
 
-  return json(data ?? []);
+  return json(data ?? [], { headers: { 'Cache-Control':'private, no-store' } });
 };

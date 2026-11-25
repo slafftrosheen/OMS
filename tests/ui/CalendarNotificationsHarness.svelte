@@ -1,6 +1,8 @@
 <script lang="ts">
   import { locale } from 'svelte-i18n';
   import CalendarPage from '../../src/routes/calendar/+page.svelte';
+  import NotificationsPage from '../../src/routes/notifications/+page.svelte';
+  import NotificationsBell from '$lib/topbar/NotificationsBell.svelte';
   import TelegramSettings from '$lib/notifications/TelegramSettings.svelte';
 
   const surface = new URLSearchParams(window.location.search).get('surface');
@@ -19,6 +21,9 @@
 
 {#if surface === 'calendar'}
   <CalendarPage />
+{:else if surface === 'inbox'}
+  <NotificationsBell />
+  <NotificationsPage />
 {:else}
   <main class="settings-fixture">
     <h1>Notification settings</h1>

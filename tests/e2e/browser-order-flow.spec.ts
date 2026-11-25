@@ -104,3 +104,56 @@ test('delivery hands ready orders to loading instead of offering a rejected prod
  await expect(page.getByRole('button',{name:'Start',exact:true})).toBeDisabled();
  await expect(page.getByRole('link',{name:'Loading calendar',exact:true})).toHaveAttribute('href','/calendar');
 });
+
+test('switching departments discards delayed queue data and sends station chat to the selected room', async ({page}) => {
+  await page.route('**/api/auth', route => route.fulfill({json:{user:{
+    id:'station-head',username:'head',displayName:'Station Head',role:'StationHead',
+    stations:[{stationId:'CAD',isHead:true},{stationId:'PAINT',isHead:true}]
+  }}}));
+  await page.routeWebSocket(/\/realtime\/v1\//,socket => socket.onMessage(() => {}));
+  await page.route('http://localhost:8000/**',route => route.fulfill({json:[]}));
+  let releaseCad!: () => void;
+  const delayedCad = new Promise<void>(resolve => {releaseCad = resolve;});
+  const order = (station:string) => ({id:station,title:`TEST ONLY ${station}`,po_number:'QA-SWITCH',client:'QA',status:'IN_PRODUCTION',
+    priority:'NORMAL',due_date:'2026-12-01',stage:{state:'QUEUED',updated_at:'2026-11-05T10:00:00Z'}});
+  await page.route('**/api/station/CAD/orders', async route => {await delayedCad; await route.fulfill({json:[order('CAD')]});});
+  await page.route('**/api/station/PAINT/orders',route => route.fulfill({json:[order('PAINT')]}));
+  const posted: string[] = [], history: string[] = [];
+  let attempts = 0;
+  await page.route('**/api/chat',route => {
+    if (route.request().method() === 'GET') return route.fulfill({json:[{id:'general',name:'General'}]});
+    const room = route.request().postDataJSON();
+    expect(room.id).toBe('station-paint');
+    return route.fulfill(++attempts === 1 ? {status:503,json:{}} : {json:{success:true,room}});
+  });
+  await page.route('**/api/chat/messages?*',route => {
+    history.push(new URL(route.request().url()).searchParams.get('roomId')!);
+    return route.fulfill({json:{success:true,messages:[],hasMore:false,nextCursor:null}});
+  });
+  await page.route('**/api/chat/messages',route => {
+    const body = route.request().postDataJSON(); posted.push(body.roomId);
+    return route.fulfill({json:{success:true,message:{id:'posted',roomId:body.roomId}}});
+  });
+  await page.route('**/api/users',route => route.fulfill({json:[]}));
+  const cadRequest = page.waitForRequest('**/api/station/CAD/orders');
+  await page.goto('/workflow-dialogs.html?surface=station&station=CAD&switch');
+  await cadRequest;
+  await page.getByRole('button',{name:'Switch to paint fixture'}).click();
+  await expect(page.getByRole('heading',{name:'TEST ONLY PAINT'})).toBeVisible();
+  releaseCad();
+  await expect(page.getByRole('link',{name:'Drawing',exact:true})).toHaveAttribute('href','/orders/PAINT/edit?section=canvas');
+  await page.getByRole('button',{name:'Station chat',exact:true}).click();
+  const panel = page.getByRole('complementary',{name:'PAINT · Station chat'});
+  await expect(panel.getByRole('alert')).toContainText('Could not open');
+  await expect(panel.getByRole('textbox')).toHaveCount(0);
+  await panel.getByRole('button',{name:'Retry'}).click();
+  await panel.getByRole('textbox').fill('Paint sample approved');
+  await panel.locator('.send-message').click();
+  await expect(panel.getByRole('log')).toContainText('Paint sample approved');
+  await expect.poll(() => posted).toEqual(['station-paint']);
+  expect(history).toEqual(['station-paint']);
+  await panel.getByRole('textbox').press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Station chat',exact:true})).toBeFocused();
+  await expect(page.getByRole('heading',{name:'TEST ONLY CAD'})).toHaveCount(0);
+});

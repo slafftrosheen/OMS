@@ -30,6 +30,21 @@ export function sectionsForGroup(group:WorkspaceGroup):readonly WorkspaceSection
 export function workspaceUrl(orderId:string,section:WorkspaceSection):string {
   return `/orders/${encodeURIComponent(orderId)}/edit?section=${section}`;
 }
+export const ORDER_DETAIL_TABS = ['stages','files','consumption','chat','timeline'] as const;
+export type OrderDetailTab = typeof ORDER_DETAIL_TABS[number];
+
+export function orderDetailTab(value: unknown): OrderDetailTab | null {
+  return ORDER_DETAIL_TABS.find(tab => tab === value) ?? null;
+}
+
+export function orderDetailUrl(id: string, tab?: OrderDetailTab): string {
+  return `/orders/${encodeURIComponent(id)}${tab ? `?tab=${tab}` : ''}`;
+}
+
+export function orderReviewUrl(id: string): string {
+  return `/orders/review?order=${encodeURIComponent(id)}`;
+}
+
 export function suggestedWorkspaceSection(status:string,hasFiles:boolean,
   hasPendingChanges:boolean):WorkspaceSection{
   if(hasPendingChanges)return 'changes';

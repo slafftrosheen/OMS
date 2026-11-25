@@ -21,6 +21,9 @@ type Options = {
   manager?: boolean;
   actor?: User;
   shell?: boolean;
+  tab?: string;
+  reviewOrder?: string;
+  queueResponder?: (route: Route) => Promise<void>;
   section?: 'canvas' | 'layers';
   canvasResponder?: (route: Route) => Promise<void>;
   status?: string;
@@ -45,7 +48,7 @@ async function fixture(page: Page, options: Options = {}) {
       return route.fulfill({ status: 405, json: { error: 'No writes allowed in the saved-order fixture' } });
     }
     if (path === '/api/auth') return route.fulfill({ json: { user: actor } });
-    if (path === '/api/orders/pending-review') return route.fulfill({ json: [{
+    if (path === '/api/orders/pending-review') return options.queueResponder ? options.queueResponder(route) : route.fulfill({ json: [{
       ...orderSheetBaseOrder(orderSheetSnapshot(orderSheetIds.first, 'PENDING_REVIEW')),
       internal_ref: 'D-1001', file_count: 1, profile_count: 1
     }] });
@@ -84,6 +87,8 @@ async function fixture(page: Page, options: Options = {}) {
     return route.fulfill({ status: 404, json: { error: 'Unexpected fixture request' } });
   });
   const query = new URLSearchParams({ mode: options.mode || 'detail' });
+  if (options.tab) query.set('tab',options.tab);
+  if (options.reviewOrder) query.set('order',options.reviewOrder);
   if (options.section) query.set('section', options.section);
   if (options.shell) query.set('shell', '1');
   await page.goto(`/order-sheet.html?${query}`);
@@ -114,7 +119,8 @@ test('Head of Production opens the complete draft form before supporting tabs an
   const observed = await fixture(page, { manager: true, status: 'PENDING_REVIEW' });
   await ready(page);
   await expect(page.locator('.order-header').getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Go to review queue', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Go to review queue', exact: true }).click();
+  expect(observed.navigation).toContain(`/orders/review?order=${orderSheetIds.first}`);
   await page.locator('.order-header').getByRole('button', { name: 'Drawing', exact: true }).click();
   expect(observed.navigation).toContain(`/orders/${orderSheetIds.first}/edit?section=canvas`);
   await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveCount(0);
@@ -252,6 +258,11 @@ test('the station packet immediately displays the same saved native form and cha
   const packet = page.getByRole('region', { name: 'Production packet', exact: true });
   await expect(packet.locator('.profile-form')).toHaveCount(1);
   await expect(packet.getByLabel('Profile name', { exact: true })).toHaveValue('Main yellow profile');
+  for (const [label, path] of [
+    ['Drawing', '/edit?section=canvas'], ['Attachments', '?tab=files'], ['Material consumption', '?tab=consumption']
+  ]) {
+    await expect(packet.getByRole('link', {name:label,exact:true})).toHaveAttribute('href', `/orders/${orderSheetIds.first}${path}`);
+  }
   await expect(packet.getByRole('button', { name: 'View production form', exact: true })).toHaveCount(0);
   await expect(packet.getByText(orderSheetLongNote, { exact: true })).toBeVisible();
   await expect(packet.getByRole('link', { name: 'approved-drawing.pdf', exact: true })).toBeVisible();
@@ -525,5 +536,59 @@ test('a view-only order with no saved drawing leads directly to its attached art
   await expect(area).toContainText('This order has no saved drawing.');
   await area.getByRole('button',{name:'Attachments'}).click();
   await expect(page.getByText('approved-drawing.pdf',{exact:true})).toBeVisible();
+  expect(observed.writes).toEqual([]);
+});
+
+test('order notification links reveal the named section and keyboard navigation survives Back and Forward', async ({page}) => {
+  const observed = await fixture(page, {tab:'chat'});
+  const discussion = page.getByRole('tab',{name:'Discussion'});
+  await expect(discussion).toBeFocused();
+  await expect(discussion).toBeInViewport();
+  await expect(page.getByRole('tabpanel',{name:'Discussion'})).toContainText('The signed drawing is attached');
+  await page.keyboard.press('ArrowLeft');
+  const ledger = page.getByRole('tab',{name:'Material consumption'});
+  await expect(ledger).toBeFocused();
+  await expect(page).toHaveURL(/tab=consumption/);
+  await expect(page.getByRole('tabpanel',{name:'Material consumption'})).toContainText('Yellow acrylic');
+  await page.goBack();
+  await expect(discussion).toBeFocused();
+  await page.goForward();
+  await expect(ledger).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('tab',{name:'Production Stages'})).toBeFocused();
+  expect(observed.writes).toEqual([]);
+});
+
+test('a review notification retrieves just its draft and gives a way out after it leaves the queue', async ({page}) => {
+  const id=orderSheetIds.second;
+  let pending=true;
+  let searched='';
+  const observed=await fixture(page,{manager:true, mode:'review',reviewOrder:id,queueResponder:async route => {
+    searched=new URL(route.request().url()).searchParams.get('order') ?? '';
+    await route.fulfill({json:pending ? [{...orderSheetBaseOrder(orderSheetSnapshot(id,'PENDING_REVIEW')),
+      internal_ref:'D-1002',file_count:1,profile_count:1}] : []});
+  }});
+  const card=page.locator('.review-card');
+  await expect(card).toContainText('D-1002');
+  expect(searched).toBe(id);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('link',{name:'All drafts awaiting review'})).toHaveAttribute('href','/orders/review');
+  pending=false;
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('no longer in the review queue');
+  await expect(page.getByRole('status').getByRole('link')).toHaveAttribute('href',`/orders/${id}`);
+  expect(observed.writes).toEqual([]);
+});
+
+test('section changes in the editor restore the drawing on browser Back', async ({page}) => {
+  const observed=await fixture(page,{manager:true,mode:'editor',status:'PENDING_REVIEW'});
+  const flow=page.locator('.workspace-flow');
+  await flow.getByRole('button',{name:'Drawing'}).click();
+  await expect(page.getByTestId('drawing-tool-rectangle')).toBeVisible();
+  await flow.getByRole('button',{name:'Prepare'}).click();
+  await page.goBack();
+  await expect(flow.getByRole('button',{name:'Drawing'})).toHaveAttribute('aria-current','step');
+  await expect(page.getByTestId('drawing-tool-rectangle')).toBeVisible();
   expect(observed.writes).toEqual([]);
 });

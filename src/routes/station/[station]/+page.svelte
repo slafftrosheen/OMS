@@ -4,9 +4,10 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import { workspaceUrl } from '$lib/order/workspace-navigation';
   import { canOperateStation } from '$lib/order/lifecycle-guards';
   import { dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { getAssistantContext } from '$lib/assistant/context';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
@@ -16,7 +17,9 @@
   import StationProgressPanel from '$lib/components/station/StationProgressPanel.svelte';
   import StationProductionPacket from '$lib/components/station/StationProductionPacket.svelte';
   import { notifications } from '$lib/notify/store';
-  import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
+  import { stationRoomFor } from '$lib/order/workflow';
+  import type { Room } from '$lib/chat/types';
+  import { ensureRoom } from '$lib/chat/chat-store';
   import ChatPane from '$lib/ui/ChatPane.svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { stationIcon } from '$lib/ui/station-icon';
@@ -43,7 +46,33 @@
       }
     }));
   });
-  let stationRoomId = $derived(`station-${page.params.station.toLowerCase()}`);
+  let stationRoom = $state<Room | null>(null);
+  let chatLoading = $state(false);
+
+  let chatTrigger = $state<HTMLButtonElement>();
+  let closeChatButton = $state<HTMLButtonElement>();
+  function closeStationChat() {
+    showChat = false;
+    chatTrigger?.focus({preventScroll:true});
+  }
+
+  async function openStationChat() {
+    if (!showChat) {
+      showChat = true;
+      await tick();
+      closeChatButton?.focus({preventScroll:true});
+    }
+    if (stationRoom || chatLoading || lifetime.signal.aborted) return;
+    const id = stationRoomFor(station);
+    if (!id) return;
+    const room = { id, name: station, kind: 'station', station };
+    chatLoading = true;
+    try {
+      if (await ensureRoom(room, lifetime.signal) && !lifetime.signal.aborted) stationRoom = room;
+    } finally {
+      if (!lifetime.signal.aborted) chatLoading = false;
+    }
+  }
 
   interface StationOrder {
     id: string;
@@ -96,18 +125,19 @@
   let reworkDescription = $state('');
   const REWORK_REASONS = ['RECUT', 'RESAND', 'REBEND', 'REWELD', 'REPAINT', 'RECOAT', 'REGLUE', 'REASSEMBLE', 'RECHECK', 'CUSTOM'];
 
+  const lifetime = new AbortController();
   let unsubscribe: (() => void) | null = null;
   let refreshInterval: ReturnType<typeof setInterval>;
 
   async function loadStationOrders(quiet = false) {
-    if (refreshing) return;
+    if (refreshing || lifetime.signal.aborted) return;
     const requestedStation = station;
     const requestedAccount = $currentUser?.id ?? null;
-    const isCurrent = () => station === requestedStation && ($currentUser?.id ?? null) === requestedAccount;
+    const isCurrent = () => !lifetime.signal.aborted && station === requestedStation && ($currentUser?.id ?? null) === requestedAccount;
     refreshing = true;
     if (!hasLoaded) $loading = true;
     try {
-      const response = await fetch(`/api/station/${encodeURIComponent(requestedStation)}/orders`, { cache: 'no-store' });
+      const response = await fetch(`/api/station/${encodeURIComponent(requestedStation)}/orders`, { cache: 'no-store', signal:lifetime.signal });
       if (!response.ok) throw new Error(response.status === 401 ? 'Session expired — sign in again.'
         : response.status === 403 ? 'You cannot view this station.' :
           `Station refresh failed (HTTP ${response.status})`);
@@ -126,8 +156,7 @@
       loadError = err instanceof Error ? err.message : 'Failed to load station';
       if (!quiet) notifications.error(loadError);
     } finally {
-      refreshing = false;
-      $loading = false;
+      if (isCurrent()) { refreshing = false; $loading = false; }
     }
   }
 
@@ -149,6 +178,7 @@
         body: JSON.stringify({ state, ...extras, expectedUpdatedAt:stageRow.updated_at })
       });
       const body = await response.json().catch(() => ({}));
+      if (lifetime.signal.aborted) return false;
       if (!response.ok) {
         if (response.status===409 || response.status===428) await loadStationOrders(true);
         throw new Error(response.status===409 || response.status===428
@@ -159,7 +189,7 @@
       await loadStationOrders(true);
       return true;
     } catch (err) {
-      notifications.error(err instanceof Error ? err.message : 'Stage update failed');
+      if (!lifetime.signal.aborted) notifications.error(err instanceof Error ? err.message : 'Stage update failed');
       return false;
     } finally { workingOnOrderId = null; }
   }
@@ -241,6 +271,7 @@
   }
 
   function onCompletionSubmitted(p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null;handoffStatusKnown?:boolean }) {
+    if (lifetime.signal.aborted) return;
     completeTarget = null;
     operationMessage = p.nextStation
       ? $t('productionFloor.handoff',{values:{station:p.nextStation}})
@@ -293,7 +324,7 @@
       operationMessage = 'Rework opened; resolution is required before completion.';
       await loadStationOrders(true);
     } catch (err) {
-      notifications.error(err instanceof Error ? err.message : 'Failed to create rework');
+      if (!lifetime.signal.aborted) notifications.error(err instanceof Error ? err.message : 'Failed to create rework');
     } finally { workingOnOrderId = null; }
   }
 
@@ -311,7 +342,7 @@
       resolutionNotes = '';
       resolveModalOpen = true;
     } catch (err) {
-      notifications.error(err instanceof Error ? err.message : 'Rework lookup failed');
+      if (!lifetime.signal.aborted) notifications.error(err instanceof Error ? err.message : 'Rework lookup failed');
     } finally { workingOnOrderId = null; }
   }
 
@@ -329,7 +360,7 @@
       operationMessage = 'Rework resolved. Stage returned to In Progress.';
       await loadStationOrders(true);
     } catch (err) {
-      notifications.error(err instanceof Error ? err.message : 'Failed to resolve rework');
+      if (!lifetime.signal.aborted) notifications.error(err instanceof Error ? err.message : 'Failed to resolve rework');
     } finally { resolutionBusy = false; }
   }
 
@@ -353,7 +384,6 @@
 
   onMount(() => {
     const ownerId = $currentUser?.id;
-    const lifetime = new AbortController();
     const isCurrent = () => !lifetime.signal.aborted && $currentUser?.id === ownerId;
     void (async () => {
       await loadStationOrders();
@@ -368,9 +398,6 @@
             !reworkModalOpen && !resolveModalOpen && !progressTarget && !packetTarget)
           void loadStationOrders(true);
       }, 30000);
-
-      const confirmed = await ensureRoom({ id: stationRoomId, name: station }, lifetime.signal);
-      if (confirmed && isCurrent()) await loadMessages(stationRoomId);
     })();
 
     return () => {
@@ -380,6 +407,14 @@
     };
   });
 </script>
+
+<svelte:window onkeydown={(event) => {
+  if (event.key === 'Escape' && !event.defaultPrevented && showChat &&
+      closeChatButton?.closest('aside')?.contains(document.activeElement)) {
+    event.preventDefault();
+    closeStationChat();
+  }
+}} />
 
 <svelte:head>
   <title>{station} — {$t('stationView.workstation')}</title>
@@ -414,7 +449,7 @@
         <Icon name="scan-line" size="sm" />
         {$t('stationView.scan_qr', { default: 'Scan QR' })}
       </button>
-      <button class="btn btn-outline" onclick={() => showChat = !showChat} class:btn-active={showChat}>
+      <button class="btn btn-outline" bind:this={chatTrigger} onclick={() => showChat ? closeStationChat() : void openStationChat()} aria-expanded={showChat} class:btn-active={showChat}>
         <Icon name="message-square" size="sm" />
         {$t('stationView.station_chat', { default: 'Station Chat' })}
       </button>
@@ -607,6 +642,9 @@
               <Icon name="file" size="sm" />
               {$t('productionPacket.open')}
             </button>
+            <a href={base + workspaceUrl(order.id,'canvas')} class="btn btn-sm btn-outline">
+              <Icon name="pen-tool" size="sm" /> {$t('orderWorkspace.sections.canvas')}
+            </a>
             <a href={`${base}/orders/${encodeURIComponent(order.id)}`} class="btn btn-sm btn-outline">
               <Icon name="eye" size="sm" />
               {$t('common.details', { default: 'Details' })}
@@ -656,22 +694,29 @@
 
 <!-- Station Chat Panel -->
 {#if showChat}
-  <div class="station-chat-overlay" role="complementary" aria-label="{station} station chat">
+  <aside class="station-chat-overlay" aria-label="{station} · {$t('stationView.station_chat')}">
     <div class="station-chat-panel">
       <div class="station-chat-panel__header">
         <span class="station-chat-panel__title">
           <Icon name="message-square" size="sm" />
           {station} — {$t('stationView.station_chat', { default: 'Station Chat' })}
         </span>
-        <button class="station-chat-panel__close" onclick={() => showChat = false} aria-label={$t('common.close', { default: 'Close' })}>
+        <button class="station-chat-panel__close" bind:this={closeChatButton} onclick={closeStationChat} aria-label={$t('common.close', { default: 'Close' })}>
           <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="station-chat-panel__body">
-        <ChatPane />
+        {#if stationRoom}
+          <ChatPane fixedRoom={stationRoom} />
+        {:else if chatLoading}
+          <p role="status">{$t('stationView.chatLoading')}</p>
+        {:else}
+          <p role="alert">{$t('stationView.chatUnavailable')}</p>
+          <button class="btn btn-outline" onclick={openStationChat}>{$t('common.retry')}</button>
+        {/if}
       </div>
     </div>
-  </div>
+  </aside>
 {/if}
 
 <!-- Block Order Modal -->
@@ -1220,7 +1265,8 @@
 
   .station-chat-panel__body {
     flex: 1;
-    overflow: hidden;
+    min-height: 0;
+    overflow: auto;
     display: flex;
     flex-direction: column;
   }

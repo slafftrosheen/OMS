@@ -156,8 +156,8 @@ test('Telegram creates a private QR link, links, pauses, resumes and disconnects
   await page.goto('/calendar-notifications.html?surface=telegram');
   await page.getByRole('button', { name: 'Connect Telegram', exact: true }).click();
   await expect(page.getByRole('img', { name: /QR code/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open Telegram' })).toHaveAttribute('href', /https:\/\/t\.me\/OMS_test_bot\?start=/);
-  await expect(page.getByRole('link', { name: 'Open Telegram' })).toBeFocused();
+  await expect(page.getByRole('link', { name: 'Open Telegram app', exact:true })).toHaveAttribute('href', /https:\/\/t\.me\/OMS_test_bot\?start=/);
+  await expect(page.getByRole('link', { name: 'Open Telegram Web', exact:true })).toBeFocused();
   status = { ...status, connected: true, enabled: true, username: 'my_phone', linkedAt: `${day}T12:00:00Z`, pendingUntil: null };
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'connected');
@@ -215,7 +215,7 @@ test('Telegram checks the final server state when a successful link crosses its 
   });
   await page.goto('/calendar-notifications.html?surface=telegram');
   await page.getByRole('button', { name: 'Connect Telegram', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'Open Telegram' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open Telegram app', exact:true })).toBeVisible();
   status = { ...status, connected: true, enabled: true, username: 'last_second_link', pendingUntil: null };
   await page.clock.setFixedTime(new Date('2026-10-22T12:10:01Z'));
   await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'connected', { timeout: 10000 });
@@ -257,4 +257,25 @@ test('Telegram connected settings reflow in translated phone layouts and all the
     await expect(page.locator('.telegram-settings')).not.toContainText('settings.telegram.');
   }
   await page.screenshot({ path: '/tmp/oms-telegram-320.png', fullPage: true });
+});
+
+test('review alerts identify their order in the bell and survive an empty inbox filter', async ({ page }) => {
+  const id = orderId(2);
+  const notice = {id:orderId(8),user_id:user.id,title:'Draft submitted',message:'PO-1002 · Reception sign',
+    notification_type:'order_pending_review',source_type:'order',source_id:id,link:`/orders/${id}`,
+    created_at:`${day}T10:00:00Z`,is_read:false,is_dismissed:false};
+  await page.routeWebSocket(/\/realtime\/v1\//, socket => socket.onMessage(() => {}));
+  await page.route('**/rest/v1/notifications?*', route => route.fulfill({json:[notice]}));
+  await page.goto('/calendar-notifications.html?surface=inbox');
+  const destination = `/orders/review?order=${id}`;
+  await expect(page.getByRole('link', {name:notice.title})).toHaveAttribute('href', destination);
+  await page.getByRole('button', {name:/^Notifications \(1\)$/}).click();
+  const item = page.getByRole('menuitem').filter({hasText:notice.title});
+  await expect(item).toContainText(notice.message);
+  await expect(item).toHaveAttribute('href', destination);
+  await item.press('Escape');
+  await page.locator('.notif-type-select').selectOption('chat');
+  await expect(page.getByText('No notifications match these filters.')).toBeVisible();
+  await page.getByRole('button', {name:'Clear filters'}).click();
+  await expect(page.getByRole('link', {name:notice.title})).toBeVisible();
 });

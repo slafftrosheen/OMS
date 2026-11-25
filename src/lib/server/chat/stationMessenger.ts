@@ -7,19 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const STAGE_TO_ROOM: Record<string, string> = {
-    CAD: 'station-cad',
-    CNC: 'station-cnc',
-    EDGE: 'station-edge',
-    ASSEMBLY: 'station-assembly',
-    PAINT: 'station-paint',
-    PACKAGING: 'station-packaging',
-    DELIVERY: 'station-delivery',
-};
-
-export function stationRoomFor(station: string): string | null {
-    return STAGE_TO_ROOM[station.toUpperCase()] ?? null;
-}
+import { stationRoomFor } from '../../order/workflow';
 
 export interface StationMessage {
     station: string;        // e.g. "CNC"

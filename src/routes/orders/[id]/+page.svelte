@@ -2,8 +2,8 @@
 <script lang="ts">
     import { page } from "$app/state";
     import { base } from "$app/paths";
-    import { goto } from "$app/navigation";
-    import { onDestroy, untrack } from "svelte";
+    import { goto, pushState } from "$app/navigation";
+    import { onDestroy, tick, untrack } from "svelte";
     import { getAssistantContext, GENERAL_ASSISTANT_TOOL } from '$lib/assistant/context';
     import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
@@ -20,7 +20,7 @@
     import { AlertTriangle, LockKeyhole } from 'lucide-svelte';
     import {fetchOrderFilesCount} from "$lib/order/order-files-client";
     import {
-      workspaceUrl, stageProgressPercent, stageProgressSummary, mayControlStage
+      workspaceUrl, orderReviewUrl, orderDetailTab, stageProgressPercent, stageProgressSummary, mayControlStage
     } from "$lib/order/workspace-navigation";
 
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
@@ -98,13 +98,10 @@
     });
     function runFlowAction(action:'edit'|'review'|'stages'|'dispatch'|'archive'){
       if(action==='edit')void goto(base + workspaceUrl(orderId,'details'));
-      else if(action==='review')void goto(`${base}/orders/review`);
+      else if(action==='review')void goto(base + orderReviewUrl(orderId));
       else if(action==='dispatch')dispatchOrder();
       else if(action==='archive')archiveOrder();
-      else {
-        activeTab='stages';
-        requestAnimationFrame(()=>document.querySelector('.stages-grid')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}));
-      }
+      else selectOrderTab('stages');
     }
     let mayAskOrderAssistant=$derived(!!$currentUser&&currentOrderVisible&&(
       (['RD','Boss','HeadOfProduction'].includes($currentUser.role??'')&&
@@ -116,7 +113,31 @@
     let fileCount: number | null = $state(null);
     let loading = $state(true);
     let showQRModal = $state(false);
-    let activeTab = $state("stages");
+    const linkedTab = $derived(orderDetailTab(page.state.orderTab ?? page.url.searchParams.get('tab')));
+    const activeTab = $derived(linkedTab ?? 'stages');
+    let supportingWork = $state<HTMLElement>();
+
+    function focusOrderTab() {
+      const tab = supportingWork?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
+      tab?.focus({preventScroll:true});
+      tab?.scrollIntoView({block:'nearest', inline:'nearest'});
+    }
+    function selectOrderTab(value: string) {
+      const tab = orderDetailTab(value);
+      if (!tab) return;
+      if (tab === linkedTab) { focusOrderTab(); return; }
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      url.hash = '';
+      pushState(url, {...page.state, orderTab:tab});
+    }
+    // Notification links can arrive before the saved specification has loaded.
+    $effect(() => {
+      if (!linkedTab || !supportingWork) return;
+      let current = true;
+      void tick().then(() => { if (current) focusOrderTab(); });
+      return () => { current = false; };
+    });
 
     let tabs = $derived([
         { id: "stages",       label: $t("orderDetail.tabs.stages") },
@@ -383,7 +404,6 @@
         orderId;
         ownerKey;
         untrack(() => {
-          activeTab = 'stages';
           showQRModal = false;
           voidModal = false;
           confirmModal = { open: false, title: '', body: '', action: async () => {} };
@@ -437,7 +457,7 @@
                       default: 'This draft is awaiting Head of Production review and PO assignment.',
                     })}
                 </span>
-                <Button variant="primary" onclick={() => goto(`${base}/orders/review`)}>
+                <Button variant="primary" onclick={() => goto(base + orderReviewUrl(orderId))}>
                     {$t('orderDetail.go_to_review', { default: 'Go to review queue' })}
                 </Button>
             </div>
@@ -568,7 +588,7 @@
           </section>
         {/if}
 
-        <section class="supporting-work" aria-label={$t('orderSheet.supportTitle')}>
+        <section bind:this={supportingWork} class="supporting-work" aria-label={$t('orderSheet.supportTitle')}>
           <header class="supporting-heading">
             <div><h2>{$t('orderSheet.supportTitle')}</h2><p>{$t('orderSheet.supportHint')}</p></div>
             <div class="workspace-entry-links">
@@ -585,7 +605,7 @@
               {/if}
             </div>
           </header>
-          <Tabs {tabs} bind:activeTab>
+          <Tabs {tabs} {activeTab} label={$t('orderSheet.supportTitle')} onchange={({ tab }) => selectOrderTab(tab)}>
             {#if activeTab === "stages"}
                 <div class="tab-content">
                     <Card title={$t("orderDetail.tabs.stages")} padding="lg">

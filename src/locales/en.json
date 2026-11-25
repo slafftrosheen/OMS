@@ -88,6 +88,8 @@
   },
   "orders": {
     "review": {
+      "allDrafts": "All drafts awaiting review",
+      "noLongerQueued": "This order is no longer in the review queue.",
       "rejected": "Order rejected",
       "rejectFailed": "Could not reject the order. Please try again.",
       "title": "Review queue",
@@ -1014,6 +1016,8 @@
     "electronics": "Electronics"
   },
   "notifications": {
+    "noMatches": "No notifications match these filters.",
+    "resetFilters": "Clear filters",
     "title": "Notifications",
     "empty": "No notifications yet.",
     "loading": "Loading notifications…",
@@ -2918,6 +2922,9 @@
     "station_head_title": "Station Head for this station"
   },
   "stationView": {
+    "station_chat": "Station chat",
+    "chatLoading": "Opening station chat…",
+    "chatUnavailable": "Could not open this station’s chat.",
     "readyForDispatch": "Production is ready. Assign loading and dispatch from the order or calendar.",
     "loadingCalendar": "Loading calendar",
     "workstation": "Workstation",

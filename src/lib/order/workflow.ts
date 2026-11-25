@@ -12,3 +12,7 @@ export const ALL_STATIONS: readonly string[] = [...WORKFLOW_STATIONS, ...EXTRA_S
 export function isKnownStation(code: string): boolean {
   return ALL_STATIONS.includes(code.trim().toUpperCase());
 }
+
+export function stationRoomFor(code: string): string | null {
+  return isKnownStation(code) ? `station-${code.trim().toLowerCase()}` : null;
+}

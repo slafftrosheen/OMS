@@ -226,7 +226,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       const url=new URL(window.location.href);
       if(url.searchParams.get('section')!==section){
         url.searchParams.set('section',section);
-        pushState(url.pathname+url.search,{});
+        pushState(url.pathname+url.search,{...page.state,orderSection:section});
       }
     }
   }
@@ -260,7 +260,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // Restore the workspace section when browser Back/Forward navigates through
   // SvelteKit shallow-history entries. Switching sections does not discard forms.
   $effect(() => {
-    const linked=sectionFromQuery(page.url.searchParams.get('section'));
+    const linked=sectionFromQuery(page.state.orderSection ?? page.url.searchParams.get('section'));
     // Depend only on the URL, not on the local selection being changed.
     untrack(() => {
       if (assistantSections[linked]) {
